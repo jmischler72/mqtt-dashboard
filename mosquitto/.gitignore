@@ -1,0 +1,2 @@
+# Mosquitto runtime logs
+log/*.log
