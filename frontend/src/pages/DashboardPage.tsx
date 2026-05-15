@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactGridLayout from 'react-grid-layout'
-const { WidthProvider } = ReactGridLayout as any
-type GridLayout = { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const RGL = ReactGridLayout as any
 import { api } from '../api/client'
 import PanelWrapper from '../components/PanelWrapper'
 
-const GridLayout = WidthProvider(ReactGridLayout)
+type GridLayout = { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }
 
 export interface Panel {
     id: string
@@ -28,7 +28,17 @@ const PANEL_TYPES = [
 export default function DashboardPage() {
     const [panels, setPanels] = useState<Panel[]>([])
     const [editMode, setEditMode] = useState(false)
+    const [gridWidth, setGridWidth] = useState(1200)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const el = containerRef.current
+        if (!el) return
+        const obs = new ResizeObserver(([entry]) => setGridWidth(entry.contentRect.width))
+        obs.observe(el)
+        return () => obs.disconnect()
+    }, [])
 
     useEffect(() => {
         api.get<Panel[]>('/api/layouts').then(setPanels).catch(() => { })
@@ -95,7 +105,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Grid */}
-            <div className="p-4">
+            <div className="p-4" ref={containerRef}>
                 {panels.length === 0 ? (
                     <div className="flex items-center justify-center h-64 text-base-content/40">
                         <div className="text-center">
@@ -104,7 +114,8 @@ export default function DashboardPage() {
                         </div>
                     </div>
                 ) : (
-                    <GridLayout
+                    <RGL
+                        width={gridWidth}
                         layout={layout}
                         cols={12}
                         rowHeight={60}
@@ -126,7 +137,7 @@ export default function DashboardPage() {
                                 />
                             </div>
                         ))}
-                    </GridLayout>
+                    </RGL>
                 )}
             </div>
         </div>
