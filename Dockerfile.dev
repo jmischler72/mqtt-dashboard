@@ -1,0 +1,22 @@
+FROM golang:1.26-alpine AS base
+
+RUN apk add --no-cache git curl nodejs npm
+
+# Install air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+# Copy go mod files and download deps
+COPY backend/go.mod backend/go.sum ./backend/
+RUN cd backend && go mod download
+
+# Copy frontend package files and install
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci
+
+COPY . .
+
+EXPOSE 8080 5173
+
+CMD ["sh", "-c", "cd frontend && npm run dev -- --host & cd backend && air"]

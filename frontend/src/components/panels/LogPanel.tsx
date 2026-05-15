@@ -1,0 +1,126 @@
+import { useState, useEffect, useRef } from 'react'
+import { useWebSocket } from '../../hooks/useWebSocket'
+
+interface LogMessage {
+    timestamp: string
+    topic: string
+    payload: string
+}
+
+interface LogConfig {
+    topics?: string
+    maxMessages?: number
+}
+
+interface Props {
+    config: LogConfig
+    onSave: (cfg: LogConfig) => void
+    onClose: () => void
+}
+
+export function LogConfigModal({ config, onSave, onClose }: Props) {
+    const [topics, setTopics] = useState(config.topics ?? '')
+    const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200)
+
+    return (
+        <dialog className="modal modal-open">
+            <div className="modal-box">
+                <h3 className="font-bold text-lg mb-4">Log Configuration</h3>
+                <div className="flex flex-col gap-3">
+                    <label className="form-control">
+                        <span className="label-text mb-1">Subscription Topics (comma-separated, wildcards OK)</span>
+                        <textarea
+                            className="textarea textarea-bordered font-mono"
+                            rows={3}
+                            placeholder="sensors/#, home/+/status"
+                            value={topics}
+                            onChange={(e) => setTopics(e.target.value)}
+                        />
+                    </label>
+                    <label className="form-control">
+                        <span className="label-text mb-1">Max Messages</span>
+                        <input
+                            className="input input-bordered"
+                            type="number"
+                            min={1}
+                            max={1000}
+                            value={maxMessages}
+                            onChange={(e) => setMaxMessages(Number(e.target.value))}
+                        />
+                    </label>
+                </div>
+                <div className="modal-action">
+                    <button className="btn" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-primary" onClick={() => onSave({ topics, maxMessages })}>Save</button>
+                </div>
+            </div>
+            <div className="modal-backdrop" onClick={onClose} />
+        </dialog>
+    )
+}
+
+interface LogPanelProps {
+    panelId: string
+    config: LogConfig
+}
+
+export default function LogPanel({ panelId, config }: LogPanelProps) {
+    const [messages, setMessages] = useState<LogMessage[]>([])
+    const [paused, setPaused] = useState(false)
+    const bottomRef = useRef<HTMLDivElement>(null)
+    const maxMessages = config.maxMessages ?? 200
+    const pausedRef = useRef(paused)
+    pausedRef.current = paused
+
+    const { subscribe } = useWebSocket({
+        onMessage: (data) => {
+            if (pausedRef.current) return
+            try {
+                const msg = JSON.parse(data) as { topic: string; payload: string }
+                const entry: LogMessage = {
+                    timestamp: new Date().toLocaleTimeString(),
+                    topic: msg.topic,
+                    payload: msg.payload,
+                }
+                setMessages((prev) => {
+                    const next = [...prev, entry]
+                    return next.length > maxMessages ? next.slice(next.length - maxMessages) : next
+                })
+            } catch { }
+        },
+    })
+
+    useEffect(() => {
+        if (!config.topics) return
+        const topicList = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
+        subscribe({ panel_id: panelId, topics: topicList })
+    }, [panelId, config.topics, subscribe])
+
+    useEffect(() => {
+        if (!paused) {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }
+    }, [messages, paused])
+
+    return (
+        <div className="flex flex-col h-full">
+            <div className="flex gap-2 px-1 pb-1">
+                <button className="btn btn-xs" onClick={() => setMessages([])}>Clear</button>
+                <button className={`btn btn-xs ${paused ? 'btn-warning' : ''}`} onClick={() => setPaused((p) => !p)}>
+                    {paused ? 'Resume' : 'Pause'}
+                </button>
+                <span className="text-xs text-base-content/50 ml-auto self-center">{messages.length} msgs</span>
+            </div>
+            <div className="flex-1 overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5">
+                {messages.map((m, i) => (
+                    <div key={i} className="leading-tight">
+                        <span className="text-base-content/40">[{m.timestamp}]</span>{' '}
+                        <span className="text-accent">{m.topic}</span>{' '}
+                        <span>{m.payload}</span>
+                    </div>
+                ))}
+                <div ref={bottomRef} />
+            </div>
+        </div>
+    )
+}
