@@ -10,6 +10,7 @@ interface LogMessage {
 interface LogConfig {
     topics?: string
     maxMessages?: number
+    dateFormat?: 'time' | 'full'
 }
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
 export function LogConfigModal({ config, onSave, onClose }: Props) {
     const [topics, setTopics] = useState(config.topics ?? '')
     const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200)
+    const [dateFormat, setDateFormat] = useState<'time' | 'full'>(config.dateFormat ?? 'time')
 
     return (
         <dialog className="modal modal-open">
@@ -48,15 +50,34 @@ export function LogConfigModal({ config, onSave, onClose }: Props) {
                             onChange={(e) => setMaxMessages(Number(e.target.value))}
                         />
                     </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Timestamp Format</legend>
+                        <select
+                            className="select select-bordered w-full"
+                            value={dateFormat}
+                            onChange={(e) => setDateFormat(e.target.value as 'time' | 'full')}
+                        >
+                            <option value="time">Time only (current)</option>
+                            <option value="full">Full date and time</option>
+                        </select>
+                    </fieldset>
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave({ topics, maxMessages })}>Save</button>
+                    <button className="btn btn-primary" onClick={() => onSave({ topics, maxMessages, dateFormat })}>Save</button>
                 </div>
             </div>
             <div className="modal-backdrop" onClick={onClose} />
         </dialog>
     )
+}
+
+function formatTimestamp(date: Date, format: 'time' | 'full') {
+    if (format === 'full') {
+        return date.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'medium' })
+    }
+
+    return date.toLocaleTimeString()
 }
 
 interface LogPanelProps {
@@ -71,6 +92,7 @@ export default function LogPanel({ panelId, config }: LogPanelProps) {
     const prevLengthRef = useRef(0)
     const shouldAutoScrollRef = useRef(true)
     const maxMessages = config.maxMessages ?? 200
+    const dateFormat = config.dateFormat ?? 'time'
     const pausedRef = useRef(paused)
     pausedRef.current = paused
 
@@ -80,7 +102,7 @@ export default function LogPanel({ panelId, config }: LogPanelProps) {
             try {
                 const msg = JSON.parse(data) as { topic: string; payload: string }
                 const entry: LogMessage = {
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: formatTimestamp(new Date(), dateFormat),
                     topic: msg.topic,
                     payload: msg.payload,
                 }
