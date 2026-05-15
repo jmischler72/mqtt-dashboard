@@ -13,6 +13,7 @@ const dotColor: Record<Status, string> = {
 
 export default function Layout() {
     const [status, setStatus] = useState<Status>('DISCONNECTED')
+    const [editMode, setEditMode] = useState(false)
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     useEffect(() => {
@@ -29,12 +30,18 @@ export default function Layout() {
                 <NavLink to="/dashboard" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Dashboard</NavLink>
                 <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Config</NavLink>
                 <div className="ml-auto flex items-center gap-2">
+                    <button
+                        className={`btn btn-sm ${editMode ? 'btn-warning' : 'btn-outline'}`}
+                        onClick={() => setEditMode((prev) => !prev)}
+                    >
+                        {editMode ? 'Edit: ON' : 'Edit: OFF'}
+                    </button>
                     <span className={`w-2.5 h-2.5 rounded-full ${dotColor[status]}`} />
                     <span className="text-xs text-base-content/60">{status}</span>
                 </div>
             </nav>
             <main className="flex-1">
-                <Outlet />
+                <Outlet context={{ editMode, setEditMode }} />
             </main>
         </div>
     )

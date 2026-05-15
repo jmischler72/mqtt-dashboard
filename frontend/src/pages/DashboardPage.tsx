@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactGridLayout from 'react-grid-layout'
+import { useOutletContext } from 'react-router-dom'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const RGL = ReactGridLayout as any
 import { api } from '../api/client'
@@ -25,15 +26,20 @@ const PANEL_TYPES = [
     { value: 'cron', label: 'Cron' },
 ]
 
+type LayoutContext = {
+    editMode: boolean
+    setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+}
+
 export default function DashboardPage() {
     const [panels, setPanels] = useState<Panel[]>([])
     const [isLoadingLayout, setIsLoadingLayout] = useState(true)
-    const [editMode, setEditMode] = useState(false)
     const [gridWidth, setGridWidth] = useState(1200)
     const [addMenuOpen, setAddMenuOpen] = useState(false)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const addMenuRef = useRef<HTMLDivElement>(null)
+    const { editMode } = useOutletContext<LayoutContext>()
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -117,31 +123,28 @@ export default function DashboardPage() {
 
     return (
         <div className="min-h-screen bg-base-200">
-            {/* Toolbar */}
-            <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
-                <div className="relative" ref={addMenuRef}>
-                    <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => setAddMenuOpen((o) => !o)}
-                        disabled={isLoadingLayout}
-                    >
-                        {isLoadingLayout ? 'Loading layout...' : '+ Add Panel'}
-                    </button>
-                    {addMenuOpen && !isLoadingLayout && (
-                        <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
-                            {PANEL_TYPES.map((t) => (
-                                <li key={t.value}>
-                                    <button className="w-full text-left px-3 py-2 hover:bg-base-200 rounded" onClick={() => addPanel(t.value)}>{t.label}</button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+            {editMode && (
+                <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
+                    <div className="relative" ref={addMenuRef}>
+                        <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => setAddMenuOpen((o) => !o)}
+                            disabled={isLoadingLayout}
+                        >
+                            {isLoadingLayout ? 'Loading layout...' : '+ Add Panel'}
+                        </button>
+                        {addMenuOpen && !isLoadingLayout && (
+                            <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
+                                {PANEL_TYPES.map((t) => (
+                                    <li key={t.value}>
+                                        <button className="w-full text-left px-3 py-2 hover:bg-base-200 rounded" onClick={() => addPanel(t.value)}>{t.label}</button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer ml-auto">
-                    <span className="text-sm">{editMode ? '🔓 Edit Mode' : '🔒 Locked'}</span>
-                    <input type="checkbox" className="toggle toggle-sm toggle-primary" checked={editMode} onChange={(e) => setEditMode(e.target.checked)} />
-                </label>
-            </div>
+            )}
 
             {/* Grid */}
             <div className="p-4" ref={containerRef}>
@@ -156,7 +159,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-center h-64 text-base-content/40">
                         <div className="text-center">
                             <p className="text-2xl mb-2">No panels yet</p>
-                            <p>Click "+ Add Panel" to get started</p>
+                            <p>{editMode ? 'Click "+ Add Panel" to get started' : 'Toggle Edit: ON in the navbar to add panels'}</p>
                         </div>
                     </div>
                 ) : (
