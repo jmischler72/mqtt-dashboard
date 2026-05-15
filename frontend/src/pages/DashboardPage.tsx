@@ -29,8 +29,20 @@ export default function DashboardPage() {
     const [panels, setPanels] = useState<Panel[]>([])
     const [editMode, setEditMode] = useState(false)
     const [gridWidth, setGridWidth] = useState(1200)
+    const [addMenuOpen, setAddMenuOpen] = useState(false)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const addMenuRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+                setAddMenuOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
 
     useEffect(() => {
         const el = containerRef.current
@@ -69,6 +81,7 @@ export default function DashboardPage() {
     }, [])
 
     const addPanel = async (panelType: string) => {
+        setAddMenuOpen(false)
         try {
             const panel = await api.post<Panel>('/api/layouts', {
                 panel_type: panelType,
@@ -90,13 +103,17 @@ export default function DashboardPage() {
         <div className="min-h-screen bg-base-200">
             {/* Toolbar */}
             <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
-                <div className="dropdown">
-                    <button className="btn btn-sm btn-primary">+ Add Panel</button>
-                    <ul className="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow">
-                        {PANEL_TYPES.map((t) => (
-                            <li key={t.value}><a onClick={() => addPanel(t.value)}>{t.label}</a></li>
-                        ))}
-                    </ul>
+                <div className="relative" ref={addMenuRef}>
+                    <button className="btn btn-sm btn-primary" onClick={() => setAddMenuOpen((o) => !o)}>+ Add Panel</button>
+                    {addMenuOpen && (
+                        <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
+                            {PANEL_TYPES.map((t) => (
+                                <li key={t.value}>
+                                    <button className="w-full text-left px-3 py-2 hover:bg-base-200 rounded" onClick={() => addPanel(t.value)}>{t.label}</button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer ml-auto">
                     <span className="text-sm">{editMode ? '🔓 Edit Mode' : '🔒 Locked'}</span>
