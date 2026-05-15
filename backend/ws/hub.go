@@ -36,6 +36,8 @@ type Hub struct {
 
 	// topic → list of clientIDs
 	topicClients map[string]map[string]struct{}
+	// topic -> stable MQTT handler reference
+	topicHandlers map[string]mqttclient.MessageHandler
 }
 
 func NewHub(mqtt *mqttclient.MQTTManager) *Hub {
@@ -43,6 +45,7 @@ func NewHub(mqtt *mqttclient.MQTTManager) *Hub {
 		clients:      make(map[string]*Client),
 		mqtt:         mqtt,
 		topicClients: make(map[string]map[string]struct{}),
+		topicHandlers: make(map[string]mqttclient.MessageHandler),
 	}
 }
 
@@ -79,7 +82,10 @@ func (h *Hub) Subscribe(c *Client, topics []string) {
 			h.topicClients[topic] = make(map[string]struct{})
 			// Subscribe to MQTT only once per unique topic
 			t := topic // capture
-			if err := h.mqtt.Subscribe(t, h.buildMQTTHandler(t)); err != nil {
+			handler := h.buildMQTTHandler(t)
+			h.topicHandlers[t] = handler
+			if err := h.mqtt.Subscribe(t, handler); err != nil {
+				delete(h.topicHandlers, t)
 				log.Printf("ws: subscribe mqtt topic %q: %v", t, err)
 			}
 		}
@@ -123,7 +129,10 @@ func (h *Hub) removeTopicClient(topic, clientID string) {
 		if len(cids) == 0 {
 			delete(h.topicClients, topic)
 			// Unsubscribe from MQTT when no clients remain
-			h.mqtt.Unsubscribe(topic, h.buildMQTTHandler(topic))
+			if handler, ok := h.topicHandlers[topic]; ok {
+				h.mqtt.Unsubscribe(topic, handler)
+				delete(h.topicHandlers, topic)
+			}
 		}
 	}
 }

@@ -140,22 +140,15 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 	return nil
 }
 
-func (m *MQTTManager) Unsubscribe(topic string, handler MessageHandler) {
+func (m *MQTTManager) Unsubscribe(topic string, _ MessageHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	handlers := m.subs[topic]
-	for i, h := range handlers {
-		// Compare by pointer
-		if fmt.Sprintf("%p", h) == fmt.Sprintf("%p", handler) {
-			m.subs[topic] = append(handlers[:i], handlers[i+1:]...)
-			break
-		}
-	}
-	if len(m.subs[topic]) == 0 {
-		delete(m.subs, topic)
-		if m.client != nil && m.client.IsConnected() {
-			m.client.Unsubscribe(topic) //nolint
-		}
+
+	// This dashboard uses one effective handler per topic; clear the topic atomically
+	// to avoid stale handlers when clients reconnect/resubscribe.
+	delete(m.subs, topic)
+	if m.client != nil && m.client.IsConnected() {
+		m.client.Unsubscribe(topic) //nolint
 	}
 }
 
