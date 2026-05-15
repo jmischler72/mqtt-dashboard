@@ -46,7 +46,7 @@ export function CronConfigModal({ config, onSave, onClose }: Props) {
 
     return (
         <dialog className="modal modal-open">
-            <div className="modal-box">
+            <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Cron Configuration</h3>
                 <div className="flex flex-col gap-3">
                     <label className="form-control">

@@ -24,7 +24,7 @@ export function LogConfigModal({ config, onSave, onClose }: Props) {
 
     return (
         <dialog className="modal modal-open">
-            <div className="modal-box">
+            <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Log Configuration</h3>
                 <div className="flex flex-col gap-3">
                     <label className="form-control">
@@ -67,7 +67,9 @@ interface LogPanelProps {
 export default function LogPanel({ panelId, config }: LogPanelProps) {
     const [messages, setMessages] = useState<LogMessage[]>([])
     const [paused, setPaused] = useState(false)
-    const bottomRef = useRef<HTMLDivElement>(null)
+    const logContainerRef = useRef<HTMLDivElement>(null)
+    const prevLengthRef = useRef(0)
+    const shouldAutoScrollRef = useRef(true)
     const maxMessages = config.maxMessages ?? 200
     const pausedRef = useRef(paused)
     pausedRef.current = paused
@@ -97,10 +99,22 @@ export default function LogPanel({ panelId, config }: LogPanelProps) {
     }, [panelId, config.topics, subscribe])
 
     useEffect(() => {
-        if (!paused) {
-            bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-        }
-    }, [messages, paused])
+        const el = logContainerRef.current
+        if (!el) return
+
+        const wasAppended = messages.length > prevLengthRef.current
+        prevLengthRef.current = messages.length
+
+        if (!wasAppended || paused || !shouldAutoScrollRef.current) return
+        el.scrollTop = el.scrollHeight
+    }, [messages.length, paused])
+
+    const handleLogScroll = () => {
+        const el = logContainerRef.current
+        if (!el) return
+        const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+        shouldAutoScrollRef.current = distanceToBottom <= 24
+    }
 
     return (
         <div className="flex flex-col h-full">
@@ -111,7 +125,11 @@ export default function LogPanel({ panelId, config }: LogPanelProps) {
                 </button>
                 <span className="text-xs text-base-content/50 ml-auto self-center">{messages.length} msgs</span>
             </div>
-            <div className="flex-1 overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5">
+            <div
+                ref={logContainerRef}
+                onScroll={handleLogScroll}
+                className="flex-1 overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5"
+            >
                 {messages.map((m, i) => (
                     <div key={i} className="leading-tight">
                         <span className="text-base-content/40">[{m.timestamp}]</span>{' '}
@@ -119,7 +137,6 @@ export default function LogPanel({ panelId, config }: LogPanelProps) {
                         <span>{m.payload}</span>
                     </div>
                 ))}
-                <div ref={bottomRef} />
             </div>
         </div>
     )
