@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ButtonPanel, { ButtonConfigModal } from './panels/ButtonPanel'
 import InputPanel, { InputConfigModal } from './panels/InputPanel'
 import LogPanel, { LogConfigModal } from './panels/LogPanel'
@@ -17,6 +17,14 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
     const [showConfig, setShowConfig] = useState(false)
     const [title, setTitle] = useState(panel.title)
     const [editingTitle, setEditingTitle] = useState(false)
+    const panelRef = useRef<HTMLDivElement>(null)
+    const openConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (openConfigTimeoutRef.current) clearTimeout(openConfigTimeoutRef.current)
+        }
+    }, [])
 
     const saveTitle = async () => {
         setEditingTitle(false)
@@ -49,6 +57,35 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
         } catch { }
     }
 
+    const handleOpenConfig = () => {
+        const panelEl = panelRef.current
+        if (!panelEl) {
+            setShowConfig(true)
+            return
+        }
+
+        if (openConfigTimeoutRef.current) {
+            clearTimeout(openConfigTimeoutRef.current)
+            openConfigTimeoutRef.current = null
+        }
+
+        const rect = panelEl.getBoundingClientRect()
+        const margin = 24
+        const outOfView = rect.top < margin || rect.bottom > window.innerHeight - margin
+
+        if (!outOfView) {
+            setShowConfig(true)
+            return
+        }
+
+        panelEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+
+        openConfigTimeoutRef.current = setTimeout(() => {
+            setShowConfig(true)
+            openConfigTimeoutRef.current = null
+        }, 280)
+    }
+
     const renderPanel = () => {
         const cfg = panel.config_json ?? {}
         switch (panel.panel_type) {
@@ -68,22 +105,29 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
     const renderConfigModal = () => {
         if (!showConfig) return null
         const cfg = panel.config_json ?? {}
+        let modal = null
         switch (panel.panel_type) {
             case 'button':
-                return <ButtonConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = <ButtonConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                break
             case 'input':
-                return <InputConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = <InputConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                break
             case 'log':
-                return <LogConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = <LogConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                break
             case 'cron':
-                return <CronConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = <CronConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                break
             default:
                 return null
         }
+
+        return modal
     }
 
     return (
-        <div className="flex flex-col h-full bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
+        <div ref={panelRef} className="flex flex-col h-full bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
             {/* Header */}
             <div className="flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem]">
                 {editingTitle ? (
@@ -108,7 +152,7 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
                         <button
                             className="btn btn-ghost btn-xs"
                             title="Configure"
-                            onClick={() => setShowConfig(true)}
+                            onClick={handleOpenConfig}
                         >
                             ⚙
                         </button>
