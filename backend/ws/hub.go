@@ -42,9 +42,9 @@ type Hub struct {
 
 func NewHub(mqtt *mqttclient.MQTTManager) *Hub {
 	return &Hub{
-		clients:      make(map[string]*Client),
-		mqtt:         mqtt,
-		topicClients: make(map[string]map[string]struct{}),
+		clients:       make(map[string]*Client),
+		mqtt:          mqtt,
+		topicClients:  make(map[string]map[string]struct{}),
 		topicHandlers: make(map[string]mqttclient.MessageHandler),
 	}
 }

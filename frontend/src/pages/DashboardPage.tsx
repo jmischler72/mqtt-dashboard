@@ -27,6 +27,7 @@ const PANEL_TYPES = [
 
 export default function DashboardPage() {
     const [panels, setPanels] = useState<Panel[]>([])
+    const [isLoadingLayout, setIsLoadingLayout] = useState(true)
     const [editMode, setEditMode] = useState(false)
     const [gridWidth, setGridWidth] = useState(1200)
     const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -53,7 +54,21 @@ export default function DashboardPage() {
     }, [])
 
     useEffect(() => {
-        api.get<Panel[]>('/api/layouts').then(setPanels).catch(() => { })
+        let active = true
+
+        api.get<Panel[]>('/api/layouts')
+            .then((loadedPanels) => {
+                if (!active) return
+                setPanels(loadedPanels)
+            })
+            .catch(() => { })
+            .finally(() => {
+                if (active) setIsLoadingLayout(false)
+            })
+
+        return () => {
+            active = false
+        }
     }, [])
 
     const layout = panels.map((p) => ({
@@ -81,6 +96,7 @@ export default function DashboardPage() {
     }, [])
 
     const addPanel = async (panelType: string) => {
+        if (isLoadingLayout) return
         setAddMenuOpen(false)
         try {
             const panel = await api.post<Panel>('/api/layouts', {
@@ -104,8 +120,14 @@ export default function DashboardPage() {
             {/* Toolbar */}
             <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
                 <div className="relative" ref={addMenuRef}>
-                    <button className="btn btn-sm btn-primary" onClick={() => setAddMenuOpen((o) => !o)}>+ Add Panel</button>
-                    {addMenuOpen && (
+                    <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => setAddMenuOpen((o) => !o)}
+                        disabled={isLoadingLayout}
+                    >
+                        {isLoadingLayout ? 'Loading layout...' : '+ Add Panel'}
+                    </button>
+                    {addMenuOpen && !isLoadingLayout && (
                         <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
                             {PANEL_TYPES.map((t) => (
                                 <li key={t.value}>
@@ -123,7 +145,14 @@ export default function DashboardPage() {
 
             {/* Grid */}
             <div className="p-4" ref={containerRef}>
-                {panels.length === 0 ? (
+                {isLoadingLayout ? (
+                    <div className="flex items-center justify-center h-64 text-base-content/60">
+                        <div className="text-center">
+                            <span className="loading loading-spinner loading-lg mb-4" />
+                            <p className="text-xl">Loading dashboard layout...</p>
+                        </div>
+                    </div>
+                ) : panels.length === 0 ? (
                     <div className="flex items-center justify-center h-64 text-base-content/40">
                         <div className="text-center">
                             <p className="text-2xl mb-2">No panels yet</p>
