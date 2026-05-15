@@ -23,18 +23,18 @@ export function ButtonConfigModal({ config, onSave, onClose }: Props) {
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Button Configuration</h3>
                 <div className="flex flex-col gap-3">
-                    <label className="form-control">
-                        <span className="label-text mb-1">Button Label</span>
-                        <input className="input input-bordered" value={label} onChange={(e) => setLabel(e.target.value)} />
-                    </label>
-                    <label className="form-control">
-                        <span className="label-text mb-1">Topic</span>
-                        <input className="input input-bordered" placeholder="home/light/switch" value={topic} onChange={(e) => setTopic(e.target.value)} />
-                    </label>
-                    <label className="form-control">
-                        <span className="label-text mb-1">Payload</span>
-                        <textarea className="textarea textarea-bordered font-mono" rows={3} placeholder='{"action": "on"}' value={payload} onChange={(e) => setPayload(e.target.value)} />
-                    </label>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Button Label</legend>
+                        <input className="input input-bordered w-full" value={label} onChange={(e) => setLabel(e.target.value)} />
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Topic</legend>
+                        <input className="input input-bordered w-full" placeholder="home/light/switch" value={topic} onChange={(e) => setTopic(e.target.value)} />
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Payload</legend>
+                        <textarea className="textarea textarea-bordered w-full font-mono" rows={3} placeholder='{"action": "on"}' value={payload} onChange={(e) => setPayload(e.target.value)} />
+                    </fieldset>
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>

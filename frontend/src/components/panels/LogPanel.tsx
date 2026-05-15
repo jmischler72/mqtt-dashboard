@@ -27,27 +27,27 @@ export function LogConfigModal({ config, onSave, onClose }: Props) {
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Log Configuration</h3>
                 <div className="flex flex-col gap-3">
-                    <label className="form-control">
-                        <span className="label-text mb-1">Subscription Topics (comma-separated, wildcards OK)</span>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Subscription Topics (comma-separated, wildcards OK)</legend>
                         <textarea
-                            className="textarea textarea-bordered font-mono"
+                            className="textarea textarea-bordered w-full font-mono"
                             rows={3}
                             placeholder="sensors/#, home/+/status"
                             value={topics}
                             onChange={(e) => setTopics(e.target.value)}
                         />
-                    </label>
-                    <label className="form-control">
-                        <span className="label-text mb-1">Max Messages</span>
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Max Messages</legend>
                         <input
-                            className="input input-bordered"
+                            className="input input-bordered w-full"
                             type="number"
                             min={1}
                             max={1000}
                             value={maxMessages}
                             onChange={(e) => setMaxMessages(Number(e.target.value))}
                         />
-                    </label>
+                    </fieldset>
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>

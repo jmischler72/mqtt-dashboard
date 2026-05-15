@@ -49,36 +49,39 @@ export function CronConfigModal({ config, onSave, onClose }: Props) {
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Cron Configuration</h3>
                 <div className="flex flex-col gap-3">
-                    <label className="form-control">
-                        <span className="label-text mb-1">Schedule</span>
-                        <select className="select select-bordered" value={preset} onChange={(e) => setPreset(e.target.value)}>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Schedule</legend>
+                        <select className="select select-bordered w-full" value={preset} onChange={(e) => setPreset(e.target.value)}>
                             {PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                         </select>
-                    </label>
+                    </fieldset>
                     {isCustom && (
-                        <label className="form-control">
-                            <span className="label-text mb-1">Cron Expression (5 fields)</span>
-                            <input className="input input-bordered font-mono" placeholder="* * * * *" value={customExpr} onChange={(e) => setCustomExpr(e.target.value)} />
-                            <span className="text-xs text-base-content/50 mt-1">min hour day month weekday</span>
-                        </label>
+                        <fieldset className="fieldset">
+                            <legend className="fieldset-legend">Cron Expression (5 fields)</legend>
+                            <input className="input input-bordered w-full font-mono" placeholder="* * * * *" value={customExpr} onChange={(e) => setCustomExpr(e.target.value)} />
+                            <p className="fieldset-label">min hour day month weekday</p>
+                        </fieldset>
                     )}
                     {!isCustom && (
                         <div className="text-xs font-mono bg-base-200 rounded px-3 py-2">
                             Expression: <strong>{cronExpr}</strong>
                         </div>
                     )}
-                    <label className="form-control">
-                        <span className="label-text mb-1">Topic</span>
-                        <input className="input input-bordered" placeholder="home/trigger" value={topic} onChange={(e) => setTopic(e.target.value)} />
-                    </label>
-                    <label className="form-control">
-                        <span className="label-text mb-1">Payload</span>
-                        <textarea className="textarea textarea-bordered font-mono" rows={2} placeholder='{"ping": true}' value={payload} onChange={(e) => setPayload(e.target.value)} />
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                        <span className="label-text">Enabled</span>
-                        <input type="checkbox" className="toggle toggle-primary" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-                    </label>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Topic</legend>
+                        <input className="input input-bordered w-full" placeholder="home/trigger" value={topic} onChange={(e) => setTopic(e.target.value)} />
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Payload</legend>
+                        <textarea className="textarea textarea-bordered w-full font-mono" rows={2} placeholder='{"ping": true}' value={payload} onChange={(e) => setPayload(e.target.value)} />
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Enabled</legend>
+                        <label className="label cursor-pointer justify-start gap-3 px-0">
+                            <input type="checkbox" className="toggle toggle-primary" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+                            <span className="label-text">Run this schedule</span>
+                        </label>
+                    </fieldset>
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>

@@ -63,30 +63,30 @@ export default function ConfigPage() {
             </div>
 
             <div className="flex flex-col gap-4">
-                <label className="form-control">
-                    <span className="label-text font-medium mb-1">Broker Host</span>
-                    <input className="input input-bordered" placeholder="localhost" value={host} onChange={(e) => setHost(e.target.value)} />
-                </label>
+                <fieldset className="fieldset">
+                    <legend className="fieldset-legend">Broker Host</legend>
+                    <input className="input input-bordered w-full" placeholder="localhost" value={host} onChange={(e) => setHost(e.target.value)} />
+                </fieldset>
 
-                <label className="form-control">
-                    <span className="label-text font-medium mb-1">Port</span>
-                    <input className="input input-bordered" placeholder="1883" value={port} onChange={(e) => setPort(e.target.value)} />
-                </label>
+                <fieldset className="fieldset">
+                    <legend className="fieldset-legend">Port</legend>
+                    <input className="input input-bordered w-full" placeholder="1883" value={port} onChange={(e) => setPort(e.target.value)} />
+                </fieldset>
 
-                <label className="form-control">
-                    <span className="label-text font-medium mb-1">Client ID</span>
-                    <input className="input input-bordered" placeholder="mqtt-dashboard" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-                </label>
+                <fieldset className="fieldset">
+                    <legend className="fieldset-legend">Client ID</legend>
+                    <input className="input input-bordered w-full" placeholder="mqtt-dashboard" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                </fieldset>
 
-                <label className="form-control">
-                    <span className="label-text font-medium mb-1">Username (optional)</span>
-                    <input className="input input-bordered" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-                </label>
+                <fieldset className="fieldset">
+                    <legend className="fieldset-legend">Username (optional)</legend>
+                    <input className="input input-bordered w-full" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+                </fieldset>
 
-                <label className="form-control">
-                    <span className="label-text font-medium mb-1">Password (optional)</span>
-                    <input className="input input-bordered" type="password" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </label>
+                <fieldset className="fieldset">
+                    <legend className="fieldset-legend">Password (optional)</legend>
+                    <input className="input input-bordered w-full" type="password" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </fieldset>
 
                 <button className="btn btn-primary mt-2" onClick={handleSave} disabled={saving}>
                     {saving ? <span className="loading loading-spinner" /> : null}

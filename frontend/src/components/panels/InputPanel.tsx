@@ -23,18 +23,21 @@ export function InputConfigModal({ config, onSave, onClose }: Props) {
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Input Configuration</h3>
                 <div className="flex flex-col gap-3">
-                    <label className="form-control">
-                        <span className="label-text mb-1">Topic</span>
-                        <input className="input input-bordered" placeholder="home/sensor/cmd" value={topic} onChange={(e) => setTopic(e.target.value)} />
-                    </label>
-                    <label className="form-control">
-                        <span className="label-text mb-1">Placeholder text</span>
-                        <input className="input input-bordered" placeholder="Enter payload…" value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} />
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                        <span className="label-text">Multi-line / JSON mode</span>
-                        <input type="checkbox" className="toggle toggle-primary" checked={multiline} onChange={(e) => setMultiline(e.target.checked)} />
-                    </label>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Topic</legend>
+                        <input className="input input-bordered w-full" placeholder="home/sensor/cmd" value={topic} onChange={(e) => setTopic(e.target.value)} />
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Placeholder text</legend>
+                        <input className="input input-bordered w-full" placeholder="Enter payload…" value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} />
+                    </fieldset>
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Mode</legend>
+                        <label className="label cursor-pointer justify-start gap-3 px-0">
+                            <input type="checkbox" className="toggle toggle-primary" checked={multiline} onChange={(e) => setMultiline(e.target.checked)} />
+                            <span className="label-text">Multi-line / JSON mode</span>
+                        </label>
+                    </fieldset>
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>
