@@ -129,35 +129,37 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
     return (
         <div ref={panelRef} className="flex flex-col h-full bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem]">
+            <div className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem] ${editMode ? 'drag-handle cursor-grab active:cursor-grabbing' : ''}`}>
                 {editingTitle ? (
                     <input
                         autoFocus
-                        className="input input-xs flex-1 font-semibold"
+                        className="input input-xs flex-1 font-semibold no-drag"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         onBlur={saveTitle}
                         onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
                     />
                 ) : (
-                    <span
-                        className={`flex-1 font-semibold text-sm truncate ${editMode ? 'cursor-text' : ''}`}
-                        onDoubleClick={() => editMode && setEditingTitle(true)}
-                    >
-                        {title}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                        <span
+                            className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? 'cursor-text' : ''}`}
+                            onDoubleClick={() => editMode && setEditingTitle(true)}
+                        >
+                            {title}
+                        </span>
+                    </div>
                 )}
                 {editMode && (
-                    <div className="flex gap-1 shrink-0">
+                    <div className="flex gap-1 shrink-0 no-drag">
                         <button
-                            className="btn btn-ghost btn-xs"
+                            className="btn btn-ghost btn-xs no-drag"
                             title="Configure"
                             onClick={handleOpenConfig}
                         >
                             ⚙
                         </button>
                         <button
-                            className="btn btn-ghost btn-xs text-error"
+                            className="btn btn-ghost btn-xs text-error no-drag"
                             title="Delete"
                             onClick={handleDelete}
                         >

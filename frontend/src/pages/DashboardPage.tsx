@@ -85,6 +85,7 @@ export default function DashboardPage() {
         h: p.h,
         minW: 2,
         minH: 3,
+        static: !editMode,
     }))
 
     const handleLayoutChange = useCallback((newLayout: GridLayout[]) => {
@@ -172,12 +173,10 @@ export default function DashboardPage() {
                         isResizable={editMode}
                         onLayoutChange={handleLayoutChange}
                         draggableHandle=".drag-handle"
+                        draggableCancel=".no-drag"
                     >
                         {panels.map((panel) => (
                             <div key={panel.id}>
-                                {editMode && (
-                                    <div className="drag-handle absolute top-0 left-0 right-0 h-2 cursor-grab active:cursor-grabbing bg-primary/20 rounded-t z-10" />
-                                )}
                                 <PanelWrapper
                                     panel={panel}
                                     editMode={editMode}
