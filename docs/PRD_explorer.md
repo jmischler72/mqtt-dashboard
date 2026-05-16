@@ -12,7 +12,7 @@
 
 While the primary Dashboard page focuses on curated, static layouts for specific user widgets, the **Explorer Page** introduces an ad-hoc, deep-dive debugging interface inspired directly by *MQTT Explorer*.
 
-This feature turns Macchiato into a comprehensive message inspector by recursively mapping the full hierarchy of topics broadcast across the broker. Furthermore, it shifts the backend tracking from transient routing to stateful history logging, allowing developers to see what occurred on any topic over a rolling historical window (minimum 24 hours), even if their browser tab was closed.
+This feature turns mqtt-dashboard into a comprehensive message inspector by recursively mapping the full hierarchy of topics broadcast across the broker. Furthermore, it shifts the backend tracking from transient routing to stateful history logging, allowing developers to see what occurred on any topic over a rolling historical window (minimum 24 hours), even if their browser tab was closed.
 
 ---
 
