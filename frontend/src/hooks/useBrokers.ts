@@ -29,7 +29,7 @@ export function useBrokerStatuses() {
         const poll = () =>
             api.get<BrokerStatus[]>('/api/brokers/status')
                 .then(setStatuses)
-                .catch(() => {})
+                .catch(() => { })
 
         poll()
         pollRef.current = setInterval(poll, 3000)

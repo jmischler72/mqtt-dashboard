@@ -10,7 +10,6 @@ import (
 	mqttclient "mqtt-dashboard/mqtt"
 )
 
-
 type JobInfo struct {
 	PanelID    string    `json:"panel_id"`
 	BrokerID   string    `json:"broker_id"`
