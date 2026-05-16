@@ -54,6 +54,7 @@ func main() {
 	layoutH := handlers.NewLayoutHandler(database)
 	publishH := handlers.NewPublishHandler(mqttMgr)
 	cronH := handlers.NewCronHandler(database, scheduler)
+	dashboardH := handlers.NewDashboardHandler(database, scheduler)
 
 	// --- Router ---
 	r := chi.NewRouter()
@@ -78,6 +79,12 @@ func main() {
 	r.Put("/api/layouts/batch", layoutH.BatchUpdatePositions)
 	r.Put("/api/layouts/{id}", layoutH.UpdatePanel)
 	r.Delete("/api/layouts/{id}", layoutH.DeletePanel)
+
+	// Dashboards
+	r.Get("/api/dashboards", dashboardH.ListDashboards)
+	r.Post("/api/dashboards", dashboardH.CreateDashboard)
+	r.Put("/api/dashboards/{id}", dashboardH.RenameDashboard)
+	r.Delete("/api/dashboards/{id}", dashboardH.DeleteDashboard)
 
 	// Publish
 	r.Post("/api/publish", publishH.Publish)

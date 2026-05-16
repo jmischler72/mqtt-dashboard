@@ -20,7 +20,15 @@ func NewLayoutHandler(db *sql.DB) *LayoutHandler {
 }
 
 func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.db.Query(`SELECT id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts ORDER BY y, x`)
+	dashboardID := r.URL.Query().Get("dashboard_id")
+
+	var rows *sql.Rows
+	var err error
+	if dashboardID != "" {
+		rows, err = h.db.Query(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts WHERE dashboard_id = ? ORDER BY y, x`, dashboardID)
+	} else {
+		rows, err = h.db.Query(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts ORDER BY y, x`)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -31,7 +39,7 @@ func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p models.DashboardPanel
 		var cfgJSON string
-		if err := rows.Scan(&p.ID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON); err != nil {
+		if err := rows.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -45,8 +53,9 @@ func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
 
 func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title     string `json:"title"`
-		PanelType string `json:"panel_type"`
+		DashboardID string `json:"dashboard_id"`
+		Title       string `json:"title"`
+		PanelType   string `json:"panel_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -56,28 +65,33 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "panel_type is required", http.StatusBadRequest)
 		return
 	}
+	if req.DashboardID == "" {
+		http.Error(w, "dashboard_id is required", http.StatusBadRequest)
+		return
+	}
 	if req.Title == "" {
 		req.Title = "New Panel"
 	}
 
-	// Find max Y to place at bottom
+	// Find max Y within this dashboard to place at bottom
 	var maxY int
-	h.db.QueryRow(`SELECT COALESCE(MAX(y + h), 0) FROM dashboard_layouts`).Scan(&maxY) //nolint
+	h.db.QueryRow(`SELECT COALESCE(MAX(y + h), 0) FROM dashboard_layouts WHERE dashboard_id = ?`, req.DashboardID).Scan(&maxY) //nolint
 
 	panel := models.DashboardPanel{
-		ID:         uuid.New().String(),
-		Title:      req.Title,
-		PanelType:  req.PanelType,
-		X:          0,
-		Y:          maxY,
-		W:          4,
-		H:          4,
-		ConfigJSON: json.RawMessage(`{}`),
+		ID:          uuid.New().String(),
+		DashboardID: req.DashboardID,
+		Title:       req.Title,
+		PanelType:   req.PanelType,
+		X:           0,
+		Y:           maxY,
+		W:           4,
+		H:           4,
+		ConfigJSON:  json.RawMessage(`{}`),
 	}
 
 	_, err := h.db.Exec(
-		`INSERT INTO dashboard_layouts (id, title, panel_type, x, y, w, h, config_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		panel.ID, panel.Title, panel.PanelType, panel.X, panel.Y, panel.W, panel.H, string(panel.ConfigJSON),
+		`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		panel.ID, panel.DashboardID, panel.Title, panel.PanelType, panel.X, panel.Y, panel.W, panel.H, string(panel.ConfigJSON),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -104,10 +118,10 @@ func (h *LayoutHandler) UpdatePanel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row := h.db.QueryRow(`SELECT id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts WHERE id = ?`, id)
+	row := h.db.QueryRow(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts WHERE id = ?`, id)
 	var p models.DashboardPanel
 	var cfgJSON string
-	if err := row.Scan(&p.ID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON); err == sql.ErrNoRows {
+	if err := row.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON); err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	} else if err != nil {

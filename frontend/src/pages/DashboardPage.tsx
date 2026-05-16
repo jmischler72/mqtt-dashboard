@@ -29,6 +29,8 @@ const PANEL_TYPES = [
 type LayoutContext = {
     editMode: boolean
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+    activeDashboardId: string
+    dashboardsLoading: boolean
 }
 
 export default function DashboardPage() {
@@ -39,7 +41,7 @@ export default function DashboardPage() {
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const addMenuRef = useRef<HTMLDivElement>(null)
-    const { editMode } = useOutletContext<LayoutContext>()
+    const { editMode, activeDashboardId, dashboardsLoading } = useOutletContext<LayoutContext>()
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -60,9 +62,11 @@ export default function DashboardPage() {
     }, [])
 
     useEffect(() => {
+        if (dashboardsLoading || !activeDashboardId) return
         let active = true
+        setIsLoadingLayout(true)
 
-        api.get<Panel[]>('/api/layouts')
+        api.get<Panel[]>(`/api/layouts?dashboard_id=${activeDashboardId}`)
             .then((loadedPanels) => {
                 if (!active) return
                 setPanels(loadedPanels)
@@ -75,7 +79,7 @@ export default function DashboardPage() {
         return () => {
             active = false
         }
-    }, [])
+    }, [activeDashboardId, dashboardsLoading])
 
     const layout = panels.map((p) => ({
         i: p.id,
@@ -103,10 +107,11 @@ export default function DashboardPage() {
     }, [])
 
     const addPanel = async (panelType: string) => {
-        if (isLoadingLayout) return
+        if (isLoadingLayout || !activeDashboardId) return
         setAddMenuOpen(false)
         try {
             const panel = await api.post<Panel>('/api/layouts', {
+                dashboard_id: activeDashboardId,
                 panel_type: panelType,
                 title: `${PANEL_TYPES.find((t) => t.value === panelType)?.label ?? 'New'} Panel`,
             })
@@ -149,7 +154,7 @@ export default function DashboardPage() {
 
             {/* Grid */}
             <div className="p-4" ref={containerRef}>
-                {isLoadingLayout ? (
+                {dashboardsLoading || isLoadingLayout ? (
                     <div className="flex items-center justify-center h-64 text-base-content/60">
                         <div className="text-center">
                             <span className="loading loading-spinner loading-lg mb-4" />

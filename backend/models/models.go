@@ -12,15 +12,22 @@ type MQTTConfig struct {
 	IsActive bool   `json:"is_active"`
 }
 
+type Dashboard struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+}
+
 type DashboardPanel struct {
-	ID         string          `json:"id"`
-	Title      string          `json:"title"`
-	PanelType  string          `json:"panel_type"`
-	X          int             `json:"x"`
-	Y          int             `json:"y"`
-	W          int             `json:"w"`
-	H          int             `json:"h"`
-	ConfigJSON json.RawMessage `json:"config_json"`
+	ID          string          `json:"id"`
+	DashboardID string          `json:"dashboard_id"`
+	Title       string          `json:"title"`
+	PanelType   string          `json:"panel_type"`
+	X           int             `json:"x"`
+	Y           int             `json:"y"`
+	W           int             `json:"w"`
+	H           int             `json:"h"`
+	ConfigJSON  json.RawMessage `json:"config_json"`
 }
 
 type BatchLayoutUpdate struct {

@@ -22,7 +22,7 @@ func InitDB(path string) (*sql.DB, error) {
 }
 
 func migrate(db *sql.DB) error {
-	_, err := db.Exec(`
+	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS mqtt_configurations (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			host TEXT NOT NULL,
@@ -33,8 +33,15 @@ func migrate(db *sql.DB) error {
 			is_active BOOLEAN DEFAULT 1
 		);
 
+		CREATE TABLE IF NOT EXISTS dashboards (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
 		CREATE TABLE IF NOT EXISTS dashboard_layouts (
 			id TEXT PRIMARY KEY,
+			dashboard_id TEXT NOT NULL DEFAULT '',
 			title TEXT NOT NULL,
 			panel_type TEXT NOT NULL,
 			x INTEGER NOT NULL DEFAULT 0,
@@ -43,6 +50,10 @@ func migrate(db *sql.DB) error {
 			h INTEGER NOT NULL DEFAULT 4,
 			config_json TEXT
 		);
-	`)
+	`); err != nil {
+		return err
+	}
+
+	_, err := db.Exec(`INSERT OR IGNORE INTO dashboards (id, name) VALUES ('default', 'Default')`)
 	return err
 }
