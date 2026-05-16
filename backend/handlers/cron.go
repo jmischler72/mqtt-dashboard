@@ -20,6 +20,7 @@ func NewCronHandler(db *sql.DB, scheduler *cron.Scheduler) *CronHandler {
 }
 
 type cronConfigJSON struct {
+	BrokerID string `json:"broker_id"`
 	CronExpr string `json:"cron_expr"`
 	Topic    string `json:"topic"`
 	Payload  string `json:"payload"`
@@ -39,7 +40,7 @@ func (h *CronHandler) UpsertCron(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.scheduler.AddJob(panelID, req.CronExpr, req.Topic, req.Payload, req.Enabled); err != nil {
+	if err := h.scheduler.AddJob(panelID, req.BrokerID, req.CronExpr, req.Topic, req.Payload, req.Enabled); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

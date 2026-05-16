@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
@@ -8,17 +9,19 @@ import (
 )
 
 type PublishHandler struct {
-	mqtt *mqttclient.MQTTManager
+	db       *sql.DB
+	registry *mqttclient.BrokerRegistry
 }
 
-func NewPublishHandler(mqtt *mqttclient.MQTTManager) *PublishHandler {
-	return &PublishHandler{mqtt: mqtt}
+func NewPublishHandler(db *sql.DB, registry *mqttclient.BrokerRegistry) *PublishHandler {
+	return &PublishHandler{db: db, registry: registry}
 }
 
 func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Topic   string `json:"topic"`
-		Payload string `json:"payload"`
+		BrokerID string `json:"broker_id"`
+		Topic    string `json:"topic"`
+		Payload  string `json:"payload"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -29,13 +32,17 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.mqtt.Status() != "CONNECTED" {
-		http.Error(w, "not connected to broker", http.StatusServiceUnavailable)
+	brokerID := req.BrokerID
+	if brokerID == "" {
+		brokerID = h.registry.DefaultBrokerID()
+	}
+	if brokerID == "" {
+		http.Error(w, "no broker available", http.StatusServiceUnavailable)
 		return
 	}
 
-	if err := h.mqtt.Publish(req.Topic, []byte(req.Payload)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := h.registry.Publish(brokerID, req.Topic, []byte(req.Payload)); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 

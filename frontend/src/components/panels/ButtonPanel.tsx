@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
+import type { BrokerStatus } from '../../hooks/useBrokers'
 
 interface ButtonConfig {
     label?: string
@@ -7,22 +8,38 @@ interface ButtonConfig {
     payload?: string
 }
 
-interface Props {
+interface ModalProps {
     config: ButtonConfig
-    onSave: (cfg: ButtonConfig) => void
+    brokerId: string
+    brokerStatuses: BrokerStatus[]
+    onSave: (cfg: ButtonConfig, brokerId: string) => void
     onClose: () => void
 }
 
-export function ButtonConfigModal({ config, onSave, onClose }: Props) {
+export function ButtonConfigModal({ config, brokerId, brokerStatuses, onSave, onClose }: ModalProps) {
     const [label, setLabel] = useState(config.label ?? 'Click')
     const [topic, setTopic] = useState(config.topic ?? '')
     const [payload, setPayload] = useState(config.payload ?? '')
+    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId)
 
     return (
         <dialog className="modal modal-open">
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Button Configuration</h3>
                 <div className="flex flex-col gap-3">
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Broker</legend>
+                        <select
+                            className="select select-bordered w-full"
+                            value={selectedBrokerId}
+                            onChange={(e) => setSelectedBrokerId(e.target.value)}
+                        >
+                            <option value="">— select broker —</option>
+                            {brokerStatuses.map((b) => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                    </fieldset>
                     <fieldset className="fieldset">
                         <legend className="fieldset-legend">Button Label</legend>
                         <input className="input input-bordered w-full" value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -38,7 +55,7 @@ export function ButtonConfigModal({ config, onSave, onClose }: Props) {
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave({ label, topic, payload })}>Save</button>
+                    <button className="btn btn-primary" onClick={() => onSave({ label, topic, payload }, selectedBrokerId)}>Save</button>
                 </div>
             </div>
             <div className="modal-backdrop" onClick={onClose} />
@@ -48,10 +65,11 @@ export function ButtonConfigModal({ config, onSave, onClose }: Props) {
 
 interface ButtonPanelProps {
     panelId: string
+    brokerId: string
     config: ButtonConfig
 }
 
-export default function ButtonPanel({ config }: ButtonPanelProps) {
+export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
     const [loading, setLoading] = useState(false)
     const [flash, setFlash] = useState<'success' | 'error' | null>(null)
 
@@ -59,7 +77,7 @@ export default function ButtonPanel({ config }: ButtonPanelProps) {
         if (!config.topic) return
         setLoading(true)
         try {
-            await api.post('/api/publish', { topic: config.topic, payload: config.payload ?? '' })
+            await api.post('/api/publish', { broker_id: brokerId, topic: config.topic, payload: config.payload ?? '' })
             setFlash('success')
         } catch {
             setFlash('error')

@@ -2,14 +2,17 @@ package models
 
 import "encoding/json"
 
-type MQTTConfig struct {
-	ID       int    `json:"id"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	ClientID string `json:"client_id"`
-	Username string `json:"username"`
-	Password string `json:"-"` // never serialized to client
-	IsActive bool   `json:"is_active"`
+type MQTTBroker struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	ClientID  string `json:"client_id"`
+	Username  string `json:"username"`
+	Password  string `json:"-"` // never serialized to client
+	IsEnabled bool   `json:"is_enabled"`
+	SortOrder int    `json:"sort_order"`
+	Status    string `json:"status,omitempty"` // runtime field, not stored in DB
 }
 
 type Dashboard struct {
@@ -28,6 +31,7 @@ type DashboardPanel struct {
 	W           int             `json:"w"`
 	H           int             `json:"h"`
 	ConfigJSON  json.RawMessage `json:"config_json"`
+	BrokerID    string          `json:"broker_id"`
 }
 
 type BatchLayoutUpdate struct {

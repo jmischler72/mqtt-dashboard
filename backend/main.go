@@ -15,6 +15,7 @@ import (
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
 	"mqtt-dashboard/handlers"
+	"mqtt-dashboard/models"
 	mqttclient "mqtt-dashboard/mqtt"
 	"mqtt-dashboard/ws"
 )
@@ -33,12 +34,12 @@ func main() {
 	}
 	defer database.Close()
 
-	// --- Init MQTT manager ---
-	mqttMgr := mqttclient.NewManager()
-	autoConnectFromDB(database, mqttMgr)
+	// --- Init broker registry ---
+	registry := mqttclient.NewRegistry()
+	autoConnectFromDB(database, registry)
 
 	// --- Init Cron scheduler ---
-	scheduler, err := cron.NewScheduler(mqttMgr)
+	scheduler, err := cron.NewScheduler(registry)
 	if err != nil {
 		log.Fatalf("init scheduler: %v", err)
 	}
@@ -47,12 +48,12 @@ func main() {
 	loadCronJobsFromDB(database, scheduler)
 
 	// --- Init WebSocket hub ---
-	wsHub := ws.NewHub(mqttMgr)
+	wsHub := ws.NewHub(registry)
 
 	// --- Init handlers ---
-	configH := handlers.NewConfigHandler(database, mqttMgr)
+	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database)
-	publishH := handlers.NewPublishHandler(mqttMgr)
+	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
 
@@ -68,10 +69,13 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	// Config
-	r.Get("/api/config", configH.GetConfig)
-	r.Post("/api/config", configH.SaveConfig)
-	r.Get("/api/config/status", configH.GetStatus)
+	// Brokers
+	r.Get("/api/brokers", brokerH.ListBrokers)
+	r.Post("/api/brokers", brokerH.CreateBroker)
+	r.Get("/api/brokers/status", brokerH.GetBrokersStatus)
+	r.Put("/api/brokers/reorder", brokerH.ReorderBrokers)
+	r.Put("/api/brokers/{id}", brokerH.UpdateBroker)
+	r.Delete("/api/brokers/{id}", brokerH.DeleteBroker)
 
 	// Layouts
 	r.Get("/api/layouts", layoutH.GetLayouts)
@@ -114,29 +118,41 @@ func main() {
 	}
 }
 
-// autoConnectFromDB loads the active MQTT config and attempts to connect on startup.
-func autoConnectFromDB(database *sql.DB, mgr *mqttclient.MQTTManager) {
-	row := database.QueryRow(`SELECT host, port, client_id, username, password FROM mqtt_configurations WHERE is_active = 1 ORDER BY id DESC LIMIT 1`)
-	var cfg mqttclient.ConfigRow
-	if err := row.Scan(&cfg.Host, &cfg.Port, &cfg.ClientID, &cfg.Username, &cfg.Password); err != nil {
-		return // No config saved yet
+// autoConnectFromDB loads all enabled brokers and connects each one on startup.
+func autoConnectFromDB(database *sql.DB, registry *mqttclient.BrokerRegistry) {
+	rows, err := database.Query(`SELECT id, name, host, port, client_id, username, password, is_enabled, sort_order FROM mqtt_brokers WHERE is_enabled = 1 ORDER BY sort_order ASC`)
+	if err != nil {
+		return
 	}
-	if err := mgr.Connect(cfg.ToModel()); err != nil {
-		log.Printf("auto-connect mqtt: %v", err)
+	defer rows.Close()
+
+	isFirst := true
+	for rows.Next() {
+		var b models.MQTTBroker
+		if err := rows.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.Password, &b.IsEnabled, &b.SortOrder); err != nil {
+			continue
+		}
+		if err := registry.AddBroker(b); err != nil {
+			log.Printf("auto-connect mqtt broker %q: %v", b.Name, err)
+		}
+		if isFirst {
+			registry.SetDefault(b.ID)
+			isFirst = false
+		}
 	}
 }
 
 // loadCronJobsFromDB reloads all cron panel jobs from the database on startup.
 func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
-	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}') FROM dashboard_layouts WHERE panel_type = 'cron'`)
+	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'cron'`)
 	if err != nil {
 		log.Printf("load cron jobs: %v", err)
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var panelID, cfgJSON string
-		if err := rows.Scan(&panelID, &cfgJSON); err != nil {
+		var panelID, cfgJSON, brokerID string
+		if err := rows.Scan(&panelID, &cfgJSON, &brokerID); err != nil {
 			continue
 		}
 		var cfg struct {
@@ -148,7 +164,7 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 		if err := json.Unmarshal([]byte(cfgJSON), &cfg); err != nil || cfg.CronExpr == "" {
 			continue
 		}
-		if err := scheduler.AddJob(panelID, cfg.CronExpr, cfg.Topic, cfg.Payload, cfg.Enabled); err != nil {
+		if err := scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, cfg.Enabled); err != nil {
 			log.Printf("load cron job %q: %v", panelID, err)
 		}
 	}
@@ -161,10 +177,9 @@ func spaHandler(h http.Handler) http.Handler {
 	})
 }
 
-// corsMiddleware allows requests from the Vite dev server.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {

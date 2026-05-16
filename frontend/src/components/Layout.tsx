@@ -1,47 +1,67 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { api } from '../api/client'
 import DashboardSelector, { type Dashboard } from './DashboardSelector'
-
-type Status = 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' | 'ERROR'
-
-const dotColor: Record<Status, string> = {
-    CONNECTED: 'bg-success',
-    DISCONNECTED: 'bg-neutral',
-    CONNECTING: 'bg-warning animate-pulse',
-    ERROR: 'bg-error',
-}
+import { useBrokerStatuses, type BrokerStatus } from '../hooks/useBrokers'
 
 const ACTIVE_DASHBOARD_KEY = 'mqtt_active_dashboard_id'
+import { api } from '../api/client'
+
+type AggregatedStatus = 'CONNECTED' | 'PARTIALLY CONNECTED' | 'DISCONNECTED'
+
+function computeAggregated(statuses: BrokerStatus[]): AggregatedStatus {
+    const enabled = statuses.filter((s) => s.is_enabled)
+    if (enabled.length === 0) return 'DISCONNECTED'
+    const connected = enabled.filter((s) => s.status === 'CONNECTED').length
+    if (connected === enabled.length) return 'CONNECTED'
+    if (connected > 0) return 'PARTIALLY CONNECTED'
+    return 'DISCONNECTED'
+}
+
+const aggDotColor: Record<AggregatedStatus, string> = {
+    CONNECTED: 'bg-success',
+    'PARTIALLY CONNECTED': 'bg-warning',
+    DISCONNECTED: 'bg-error',
+}
+
+const statusDot: Record<string, string> = {
+    CONNECTED: 'bg-success',
+    CONNECTING: 'bg-warning animate-pulse',
+    DISCONNECTED: 'bg-error',
+    ERROR: 'bg-error',
+    DISABLED: 'bg-neutral',
+}
 
 export default function Layout() {
     const location = useLocation()
-    const [status, setStatus] = useState<Status>('DISCONNECTED')
+    const brokerStatuses = useBrokerStatuses()
     const [editMode, setEditMode] = useState(false)
     const [dashboards, setDashboards] = useState<Dashboard[]>([])
     const [activeDashboardId, setActiveDashboardId] = useState<string>(() => {
         return localStorage.getItem(ACTIVE_DASHBOARD_KEY) ?? ''
     })
     const [dashboardsLoading, setDashboardsLoading] = useState(true)
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const [flyoutOpen, setFlyoutOpen] = useState(false)
+    const flyoutRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        const poll = () => api.get<{ status: Status }>('/api/config/status').then((r) => setStatus(r.status)).catch(() => { })
-        poll()
-        pollRef.current = setInterval(poll, 3000)
-        return () => { if (pollRef.current) clearInterval(pollRef.current) }
+        const handler = (e: MouseEvent) => {
+            if (flyoutRef.current && !flyoutRef.current.contains(e.target as Node)) {
+                setFlyoutOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
     }, [])
 
     useEffect(() => {
         api.get<Dashboard[]>('/api/dashboards').then((list) => {
             setDashboards(list)
-            // If stored ID is no longer valid (or empty), default to first
             const stored = localStorage.getItem(ACTIVE_DASHBOARD_KEY)
             const valid = list.find((d) => d.id === stored)
             const defaultId = valid ? stored! : list[0]?.id ?? ''
             setActiveDashboardId(defaultId)
             localStorage.setItem(ACTIVE_DASHBOARD_KEY, defaultId)
-        }).catch(() => { }).finally(() => setDashboardsLoading(false))
+        }).catch(() => {}).finally(() => setDashboardsLoading(false))
     }, [])
 
     const switchDashboard = (id: string) => {
@@ -67,6 +87,7 @@ export default function Layout() {
     }
 
     const showDashboardControls = location.pathname === '/dashboard'
+    const aggStatus = computeAggregated(brokerStatuses)
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -94,12 +115,37 @@ export default function Layout() {
                             {editMode ? 'Edit: ON' : 'Edit: OFF'}
                         </button>
                     )}
-                    <span className={`w-2.5 h-2.5 rounded-full ${dotColor[status]}`} />
-                    <span className="text-xs text-base-content/60">{status}</span>
+
+                    {/* Aggregated broker status with flyout */}
+                    <div className="relative" ref={flyoutRef}>
+                        <button
+                            className="flex items-center gap-2 btn btn-sm btn-ghost"
+                            onClick={() => setFlyoutOpen((o) => !o)}
+                        >
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${aggDotColor[aggStatus]}`} />
+                            <span className="text-xs text-base-content/60 hidden sm:inline">{aggStatus}</span>
+                        </button>
+
+                        {flyoutOpen && (
+                            <div className="absolute right-0 top-full mt-1 z-50 bg-base-100 border border-base-300 rounded-box shadow-lg w-56 p-2">
+                                {brokerStatuses.length === 0 ? (
+                                    <p className="text-xs text-base-content/50 px-2 py-1">No brokers configured</p>
+                                ) : (
+                                    brokerStatuses.map((bs) => (
+                                        <div key={bs.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base-200">
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[bs.status] ?? 'bg-neutral'}`} />
+                                            <span className="text-sm flex-1 truncate">{bs.name}</span>
+                                            <span className="text-xs text-base-content/50">{bs.status}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </nav>
             <main className="flex-1">
-                <Outlet context={{ editMode, setEditMode, activeDashboardId, dashboardsLoading }} />
+                <Outlet context={{ editMode, setEditMode, activeDashboardId, dashboardsLoading, brokerStatuses }} />
             </main>
         </div>
     )

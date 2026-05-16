@@ -8,44 +8,53 @@ import (
 	mqttclient "mqtt-dashboard/mqtt"
 )
 
-// Message sent over WebSocket to clients.
+// WSMessage is sent over WebSocket to clients.
 type WSMessage struct {
-	PanelID string `json:"panel_id"`
-	Topic   string `json:"topic"`
-	Payload string `json:"payload"`
+	PanelID  string `json:"panel_id"`
+	BrokerID string `json:"broker_id"`
+	Topic    string `json:"topic"`
+	Payload  string `json:"payload"`
 }
 
-// SubscribeRequest is the first message a client sends after connecting.
+// SubscribeRequest is the message a client sends to subscribe to topics on a broker.
 type SubscribeRequest struct {
-	PanelID string   `json:"panel_id"`
-	Topics  []string `json:"topics"`
+	PanelID  string   `json:"panel_id"`
+	BrokerID string   `json:"broker_id"`
+	Topics   []string `json:"topics"`
 }
 
 type Client struct {
-	id      string
-	panelID string
-	topics  []string
-	send    chan WSMessage
-	hub     *Hub
+	id       string
+	panelID  string
+	brokerID string
+	topics   []string
+	send     chan WSMessage
+	hub      *Hub
+}
+
+// brokerTopic is a composite key for routing: one broker × one topic.
+type brokerTopic struct {
+	brokerID string
+	topic    string
 }
 
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[string]*Client // clientID → Client
-	mqtt    *mqttclient.MQTTManager
+	mu       sync.RWMutex
+	clients  map[string]*Client
+	registry *mqttclient.BrokerRegistry
 
-	// topic → list of clientIDs
-	topicClients map[string]map[string]struct{}
-	// topic -> stable MQTT handler reference
-	topicHandlers map[string]mqttclient.MessageHandler
+	// (brokerID, topic) → set of clientIDs
+	topicClients map[brokerTopic]map[string]struct{}
+	// (brokerID, topic) → stable MQTT handler reference
+	topicHandlers map[brokerTopic]mqttclient.MessageHandler
 }
 
-func NewHub(mqtt *mqttclient.MQTTManager) *Hub {
+func NewHub(registry *mqttclient.BrokerRegistry) *Hub {
 	return &Hub{
 		clients:       make(map[string]*Client),
-		mqtt:          mqtt,
-		topicClients:  make(map[string]map[string]struct{}),
-		topicHandlers: make(map[string]mqttclient.MessageHandler),
+		registry:      registry,
+		topicClients:  make(map[brokerTopic]map[string]struct{}),
+		topicHandlers: make(map[brokerTopic]mqttclient.MessageHandler),
 	}
 }
 
@@ -63,41 +72,44 @@ func (h *Hub) Unregister(c *Client) {
 	close(c.send)
 
 	for _, topic := range c.topics {
-		h.removeTopicClient(topic, c.id)
+		h.removeTopicClient(brokerTopic{c.brokerID, topic}, c.id)
 	}
 }
 
-func (h *Hub) Subscribe(c *Client, topics []string) {
+func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	// Remove old subscriptions for this client
 	for _, t := range c.topics {
-		h.removeTopicClient(t, c.id)
+		h.removeTopicClient(brokerTopic{c.brokerID, t}, c.id)
 	}
+	c.brokerID = brokerID
 	c.topics = topics
 
 	for _, topic := range topics {
-		if _, ok := h.topicClients[topic]; !ok {
-			h.topicClients[topic] = make(map[string]struct{})
-			// Subscribe to MQTT only once per unique topic
-			t := topic // capture
-			handler := h.buildMQTTHandler(t)
-			h.topicHandlers[t] = handler
-			if err := h.mqtt.Subscribe(t, handler); err != nil {
-				delete(h.topicHandlers, t)
-				log.Printf("ws: subscribe mqtt topic %q: %v", t, err)
+		key := brokerTopic{brokerID, topic}
+		if _, ok := h.topicClients[key]; !ok {
+			h.topicClients[key] = make(map[string]struct{})
+			t := topic
+			bid := brokerID
+			handler := h.buildMQTTHandler(bid, t)
+			h.topicHandlers[key] = handler
+			if err := h.registry.Subscribe(bid, t, handler); err != nil {
+				delete(h.topicHandlers, key)
+				log.Printf("ws: subscribe mqtt broker=%q topic=%q: %v", bid, t, err)
 			}
 		}
-		h.topicClients[topic][c.id] = struct{}{}
+		h.topicClients[key][c.id] = struct{}{}
 	}
 }
 
-func (h *Hub) buildMQTTHandler(topic string) mqttclient.MessageHandler {
+func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler {
 	return func(msgTopic string, payload []byte) {
+		key := brokerTopic{brokerID, topic}
 		h.mu.RLock()
-		clientIDs := make([]string, 0)
-		for cid := range h.topicClients[topic] {
+		clientIDs := make([]string, 0, len(h.topicClients[key]))
+		for cid := range h.topicClients[key] {
 			clientIDs = append(clientIDs, cid)
 		}
 		clients := make([]*Client, 0, len(clientIDs))
@@ -109,8 +121,9 @@ func (h *Hub) buildMQTTHandler(topic string) mqttclient.MessageHandler {
 		h.mu.RUnlock()
 
 		msg := WSMessage{
-			Topic:   msgTopic,
-			Payload: string(payload),
+			BrokerID: brokerID,
+			Topic:    msgTopic,
+			Payload:  string(payload),
 		}
 		for _, c := range clients {
 			msg.PanelID = c.panelID
@@ -123,15 +136,14 @@ func (h *Hub) buildMQTTHandler(topic string) mqttclient.MessageHandler {
 	}
 }
 
-func (h *Hub) removeTopicClient(topic, clientID string) {
-	if cids, ok := h.topicClients[topic]; ok {
+func (h *Hub) removeTopicClient(key brokerTopic, clientID string) {
+	if cids, ok := h.topicClients[key]; ok {
 		delete(cids, clientID)
 		if len(cids) == 0 {
-			delete(h.topicClients, topic)
-			// Unsubscribe from MQTT when no clients remain
-			if handler, ok := h.topicHandlers[topic]; ok {
-				h.mqtt.Unsubscribe(topic, handler)
-				delete(h.topicHandlers, topic)
+			delete(h.topicClients, key)
+			if handler, ok := h.topicHandlers[key]; ok {
+				h.registry.Unsubscribe(key.brokerID, key.topic, handler)
+				delete(h.topicHandlers, key)
 			}
 		}
 	}

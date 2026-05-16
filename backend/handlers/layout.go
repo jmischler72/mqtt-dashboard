@@ -25,9 +25,9 @@ func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 	if dashboardID != "" {
-		rows, err = h.db.Query(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts WHERE dashboard_id = ? ORDER BY y, x`, dashboardID)
+		rows, err = h.db.Query(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE dashboard_id = ? ORDER BY y, x`, dashboardID)
 	} else {
-		rows, err = h.db.Query(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts ORDER BY y, x`)
+		rows, err = h.db.Query(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts ORDER BY y, x`)
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -39,7 +39,7 @@ func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p models.DashboardPanel
 		var cfgJSON string
-		if err := rows.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON); err != nil {
+		if err := rows.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON, &p.BrokerID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -77,6 +77,10 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 	var maxY int
 	h.db.QueryRow(`SELECT COALESCE(MAX(y + h), 0) FROM dashboard_layouts WHERE dashboard_id = ?`, req.DashboardID).Scan(&maxY) //nolint
 
+	// Auto-assign default broker
+	var defaultBrokerID string
+	h.db.QueryRow(`SELECT id FROM mqtt_brokers WHERE is_enabled = 1 ORDER BY sort_order ASC LIMIT 1`).Scan(&defaultBrokerID) //nolint
+
 	panel := models.DashboardPanel{
 		ID:          uuid.New().String(),
 		DashboardID: req.DashboardID,
@@ -87,11 +91,12 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 		W:           4,
 		H:           4,
 		ConfigJSON:  json.RawMessage(`{}`),
+		BrokerID:    defaultBrokerID,
 	}
 
 	_, err := h.db.Exec(
-		`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		panel.ID, panel.DashboardID, panel.Title, panel.PanelType, panel.X, panel.Y, panel.W, panel.H, string(panel.ConfigJSON),
+		`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		panel.ID, panel.DashboardID, panel.Title, panel.PanelType, panel.X, panel.Y, panel.W, panel.H, string(panel.ConfigJSON), panel.BrokerID,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -112,16 +117,17 @@ func (h *LayoutHandler) UpdatePanel(w http.ResponseWriter, r *http.Request) {
 		W          *int             `json:"w"`
 		H          *int             `json:"h"`
 		ConfigJSON *json.RawMessage `json:"config_json"`
+		BrokerID   *string          `json:"broker_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	row := h.db.QueryRow(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}') FROM dashboard_layouts WHERE id = ?`, id)
+	row := h.db.QueryRow(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ?`, id)
 	var p models.DashboardPanel
 	var cfgJSON string
-	if err := row.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON); err == sql.ErrNoRows {
+	if err := row.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON, &p.BrokerID); err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -148,10 +154,13 @@ func (h *LayoutHandler) UpdatePanel(w http.ResponseWriter, r *http.Request) {
 	if req.ConfigJSON != nil {
 		p.ConfigJSON = *req.ConfigJSON
 	}
+	if req.BrokerID != nil {
+		p.BrokerID = *req.BrokerID
+	}
 
 	_, err := h.db.Exec(
-		`UPDATE dashboard_layouts SET title=?, x=?, y=?, w=?, h=?, config_json=? WHERE id=?`,
-		p.Title, p.X, p.Y, p.W, p.H, string(p.ConfigJSON), id,
+		`UPDATE dashboard_layouts SET title=?, x=?, y=?, w=?, h=?, config_json=?, broker_id=? WHERE id=?`,
+		p.Title, p.X, p.Y, p.W, p.H, string(p.ConfigJSON), p.BrokerID, id,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

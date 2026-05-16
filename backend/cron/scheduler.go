@@ -10,8 +10,10 @@ import (
 	mqttclient "mqtt-dashboard/mqtt"
 )
 
+
 type JobInfo struct {
 	PanelID    string    `json:"panel_id"`
+	BrokerID   string    `json:"broker_id"`
 	CronExpr   string    `json:"cron_expr"`
 	Topic      string    `json:"topic"`
 	Payload    string    `json:"payload"`
@@ -21,21 +23,21 @@ type JobInfo struct {
 }
 
 type Scheduler struct {
-	mu   sync.Mutex
-	s    gocron.Scheduler
-	jobs map[string]*JobInfo // panelID → JobInfo
-	mqtt *mqttclient.MQTTManager
+	mu       sync.Mutex
+	s        gocron.Scheduler
+	jobs     map[string]*JobInfo // panelID → JobInfo
+	registry *mqttclient.BrokerRegistry
 }
 
-func NewScheduler(mqtt *mqttclient.MQTTManager) (*Scheduler, error) {
+func NewScheduler(registry *mqttclient.BrokerRegistry) (*Scheduler, error) {
 	s, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, err
 	}
 	return &Scheduler{
-		s:    s,
-		jobs: make(map[string]*JobInfo),
-		mqtt: mqtt,
+		s:        s,
+		jobs:     make(map[string]*JobInfo),
+		registry: registry,
 	}, nil
 }
 
@@ -47,7 +49,7 @@ func (sc *Scheduler) Stop() {
 	sc.s.Shutdown() //nolint
 }
 
-func (sc *Scheduler) AddJob(panelID, cronExpr, topic, payload string, enabled bool) error {
+func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, enabled bool) error {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
@@ -59,6 +61,7 @@ func (sc *Scheduler) AddJob(panelID, cronExpr, topic, payload string, enabled bo
 
 	info := &JobInfo{
 		PanelID:  panelID,
+		BrokerID: brokerID,
 		CronExpr: cronExpr,
 		Topic:    topic,
 		Payload:  payload,
@@ -66,10 +69,15 @@ func (sc *Scheduler) AddJob(panelID, cronExpr, topic, payload string, enabled bo
 	}
 
 	if enabled {
+		bid := brokerID
 		job, err := sc.s.NewJob(
 			gocron.CronJob(cronExpr, false),
 			gocron.NewTask(func() {
-				sc.mqtt.Publish(topic, []byte(payload)) //nolint
+				bID := bid
+				if bID == "" {
+					bID = sc.registry.DefaultBrokerID()
+				}
+				sc.registry.Publish(bID, topic, []byte(payload)) //nolint
 			}),
 			gocron.WithTags(panelID),
 		)
@@ -99,7 +107,7 @@ func (sc *Scheduler) ToggleJob(panelID string, enabled bool) error {
 	if !ok {
 		return fmt.Errorf("job %q not found", panelID)
 	}
-	return sc.AddJob(panelID, info.CronExpr, info.Topic, info.Payload, enabled)
+	return sc.AddJob(panelID, info.BrokerID, info.CronExpr, info.Topic, info.Payload, enabled)
 }
 
 func (sc *Scheduler) GetJob(panelID string) (*JobInfo, bool) {

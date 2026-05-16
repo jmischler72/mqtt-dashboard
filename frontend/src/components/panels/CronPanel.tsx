@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
+import type { BrokerStatus } from '../../hooks/useBrokers'
 
 interface CronConfig {
     cron_expr?: string
@@ -23,16 +24,19 @@ const PRESETS: { label: string; value: string }[] = [
 
 interface Props {
     config: CronConfig
-    onSave: (cfg: CronConfig) => void
+    brokerId: string
+    brokerStatuses: BrokerStatus[]
+    onSave: (cfg: CronConfig, brokerId: string) => void
     onClose: () => void
 }
 
-export function CronConfigModal({ config, onSave, onClose }: Props) {
+export function CronConfigModal({ config, brokerId, brokerStatuses, onSave, onClose }: Props) {
     const [topic, setTopic] = useState(config.topic ?? '')
     const [payload, setPayload] = useState(config.payload ?? '')
     const [enabled, setEnabled] = useState(config.enabled ?? false)
     const [preset, setPreset] = useState('* * * * *')
     const [customExpr, setCustomExpr] = useState(config.cron_expr ?? '')
+    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId)
     const isCustom = preset === 'custom'
     const cronExpr = isCustom ? customExpr : preset
 
@@ -49,6 +53,19 @@ export function CronConfigModal({ config, onSave, onClose }: Props) {
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Cron Configuration</h3>
                 <div className="flex flex-col gap-3">
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Broker</legend>
+                        <select
+                            className="select select-bordered w-full"
+                            value={selectedBrokerId}
+                            onChange={(e) => setSelectedBrokerId(e.target.value)}
+                        >
+                            <option value="">— select broker —</option>
+                            {brokerStatuses.map((b) => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                    </fieldset>
                     <fieldset className="fieldset">
                         <legend className="fieldset-legend">Schedule</legend>
                         <select className="select select-bordered w-full" value={preset} onChange={(e) => setPreset(e.target.value)}>
@@ -88,7 +105,7 @@ export function CronConfigModal({ config, onSave, onClose }: Props) {
                     <button
                         className="btn btn-primary"
                         disabled={!topic || !cronExpr}
-                        onClick={() => onSave({ cron_expr: cronExpr, topic, payload, enabled })}
+                        onClick={() => onSave({ cron_expr: cronExpr, topic, payload, enabled }, selectedBrokerId)}
                     >Save</button>
                 </div>
             </div>
@@ -99,6 +116,7 @@ export function CronConfigModal({ config, onSave, onClose }: Props) {
 
 interface CronPanelProps {
     panelId: string
+    brokerId: string
     config: CronConfig
     onConfigChange: (cfg: CronConfig) => void
 }

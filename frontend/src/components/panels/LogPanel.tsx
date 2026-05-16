@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import type { BrokerStatus } from '../../hooks/useBrokers'
 
 interface LogMessage {
     timestamp: string
@@ -13,22 +14,38 @@ interface LogConfig {
     dateFormat?: 'time' | 'full'
 }
 
-interface Props {
+interface ModalProps {
     config: LogConfig
-    onSave: (cfg: LogConfig) => void
+    brokerId: string
+    brokerStatuses: BrokerStatus[]
+    onSave: (cfg: LogConfig, brokerId: string) => void
     onClose: () => void
 }
 
-export function LogConfigModal({ config, onSave, onClose }: Props) {
+export function LogConfigModal({ config, brokerId, brokerStatuses, onSave, onClose }: ModalProps) {
     const [topics, setTopics] = useState(config.topics ?? '')
     const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200)
     const [dateFormat, setDateFormat] = useState<'time' | 'full'>(config.dateFormat ?? 'time')
+    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId)
 
     return (
         <dialog className="modal modal-open">
             <div className="modal-box max-h-[85vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-4">Log Configuration</h3>
                 <div className="flex flex-col gap-3">
+                    <fieldset className="fieldset">
+                        <legend className="fieldset-legend">Broker</legend>
+                        <select
+                            className="select select-bordered w-full"
+                            value={selectedBrokerId}
+                            onChange={(e) => setSelectedBrokerId(e.target.value)}
+                        >
+                            <option value="">— select broker —</option>
+                            {brokerStatuses.map((b) => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                    </fieldset>
                     <fieldset className="fieldset">
                         <legend className="fieldset-legend">Subscription Topics (comma-separated, wildcards OK)</legend>
                         <textarea
@@ -64,7 +81,7 @@ export function LogConfigModal({ config, onSave, onClose }: Props) {
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave({ topics, maxMessages, dateFormat })}>Save</button>
+                    <button className="btn btn-primary" onClick={() => onSave({ topics, maxMessages, dateFormat }, selectedBrokerId)}>Save</button>
                 </div>
             </div>
             <div className="modal-backdrop" onClick={onClose} />
@@ -76,16 +93,16 @@ function formatTimestamp(date: Date, format: 'time' | 'full') {
     if (format === 'full') {
         return date.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'medium' })
     }
-
     return date.toLocaleTimeString()
 }
 
 interface LogPanelProps {
     panelId: string
+    brokerId: string
     config: LogConfig
 }
 
-export default function LogPanel({ panelId, config }: LogPanelProps) {
+export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     const [messages, setMessages] = useState<LogMessage[]>([])
     const [paused, setPaused] = useState(false)
     const logContainerRef = useRef<HTMLDivElement>(null)
@@ -117,8 +134,8 @@ export default function LogPanel({ panelId, config }: LogPanelProps) {
     useEffect(() => {
         if (!config.topics) return
         const topicList = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
-        subscribe({ panel_id: panelId, topics: topicList })
-    }, [panelId, config.topics, subscribe])
+        subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList })
+    }, [panelId, brokerId, config.topics, subscribe])
 
     useEffect(() => {
         const el = logContainerRef.current

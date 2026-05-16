@@ -5,6 +5,7 @@ import { useOutletContext } from 'react-router-dom'
 const RGL = ReactGridLayout as any
 import { api } from '../api/client'
 import PanelWrapper from '../components/PanelWrapper'
+import type { BrokerStatus } from '../hooks/useBrokers'
 
 type GridLayout = { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }
 
@@ -17,6 +18,7 @@ export interface Panel {
     w: number
     h: number
     config_json: Record<string, unknown>
+    broker_id: string
 }
 
 const PANEL_TYPES = [
@@ -31,6 +33,7 @@ type LayoutContext = {
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
     activeDashboardId: string
     dashboardsLoading: boolean
+    brokerStatuses: BrokerStatus[]
 }
 
 export default function DashboardPage() {
@@ -43,7 +46,7 @@ export default function DashboardPage() {
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const addMenuRef = useRef<HTMLDivElement>(null)
-    const { editMode, activeDashboardId, dashboardsLoading } = useOutletContext<LayoutContext>()
+    const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } = useOutletContext<LayoutContext>()
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -220,6 +223,7 @@ export default function DashboardPage() {
                                     <PanelWrapper
                                         panel={panel}
                                         editMode={editMode}
+                                        brokerStatuses={brokerStatuses}
                                         onDelete={() => removePanel(panel.id)}
                                         onUpdate={updatePanel}
                                         onConfigModalChange={handleConfigModalChange}

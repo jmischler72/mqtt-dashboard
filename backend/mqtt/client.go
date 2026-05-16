@@ -12,26 +12,6 @@ import (
 
 type MessageHandler func(topic string, payload []byte)
 
-// ConfigRow is a helper for scanning DB rows into a Connect-ready struct.
-type ConfigRow struct {
-	Host     string
-	Port     int
-	ClientID string
-	Username string
-	Password string
-}
-
-func (c ConfigRow) ToModel() models.MQTTConfig {
-	return models.MQTTConfig{
-		Host:     c.Host,
-		Port:     c.Port,
-		ClientID: c.ClientID,
-		Username: c.Username,
-		Password: c.Password,
-		IsActive: true,
-	}
-}
-
 type MQTTManager struct {
 	mu     sync.RWMutex
 	client paho.Client
@@ -46,7 +26,7 @@ func NewManager() *MQTTManager {
 	}
 }
 
-func (m *MQTTManager) Connect(cfg models.MQTTConfig) error {
+func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -57,8 +37,8 @@ func (m *MQTTManager) Connect(cfg models.MQTTConfig) error {
 	m.setStatus("CONNECTING")
 
 	opts := paho.NewClientOptions().
-		AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.Host, cfg.Port)).
-		SetClientID(cfg.ClientID).
+		AddBroker(fmt.Sprintf("tcp://%s:%d", broker.Host, broker.Port)).
+		SetClientID(broker.ClientID).
 		SetConnectTimeout(10 * time.Second).
 		SetAutoReconnect(true).
 		SetMaxReconnectInterval(30 * time.Second).
@@ -79,11 +59,11 @@ func (m *MQTTManager) Connect(cfg models.MQTTConfig) error {
 			m.mu.Unlock()
 		})
 
-	if cfg.Username != "" {
-		opts.SetUsername(cfg.Username)
+	if broker.Username != "" {
+		opts.SetUsername(broker.Username)
 	}
-	if cfg.Password != "" {
-		opts.SetPassword(cfg.Password)
+	if broker.Password != "" {
+		opts.SetPassword(broker.Password)
 	}
 
 	client := paho.NewClient(opts)

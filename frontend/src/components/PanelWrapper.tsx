@@ -6,16 +6,26 @@ import LogPanel, { LogConfigModal } from './panels/LogPanel'
 import CronPanel, { CronConfigModal } from './panels/CronPanel'
 import { api } from '../api/client'
 import type { Panel } from '../pages/DashboardPage'
+import type { BrokerStatus } from '../hooks/useBrokers'
 
 interface Props {
     panel: Panel
     editMode: boolean
+    brokerStatuses: BrokerStatus[]
     onDelete: () => void
     onUpdate: (p: Panel) => void
     onConfigModalChange: (panelId: string, isOpen: boolean) => void
 }
 
-export default function PanelWrapper({ panel, editMode, onDelete, onUpdate, onConfigModalChange }: Props) {
+const brokerDotColor: Record<string, string> = {
+    CONNECTED: 'bg-success',
+    CONNECTING: 'bg-warning animate-pulse',
+    DISCONNECTED: 'bg-error',
+    ERROR: 'bg-error',
+    DISABLED: 'bg-neutral',
+}
+
+export default function PanelWrapper({ panel, editMode, brokerStatuses, onDelete, onUpdate, onConfigModalChange }: Props) {
     const [showConfig, setShowConfig] = useState(false)
     const [title, setTitle] = useState(panel.title)
     const [editingTitle, setEditingTitle] = useState(false)
@@ -42,16 +52,20 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate, onCo
         } catch { }
     }
 
+    // cfg = panel-specific config, brokerId = the broker assignment for this panel
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const saveConfig = async (cfg: any) => {
+    const saveConfig = async (cfg: any, brokerId: string) => {
         setShowConfig(false)
         try {
-            const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, { config_json: cfg })
+            const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
+                config_json: cfg,
+                broker_id: brokerId,
+            })
             onUpdate(updated)
 
-            // If cron panel, also upsert the cron job
+            // If cron panel, also upsert the cron job with broker_id
             if (panel.panel_type === 'cron') {
-                await api.post(`/api/cron/${panel.id}`, cfg)
+                await api.post(`/api/cron/${panel.id}`, { ...cfg, broker_id: brokerId })
             }
         } catch { }
     }
@@ -93,17 +107,26 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate, onCo
         }, 280)
     }
 
+    const brokerStatus = brokerStatuses.find((bs) => bs.id === panel.broker_id)
+    const dotColor = brokerDotColor[brokerStatus?.status ?? 'DISABLED'] ?? 'bg-neutral'
+
     const renderPanel = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cfg = panel.config_json ?? {}
+        const brokerId = panel.broker_id ?? ''
         switch (panel.panel_type) {
             case 'button':
-                return <ButtonPanel panelId={panel.id} config={cfg as any} />
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return <ButtonPanel panelId={panel.id} brokerId={brokerId} config={cfg as any} />
             case 'input':
-                return <InputPanel panelId={panel.id} config={cfg as any} />
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return <InputPanel panelId={panel.id} brokerId={brokerId} config={cfg as any} />
             case 'log':
-                return <LogPanel panelId={panel.id} config={cfg as any} />
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return <LogPanel panelId={panel.id} brokerId={brokerId} config={cfg as any} />
             case 'cron':
-                return <CronPanel panelId={panel.id} config={cfg as any} onConfigChange={saveConfig} />
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return <CronPanel panelId={panel.id} brokerId={brokerId} config={cfg as any} onConfigChange={(cfg) => saveConfig(cfg, brokerId)} />
             default:
                 return <div className="flex items-center justify-center h-full text-base-content/40">Unknown panel type</div>
         }
@@ -111,20 +134,58 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate, onCo
 
     const renderConfigModal = () => {
         if (!showConfig) return null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cfg = panel.config_json ?? {}
+        const brokerId = panel.broker_id ?? ''
         let modal = null
         switch (panel.panel_type) {
             case 'button':
-                modal = <ButtonConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = (
+                    <ButtonConfigModal
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        config={cfg as any}
+                        brokerId={brokerId}
+                        brokerStatuses={brokerStatuses}
+                        onSave={(c, bid) => saveConfig(c, bid)}
+                        onClose={() => setShowConfig(false)}
+                    />
+                )
                 break
             case 'input':
-                modal = <InputConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = (
+                    <InputConfigModal
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        config={cfg as any}
+                        brokerId={brokerId}
+                        brokerStatuses={brokerStatuses}
+                        onSave={(c, bid) => saveConfig(c, bid)}
+                        onClose={() => setShowConfig(false)}
+                    />
+                )
                 break
             case 'log':
-                modal = <LogConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = (
+                    <LogConfigModal
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        config={cfg as any}
+                        brokerId={brokerId}
+                        brokerStatuses={brokerStatuses}
+                        onSave={(c, bid) => saveConfig(c, bid)}
+                        onClose={() => setShowConfig(false)}
+                    />
+                )
                 break
             case 'cron':
-                modal = <CronConfigModal config={cfg as any} onSave={saveConfig} onClose={() => setShowConfig(false)} />
+                modal = (
+                    <CronConfigModal
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        config={cfg as any}
+                        brokerId={brokerId}
+                        brokerStatuses={brokerStatuses}
+                        onSave={(c, bid) => saveConfig(c, bid)}
+                        onClose={() => setShowConfig(false)}
+                    />
+                )
                 break
             default:
                 return null
@@ -138,6 +199,9 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate, onCo
             <div ref={panelRef} className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? 'border-2 border-blue-500' : 'border border-base-300'}`}>
                 {/* Header */}
                 <div className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem] ${editMode ? 'drag-handle cursor-grab active:cursor-grabbing' : ''}`}>
+                    {/* Broker status dot */}
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} title={brokerStatus?.name ?? 'No broker'} />
+
                     {editingTitle ? (
                         <input
                             autoFocus

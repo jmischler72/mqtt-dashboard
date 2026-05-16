@@ -23,14 +23,16 @@ func InitDB(path string) (*sql.DB, error) {
 
 func migrate(db *sql.DB) error {
 	if _, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS mqtt_configurations (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+		CREATE TABLE IF NOT EXISTS mqtt_brokers (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
 			host TEXT NOT NULL,
 			port INTEGER NOT NULL,
 			client_id TEXT,
 			username TEXT,
 			password TEXT,
-			is_active BOOLEAN DEFAULT 1
+			is_enabled BOOLEAN DEFAULT 1,
+			sort_order INTEGER NOT NULL DEFAULT 0
 		);
 
 		CREATE TABLE IF NOT EXISTS dashboards (
@@ -48,7 +50,8 @@ func migrate(db *sql.DB) error {
 			y INTEGER NOT NULL DEFAULT 0,
 			w INTEGER NOT NULL DEFAULT 4,
 			h INTEGER NOT NULL DEFAULT 4,
-			config_json TEXT
+			config_json TEXT,
+			broker_id TEXT
 		);
 	`); err != nil {
 		return err
