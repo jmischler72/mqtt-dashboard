@@ -38,6 +38,8 @@ export default function DashboardPage() {
     const [isLoadingLayout, setIsLoadingLayout] = useState(true)
     const [gridWidth, setGridWidth] = useState(1200)
     const [addMenuOpen, setAddMenuOpen] = useState(false)
+    const [openConfigPanels, setOpenConfigPanels] = useState<Set<string>>(new Set())
+    const [hasAnyModalOpen, setHasAnyModalOpen] = useState(false)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const addMenuRef = useRef<HTMLDivElement>(null)
@@ -51,6 +53,24 @@ export default function DashboardPage() {
         }
         document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    useEffect(() => {
+        const checkAnyModalOpen = () => {
+            setHasAnyModalOpen(Boolean(document.querySelector('.modal.modal-open')))
+        }
+
+        checkAnyModalOpen()
+
+        const observer = new MutationObserver(checkAnyModalOpen)
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class'],
+        })
+
+        return () => observer.disconnect()
     }, [])
 
     useEffect(() => {
@@ -81,6 +101,8 @@ export default function DashboardPage() {
         }
     }, [activeDashboardId, dashboardsLoading])
 
+    const gridInteractionsEnabled = editMode && openConfigPanels.size === 0 && !hasAnyModalOpen
+
     const layout = panels.map((p) => ({
         i: p.id,
         x: p.x,
@@ -89,7 +111,7 @@ export default function DashboardPage() {
         h: p.h,
         minW: 2,
         minH: 2,
-        static: !editMode,
+        static: !gridInteractionsEnabled,
     }))
 
     const handleLayoutChange = useCallback((newLayout: GridLayout[]) => {
@@ -126,6 +148,18 @@ export default function DashboardPage() {
     const updatePanel = (updated: Panel) => {
         setPanels((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
     }
+
+    const handleConfigModalChange = useCallback((panelId: string, isOpen: boolean) => {
+        setOpenConfigPanels((prev) => {
+            const next = new Set(prev)
+            if (isOpen) {
+                next.add(panelId)
+            } else {
+                next.delete(panelId)
+            }
+            return next
+        })
+    }, [])
 
     return (
         <div className="min-h-screen bg-base-200">
@@ -169,28 +203,31 @@ export default function DashboardPage() {
                         </div>
                     </div>
                 ) : (
-                    <RGL
-                        width={gridWidth}
-                        layout={layout}
-                        cols={12}
-                        rowHeight={60}
-                        isDraggable={editMode}
-                        isResizable={editMode}
-                        onLayoutChange={handleLayoutChange}
-                        draggableHandle=".drag-handle"
-                        draggableCancel=".no-drag"
-                    >
-                        {panels.map((panel) => (
-                            <div key={panel.id}>
-                                <PanelWrapper
-                                    panel={panel}
-                                    editMode={editMode}
-                                    onDelete={() => removePanel(panel.id)}
-                                    onUpdate={updatePanel}
-                                />
-                            </div>
-                        ))}
-                    </RGL>
+                    <div className={hasAnyModalOpen ? 'pointer-events-none' : ''}>
+                        <RGL
+                            width={gridWidth}
+                            layout={layout}
+                            cols={12}
+                            rowHeight={60}
+                            isDraggable={gridInteractionsEnabled}
+                            isResizable={gridInteractionsEnabled}
+                            onLayoutChange={handleLayoutChange}
+                            draggableHandle=".drag-handle"
+                            draggableCancel=".no-drag"
+                        >
+                            {panels.map((panel) => (
+                                <div key={panel.id}>
+                                    <PanelWrapper
+                                        panel={panel}
+                                        editMode={editMode}
+                                        onDelete={() => removePanel(panel.id)}
+                                        onUpdate={updatePanel}
+                                        onConfigModalChange={handleConfigModalChange}
+                                    />
+                                </div>
+                            ))}
+                        </RGL>
+                    </div>
                 )}
             </div>
         </div>

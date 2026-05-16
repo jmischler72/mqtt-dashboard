@@ -12,9 +12,10 @@ interface Props {
     editMode: boolean
     onDelete: () => void
     onUpdate: (p: Panel) => void
+    onConfigModalChange: (panelId: string, isOpen: boolean) => void
 }
 
-export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Props) {
+export default function PanelWrapper({ panel, editMode, onDelete, onUpdate, onConfigModalChange }: Props) {
     const [showConfig, setShowConfig] = useState(false)
     const [title, setTitle] = useState(panel.title)
     const [editingTitle, setEditingTitle] = useState(false)
@@ -26,6 +27,11 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
             if (openConfigTimeoutRef.current) clearTimeout(openConfigTimeoutRef.current)
         }
     }, [])
+
+    useEffect(() => {
+        onConfigModalChange(panel.id, showConfig)
+        return () => onConfigModalChange(panel.id, false)
+    }, [onConfigModalChange, panel.id, showConfig])
 
     const saveTitle = async () => {
         setEditingTitle(false)
