@@ -92,7 +92,7 @@ export default function Layout() {
     return (
         <div className="min-h-screen flex flex-col">
             <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-4">
-                <span className="text-lg font-bold">mqtt-dashboard</span>
+                <img src="/logo.svg" alt="mqtt-dashboard" className="h-5 w-auto" />
                 <NavLink to="/dashboard" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Dashboard</NavLink>
                 <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Configuration</NavLink>
                 <div className="ml-auto flex items-center gap-2">
