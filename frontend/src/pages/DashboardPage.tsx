@@ -88,7 +88,7 @@ export default function DashboardPage() {
         w: p.w,
         h: p.h,
         minW: 2,
-        minH: 3,
+        minH: 2,
         static: !editMode,
     }))
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import ButtonPanel, { ButtonConfigModal } from './panels/ButtonPanel'
 import InputPanel, { InputConfigModal } from './panels/InputPanel'
 import LogPanel, { LogConfigModal } from './panels/LogPanel'
@@ -123,58 +124,59 @@ export default function PanelWrapper({ panel, editMode, onDelete, onUpdate }: Pr
                 return null
         }
 
-        return modal
+        return createPortal(modal, document.body)
     }
 
     return (
-        <div ref={panelRef} className="flex flex-col h-full bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem] ${editMode ? 'drag-handle cursor-grab active:cursor-grabbing' : ''}`}>
-                {editingTitle ? (
-                    <input
-                        autoFocus
-                        className="input input-xs flex-1 font-semibold no-drag"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        onBlur={saveTitle}
-                        onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
-                    />
-                ) : (
-                    <div className="flex-1 min-w-0">
-                        <span
-                            className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? 'cursor-text' : ''}`}
-                            onDoubleClick={() => editMode && setEditingTitle(true)}
-                        >
-                            {title}
-                        </span>
-                    </div>
-                )}
-                {editMode && (
-                    <div className="flex gap-1 shrink-0 no-drag">
-                        <button
-                            className="btn btn-ghost btn-xs no-drag"
-                            title="Configure"
-                            onClick={handleOpenConfig}
-                        >
-                            ⚙
-                        </button>
-                        <button
-                            className="btn btn-ghost btn-xs text-error no-drag"
-                            title="Delete"
-                            onClick={handleDelete}
-                        >
-                            ✕
-                        </button>
-                    </div>
-                )}
-            </div>
+        <>
+            <div ref={panelRef} className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? 'border-2 border-blue-500' : 'border border-base-300'}`}>
+                {/* Header */}
+                <div className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem] ${editMode ? 'drag-handle cursor-grab active:cursor-grabbing' : ''}`}>
+                    {editingTitle ? (
+                        <input
+                            autoFocus
+                            className="input input-xs flex-1 font-semibold no-drag"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            onBlur={saveTitle}
+                            onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
+                        />
+                    ) : (
+                        <div className="flex-1 min-w-0">
+                            <span
+                                className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? 'cursor-text' : ''}`}
+                                onDoubleClick={() => editMode && setEditingTitle(true)}
+                            >
+                                {title}
+                            </span>
+                        </div>
+                    )}
+                    {editMode && (
+                        <div className="flex gap-1 shrink-0 no-drag">
+                            <button
+                                className="btn btn-ghost btn-xs no-drag"
+                                title="Configure"
+                                onClick={handleOpenConfig}
+                            >
+                                ⚙
+                            </button>
+                            <button
+                                className="btn btn-ghost btn-xs text-error no-drag"
+                                title="Delete"
+                                onClick={handleDelete}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    )}
+                </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-hidden p-2">
-                {renderPanel()}
+                {/* Body */}
+                <div className="flex-1 overflow-hidden p-2">
+                    {renderPanel()}
+                </div>
             </div>
-
             {renderConfigModal()}
-        </div>
+        </>
     )
 }
