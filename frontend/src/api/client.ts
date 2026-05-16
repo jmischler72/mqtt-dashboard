@@ -21,4 +21,10 @@ export const api = {
     put: <T>(path: string, body: unknown) =>
         request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
     delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+    getExplorerTree: (brokerId: string) =>
+        request<string[]>(`/api/explorer/tree?broker_id=${encodeURIComponent(brokerId)}`),
+    getExplorerHistory: (brokerId: string, topic: string) =>
+        request<Array<{ id: number; broker_id: string; topic: string; payload: string; timestamp: string }>>(
+            `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`
+        ),
 }

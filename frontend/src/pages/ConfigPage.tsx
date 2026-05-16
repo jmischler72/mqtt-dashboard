@@ -110,6 +110,9 @@ export default function ConfigPage() {
     const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
     const brokerStatuses = useBrokerStatuses()
+    const [retentionValue, setRetentionValue] = useState(24)
+    const [retentionUnit, setRetentionUnit] = useState<'hours' | 'days'>('hours')
+    const [retentionSaving, setRetentionSaving] = useState(false)
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -126,6 +129,33 @@ export default function ConfigPage() {
     }, [])
 
     useEffect(() => { loadBrokers() }, [loadBrokers])
+
+    useEffect(() => {
+        api.get<{ retention_period_hours: number }>('/api/settings').then((s) => {
+            const h = s.retention_period_hours
+            if (h % 24 === 0) {
+                setRetentionValue(h / 24)
+                setRetentionUnit('days')
+            } else {
+                setRetentionValue(h)
+                setRetentionUnit('hours')
+            }
+        }).catch(() => { })
+    }, [])
+
+    const handleSaveRetention = async () => {
+        const hours = retentionUnit === 'days' ? retentionValue * 24 : retentionValue
+        if (hours < 24) { showToast('Minimum retention is 24 hours', false); return }
+        setRetentionSaving(true)
+        try {
+            await api.put('/api/settings', { retention_period_hours: hours })
+            showToast('Retention settings saved')
+        } catch {
+            showToast('Failed to save retention settings', false)
+        } finally {
+            setRetentionSaving(false)
+        }
+    }
 
     // Initial selection: default broker when available; otherwise empty state.
     useEffect(() => {
@@ -368,16 +398,16 @@ export default function ConfigPage() {
             </aside>
 
             {/* ── Detail form ──────────────────────────────────────── */}
-            <main className="flex-1 overflow-y-auto p-6 flex">
+            <main className="flex-1 overflow-y-auto p-6">
+                <div className="max-w-2xl mx-auto flex flex-col gap-6 my-2">
                 {!canShowForm ? (
-                    <div className="m-auto max-w-md text-center">
+                    <div className="text-center py-8">
                         <h2 className="text-2xl font-semibold mb-2">No broker selected</h2>
                         <p className="text-base-content/60 mb-4">Create a broker from the sidebar to start connecting.</p>
                         <button className="btn btn-primary" onClick={handleAddNew}>+ Add New Broker</button>
                     </div>
                 ) : (
-                    <div className="w-full max-w-2xl mx-auto my-2">
-                        <div className="card bg-base-100 border border-base-300 shadow-sm">
+                    <div className="card bg-base-100 border border-base-300 shadow-sm">
                             <div className="card-body gap-4">
                                 <div>
                                     {isEditingTitle ? (
@@ -480,8 +510,50 @@ export default function ConfigPage() {
                                 )}
                             </div>
                         </div>
-                    </div>
                 )}
+
+                {/* ── Data Retention ── */}
+                <div className="card bg-base-100 border border-base-300 shadow-sm">
+                    <div className="card-body gap-4">
+                        <h2 className="card-title text-lg">Data Retention</h2>
+                        <fieldset className="fieldset">
+                            <legend className="fieldset-legend">Retention Period</legend>
+                            <div className="flex gap-2">
+                                <input
+                                    className="input input-bordered w-24"
+                                    type="number"
+                                    min={1}
+                                    value={retentionValue}
+                                    onChange={(e) => setRetentionValue(Number(e.target.value))}
+                                />
+                                <select
+                                    className="select select-bordered"
+                                    value={retentionUnit}
+                                    onChange={(e) => setRetentionUnit(e.target.value as 'hours' | 'days')}
+                                >
+                                    <option value="hours">Hours</option>
+                                    <option value="days">Days</option>
+                                </select>
+                            </div>
+                            {retentionUnit === 'hours' && retentionValue < 24 && (
+                                <p className="text-error text-xs mt-1">Minimum retention is 24 hours.</p>
+                            )}
+                            {retentionUnit === 'days' && retentionValue < 1 && (
+                                <p className="text-error text-xs mt-1">Minimum retention is 1 day.</p>
+                            )}
+                        </fieldset>
+                        <p className="text-xs text-base-content/50">
+                            Topic history older than this window is automatically purged every 30 minutes.
+                        </p>
+                        <div>
+                            <button className="btn btn-sm btn-primary" onClick={handleSaveRetention} disabled={retentionSaving}>
+                                {retentionSaving ? <span className="loading loading-spinner loading-xs" /> : null}
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                </div>
             </main>
 
             {/* Toast */}

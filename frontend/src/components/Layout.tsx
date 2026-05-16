@@ -94,6 +94,7 @@ export default function Layout() {
             <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-4">
                 <img src="/logo.svg" alt="mqtt-dashboard" className="h-5 w-auto" />
                 <NavLink to="/dashboard" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Dashboard</NavLink>
+                <NavLink to="/explorer" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Explorer</NavLink>
                 <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Configuration</NavLink>
                 <div className="ml-auto flex items-center gap-2">
                     {showDashboardControls && dashboards.length > 0 && (

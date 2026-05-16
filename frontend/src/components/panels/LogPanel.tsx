@@ -6,6 +6,7 @@ interface LogMessage {
     timestamp: string
     topic: string
     payload: string
+    historical?: boolean
 }
 
 interface LogConfig {
@@ -100,10 +101,16 @@ interface LogPanelProps {
     panelId: string
     brokerId: string
     config: LogConfig
+    // Explorer mode: when set, disables internal WS and uses injected data
+    initialHistory?: LogMessage[]
+    injectedMessages?: LogMessage[]
 }
 
-export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
-    const [messages, setMessages] = useState<LogMessage[]>([])
+export default function LogPanel({ panelId, brokerId, config, initialHistory, injectedMessages }: LogPanelProps) {
+    const explorerMode = injectedMessages !== undefined
+    const [messages, setMessages] = useState<LogMessage[]>(() =>
+        initialHistory ? [...initialHistory] : []
+    )
     const [paused, setPaused] = useState(false)
     const logContainerRef = useRef<HTMLDivElement>(null)
     const prevLengthRef = useRef(0)
@@ -115,7 +122,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
 
     const { subscribe } = useWebSocket({
         onMessage: (data) => {
-            if (pausedRef.current) return
+            if (explorerMode || pausedRef.current) return
             try {
                 const msg = JSON.parse(data) as { topic: string; payload: string }
                 const entry: LogMessage = {
@@ -131,11 +138,28 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
         },
     })
 
+    // Reset and repopulate when initialHistory changes (topic selection change in explorer)
     useEffect(() => {
-        if (!config.topics) return
+        if (!explorerMode) return
+        setMessages(initialHistory ? [...initialHistory] : [])
+    }, [initialHistory, explorerMode])
+
+    // Append incoming injected messages (live WS filtered by topic in explorer)
+    useEffect(() => {
+        if (!explorerMode || !injectedMessages?.length) return
+        const latest = injectedMessages[injectedMessages.length - 1]
+        if (pausedRef.current) return
+        setMessages((prev) => {
+            const next = [...prev, latest]
+            return next.length > maxMessages ? next.slice(next.length - maxMessages) : next
+        })
+    }, [injectedMessages, explorerMode, maxMessages])
+
+    useEffect(() => {
+        if (explorerMode || !config.topics) return
         const topicList = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
         subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList })
-    }, [panelId, brokerId, config.topics, subscribe])
+    }, [panelId, brokerId, config.topics, subscribe, explorerMode])
 
     useEffect(() => {
         const el = logContainerRef.current
@@ -170,7 +194,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
                 className="flex-1 overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5"
             >
                 {messages.map((m, i) => (
-                    <div key={i} className="leading-tight">
+                    <div key={i} className={`leading-tight ${m.historical ? 'opacity-40' : ''}`}>
                         <span className="text-base-content/40">[{m.timestamp}]</span>{' '}
                         <span className="text-accent">{m.topic}</span>{' '}
                         <span>{m.payload}</span>

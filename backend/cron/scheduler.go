@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
 	"time"
@@ -127,4 +128,22 @@ func (sc *Scheduler) GetJob(panelID string) (*JobInfo, bool) {
 		}
 	}
 	return info, true
+}
+
+// StartPruningJob registers a cron job that runs every 30 minutes and deletes
+// mqtt_history records older than the configured retention window.
+func (sc *Scheduler) StartPruningJob(db *sql.DB) error {
+	_, err := sc.s.NewJob(
+		gocron.CronJob("*/30 * * * *", false),
+		gocron.NewTask(func() {
+			var retentionHours int
+			row := db.QueryRow(`SELECT retention_period_hours FROM app_settings WHERE id = 1`)
+			if err := row.Scan(&retentionHours); err != nil || retentionHours < 24 {
+				retentionHours = 24
+			}
+			db.Exec(`DELETE FROM mqtt_history WHERE timestamp < DATETIME('now', '-' || ? || ' hours')`, retentionHours) //nolint
+		}),
+		gocron.WithTags("pruning"),
+	)
+	return err
 }

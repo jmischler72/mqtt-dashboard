@@ -35,7 +35,7 @@ func main() {
 	defer database.Close()
 
 	// --- Init broker registry ---
-	registry := mqttclient.NewRegistry()
+	registry := mqttclient.NewRegistry(database)
 	autoConnectFromDB(database, registry)
 
 	// --- Init Cron scheduler ---
@@ -46,6 +46,9 @@ func main() {
 	scheduler.Start()
 	defer scheduler.Stop()
 	loadCronJobsFromDB(database, scheduler)
+	if err := scheduler.StartPruningJob(database); err != nil {
+		log.Printf("start pruning job: %v", err)
+	}
 
 	// --- Init WebSocket hub ---
 	wsHub := ws.NewHub(registry)
@@ -56,6 +59,8 @@ func main() {
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
+	settingsH := handlers.NewSettingsHandler(database)
+	explorerH := handlers.NewExplorerHandler(database)
 
 	// --- Router ---
 	r := chi.NewRouter()
@@ -98,6 +103,14 @@ func main() {
 	r.Delete("/api/cron/{panelId}", cronH.DeleteCron)
 	r.Put("/api/cron/{panelId}/toggle", cronH.ToggleCron)
 	r.Get("/api/cron/{panelId}", cronH.GetCronStatus)
+
+	// Settings
+	r.Get("/api/settings", settingsH.GetSettings)
+	r.Put("/api/settings", settingsH.UpdateSettings)
+
+	// Explorer
+	r.Get("/api/explorer/tree", explorerH.GetTree)
+	r.Get("/api/explorer/history", explorerH.GetHistory)
 
 	// WebSocket
 	r.Get("/ws", wsHub.ServeWS)

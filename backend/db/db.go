@@ -57,6 +57,29 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
-	_, err := db.Exec(`INSERT OR IGNORE INTO dashboards (id, name) VALUES ('default', 'Default')`)
+	if _, err := db.Exec(`INSERT OR IGNORE INTO dashboards (id, name) VALUES ('default', 'Default')`); err != nil {
+		return err
+	}
+
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS app_settings (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			retention_period_hours INTEGER DEFAULT 24
+		);
+
+		CREATE TABLE IF NOT EXISTS mqtt_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			broker_id TEXT NOT NULL,
+			topic TEXT NOT NULL,
+			payload TEXT,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_mqtt_history_broker_topic_time ON mqtt_history(broker_id, topic, timestamp);
+	`); err != nil {
+		return err
+	}
+
+	_, err := db.Exec(`INSERT OR IGNORE INTO app_settings (id) VALUES (1)`)
 	return err
 }
