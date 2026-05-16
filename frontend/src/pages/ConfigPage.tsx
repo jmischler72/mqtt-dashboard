@@ -221,7 +221,11 @@ export default function ConfigPage() {
         try {
             if (isCreatingNew) {
                 // Create new
-                const created = await api.post<Broker>('/api/brokers', form)
+                const payload = {
+                    ...form,
+                    name: form.name.trim() || 'New Broker',
+                }
+                const created = await api.post<Broker>('/api/brokers', payload)
                 setBrokers((prev) => [...prev, created])
                 setSelectedId(created.id)
                 setIsCreatingNew(false)
