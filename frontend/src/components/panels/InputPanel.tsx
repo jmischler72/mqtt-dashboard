@@ -17,10 +17,11 @@ interface ModalProps {
 }
 
 export function InputConfigModal({ config, brokerId, brokerStatuses, onSave, onClose }: ModalProps) {
+    const defaultBrokerId = brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? ''
     const [topic, setTopic] = useState(config.topic ?? '')
     const [placeholder, setPlaceholder] = useState(config.placeholder ?? '')
     const [multiline, setMultiline] = useState(config.multiline ?? false)
-    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId)
+    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId || defaultBrokerId)
 
     return (
         <dialog className="modal modal-open">
@@ -34,7 +35,6 @@ export function InputConfigModal({ config, brokerId, brokerStatuses, onSave, onC
                             value={selectedBrokerId}
                             onChange={(e) => setSelectedBrokerId(e.target.value)}
                         >
-                            <option value="">— select broker —</option>
                             {brokerStatuses.map((b) => (
                                 <option key={b.id} value={b.id}>{b.name}</option>
                             ))}
@@ -58,7 +58,7 @@ export function InputConfigModal({ config, brokerId, brokerStatuses, onSave, onC
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave({ topic, placeholder, multiline }, selectedBrokerId)}>Save</button>
+                    <button className="btn btn-primary" onClick={() => onSave({ topic, placeholder, multiline }, selectedBrokerId || defaultBrokerId)}>Save</button>
                 </div>
             </div>
             <div className="modal-backdrop" onClick={onClose} />

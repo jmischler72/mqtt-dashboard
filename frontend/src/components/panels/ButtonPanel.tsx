@@ -17,10 +17,11 @@ interface ModalProps {
 }
 
 export function ButtonConfigModal({ config, brokerId, brokerStatuses, onSave, onClose }: ModalProps) {
+    const defaultBrokerId = brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? ''
     const [label, setLabel] = useState(config.label ?? 'Click')
     const [topic, setTopic] = useState(config.topic ?? '')
     const [payload, setPayload] = useState(config.payload ?? '')
-    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId)
+    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId || defaultBrokerId)
 
     return (
         <dialog className="modal modal-open">
@@ -34,7 +35,6 @@ export function ButtonConfigModal({ config, brokerId, brokerStatuses, onSave, on
                             value={selectedBrokerId}
                             onChange={(e) => setSelectedBrokerId(e.target.value)}
                         >
-                            <option value="">— select broker —</option>
                             {brokerStatuses.map((b) => (
                                 <option key={b.id} value={b.id}>{b.name}</option>
                             ))}
@@ -55,7 +55,7 @@ export function ButtonConfigModal({ config, brokerId, brokerStatuses, onSave, on
                 </div>
                 <div className="modal-action">
                     <button className="btn" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave({ label, topic, payload }, selectedBrokerId)}>Save</button>
+                    <button className="btn btn-primary" onClick={() => onSave({ label, topic, payload }, selectedBrokerId || defaultBrokerId)}>Save</button>
                 </div>
             </div>
             <div className="modal-backdrop" onClick={onClose} />

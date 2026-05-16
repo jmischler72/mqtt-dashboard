@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
     DndContext,
     closestCenter,
@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { api } from '../api/client'
-import type { Broker } from '../hooks/useBrokers'
+import { useBrokerStatuses, type Broker } from '../hooks/useBrokers'
 
 const statusDot: Record<string, string> = {
     CONNECTED: 'bg-success',
@@ -28,12 +28,14 @@ const statusDot: Record<string, string> = {
 // ─── Sortable list item ───────────────────────────────────────────────────────
 function BrokerListItem({
     broker,
+    status,
     isDefault,
     isSelected,
     onSelect,
     onToggle,
 }: {
     broker: Broker
+    status: string
     isDefault: boolean
     isSelected: boolean
     onSelect: () => void
@@ -66,7 +68,7 @@ function BrokerListItem({
             </span>
 
             {/* Status dot */}
-            <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[broker.status ?? 'DISABLED'] ?? 'bg-neutral'}`} />
+            <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[status] ?? 'bg-neutral'}`} />
 
             {/* Name + default badge */}
             <span className="flex-1 text-sm truncate">{broker.name}</span>
@@ -100,10 +102,14 @@ const emptyForm = () => ({
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
     const [brokers, setBrokers] = useState<Broker[]>([])
-    const [selectedId, setSelectedId] = useState<string | null>(null) // null = new broker form
+    const [selectedId, setSelectedId] = useState<string | null>(null)
+    const [isCreatingNew, setIsCreatingNew] = useState(false)
+    const [selectionInitialized, setSelectionInitialized] = useState(false)
     const [form, setForm] = useState(emptyForm())
     const [saving, setSaving] = useState(false)
+    const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+    const brokerStatuses = useBrokerStatuses()
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -121,29 +127,85 @@ export default function ConfigPage() {
 
     useEffect(() => { loadBrokers() }, [loadBrokers])
 
-    // When selection changes, populate form
+    // Initial selection: default broker when available; otherwise empty state.
     useEffect(() => {
-        if (selectedId === null) {
+        if (!selectionInitialized) {
+            if (brokers.length === 0) {
+                setSelectedId(null)
+                setIsCreatingNew(false)
+                setSelectionInitialized(true)
+                return
+            }
+
+            const enabled = brokers.filter((b) => b.is_enabled)
+            const defaultBroker = enabled[0] ?? brokers[0]
+            setSelectedId(defaultBroker.id)
+            setIsCreatingNew(false)
+            setSelectionInitialized(true)
+            return
+        }
+
+        if (selectedId && !brokers.some((b) => b.id === selectedId)) {
+            const enabled = brokers.filter((b) => b.is_enabled)
+            const fallback = enabled[0] ?? brokers[0]
+            setSelectedId(fallback?.id ?? null)
+            setIsCreatingNew(false)
+        }
+    }, [brokers, selectionInitialized, selectedId])
+
+    // Populate form from selected broker, or reset for new broker.
+    useEffect(() => {
+        if (isCreatingNew) {
             setForm(emptyForm())
             return
         }
+
+        if (!selectedId) return
         const b = brokers.find((x) => x.id === selectedId)
-        if (b) {
-            setForm({
-                name: b.name,
-                host: b.host,
-                port: String(b.port),
-                client_id: b.client_id ?? '',
-                username: b.username ?? '',
-                password: '', // never pre-fill password
-                is_enabled: b.is_enabled,
-            })
-        }
-    }, [selectedId, brokers])
+        if (!b) return
 
-    const handleAddNew = () => setSelectedId(null)
+        setForm({
+            name: b.name,
+            host: b.host,
+            port: String(b.port),
+            client_id: b.client_id ?? '',
+            username: b.username ?? '',
+            password: '',
+            is_enabled: b.is_enabled,
+        })
+    }, [selectedId, isCreatingNew])
 
-    const handleSelect = (id: string) => setSelectedId(id)
+    // Keep enable toggle synced with latest server state to avoid stale status in form.
+    useEffect(() => {
+        if (isCreatingNew || !selectedId) return
+        const b = brokers.find((x) => x.id === selectedId)
+        if (!b) return
+        setForm((prev) => ({ ...prev, is_enabled: b.is_enabled }))
+    }, [brokers, selectedId, isCreatingNew])
+
+    const statusById = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const s of brokerStatuses) map.set(s.id, s.status)
+        return map
+    }, [brokerStatuses])
+
+    const getBrokerStatus = (broker: Broker) => {
+        if (!broker.is_enabled) return 'DISABLED'
+        return statusById.get(broker.id) ?? broker.status ?? 'DISCONNECTED'
+    }
+
+    const handleAddNew = () => {
+        setSelectedId(null)
+        setIsCreatingNew(true)
+        setIsEditingTitle(false)
+        setForm(emptyForm())
+    }
+
+    const handleSelect = (id: string) => {
+        setSelectedId(id)
+        setIsCreatingNew(false)
+        setIsEditingTitle(false)
+    }
 
     const handleToggle = async (broker: Broker, enabled: boolean) => {
         try {
@@ -157,18 +219,21 @@ export default function ConfigPage() {
     const handleSave = async () => {
         setSaving(true)
         try {
-            if (selectedId === null) {
+            if (isCreatingNew) {
                 // Create new
                 const created = await api.post<Broker>('/api/brokers', form)
                 setBrokers((prev) => [...prev, created])
                 setSelectedId(created.id)
+                setIsCreatingNew(false)
+                setIsEditingTitle(false)
                 showToast('Broker created')
-            } else {
+            } else if (selectedId) {
                 // Update existing (only send password if non-empty)
                 const payload: Record<string, unknown> = { ...form }
                 if (!payload.password) delete payload.password
                 const updated = await api.put<Broker>(`/api/brokers/${selectedId}`, payload)
                 setBrokers((prev) => prev.map((b) => (b.id === selectedId ? updated : b)))
+                setIsEditingTitle(false)
                 showToast('Broker saved')
             }
         } catch (e: any) {
@@ -184,8 +249,18 @@ export default function ConfigPage() {
         if (!confirm(`Delete broker "${b?.name}"?`)) return
         try {
             await api.delete(`/api/brokers/${selectedId}`)
-            setBrokers((prev) => prev.filter((x) => x.id !== selectedId))
-            setSelectedId(null)
+            const remaining = brokers.filter((x) => x.id !== selectedId)
+            setBrokers(remaining)
+            setIsEditingTitle(false)
+
+            if (remaining.length === 0) {
+                setSelectedId(null)
+                setIsCreatingNew(false)
+            } else {
+                const enabled = remaining.filter((x) => x.is_enabled)
+                setSelectedId((enabled[0] ?? remaining[0]).id)
+                setIsCreatingNew(false)
+            }
             showToast('Broker deleted')
         } catch (e: any) {
             showToast(e.message, false)
@@ -225,6 +300,9 @@ export default function ConfigPage() {
     })
 
     const selectedBroker = selectedId ? brokers.find((b) => b.id === selectedId) : null
+    const canShowForm = isCreatingNew || !!selectedBroker
+    const titleLabel = isCreatingNew ? 'New Broker' : (selectedBroker?.name ?? 'Broker')
+    const titleDisplay = form.name.trim() || titleLabel
 
     return (
         <div className="flex h-[calc(100vh-4rem)]">
@@ -247,8 +325,9 @@ export default function ConfigPage() {
                                         <BrokerListItem
                                             key={b.id}
                                             broker={b}
+                                            status={getBrokerStatus(b)}
                                             isDefault={b.id === defaultBrokerId}
-                                            isSelected={b.id === selectedId}
+                                            isSelected={b.id === selectedId && !isCreatingNew}
                                             onSelect={() => handleSelect(b.id)}
                                             onToggle={(en) => handleToggle(b, en)}
                                         />
@@ -266,8 +345,9 @@ export default function ConfigPage() {
                                         <BrokerListItem
                                             key={b.id}
                                             broker={b}
+                                            status={getBrokerStatus(b)}
                                             isDefault={false}
-                                            isSelected={b.id === selectedId}
+                                            isSelected={b.id === selectedId && !isCreatingNew}
                                             onSelect={() => handleSelect(b.id)}
                                             onToggle={(en) => handleToggle(b, en)}
                                         />
@@ -284,71 +364,120 @@ export default function ConfigPage() {
             </aside>
 
             {/* ── Detail form ──────────────────────────────────────── */}
-            <main className="flex-1 overflow-y-auto p-6">
-                <h2 className="text-lg font-semibold mb-4">
-                    {selectedId === null ? 'New Broker' : `Editing: ${selectedBroker?.name ?? ''}`}
-                </h2>
-
-                <div className="max-w-md flex flex-col gap-3">
-                    <fieldset className="fieldset">
-                        <legend className="fieldset-legend">Broker Name</legend>
-                        <input className="input input-bordered w-full" placeholder="Home Mosquitto" {...f('name')} />
-                    </fieldset>
-
-                    <fieldset className="fieldset">
-                        <legend className="fieldset-legend">Host</legend>
-                        <input className="input input-bordered w-full" placeholder="localhost" {...f('host')} />
-                    </fieldset>
-
-                    <fieldset className="fieldset">
-                        <legend className="fieldset-legend">Port</legend>
-                        <input className="input input-bordered w-full" placeholder="1883" {...f('port')} />
-                    </fieldset>
-
-                    <fieldset className="fieldset">
-                        <legend className="fieldset-legend">Client ID</legend>
-                        <input className="input input-bordered w-full" placeholder="mqtt-dashboard" {...f('client_id')} />
-                    </fieldset>
-
-                    <fieldset className="fieldset">
-                        <legend className="fieldset-legend">Username (optional)</legend>
-                        <input className="input input-bordered w-full" placeholder="username" {...f('username')} />
-                    </fieldset>
-
-                    <fieldset className="fieldset">
-                        <legend className="fieldset-legend">Password (optional)</legend>
-                        <input className="input input-bordered w-full" type="password" placeholder={selectedId ? '(unchanged)' : '••••••'} {...f('password')} />
-                    </fieldset>
-
-                    <label className="label cursor-pointer justify-start gap-3 px-0 py-2">
-                        <input
-                            type="checkbox"
-                            className="toggle toggle-primary"
-                            checked={form.is_enabled}
-                            onChange={(e) => setForm((prev) => ({ ...prev, is_enabled: e.target.checked }))}
-                        />
-                        <span className="label-text font-medium">Enable this MQTT Server</span>
-                    </label>
-
-                    <div className="flex gap-2 mt-2">
-                        <button className="btn btn-primary flex-1" onClick={handleSave} disabled={saving}>
-                            {saving ? <span className="loading loading-spinner loading-xs" /> : null}
-                            {selectedId ? 'Save' : 'Create & Connect'}
-                        </button>
-                        {selectedId && (
-                            <button className="btn btn-error btn-outline" onClick={handleDelete}>
-                                Delete
-                            </button>
-                        )}
+            <main className="flex-1 overflow-y-auto p-6 flex">
+                {!canShowForm ? (
+                    <div className="m-auto max-w-md text-center">
+                        <h2 className="text-2xl font-semibold mb-2">No broker selected</h2>
+                        <p className="text-base-content/60 mb-4">Create a broker from the sidebar to start connecting.</p>
+                        <button className="btn btn-primary" onClick={handleAddNew}>+ Add New Broker</button>
                     </div>
+                ) : (
+                    <div className="w-full max-w-2xl mx-auto my-2">
+                        <div className="card bg-base-100 border border-base-300 shadow-sm">
+                            <div className="card-body gap-4">
+                                <div>
+                                    {isEditingTitle ? (
+                                        <input
+                                            autoFocus
+                                            className="input input-bordered input-lg w-full font-semibold"
+                                            placeholder={titleLabel}
+                                            value={form.name}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                                            onBlur={() => setIsEditingTitle(false)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') setIsEditingTitle(false)
+                                            }}
+                                        />
+                                    ) : (
+                                        <button
+                                            className="text-left hover:opacity-80 transition-opacity"
+                                            onClick={() => setIsEditingTitle(true)}
+                                            title="Click to rename broker"
+                                        >
+                                            <h2 className="text-2xl font-semibold">{titleDisplay}</h2>
+                                            <p className="text-xs text-base-content/50 mt-1">Click title to rename</p>
+                                        </button>
+                                    )}
+                                </div>
 
-                    {selectedBroker && (
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className={`w-2.5 h-2.5 rounded-full ${statusDot[selectedBroker.status ?? 'DISABLED'] ?? 'bg-neutral'}`} />
-                            <span className="text-sm text-base-content/60">{selectedBroker.status ?? 'DISABLED'}</span>
+                                <fieldset className="fieldset">
+                                    <legend className="fieldset-legend">Host</legend>
+                                    <input
+                                        className="input input-bordered w-full"
+                                        placeholder="localhost"
+                                        {...f('host')}
+                                    />
+                                </fieldset>
+
+                                <fieldset className="fieldset">
+                                    <legend className="fieldset-legend">Port</legend>
+                                    <input
+                                        className="input input-bordered w-full"
+                                        placeholder="1883"
+                                        {...f('port')}
+                                    />
+                                </fieldset>
+
+                                <fieldset className="fieldset">
+                                    <legend className="fieldset-legend">Client ID</legend>
+                                    <input
+                                        className="input input-bordered w-full"
+                                        placeholder="mqtt-dashboard"
+                                        {...f('client_id')}
+                                    />
+                                </fieldset>
+
+                                <fieldset className="fieldset">
+                                    <legend className="fieldset-legend">Username (optional)</legend>
+                                    <input
+                                        className="input input-bordered w-full"
+                                        placeholder="username"
+                                        {...f('username')}
+                                    />
+                                </fieldset>
+
+                                <fieldset className="fieldset">
+                                    <legend className="fieldset-legend">Password (optional)</legend>
+                                    <input
+                                        className="input input-bordered w-full"
+                                        type="password"
+                                        placeholder={selectedId ? '(unchanged)' : '••••••'}
+                                        {...f('password')}
+                                    />
+                                </fieldset>
+
+                                <label className="label cursor-pointer justify-start gap-3 px-0 py-2">
+                                    <input
+                                        type="checkbox"
+                                        className="toggle toggle-primary"
+                                        checked={form.is_enabled}
+                                        onChange={(e) => setForm((prev) => ({ ...prev, is_enabled: e.target.checked }))}
+                                    />
+                                    <span className="label-text font-medium">Enable this MQTT Server</span>
+                                </label>
+
+                                <div className="flex gap-2 mt-1">
+                                    <button className="btn btn-primary flex-1" onClick={handleSave} disabled={saving}>
+                                        {saving ? <span className="loading loading-spinner loading-xs" /> : null}
+                                        {isCreatingNew ? 'Create & Connect' : 'Save'}
+                                    </button>
+                                    {!isCreatingNew && selectedId && (
+                                        <button className="btn btn-error btn-outline" onClick={handleDelete}>
+                                            Delete
+                                        </button>
+                                    )}
+                                </div>
+
+                                {!isCreatingNew && selectedBroker && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? 'bg-neutral'}`} />
+                                        <span className="text-sm text-base-content/60">{getBrokerStatus(selectedBroker)}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </main>
 
             {/* Toast */}

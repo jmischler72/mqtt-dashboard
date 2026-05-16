@@ -31,12 +31,13 @@ interface Props {
 }
 
 export function CronConfigModal({ config, brokerId, brokerStatuses, onSave, onClose }: Props) {
+    const defaultBrokerId = brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? ''
     const [topic, setTopic] = useState(config.topic ?? '')
     const [payload, setPayload] = useState(config.payload ?? '')
     const [enabled, setEnabled] = useState(config.enabled ?? false)
     const [preset, setPreset] = useState('* * * * *')
     const [customExpr, setCustomExpr] = useState(config.cron_expr ?? '')
-    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId)
+    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerId || defaultBrokerId)
     const isCustom = preset === 'custom'
     const cronExpr = isCustom ? customExpr : preset
 
@@ -60,7 +61,6 @@ export function CronConfigModal({ config, brokerId, brokerStatuses, onSave, onCl
                             value={selectedBrokerId}
                             onChange={(e) => setSelectedBrokerId(e.target.value)}
                         >
-                            <option value="">— select broker —</option>
                             {brokerStatuses.map((b) => (
                                 <option key={b.id} value={b.id}>{b.name}</option>
                             ))}
@@ -105,7 +105,7 @@ export function CronConfigModal({ config, brokerId, brokerStatuses, onSave, onCl
                     <button
                         className="btn btn-primary"
                         disabled={!topic || !cronExpr}
-                        onClick={() => onSave({ cron_expr: cronExpr, topic, payload, enabled }, selectedBrokerId)}
+                        onClick={() => onSave({ cron_expr: cronExpr, topic, payload, enabled }, selectedBrokerId || defaultBrokerId)}
                     >Save</button>
                 </div>
             </div>
