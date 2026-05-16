@@ -61,7 +61,7 @@ export default function Layout() {
             const defaultId = valid ? stored! : list[0]?.id ?? ''
             setActiveDashboardId(defaultId)
             localStorage.setItem(ACTIVE_DASHBOARD_KEY, defaultId)
-        }).catch(() => {}).finally(() => setDashboardsLoading(false))
+        }).catch(() => { }).finally(() => setDashboardsLoading(false))
     }, [])
 
     const switchDashboard = (id: string) => {
@@ -94,7 +94,7 @@ export default function Layout() {
             <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-4">
                 <span className="text-lg font-bold">mqtt-dashboard</span>
                 <NavLink to="/dashboard" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Dashboard</NavLink>
-                <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Config</NavLink>
+                <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Configuration</NavLink>
                 <div className="ml-auto flex items-center gap-2">
                     {showDashboardControls && dashboards.length > 0 && (
                         <DashboardSelector
