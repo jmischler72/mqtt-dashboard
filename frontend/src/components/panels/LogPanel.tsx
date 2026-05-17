@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { api } from '../../api/client'
 import type { BrokerStatus } from '../../hooks/useBrokers'
 
 interface LogMessage {
@@ -101,14 +102,10 @@ interface LogPanelProps {
     panelId: string
     brokerId: string
     config: LogConfig
-    initialHistory?: LogMessage[]
-    resetKey?: string
 }
 
-export default function LogPanel({ panelId, brokerId, config, initialHistory, resetKey }: LogPanelProps) {
-    const [messages, setMessages] = useState<LogMessage[]>(() =>
-        initialHistory ? [...initialHistory] : []
-    )
+export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
+    const [messages, setMessages] = useState<LogMessage[]>([])
     const [paused, setPaused] = useState(false)
     const logContainerRef = useRef<HTMLDivElement>(null)
     const prevLengthRef = useRef(0)
@@ -137,8 +134,31 @@ export default function LogPanel({ panelId, brokerId, config, initialHistory, re
     })
 
     useEffect(() => {
-        setMessages(initialHistory ? [...initialHistory] : [])
-    }, [initialHistory, resetKey])
+        if (!brokerId || !config.topics) return
+        const topics = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
+        if (topics.length === 0) return
+
+        let cancelled = false
+        Promise.all(
+            topics.map((topic) =>
+                api.getExplorerHistory(brokerId, topic).catch(() => [])
+            )
+        ).then((results) => {
+            if (cancelled) return
+            const hist: LogMessage[] = results
+                .flat()
+                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                .map((r) => ({
+                    timestamp: formatTimestamp(new Date(r.timestamp), dateFormat),
+                    topic: r.topic,
+                    payload: r.payload,
+                    historical: true,
+                }))
+            setMessages(hist)
+        })
+        return () => { cancelled = true }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [brokerId, config.topics])
 
     useEffect(() => {
         if (!config.topics) return

@@ -11,28 +11,11 @@ interface WSMessage {
     payload: string
 }
 
-interface HistoryRecord {
-    id: number
-    broker_id: string
-    topic: string
-    payload: string
-    timestamp: string
-}
-
-interface LogMessage {
-    timestamp: string
-    topic: string
-    payload: string
-    historical?: boolean
-}
-
 export default function ExplorerPage() {
     const brokerStatuses = useBrokerStatuses()
     const [selectedBrokerId, setSelectedBrokerId] = useState<string>('')
     const [topics, setTopics] = useState<string[]>([])
     const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
-    const [initialHistory, setInitialHistory] = useState<LogMessage[]>([])
-    const [historyLoading, setHistoryLoading] = useState(false)
     const [liveMessages, setLiveMessages] = useState<WSMessage[]>([])
     const panelId = useRef('explorer-' + Math.random().toString(36).slice(2))
 
@@ -74,36 +57,6 @@ export default function ExplorerPage() {
         if (!selectedBrokerId) return
         subscribe({ panel_id: panelId.current, broker_id: selectedBrokerId, topics: ['#'] })
     }, [selectedBrokerId, subscribe])
-
-    // Load history when topic is selected
-    useEffect(() => {
-        if (!selectedTopic || !selectedBrokerId) {
-            setInitialHistory([])
-            setHistoryLoading(false)
-            return
-        }
-        let cancelled = false
-        setHistoryLoading(true)
-        api.getExplorerHistory(selectedBrokerId, selectedTopic).then((records: HistoryRecord[]) => {
-            if (cancelled) return
-            const hist: LogMessage[] = records.map((r) => ({
-                timestamp: new Date(r.timestamp).toLocaleTimeString(),
-                topic: r.topic,
-                payload: r.payload,
-                historical: true,
-            }))
-            setInitialHistory(hist)
-        }).catch(() => {
-            if (cancelled) return
-            setInitialHistory([])
-        }).finally(() => {
-            if (!cancelled) setHistoryLoading(false)
-        })
-
-        return () => {
-            cancelled = true
-        }
-    }, [selectedTopic, selectedBrokerId])
 
     const handleTopicSelect = (topic: string) => {
         setSelectedTopic(topic)
@@ -156,19 +109,11 @@ export default function ExplorerPage() {
                                 <span className="text-accent">{selectedTopic}</span>
                             </div>
                             <div className="flex-1 overflow-hidden min-h-0">
-                                {historyLoading ? (
-                                    <div className="flex items-center justify-center h-full rounded bg-neutral text-neutral-content text-sm">
-                                        Loading history...
-                                    </div>
-                                ) : (
-                                    <LogPanel
-                                        panelId={panelId.current}
-                                        brokerId={selectedBrokerId}
-                                        config={{ topics: selectedTopic, maxMessages: 500, dateFormat: 'time' }}
-                                        initialHistory={initialHistory}
-                                        resetKey={`${selectedBrokerId}:${selectedTopic}`}
-                                    />
-                                )}
+                                <LogPanel
+                                    panelId={panelId.current}
+                                    brokerId={selectedBrokerId}
+                                    config={{ topics: selectedTopic, maxMessages: 500, dateFormat: 'time' }}
+                                />
                             </div>
                             <div className="shrink-0">
                                 <InputPanel

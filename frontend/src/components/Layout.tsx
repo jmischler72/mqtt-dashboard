@@ -40,8 +40,29 @@ export default function Layout() {
         return localStorage.getItem(ACTIVE_DASHBOARD_KEY) ?? ''
     })
     const [dashboardsLoading, setDashboardsLoading] = useState(true)
+    const [backendReady, setBackendReady] = useState(false)
     const [flyoutOpen, setFlyoutOpen] = useState(false)
     const flyoutRef = useRef<HTMLDivElement>(null)
+    const healthRetryRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    // Health check with retry until backend responds
+    useEffect(() => {
+        const check = () =>
+            api.get('/api/health')
+                .then(() => {
+                    setBackendReady(true)
+                    if (healthRetryRef.current) {
+                        clearInterval(healthRetryRef.current)
+                        healthRetryRef.current = null
+                    }
+                })
+                .catch(() => { })
+        check()
+        healthRetryRef.current = setInterval(check, 3000)
+        return () => {
+            if (healthRetryRef.current) clearInterval(healthRetryRef.current)
+        }
+    }, [])
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -54,6 +75,7 @@ export default function Layout() {
     }, [])
 
     useEffect(() => {
+        if (!backendReady) return
         api.get<Dashboard[]>('/api/dashboards').then((list) => {
             setDashboards(list)
             const stored = localStorage.getItem(ACTIVE_DASHBOARD_KEY)
@@ -62,7 +84,7 @@ export default function Layout() {
             setActiveDashboardId(defaultId)
             localStorage.setItem(ACTIVE_DASHBOARD_KEY, defaultId)
         }).catch(() => { }).finally(() => setDashboardsLoading(false))
-    }, [])
+    }, [backendReady])
 
     const switchDashboard = (id: string) => {
         setActiveDashboardId(id)
@@ -146,7 +168,16 @@ export default function Layout() {
                 </div>
             </nav>
             <main className="flex-1">
-                <Outlet context={{ editMode, setEditMode, activeDashboardId, dashboardsLoading, brokerStatuses }} />
+                {!backendReady ? (
+                    <div className="flex items-center justify-center h-64 text-base-content/60">
+                        <div className="text-center">
+                            <span className="loading loading-spinner loading-lg mb-4" />
+                            <p className="text-xl">Connecting to backend...</p>
+                        </div>
+                    </div>
+                ) : (
+                    <Outlet context={{ editMode, setEditMode, activeDashboardId, dashboardsLoading, brokerStatuses }} />
+                )}
             </main>
         </div>
     )
