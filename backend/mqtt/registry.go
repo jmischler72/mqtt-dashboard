@@ -1,7 +1,9 @@
 package mqtt
 
 import (
+	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 
 	"mqtt-dashboard/models"
@@ -12,11 +14,13 @@ type BrokerRegistry struct {
 	mu              sync.RWMutex
 	clients         map[string]*MQTTManager // brokerID → manager
 	defaultBrokerID string
+	db              *sql.DB
 }
 
-func NewRegistry() *BrokerRegistry {
+func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
 		clients: make(map[string]*MQTTManager),
+		db:      db,
 	}
 }
 
@@ -28,7 +32,25 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	r.mu.Lock()
 	r.clients[broker.ID] = mgr
 	r.mu.Unlock()
+	// Subscribe '#' for history capture. MQTTManager prevents overlapping MQTT
+	// subscriptions, so this is safe alongside specific panel topic subscriptions.
+	brokerID := broker.ID
+	mgr.Subscribe("#", func(topic string, payload []byte) { //nolint
+		r.writeHistory(brokerID, topic, payload)
+	})
 	return err
+}
+
+// writeHistory persists an incoming MQTT message to mqtt_history, skipping $SYS/ topics.
+func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
+	if strings.HasPrefix(topic, "$SYS/") {
+		return
+	}
+	if r.db == nil {
+		return
+	}
+	r.db.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES (?, ?, ?)`, //nolint
+		brokerID, topic, string(payload))
 }
 
 // RemoveBroker gracefully disconnects and removes a broker client.

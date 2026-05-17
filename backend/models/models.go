@@ -45,3 +45,15 @@ type PanelPosition struct {
 	W  int    `json:"w"`
 	H  int    `json:"h"`
 }
+
+type AppSettings struct {
+	RetentionPeriodHours int `json:"retention_period_hours"`
+}
+
+type MQTTHistoryRecord struct {
+	ID        int    `json:"id"`
+	BrokerID  string `json:"broker_id"`
+	Topic     string `json:"topic"`
+	Payload   string `json:"payload"`
+	Timestamp string `json:"timestamp"`
+}

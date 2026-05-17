@@ -110,6 +110,9 @@ export default function ConfigPage() {
     const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
     const brokerStatuses = useBrokerStatuses()
+    const [retentionValue, setRetentionValue] = useState(24)
+    const [retentionUnit, setRetentionUnit] = useState<'hours' | 'days'>('hours')
+    const [retentionSaving, setRetentionSaving] = useState(false)
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -126,6 +129,33 @@ export default function ConfigPage() {
     }, [])
 
     useEffect(() => { loadBrokers() }, [loadBrokers])
+
+    useEffect(() => {
+        api.get<{ retention_period_hours: number }>('/api/settings').then((s) => {
+            const h = s.retention_period_hours
+            if (h % 24 === 0) {
+                setRetentionValue(h / 24)
+                setRetentionUnit('days')
+            } else {
+                setRetentionValue(h)
+                setRetentionUnit('hours')
+            }
+        }).catch(() => { })
+    }, [])
+
+    const handleSaveRetention = async () => {
+        const hours = retentionUnit === 'days' ? retentionValue * 24 : retentionValue
+        if (hours < 24) { showToast('Minimum retention is 24 hours', false); return }
+        setRetentionSaving(true)
+        try {
+            await api.put('/api/settings', { retention_period_hours: hours })
+            showToast('Retention settings saved')
+        } catch {
+            showToast('Failed to save retention settings', false)
+        } finally {
+            setRetentionSaving(false)
+        }
+    }
 
     // Initial selection: default broker when available; otherwise empty state.
     useEffect(() => {
@@ -293,6 +323,8 @@ export default function ConfigPage() {
         }
     }
 
+    const [activeTab, setActiveTab] = useState<'brokers' | 'general'>('brokers')
+
     const enabledBrokers = brokers.filter((b) => b.is_enabled)
     const disabledBrokers = brokers.filter((b) => !b.is_enabled)
     const defaultBrokerId = enabledBrokers[0]?.id
@@ -309,180 +341,244 @@ export default function ConfigPage() {
     const titleDisplay = form.name.trim() || titleLabel
 
     return (
-        <div className="flex h-[calc(100vh-4rem)]">
-            {/* ── Sidebar ──────────────────────────────────────────── */}
-            <aside className="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
-                <div className="p-3 border-b border-base-300">
-                    <button className="btn btn-sm btn-primary w-full" onClick={handleAddNew}>
-                        + Add New Broker
+        <div className="flex flex-col h-[calc(100vh-4rem)]">
+            {/* ── Sub-navbar ───────────────────────────────────────── */}
+            <div className="border-b border-base-300 bg-base-100 px-6 shrink-0">
+                <div role="tablist" className="tabs tabs-bordered">
+                    <button
+                        role="tab"
+                        className={`tab ${activeTab === 'brokers' ? 'tab-active' : ''}`}
+                        onClick={() => setActiveTab('brokers')}
+                    >
+                        Brokers
+                    </button>
+                    <button
+                        role="tab"
+                        className={`tab ${activeTab === 'general' ? 'tab-active' : ''}`}
+                        onClick={() => setActiveTab('general')}
+                    >
+                        General
                     </button>
                 </div>
+            </div>
 
-                <div className="flex-1 overflow-y-auto p-2">
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        {/* Enabled section */}
-                        {enabledBrokers.length > 0 && (
-                            <>
-                                <p className="text-xs font-semibold text-base-content/50 uppercase tracking-wider px-2 py-1 mt-1">Enabled</p>
-                                <SortableContext items={enabledBrokers.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                                    {enabledBrokers.map((b) => (
-                                        <BrokerListItem
-                                            key={b.id}
-                                            broker={b}
-                                            status={getBrokerStatus(b)}
-                                            isDefault={b.id === defaultBrokerId}
-                                            isSelected={b.id === selectedId && !isCreatingNew}
-                                            onSelect={() => handleSelect(b.id)}
-                                            onToggle={(en) => handleToggle(b, en)}
-                                        />
-                                    ))}
-                                </SortableContext>
-                            </>
-                        )}
-
-                        {/* Disabled section */}
-                        {disabledBrokers.length > 0 && (
-                            <>
-                                <p className="text-xs font-semibold text-base-content/50 uppercase tracking-wider px-2 py-1 mt-3">Disabled</p>
-                                <SortableContext items={disabledBrokers.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                                    {disabledBrokers.map((b) => (
-                                        <BrokerListItem
-                                            key={b.id}
-                                            broker={b}
-                                            status={getBrokerStatus(b)}
-                                            isDefault={false}
-                                            isSelected={b.id === selectedId && !isCreatingNew}
-                                            onSelect={() => handleSelect(b.id)}
-                                            onToggle={(en) => handleToggle(b, en)}
-                                        />
-                                    ))}
-                                </SortableContext>
-                            </>
-                        )}
-
-                        {brokers.length === 0 && (
-                            <p className="text-sm text-base-content/40 text-center py-8">No brokers yet</p>
-                        )}
-                    </DndContext>
-                </div>
-            </aside>
-
-            {/* ── Detail form ──────────────────────────────────────── */}
-            <main className="flex-1 overflow-y-auto p-6 flex">
-                {!canShowForm ? (
-                    <div className="m-auto max-w-md text-center">
-                        <h2 className="text-2xl font-semibold mb-2">No broker selected</h2>
-                        <p className="text-base-content/60 mb-4">Create a broker from the sidebar to start connecting.</p>
-                        <button className="btn btn-primary" onClick={handleAddNew}>+ Add New Broker</button>
+            {/* ── Content row ─────────────────────────────────────── */}
+            <div className="flex flex-1 overflow-hidden">
+                {/* ── Sidebar ──────────────────────────────────────────── */}
+                {activeTab === 'brokers' && <aside className="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
+                    <div className="p-3 border-b border-base-300">
+                        <button className="btn btn-sm btn-primary w-full" onClick={handleAddNew}>
+                            + Add New Broker
+                        </button>
                     </div>
-                ) : (
-                    <div className="w-full max-w-2xl mx-auto my-2">
-                        <div className="card bg-base-100 border border-base-300 shadow-sm">
-                            <div className="card-body gap-4">
-                                <div>
-                                    {isEditingTitle ? (
-                                        <input
-                                            autoFocus
-                                            className="input input-bordered input-lg w-full font-semibold"
-                                            placeholder={titleLabel}
-                                            value={form.name}
-                                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                                            onBlur={() => setIsEditingTitle(false)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') setIsEditingTitle(false)
-                                            }}
-                                        />
-                                    ) : (
-                                        <button
-                                            className="text-left hover:opacity-80 transition-opacity"
-                                            onClick={() => setIsEditingTitle(true)}
-                                            title="Click to rename broker"
-                                        >
-                                            <h2 className="text-2xl font-semibold">{titleDisplay}</h2>
-                                            <p className="text-xs text-base-content/50 mt-1">Click title to rename</p>
-                                        </button>
-                                    )}
-                                </div>
 
-                                <fieldset className="fieldset">
-                                    <legend className="fieldset-legend">Host</legend>
-                                    <input
-                                        className="input input-bordered w-full"
-                                        placeholder="localhost"
-                                        {...f('host')}
-                                    />
-                                </fieldset>
+                    <div className="flex-1 overflow-y-auto p-2">
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            {/* Enabled section */}
+                            {enabledBrokers.length > 0 && (
+                                <>
+                                    <p className="text-xs font-semibold text-base-content/50 uppercase tracking-wider px-2 py-1 mt-1">Enabled</p>
+                                    <SortableContext items={enabledBrokers.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                                        {enabledBrokers.map((b) => (
+                                            <BrokerListItem
+                                                key={b.id}
+                                                broker={b}
+                                                status={getBrokerStatus(b)}
+                                                isDefault={b.id === defaultBrokerId}
+                                                isSelected={b.id === selectedId && !isCreatingNew}
+                                                onSelect={() => handleSelect(b.id)}
+                                                onToggle={(en) => handleToggle(b, en)}
+                                            />
+                                        ))}
+                                    </SortableContext>
+                                </>
+                            )}
 
-                                <fieldset className="fieldset">
-                                    <legend className="fieldset-legend">Port</legend>
-                                    <input
-                                        className="input input-bordered w-full"
-                                        placeholder="1883"
-                                        {...f('port')}
-                                    />
-                                </fieldset>
+                            {/* Disabled section */}
+                            {disabledBrokers.length > 0 && (
+                                <>
+                                    <p className="text-xs font-semibold text-base-content/50 uppercase tracking-wider px-2 py-1 mt-3">Disabled</p>
+                                    <SortableContext items={disabledBrokers.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                                        {disabledBrokers.map((b) => (
+                                            <BrokerListItem
+                                                key={b.id}
+                                                broker={b}
+                                                status={getBrokerStatus(b)}
+                                                isDefault={false}
+                                                isSelected={b.id === selectedId && !isCreatingNew}
+                                                onSelect={() => handleSelect(b.id)}
+                                                onToggle={(en) => handleToggle(b, en)}
+                                            />
+                                        ))}
+                                    </SortableContext>
+                                </>
+                            )}
 
-                                <fieldset className="fieldset">
-                                    <legend className="fieldset-legend">Client ID</legend>
-                                    <input
-                                        className="input input-bordered w-full"
-                                        placeholder="mqtt-dashboard"
-                                        {...f('client_id')}
-                                    />
-                                </fieldset>
+                            {brokers.length === 0 && (
+                                <p className="text-sm text-base-content/40 text-center py-8">No brokers yet</p>
+                            )}
+                        </DndContext>
+                    </div>
+                </aside>}
 
-                                <fieldset className="fieldset">
-                                    <legend className="fieldset-legend">Username (optional)</legend>
-                                    <input
-                                        className="input input-bordered w-full"
-                                        placeholder="username"
-                                        {...f('username')}
-                                    />
-                                </fieldset>
-
-                                <fieldset className="fieldset">
-                                    <legend className="fieldset-legend">Password (optional)</legend>
-                                    <input
-                                        className="input input-bordered w-full"
-                                        type="password"
-                                        placeholder={selectedId ? '(unchanged)' : '••••••'}
-                                        {...f('password')}
-                                    />
-                                </fieldset>
-
-                                <label className="label cursor-pointer justify-start gap-3 px-0 py-2">
-                                    <input
-                                        type="checkbox"
-                                        className="toggle toggle-primary"
-                                        checked={form.is_enabled}
-                                        onChange={(e) => setForm((prev) => ({ ...prev, is_enabled: e.target.checked }))}
-                                    />
-                                    <span className="label-text font-medium">Enable this MQTT Server</span>
-                                </label>
-
-                                <div className="flex gap-2 mt-1">
-                                    <button className="btn btn-primary flex-1" onClick={handleSave} disabled={saving}>
-                                        {saving ? <span className="loading loading-spinner loading-xs" /> : null}
-                                        {isCreatingNew ? 'Create & Connect' : 'Save'}
-                                    </button>
-                                    {!isCreatingNew && selectedId && (
-                                        <button className="btn btn-error btn-outline" onClick={handleDelete}>
-                                            Delete
-                                        </button>
-                                    )}
-                                </div>
-
-                                {!isCreatingNew && selectedBroker && (
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? 'bg-neutral'}`} />
-                                        <span className="text-sm text-base-content/60">{getBrokerStatus(selectedBroker)}</span>
-                                    </div>
-                                )}
+                {/* ── Detail / General form ────────────────────────────── */}
+                <main className="flex-1 overflow-y-auto">
+                    <div className="max-w-2xl mx-auto flex flex-col gap-6 my-6 px-6">
+                        {activeTab === 'brokers' && !canShowForm ? (
+                            <div className="text-center py-8">
+                                <h2 className="text-2xl font-semibold mb-2">No broker selected</h2>
+                                <p className="text-base-content/60 mb-4">Create a broker from the sidebar to start connecting.</p>
+                                <button className="btn btn-primary" onClick={handleAddNew}>+ Add New Broker</button>
                             </div>
-                        </div>
+                        ) : activeTab === 'brokers' ? (
+                            <div className="card bg-base-100 border border-base-300 shadow-sm">
+                                <div className="card-body gap-4">
+                                    <div>
+                                        {isEditingTitle ? (
+                                            <input
+                                                autoFocus
+                                                className="input input-bordered input-lg w-full font-semibold"
+                                                placeholder={titleLabel}
+                                                value={form.name}
+                                                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                                                onBlur={() => setIsEditingTitle(false)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') setIsEditingTitle(false)
+                                                }}
+                                            />
+                                        ) : (
+                                            <button
+                                                className="text-left hover:opacity-80 transition-opacity"
+                                                onClick={() => setIsEditingTitle(true)}
+                                                title="Click to rename broker"
+                                            >
+                                                <h2 className="text-2xl font-semibold">{titleDisplay}</h2>
+                                                <p className="text-xs text-base-content/50 mt-1">Click title to rename</p>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <fieldset className="fieldset">
+                                        <legend className="fieldset-legend">Host</legend>
+                                        <input
+                                            className="input input-bordered w-full"
+                                            placeholder="localhost"
+                                            {...f('host')}
+                                        />
+                                    </fieldset>
+
+                                    <fieldset className="fieldset">
+                                        <legend className="fieldset-legend">Port</legend>
+                                        <input
+                                            className="input input-bordered w-full"
+                                            placeholder="1883"
+                                            {...f('port')}
+                                        />
+                                    </fieldset>
+
+                                    <fieldset className="fieldset">
+                                        <legend className="fieldset-legend">Client ID</legend>
+                                        <input
+                                            className="input input-bordered w-full"
+                                            placeholder="mqtt-dashboard"
+                                            {...f('client_id')}
+                                        />
+                                    </fieldset>
+
+                                    <fieldset className="fieldset">
+                                        <legend className="fieldset-legend">Username (optional)</legend>
+                                        <input
+                                            className="input input-bordered w-full"
+                                            placeholder="username"
+                                            {...f('username')}
+                                        />
+                                    </fieldset>
+
+                                    <fieldset className="fieldset">
+                                        <legend className="fieldset-legend">Password (optional)</legend>
+                                        <input
+                                            className="input input-bordered w-full"
+                                            type="password"
+                                            placeholder={selectedId ? '(unchanged)' : '••••••'}
+                                            {...f('password')}
+                                        />
+                                    </fieldset>
+
+                                    <label className="label cursor-pointer justify-start gap-3 px-0 py-2">
+                                        <input
+                                            type="checkbox"
+                                            className="toggle toggle-primary"
+                                            checked={form.is_enabled}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, is_enabled: e.target.checked }))}
+                                        />
+                                        <span className="label-text font-medium">Enable this MQTT Server</span>
+                                    </label>
+
+                                    <div className="flex gap-2 mt-1">
+                                        <button className="btn btn-primary flex-1" onClick={handleSave} disabled={saving}>
+                                            {saving ? <span className="loading loading-spinner loading-xs" /> : null}
+                                            {isCreatingNew ? 'Create & Connect' : 'Save'}
+                                        </button>
+                                        {!isCreatingNew && selectedId && (
+                                            <button className="btn btn-error btn-outline" onClick={handleDelete}>
+                                                Delete
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {!isCreatingNew && selectedBroker && (
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? 'bg-neutral'}`} />
+                                            <span className="text-sm text-base-content/60">{getBrokerStatus(selectedBroker)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {activeTab === 'general' && <div className="card bg-base-100 border border-base-300 shadow-sm">
+                            <div className="card-body gap-4">
+                                <h2 className="card-title text-lg">Data Retention</h2>
+                                <fieldset className="fieldset">
+                                    <legend className="fieldset-legend">Retention Period</legend>
+                                    <div className="flex gap-2">
+                                        <input
+                                            className="input input-bordered w-24"
+                                            type="number"
+                                            min={1}
+                                            value={retentionValue}
+                                            onChange={(e) => setRetentionValue(Number(e.target.value))}
+                                        />
+                                        <select
+                                            className="select select-bordered"
+                                            value={retentionUnit}
+                                            onChange={(e) => setRetentionUnit(e.target.value as 'hours' | 'days')}
+                                        >
+                                            <option value="hours">Hours</option>
+                                            <option value="days">Days</option>
+                                        </select>
+                                    </div>
+                                    {retentionUnit === 'hours' && retentionValue < 24 && (
+                                        <p className="text-error text-xs mt-1">Minimum retention is 24 hours.</p>
+                                    )}
+                                    {retentionUnit === 'days' && retentionValue < 1 && (
+                                        <p className="text-error text-xs mt-1">Minimum retention is 1 day.</p>
+                                    )}
+                                </fieldset>
+                                <p className="text-xs text-base-content/50">
+                                    Topic history older than this window is automatically purged every 30 minutes.
+                                </p>
+                                <div>
+                                    <button className="btn btn-sm btn-primary" onClick={handleSaveRetention} disabled={retentionSaving}>
+                                        {retentionSaving ? <span className="loading loading-spinner loading-xs" /> : null}
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                        </div>}
                     </div>
-                )}
-            </main>
+                </main>
+            </div>{/* end content row */}
 
             {/* Toast */}
             {toast && (

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { api } from '../../api/client'
 import type { BrokerStatus } from '../../hooks/useBrokers'
 
 interface LogMessage {
     timestamp: string
     topic: string
     payload: string
+    historical?: boolean
 }
 
 interface LogConfig {
@@ -132,6 +134,33 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     })
 
     useEffect(() => {
+        if (!brokerId || !config.topics) return
+        const topics = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
+        if (topics.length === 0) return
+
+        let cancelled = false
+        Promise.all(
+            topics.map((topic) =>
+                api.getExplorerHistory(brokerId, topic).catch(() => [])
+            )
+        ).then((results) => {
+            if (cancelled) return
+            const hist: LogMessage[] = results
+                .flat()
+                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                .map((r) => ({
+                    timestamp: formatTimestamp(new Date(r.timestamp), dateFormat),
+                    topic: r.topic,
+                    payload: r.payload,
+                    historical: true,
+                }))
+            setMessages(hist)
+        })
+        return () => { cancelled = true }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [brokerId, config.topics])
+
+    useEffect(() => {
         if (!config.topics) return
         const topicList = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
         subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList })
@@ -170,7 +199,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
                 className="flex-1 overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5"
             >
                 {messages.map((m, i) => (
-                    <div key={i} className="leading-tight">
+                    <div key={i} className={`leading-tight ${m.historical ? 'opacity-40' : ''}`}>
                         <span className="text-base-content/40">[{m.timestamp}]</span>{' '}
                         <span className="text-accent">{m.topic}</span>{' '}
                         <span>{m.payload}</span>

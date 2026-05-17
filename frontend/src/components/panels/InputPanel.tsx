@@ -70,18 +70,23 @@ interface InputPanelProps {
     panelId: string
     brokerId: string
     config: InputConfig
+    overrideTopic?: string
+    overrideBrokerId?: string
 }
 
-export default function InputPanel({ brokerId, config }: InputPanelProps) {
+export default function InputPanel({ brokerId, config, overrideTopic, overrideBrokerId }: InputPanelProps) {
     const [value, setValue] = useState('')
     const [loading, setLoading] = useState(false)
     const [flash, setFlash] = useState<'success' | 'error' | null>(null)
 
+    const effectiveTopic = overrideTopic ?? config.topic
+    const effectiveBrokerId = overrideBrokerId ?? brokerId
+
     const handlePublish = async () => {
-        if (!config.topic) return
+        if (!effectiveTopic) return
         setLoading(true)
         try {
-            await api.post('/api/publish', { broker_id: brokerId, topic: config.topic, payload: value })
+            await api.post('/api/publish', { broker_id: effectiveBrokerId, topic: effectiveTopic, payload: value })
             setValue('')
             setFlash('success')
         } catch {
@@ -113,7 +118,7 @@ export default function InputPanel({ brokerId, config }: InputPanelProps) {
             <button
                 className={`btn btn-sm ${flash === 'success' ? 'btn-success' : flash === 'error' ? 'btn-error' : 'btn-primary'}`}
                 onClick={handlePublish}
-                disabled={loading || !config.topic || !value}
+                disabled={loading || !effectiveTopic || !value}
             >
                 {loading ? <span className="loading loading-spinner loading-xs" /> : 'Publish'}
             </button>

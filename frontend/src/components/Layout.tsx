@@ -34,14 +34,36 @@ const statusDot: Record<string, string> = {
 export default function Layout() {
     const location = useLocation()
     const brokerStatuses = useBrokerStatuses()
+    const [showCredits, setShowCredits] = useState(false)
     const [editMode, setEditMode] = useState(false)
     const [dashboards, setDashboards] = useState<Dashboard[]>([])
     const [activeDashboardId, setActiveDashboardId] = useState<string>(() => {
         return localStorage.getItem(ACTIVE_DASHBOARD_KEY) ?? ''
     })
     const [dashboardsLoading, setDashboardsLoading] = useState(true)
+    const [backendReady, setBackendReady] = useState(false)
     const [flyoutOpen, setFlyoutOpen] = useState(false)
     const flyoutRef = useRef<HTMLDivElement>(null)
+    const healthRetryRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    // Health check with retry until backend responds
+    useEffect(() => {
+        const check = () =>
+            api.get('/api/health')
+                .then(() => {
+                    setBackendReady(true)
+                    if (healthRetryRef.current) {
+                        clearInterval(healthRetryRef.current)
+                        healthRetryRef.current = null
+                    }
+                })
+                .catch(() => { })
+        check()
+        healthRetryRef.current = setInterval(check, 3000)
+        return () => {
+            if (healthRetryRef.current) clearInterval(healthRetryRef.current)
+        }
+    }, [])
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -54,6 +76,7 @@ export default function Layout() {
     }, [])
 
     useEffect(() => {
+        if (!backendReady) return
         api.get<Dashboard[]>('/api/dashboards').then((list) => {
             setDashboards(list)
             const stored = localStorage.getItem(ACTIVE_DASHBOARD_KEY)
@@ -62,7 +85,7 @@ export default function Layout() {
             setActiveDashboardId(defaultId)
             localStorage.setItem(ACTIVE_DASHBOARD_KEY, defaultId)
         }).catch(() => { }).finally(() => setDashboardsLoading(false))
-    }, [])
+    }, [backendReady])
 
     const switchDashboard = (id: string) => {
         setActiveDashboardId(id)
@@ -91,9 +114,27 @@ export default function Layout() {
 
     return (
         <div className="min-h-screen flex flex-col">
-            <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-4">
-                <img src="/logo.svg" alt="mqtt-dashboard" className="h-5 w-auto" />
+            <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-2">
+                <img src="/logo.svg" alt="mqtt-dashboard" className="h-8 w-auto mx-2" onClick={() => setShowCredits(!showCredits)} />
+                {showCredits && (
+                    <div className="modal modal-open">
+                        <div className="modal-box max-w-sm">
+                            <h3 className="font-bold text-lg mb-4">Credits</h3>
+                            <div>
+                                <p className="mb-2">This project was made by <a href="https://github.com/jmischler72" target="_blank" className="link">@jmischler72</a> and is open source on <a href="https://github.com/jmischler72/mqtt-dashboard" target="_blank" className="link">GitHub</a>.</p>
+                                <p className="mb-2">Thanks for checking it out!</p>
+                            </div>
+                            <div className="modal-action">
+                                <button className="btn btn-sm btn-ghost" onClick={() => setShowCredits(false)}>
+                                    Ok
+                                </button>
+                            </div>
+                        </div>
+                        <div className="modal-backdrop" onClick={() => setShowCredits(false)} />
+                    </div>
+                )}
                 <NavLink to="/dashboard" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Dashboard</NavLink>
+                <NavLink to="/explorer" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Explorer</NavLink>
                 <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Configuration</NavLink>
                 <div className="ml-auto flex items-center gap-2">
                     {showDashboardControls && dashboards.length > 0 && (
@@ -145,7 +186,16 @@ export default function Layout() {
                 </div>
             </nav>
             <main className="flex-1">
-                <Outlet context={{ editMode, setEditMode, activeDashboardId, dashboardsLoading, brokerStatuses }} />
+                {!backendReady ? (
+                    <div className="flex items-center justify-center h-64 text-base-content/60">
+                        <div className="text-center">
+                            <span className="loading loading-spinner loading-lg mb-4" />
+                            <p className="text-xl">Connecting to backend...</p>
+                        </div>
+                    </div>
+                ) : (
+                    <Outlet context={{ editMode, setEditMode, activeDashboardId, dashboardsLoading, brokerStatuses }} />
+                )}
             </main>
         </div>
     )
