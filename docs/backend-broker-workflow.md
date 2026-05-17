@@ -4,24 +4,19 @@ This document describes the current backend behavior for broker connections, top
 
 ## Connection Model
 
-The backend uses **two MQTT connections per enabled broker**.
+The backend uses **one MQTT connection per enabled broker**.
 
 - Each enabled broker is loaded at startup by `autoConnectFromDB()` in [backend/main.go](../backend/main.go).
-- `BrokerRegistry.AddBroker()` creates and connects:
-	- one live `MQTTManager` used for publish requests and WebSocket topic subscriptions
-	- one history-harvester `MQTTManager` used only for the permanent `#` subscription
-- The registry keeps two maps:
-	- `broker_id -> live MQTTManager`
-	- `broker_id -> history-harvester MQTTManager`
-- The history client uses a distinct client ID suffix so the broker treats it as a separate MQTT session.
-- Creating, updating, disabling, or deleting a broker updates only that broker's pair of managers; there is no shared global MQTT connection.
+- `BrokerRegistry.AddBroker()` creates one `MQTTManager`, connects it, and registers the permanent `#` history handler on that same manager.
+- The registry keeps one map of `broker_id -> MQTTManager`.
+- Creating, updating, disabling, or deleting a broker updates only that broker manager; there is no shared global MQTT connection.
 
 ## What Happens On Startup
 
 1. SQLite is initialized.
 2. All enabled brokers are loaded from `mqtt_brokers`.
 3. For each broker, the backend calls `registry.AddBroker(broker)`.
-4. `AddBroker()` connects the live client and the history client, then registers `#` on the history client.
+4. `AddBroker()` connects the broker client and registers `#` for history capture.
 5. The first enabled broker becomes the default broker.
 6. The cron scheduler is started.
 7. The WebSocket hub is created and waits for panel subscriptions.
@@ -32,21 +27,20 @@ When the frontend sends a publish request to `POST /api/publish`:
 
 1. The handler resolves the broker ID from the request or falls back to the registry default.
 2. `BrokerRegistry.Publish(brokerID, topic, payload)` is called.
-3. The registry routes the call to that broker's live `MQTTManager`.
-4. The live `MQTTManager` publishes the message through its broker connection.
+3. The registry routes the call to that broker's `MQTTManager`.
+4. The `MQTTManager` publishes the message through its broker connection.
 5. The publish handler does not write directly to `mqtt_history`.
-6. Explorer history is populated only when the broker delivers the message back through the history-harvester client's `#` subscription.
+6. Explorer history is populated only when the broker delivers the message back through the manager's `#` subscription.
 
 ## Message Receive Flow
 
-Incoming broker messages follow two separate connection paths:
+Incoming broker messages follow two logical paths over the same broker connection:
 
 ### 1. Explorer / history capture
 
-When a broker is added, the registry connects a dedicated history client and subscribes that client to `#`.
+When a broker is added, the registry subscribes that broker manager to `#`.
 
 - This is the permanent wildcard history subscription.
-- It runs on a separate MQTT session from live panel subscriptions.
 - It captures all broker messages except `$SYS/` topics.
 - Each matching message is inserted into `mqtt_history` with `broker_id`, `topic`, `payload`, and timestamp.
 
@@ -56,8 +50,18 @@ Panels such as button, input, log, and cron panels can subscribe to specific top
 
 - The hub creates MQTT subscriptions per `(broker_id, topic)` pair.
 - Multiple WebSocket clients watching the same broker/topic share the same MQTT subscription.
-- Those subscriptions are attached to the broker's live MQTT client, not the history client.
 - When the last client leaves a broker/topic, the hub unsubscribes that topic handler from the broker connection.
+
+### Overlap handling in MQTTManager
+
+`MQTTManager` avoids overlapping MQTT-level subscriptions when `#` and specific topics coexist.
+
+- If `#` is active, subscribing a specific topic only adds an internal handler; it does not call broker `SUBSCRIBE` for that topic.
+- If `#` is added, existing specific MQTT subscriptions are removed from the broker session.
+- When processing messages from `#`, the manager dispatches to both `#` handlers and exact-topic handlers.
+- If `#` is removed, remaining specific topic subscriptions are re-added on the broker session.
+
+This prevents duplicate broker deliveries caused by overlapping wildcard and exact subscriptions on the same MQTT client session.
 
 ## Important Distinction
 
@@ -65,13 +69,13 @@ The backend does **not** create a new MQTT connection per panel.
 
 It creates:
 
-- one live MQTT connection per broker for publishes and panel subscriptions
-- one separate history MQTT connection per broker for the permanent `#` capture
-- additional live topic subscriptions only when a panel needs them
+- one MQTT connection per broker
+- one permanent `#` handler per broker for history capture
+- additional specific topic handlers and MQTT subscriptions when panels need them
 
-So if three panels watch the same topic on the same broker, they still share the same live broker connection and the same MQTT topic subscription.
+So if three panels watch the same topic on the same broker, they still share the same broker connection and the same MQTT topic subscription.
 
-This split is intentional. Keeping the permanent `#` history capture on the same MQTT client as exact panel topic subscriptions can cause duplicate deliveries when a publish matches overlapping subscriptions.
+Wildcard and exact-topic overlap is handled inside `MQTTManager`, which keeps broker-level subscriptions non-overlapping while still routing messages to all relevant handlers.
 
 ## Explorer Data Path
 
