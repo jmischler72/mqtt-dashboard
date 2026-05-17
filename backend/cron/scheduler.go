@@ -3,6 +3,7 @@ package cron
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -136,6 +137,7 @@ func (sc *Scheduler) StartPruningJob(db *sql.DB) error {
 	_, err := sc.s.NewJob(
 		gocron.CronJob("*/30 * * * *", false),
 		gocron.NewTask(func() {
+			log.Printf("running history pruning job")
 			var retentionHours int
 			row := db.QueryRow(`SELECT retention_period_hours FROM app_settings WHERE id = 1`)
 			if err := row.Scan(&retentionHours); err != nil || retentionHours < 24 {
@@ -143,6 +145,7 @@ func (sc *Scheduler) StartPruningJob(db *sql.DB) error {
 			}
 			db.Exec(`DELETE FROM mqtt_history WHERE timestamp < DATETIME('now', '-' || ? || ' hours')`, retentionHours) //nolint
 		}),
+		gocron.JobOption(gocron.WithStartImmediately()),
 		gocron.WithTags("pruning"),
 	)
 	return err

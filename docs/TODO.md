@@ -14,7 +14,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark
 - ✅ in config page, there should be a second navbar, with brokers section, and general section with the data retention form
 - ✅ the log panels in dashboard should access the history to show previous messages (greyed out)
 - ✅ there are backend status checks that are wrong, sometimes i dont see loading state but i can see that the frontend has not access to the backend yet (the dashboard not loaded but i see the add panel empty state)
-- for the StartPruningJob that cleans history, i think it should be run at the start and end of the app in case it crashes out
+- ✅ for the StartPruningJob that cleans history, i think it should be run at the start and end of the app in case it crashes out
 
 ## Future improvements
 - panels as plugins
