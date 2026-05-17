@@ -14,3 +14,28 @@ The user can then edit a plugin.tsx to add whatever they want and just push to g
 In the app, when you then add plugin from github it will build the react component and dynamically add to the frontend, the backend can already handle custom config from json, we would just need to handle conflicts from same name panel-type 
 
 ## Export dashboard as sharable file (maybe json)
+
+## More broker infos
+MQTT explorer shows those infos for the current broker (probably fropm $SYS), i want to show the same somewhere (maybe config page)
+    Broker
+    mosquitto version 2.1.2
+    Sent
+    Received
+    1k
+    38
+    Clients
+    Subscriptions
+    2
+    3
+    Sent 5m
+    Received last 5min
+    54.7
+    3.33
+    Memory
+    Memory (max)
+    847k
+    853k
+
+## Handle QOS things mqtt and retains ..
+
+## Handle tls connections with certs

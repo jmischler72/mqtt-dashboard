@@ -400,14 +400,14 @@ export default function ConfigPage() {
             {/* ── Detail form ──────────────────────────────────────── */}
             <main className="flex-1 overflow-y-auto p-6">
                 <div className="max-w-2xl mx-auto flex flex-col gap-6 my-2">
-                {!canShowForm ? (
-                    <div className="text-center py-8">
-                        <h2 className="text-2xl font-semibold mb-2">No broker selected</h2>
-                        <p className="text-base-content/60 mb-4">Create a broker from the sidebar to start connecting.</p>
-                        <button className="btn btn-primary" onClick={handleAddNew}>+ Add New Broker</button>
-                    </div>
-                ) : (
-                    <div className="card bg-base-100 border border-base-300 shadow-sm">
+                    {!canShowForm ? (
+                        <div className="text-center py-8">
+                            <h2 className="text-2xl font-semibold mb-2">No broker selected</h2>
+                            <p className="text-base-content/60 mb-4">Create a broker from the sidebar to start connecting.</p>
+                            <button className="btn btn-primary" onClick={handleAddNew}>+ Add New Broker</button>
+                        </div>
+                    ) : (
+                        <div className="card bg-base-100 border border-base-300 shadow-sm">
                             <div className="card-body gap-4">
                                 <div>
                                     {isEditingTitle ? (
@@ -510,49 +510,49 @@ export default function ConfigPage() {
                                 )}
                             </div>
                         </div>
-                )}
+                    )}
 
-                {/* ── Data Retention ── */}
-                <div className="card bg-base-100 border border-base-300 shadow-sm">
-                    <div className="card-body gap-4">
-                        <h2 className="card-title text-lg">Data Retention</h2>
-                        <fieldset className="fieldset">
-                            <legend className="fieldset-legend">Retention Period</legend>
-                            <div className="flex gap-2">
-                                <input
-                                    className="input input-bordered w-24"
-                                    type="number"
-                                    min={1}
-                                    value={retentionValue}
-                                    onChange={(e) => setRetentionValue(Number(e.target.value))}
-                                />
-                                <select
-                                    className="select select-bordered"
-                                    value={retentionUnit}
-                                    onChange={(e) => setRetentionUnit(e.target.value as 'hours' | 'days')}
-                                >
-                                    <option value="hours">Hours</option>
-                                    <option value="days">Days</option>
-                                </select>
+                    {/* ── Data Retention ── */}
+                    <div className="card bg-base-100 border border-base-300 shadow-sm">
+                        <div className="card-body gap-4">
+                            <h2 className="card-title text-lg">Data Retention</h2>
+                            <fieldset className="fieldset">
+                                <legend className="fieldset-legend">Retention Period</legend>
+                                <div className="flex gap-2">
+                                    <input
+                                        className="input input-bordered w-24"
+                                        type="number"
+                                        min={1}
+                                        value={retentionValue}
+                                        onChange={(e) => setRetentionValue(Number(e.target.value))}
+                                    />
+                                    <select
+                                        className="select select-bordered"
+                                        value={retentionUnit}
+                                        onChange={(e) => setRetentionUnit(e.target.value as 'hours' | 'days')}
+                                    >
+                                        <option value="hours">Hours</option>
+                                        <option value="days">Days</option>
+                                    </select>
+                                </div>
+                                {retentionUnit === 'hours' && retentionValue < 24 && (
+                                    <p className="text-error text-xs mt-1">Minimum retention is 24 hours.</p>
+                                )}
+                                {retentionUnit === 'days' && retentionValue < 1 && (
+                                    <p className="text-error text-xs mt-1">Minimum retention is 1 day.</p>
+                                )}
+                            </fieldset>
+                            <p className="text-xs text-base-content/50">
+                                Topic history older than this window is automatically purged every 30 minutes.
+                            </p>
+                            <div>
+                                <button className="btn btn-sm btn-primary" onClick={handleSaveRetention} disabled={retentionSaving}>
+                                    {retentionSaving ? <span className="loading loading-spinner loading-xs" /> : null}
+                                    Save
+                                </button>
                             </div>
-                            {retentionUnit === 'hours' && retentionValue < 24 && (
-                                <p className="text-error text-xs mt-1">Minimum retention is 24 hours.</p>
-                            )}
-                            {retentionUnit === 'days' && retentionValue < 1 && (
-                                <p className="text-error text-xs mt-1">Minimum retention is 1 day.</p>
-                            )}
-                        </fieldset>
-                        <p className="text-xs text-base-content/50">
-                            Topic history older than this window is automatically purged every 30 minutes.
-                        </p>
-                        <div>
-                            <button className="btn btn-sm btn-primary" onClick={handleSaveRetention} disabled={retentionSaving}>
-                                {retentionSaving ? <span className="loading loading-spinner loading-xs" /> : null}
-                                Save
-                            </button>
                         </div>
                     </div>
-                </div>
                 </div>
             </main>
 
