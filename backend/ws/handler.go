@@ -2,7 +2,7 @@ package ws
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -31,7 +31,7 @@ var upgrader = websocket.Upgrader{
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("ws: upgrade: %v", err)
+		slog.Error("ws upgrade", "err", err)
 		return
 	}
 

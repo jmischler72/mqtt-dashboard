@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	mqttclient "mqtt-dashboard/mqtt"
@@ -42,6 +43,7 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.registry.Publish(brokerID, req.Topic, []byte(req.Payload)); err != nil {
+		slog.Error("publish failed", "broker_id", brokerID, "topic", req.Topic, "err", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}

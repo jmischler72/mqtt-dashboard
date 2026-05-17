@@ -3,6 +3,7 @@ package mqtt
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ func NewRegistry(db *sql.DB) *BrokerRegistry {
 // AddBroker creates a new MQTTManager for the broker, connects it, and stores it.
 // The manager is stored even on connection failure so its ERROR status is visible.
 func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
+	slog.Info("adding broker", "broker", broker.Name, "id", broker.ID)
 	mgr := NewManager()
 	err := mgr.Connect(broker)
 	r.mu.Lock()
@@ -55,6 +57,7 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
 
 // RemoveBroker gracefully disconnects and removes a broker client.
 func (r *BrokerRegistry) RemoveBroker(id string) {
+	slog.Info("removing broker", "id", id)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if mgr, ok := r.clients[id]; ok {

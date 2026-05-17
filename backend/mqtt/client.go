@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -36,18 +37,23 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	m.setStatus("CONNECTING")
 
+	brokerAddr := fmt.Sprintf("tcp://%s:%d", broker.Host, broker.Port)
+	slog.Info("mqtt connecting", "broker", broker.Name, "addr", brokerAddr)
+
 	opts := paho.NewClientOptions().
-		AddBroker(fmt.Sprintf("tcp://%s:%d", broker.Host, broker.Port)).
+		AddBroker(brokerAddr).
 		SetClientID(broker.ClientID).
 		SetConnectTimeout(10 * time.Second).
 		SetAutoReconnect(true).
 		SetMaxReconnectInterval(30 * time.Second).
 		SetConnectionLostHandler(func(_ paho.Client, err error) {
+			slog.Warn("mqtt connection lost", "err", err)
 			m.mu.Lock()
 			m.setStatus("DISCONNECTED")
 			m.mu.Unlock()
 		}).
 		SetOnConnectHandler(func(_ paho.Client) {
+			slog.Info("mqtt connected")
 			m.mu.Lock()
 			m.setStatus("CONNECTED")
 			// Resubscribe after reconnect. If '#' is active it covers all specific topics,
@@ -76,10 +82,12 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	token := client.Connect()
 	if token.WaitTimeout(10*time.Second) && token.Error() != nil {
+		slog.Error("mqtt connect failed", "err", token.Error())
 		m.setStatus("ERROR")
 		return fmt.Errorf("connect: %w", token.Error())
 	}
 	if !client.IsConnected() {
+		slog.Error("mqtt connection failed")
 		m.setStatus("ERROR")
 		return fmt.Errorf("connection failed")
 	}
@@ -91,6 +99,7 @@ func (m *MQTTManager) Disconnect() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.client != nil && m.client.IsConnected() {
+		slog.Info("mqtt disconnecting")
 		m.client.Disconnect(500)
 	}
 	m.setStatus("DISCONNECTED")
@@ -121,6 +130,7 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 	if !wasEmpty || m.client == nil || !m.client.IsConnected() {
 		return nil
 	}
+	slog.Debug("mqtt subscribe", "topic", topic)
 	if topic == "#" {
 		// '#' now covers all topics — remove any specific MQTT subscriptions that are
 		// now redundant to prevent the broker from delivering messages twice.

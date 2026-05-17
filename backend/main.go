@@ -5,7 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -24,13 +24,25 @@ import (
 var embeddedFiles embed.FS
 
 func main() {
+	// --- Configure slog ---
+	logLevel := new(slog.LevelVar)
+	logLevel.Set(slog.LevelInfo)
+	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+		if err := logLevel.UnmarshalText([]byte(lvl)); err != nil {
+			slog.Warn("invalid LOG_LEVEL, defaulting to info", "value", lvl)
+		}
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+
 	// --- Init database ---
 	if err := os.MkdirAll("./data", 0o750); err != nil {
-		log.Fatalf("create data dir: %v", err)
+		slog.Error("create data dir", "err", err)
+		os.Exit(1)
 	}
 	database, err := db.InitDB("./data/mqtt-dashboard.db")
 	if err != nil {
-		log.Fatalf("init db: %v", err)
+		slog.Error("init db", "err", err)
+		os.Exit(1)
 	}
 	defer database.Close()
 
@@ -41,13 +53,14 @@ func main() {
 	// --- Init Cron scheduler ---
 	scheduler, err := cron.NewScheduler(registry)
 	if err != nil {
-		log.Fatalf("init scheduler: %v", err)
+		slog.Error("init scheduler", "err", err)
+		os.Exit(1)
 	}
 	scheduler.Start()
 	defer scheduler.Stop()
 	loadCronJobsFromDB(database, scheduler)
 	if err := scheduler.StartPruningJob(database); err != nil {
-		log.Printf("start pruning job: %v", err)
+		slog.Error("start pruning job", "err", err)
 	}
 
 	// --- Init WebSocket hub ---
@@ -64,7 +77,7 @@ func main() {
 
 	// --- Router ---
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(skipLoggerForPaths(middleware.Logger, "/api/brokers/status"))
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware)
 
@@ -119,15 +132,17 @@ func main() {
 	if os.Getenv("APP_ENV") != "development" {
 		distFS, err := fs.Sub(embeddedFiles, "dist")
 		if err != nil {
-			log.Fatalf("embed dist: %v", err)
+			slog.Error("embed dist", "err", err)
+			os.Exit(1)
 		}
 		r.Handle("/*", spaHandler(http.FileServer(http.FS(distFS))))
 	}
 
 	addr := ":8080"
-	log.Printf("Server starting on %s", addr)
+	slog.Info("server starting", "addr", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("server: %v", err)
+		slog.Error("server", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -146,7 +161,7 @@ func autoConnectFromDB(database *sql.DB, registry *mqttclient.BrokerRegistry) {
 			continue
 		}
 		if err := registry.AddBroker(b); err != nil {
-			log.Printf("auto-connect mqtt broker %q: %v", b.Name, err)
+			slog.Error("auto-connect mqtt broker", "broker", b.Name, "err", err)
 		}
 		if isFirst {
 			registry.SetDefault(b.ID)
@@ -159,7 +174,7 @@ func autoConnectFromDB(database *sql.DB, registry *mqttclient.BrokerRegistry) {
 func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'cron'`)
 	if err != nil {
-		log.Printf("load cron jobs: %v", err)
+		slog.Error("load cron jobs", "err", err)
 		return
 	}
 	defer rows.Close()
@@ -178,7 +193,7 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 			continue
 		}
 		if err := scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, cfg.Enabled); err != nil {
-			log.Printf("load cron job %q: %v", panelID, err)
+			slog.Error("load cron job", "panel_id", panelID, "err", err)
 		}
 	}
 }
@@ -201,4 +216,22 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// skipLoggerForPaths wraps a chi middleware logger so it is bypassed for the given paths.
+func skipLoggerForPaths(loggerMw func(http.Handler) http.Handler, paths ...string) func(http.Handler) http.Handler {
+	skip := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		skip[p] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		logged := loggerMw(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := skip[r.URL.Path]; ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+			logged.ServeHTTP(w, r)
+		})
+	}
 }

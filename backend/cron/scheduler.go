@@ -3,7 +3,7 @@ package cron
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -54,6 +54,8 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
+	slog.Info("cron add job", "panel_id", panelID, "cron", cronExpr, "topic", topic, "enabled", enabled)
+
 	// Remove existing job for this panel if any
 	if info, ok := sc.jobs[panelID]; ok {
 		sc.s.RemoveByTags(panelID) //nolint
@@ -97,6 +99,7 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 func (sc *Scheduler) RemoveJob(panelID string) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
+	slog.Info("cron remove job", "panel_id", panelID)
 	sc.s.RemoveByTags(panelID) //nolint
 	delete(sc.jobs, panelID)
 }
@@ -137,7 +140,7 @@ func (sc *Scheduler) StartPruningJob(db *sql.DB) error {
 	_, err := sc.s.NewJob(
 		gocron.CronJob("*/30 * * * *", false),
 		gocron.NewTask(func() {
-			log.Printf("running history pruning job")
+			slog.Debug("running history pruning job")
 			var retentionHours int
 			row := db.QueryRow(`SELECT retention_period_hours FROM app_settings WHERE id = 1`)
 			if err := row.Scan(&retentionHours); err != nil || retentionHours < 24 {

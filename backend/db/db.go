@@ -3,11 +3,13 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	_ "modernc.org/sqlite"
 )
 
 func InitDB(path string) (*sql.DB, error) {
+	slog.Info("opening database", "path", path)
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)

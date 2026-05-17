@@ -34,3 +34,6 @@ Note to AI: When you finish a sub-task, mark it with a checkmark
     - log panel: same but also add config for history displaying
     - input should be redesigned completely as it doesnt fit for a panel layout
     - cron should also be redesigned as it doesnt fit for a panel layout
+- ✅ improve logging using the stdlib slog library
+- ✅ remove logging for status path 
+- add testing for handlers, db operations, cron, websockets and mqtt management, also try to ensure 80% code coverage  

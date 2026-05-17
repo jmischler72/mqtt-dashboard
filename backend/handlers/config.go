@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -104,6 +105,7 @@ func (h *BrokerHandler) CreateBroker(w http.ResponseWriter, r *http.Request) {
 
 	if broker.IsEnabled {
 		if err := h.registry.AddBroker(broker); err != nil {
+			slog.Error("broker connect on create", "broker", broker.Name, "err", err)
 			broker.Status = "ERROR"
 		} else {
 			broker.Status = h.registry.Status(broker.ID)

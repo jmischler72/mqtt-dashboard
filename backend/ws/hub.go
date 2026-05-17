@@ -2,7 +2,7 @@ package ws
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"sync"
 
 	mqttclient "mqtt-dashboard/mqtt"
@@ -61,12 +61,14 @@ func NewHub(registry *mqttclient.BrokerRegistry) *Hub {
 func (h *Hub) Register(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	slog.Debug("ws client registered", "client_id", c.id)
 	h.clients[c.id] = c
 }
 
 func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	slog.Debug("ws client unregistered", "client_id", c.id)
 
 	delete(h.clients, c.id)
 	close(c.send)
@@ -97,7 +99,7 @@ func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
 			h.topicHandlers[key] = handler
 			if err := h.registry.Subscribe(bid, t, handler); err != nil {
 				delete(h.topicHandlers, key)
-				log.Printf("ws: subscribe mqtt broker=%q topic=%q: %v", bid, t, err)
+				slog.Error("ws subscribe mqtt", "broker_id", bid, "topic", t, "err", err)
 			}
 		}
 		h.topicClients[key][c.id] = struct{}{}
