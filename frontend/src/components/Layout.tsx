@@ -34,6 +34,7 @@ const statusDot: Record<string, string> = {
 export default function Layout() {
     const location = useLocation()
     const brokerStatuses = useBrokerStatuses()
+    const [showCredits, setShowCredits] = useState(false)
     const [editMode, setEditMode] = useState(false)
     const [dashboards, setDashboards] = useState<Dashboard[]>([])
     const [activeDashboardId, setActiveDashboardId] = useState<string>(() => {
@@ -113,8 +114,25 @@ export default function Layout() {
 
     return (
         <div className="min-h-screen flex flex-col">
-            <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-4">
-                <img src="/logo.svg" alt="mqtt-dashboard" className="h-5 w-auto" />
+            <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-2">
+                <img src="/logo.svg" alt="mqtt-dashboard" className="h-8 w-auto mx-2" onClick={() => setShowCredits(!showCredits)} />
+                {showCredits && (
+                    <div className="modal modal-open">
+                        <div className="modal-box max-w-sm">
+                            <h3 className="font-bold text-lg mb-4">Credits</h3>
+                            <div>
+                                <p className="mb-2">This project was made by <a href="https://github.com/jmischler72" target="_blank" className="link">@jmischler72</a> and is open source on <a href="https://github.com/jmischler72/mqtt-dashboard" target="_blank" className="link">GitHub</a>.</p>
+                                <p className="mb-2">Thanks for checking it out!</p>
+                            </div>
+                            <div className="modal-action">
+                                <button className="btn btn-sm btn-ghost" onClick={() => setShowCredits(false)}>
+                                    Ok
+                                </button>
+                            </div>
+                        </div>
+                        <div className="modal-backdrop" onClick={() => setShowCredits(false)} />
+                    </div>
+                )}
                 <NavLink to="/dashboard" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Dashboard</NavLink>
                 <NavLink to="/explorer" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Explorer</NavLink>
                 <NavLink to="/config" className={({ isActive }) => `btn btn-sm btn-ghost ${isActive ? 'btn-active' : ''}`}>Configuration</NavLink>
