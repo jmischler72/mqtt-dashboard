@@ -101,13 +101,11 @@ interface LogPanelProps {
     panelId: string
     brokerId: string
     config: LogConfig
-    // Explorer mode: when set, disables internal WS and uses injected data
     initialHistory?: LogMessage[]
-    injectedMessages?: LogMessage[]
+    resetKey?: string
 }
 
-export default function LogPanel({ panelId, brokerId, config, initialHistory, injectedMessages }: LogPanelProps) {
-    const explorerMode = injectedMessages !== undefined
+export default function LogPanel({ panelId, brokerId, config, initialHistory, resetKey }: LogPanelProps) {
     const [messages, setMessages] = useState<LogMessage[]>(() =>
         initialHistory ? [...initialHistory] : []
     )
@@ -122,7 +120,7 @@ export default function LogPanel({ panelId, brokerId, config, initialHistory, in
 
     const { subscribe } = useWebSocket({
         onMessage: (data) => {
-            if (explorerMode || pausedRef.current) return
+            if (pausedRef.current) return
             try {
                 const msg = JSON.parse(data) as { topic: string; payload: string }
                 const entry: LogMessage = {
@@ -138,28 +136,15 @@ export default function LogPanel({ panelId, brokerId, config, initialHistory, in
         },
     })
 
-    // Reset and repopulate when initialHistory changes (topic selection change in explorer)
     useEffect(() => {
-        if (!explorerMode) return
         setMessages(initialHistory ? [...initialHistory] : [])
-    }, [initialHistory, explorerMode])
-
-    // Append incoming injected messages (live WS filtered by topic in explorer)
-    useEffect(() => {
-        if (!explorerMode || !injectedMessages?.length) return
-        const latest = injectedMessages[injectedMessages.length - 1]
-        if (pausedRef.current) return
-        setMessages((prev) => {
-            const next = [...prev, latest]
-            return next.length > maxMessages ? next.slice(next.length - maxMessages) : next
-        })
-    }, [injectedMessages, explorerMode, maxMessages])
+    }, [initialHistory, resetKey])
 
     useEffect(() => {
-        if (explorerMode || !config.topics) return
+        if (!config.topics) return
         const topicList = config.topics.split(',').map((t) => t.trim()).filter(Boolean)
         subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList })
-    }, [panelId, brokerId, config.topics, subscribe, explorerMode])
+    }, [panelId, brokerId, config.topics, subscribe])
 
     useEffect(() => {
         const el = logContainerRef.current

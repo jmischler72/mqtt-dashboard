@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useBrokerStatuses } from '../hooks/useBrokers'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -32,8 +32,8 @@ export default function ExplorerPage() {
     const [topics, setTopics] = useState<string[]>([])
     const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
     const [initialHistory, setInitialHistory] = useState<LogMessage[]>([])
+    const [historyLoading, setHistoryLoading] = useState(false)
     const [liveMessages, setLiveMessages] = useState<WSMessage[]>([])
-    const [injectedMessages, setInjectedMessages] = useState<LogMessage[]>([])
     const panelId = useRef('explorer-' + Math.random().toString(36).slice(2))
 
     // Auto-select first connected broker
@@ -79,10 +79,13 @@ export default function ExplorerPage() {
     useEffect(() => {
         if (!selectedTopic || !selectedBrokerId) {
             setInitialHistory([])
-            setInjectedMessages([])
+            setHistoryLoading(false)
             return
         }
+        let cancelled = false
+        setHistoryLoading(true)
         api.getExplorerHistory(selectedBrokerId, selectedTopic).then((records: HistoryRecord[]) => {
+            if (cancelled) return
             const hist: LogMessage[] = records.map((r) => ({
                 timestamp: new Date(r.timestamp).toLocaleTimeString(),
                 topic: r.topic,
@@ -90,30 +93,21 @@ export default function ExplorerPage() {
                 historical: true,
             }))
             setInitialHistory(hist)
-            setInjectedMessages([])
-        }).catch(() => { })
+        }).catch(() => {
+            if (cancelled) return
+            setInitialHistory([])
+        }).finally(() => {
+            if (!cancelled) setHistoryLoading(false)
+        })
+
+        return () => {
+            cancelled = true
+        }
     }, [selectedTopic, selectedBrokerId])
 
-    // Forward live WS messages matching the selected topic to the log panel
-    const handleTopicSelect = useCallback((topic: string) => {
+    const handleTopicSelect = (topic: string) => {
         setSelectedTopic(topic)
-        setInjectedMessages([])
-    }, [])
-
-    // Filter live messages for selected topic and inject into log
-    useEffect(() => {
-        if (!selectedTopic || liveMessages.length === 0) return
-        const latest = liveMessages[liveMessages.length - 1]
-        if (latest.topic !== selectedTopic) return
-        setInjectedMessages((prev) => [
-            ...prev,
-            {
-                timestamp: new Date().toLocaleTimeString(),
-                topic: latest.topic,
-                payload: latest.payload,
-            },
-        ])
-    }, [liveMessages, selectedTopic])
+    }
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -162,13 +156,19 @@ export default function ExplorerPage() {
                                 <span className="text-accent">{selectedTopic}</span>
                             </div>
                             <div className="flex-1 overflow-hidden min-h-0">
-                                <LogPanel
-                                    panelId={panelId.current}
-                                    brokerId={selectedBrokerId}
-                                    config={{ maxMessages: 500, dateFormat: 'time' }}
-                                    initialHistory={initialHistory}
-                                    injectedMessages={injectedMessages}
-                                />
+                                {historyLoading ? (
+                                    <div className="flex items-center justify-center h-full rounded bg-neutral text-neutral-content text-sm">
+                                        Loading history...
+                                    </div>
+                                ) : (
+                                    <LogPanel
+                                        panelId={panelId.current}
+                                        brokerId={selectedBrokerId}
+                                        config={{ topics: selectedTopic, maxMessages: 500, dateFormat: 'time' }}
+                                        initialHistory={initialHistory}
+                                        resetKey={`${selectedBrokerId}:${selectedTopic}`}
+                                    />
+                                )}
                             </div>
                             <div className="shrink-0">
                                 <InputPanel

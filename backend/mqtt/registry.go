@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -12,32 +13,51 @@ import (
 // BrokerRegistry manages multiple concurrent MQTT clients, one per broker.
 type BrokerRegistry struct {
 	mu              sync.RWMutex
-	clients         map[string]*MQTTManager // brokerID → manager
+	clients         map[string]*MQTTManager // brokerID → live manager
+	harvesters      map[string]*MQTTManager // brokerID → history harvester
 	defaultBrokerID string
 	db              *sql.DB
 }
 
 func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
-		clients: make(map[string]*MQTTManager),
-		db:      db,
+		clients:    make(map[string]*MQTTManager),
+		harvesters: make(map[string]*MQTTManager),
+		db:         db,
 	}
 }
 
 // AddBroker creates a new MQTTManager for the broker, connects it, and stores it.
 // The manager is stored even on connection failure so its ERROR status is visible.
 func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
-	mgr := NewManager()
-	err := mgr.Connect(broker)
+	liveMgr := NewManager()
+	liveErr := liveMgr.Connect(broker)
+
+	historyMgr := NewManager()
+	historyErr := historyMgr.Connect(historyBrokerConfig(broker))
+	if historyErr == nil {
+		brokerID := broker.ID
+		historyErr = historyMgr.Subscribe("#", func(topic string, payload []byte) { //nolint
+			r.writeHistory(brokerID, topic, payload)
+		})
+	}
+
 	r.mu.Lock()
-	r.clients[broker.ID] = mgr
+	r.clients[broker.ID] = liveMgr
+	r.harvesters[broker.ID] = historyMgr
 	r.mu.Unlock()
-	// Subscribe wildcard harvester for topic history logging.
-	brokerID := broker.ID
-	mgr.Subscribe("#", func(topic string, payload []byte) { //nolint
-		r.writeHistory(brokerID, topic, payload)
-	})
-	return err
+
+	return errors.Join(liveErr, historyErr)
+}
+
+func historyBrokerConfig(broker models.MQTTBroker) models.MQTTBroker {
+	historyBroker := broker
+	if historyBroker.ClientID != "" {
+		historyBroker.ClientID += "-history"
+		return historyBroker
+	}
+	historyBroker.ClientID = fmt.Sprintf("mqtt-dashboard-history-%s", broker.ID)
+	return historyBroker
 }
 
 // writeHistory persists an incoming MQTT message to mqtt_history, skipping $SYS/ topics.
@@ -59,6 +79,10 @@ func (r *BrokerRegistry) RemoveBroker(id string) {
 	if mgr, ok := r.clients[id]; ok {
 		mgr.Disconnect()
 		delete(r.clients, id)
+	}
+	if mgr, ok := r.harvesters[id]; ok {
+		mgr.Disconnect()
+		delete(r.harvesters, id)
 	}
 	if r.defaultBrokerID == id {
 		r.defaultBrokerID = ""
