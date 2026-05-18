@@ -148,6 +148,13 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     pausedRef.current = paused;
   }, [paused]);
 
+  useEffect(() => {
+    // Clear buffer immediately when switching topic/broker to avoid stale lines.
+    setMessages([]);
+    prevLengthRef.current = 0;
+    shouldAutoScrollRef.current = true;
+  }, [brokerId, config.topics]);
+
   const { subscribe } = useWebSocket({
     onMessage: (data) => {
       if (pausedRef.current) return;
@@ -178,6 +185,12 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
       .filter(Boolean);
     if (topics.length === 0) return;
 
+    // $SYS topics are not persisted in DB history. Skip history fetch to avoid
+    // wiping live messages with an empty historical result.
+    if (topics.every((topic) => topic.startsWith("$SYS/"))) {
+      return;
+    }
+
     let cancelled = false;
     Promise.all(
       topics.map((topic) =>
@@ -200,13 +213,19 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           payload: r.payload,
           historical: true,
         }));
-      setMessages(hist);
+      // Merge history with already-received live messages to prevent flicker.
+      setMessages((prev) => {
+        const live = prev.filter((m) => !m.historical);
+        const next = [...hist, ...live];
+        return next.length > maxMessages
+          ? next.slice(next.length - maxMessages)
+          : next;
+      });
     });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brokerId, config.topics]);
+  }, [brokerId, config.topics, dateFormat, maxMessages]);
 
   useEffect(() => {
     if (!config.topics) return;

@@ -312,6 +312,28 @@ func (h *BrokerHandler) ReorderBrokers(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetBrokerInfo returns the system information for a specific broker (stats from $SYS topics).
+func (h *BrokerHandler) GetBrokerInfo(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// Verify broker exists
+	var exists int
+	err := h.db.QueryRow(`SELECT 1 FROM mqtt_brokers WHERE id = ?`, id).Scan(&exists)
+	if err == sql.ErrNoRows {
+		http.Error(w, "broker not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	stats := h.registry.GetStats(id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
 // updateDefaultBroker sets the registry default to the enabled broker with lowest sort_order.
 func (h *BrokerHandler) updateDefaultBroker() {
 	var id string

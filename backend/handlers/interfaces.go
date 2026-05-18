@@ -13,6 +13,7 @@ type BrokerRegistry interface {
 	DefaultBrokerID() string
 	Status(id string) string
 	Publish(brokerID, topic string, payload []byte) error
+	GetStats(brokerID string) *models.BrokerStats
 }
 
 // CronScheduler is the interface for managing scheduled publish jobs.

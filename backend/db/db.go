@@ -66,7 +66,8 @@ func migrate(db *sql.DB) error {
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS app_settings (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
-			retention_period_hours INTEGER DEFAULT 24
+			retention_period_hours INTEGER DEFAULT 24,
+			show_sys_topics BOOLEAN DEFAULT 0
 		);
 
 		CREATE TABLE IF NOT EXISTS mqtt_history (
@@ -81,6 +82,9 @@ func migrate(db *sql.DB) error {
 	`); err != nil {
 		return err
 	}
+
+	// Beta-safe compatibility: add the column if DB was created before this field.
+	_, _ = db.Exec(`ALTER TABLE app_settings ADD COLUMN show_sys_topics BOOLEAN DEFAULT 0`)
 
 	_, err := db.Exec(`INSERT OR IGNORE INTO app_settings (id) VALUES (1)`)
 	return err

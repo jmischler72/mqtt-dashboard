@@ -92,6 +92,7 @@ func main() {
 	r.Post("/api/brokers", brokerH.CreateBroker)
 	r.Get("/api/brokers/status", brokerH.GetBrokersStatus)
 	r.Put("/api/brokers/reorder", brokerH.ReorderBrokers)
+	r.Get("/api/brokers/{id}/info", brokerH.GetBrokerInfo)
 	r.Put("/api/brokers/{id}", brokerH.UpdateBroker)
 	r.Delete("/api/brokers/{id}", brokerH.DeleteBroker)
 

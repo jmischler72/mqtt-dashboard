@@ -25,14 +25,20 @@ Note to AI: When you finish a sub-task, mark it with a checkmark
 
 - ✅ improve logging using the stdlib slog library
 - ✅ remove logging for status path
-- add testing for handlers, db operations, cron, websockets and mqtt management, also try to ensure 80% code coverage
+- ✅ add testing for handlers, db operations, cron, websockets and mqtt management, also try to ensure 70% code coverage
 
 ## MQTT Brokers Handling
 
-- Show More broker infos
-  - MQTT explorer shows those infos for the current broker (probably fropm $SYS), i want to show the same somewhere (maybe config page) like broker name, sent received messages, clients and subscriptions, sent 5m received 5m, memory and memory max
 - Handle QOS things mqtt and retains ..
 - Handle tls connections with certs
+
+## Show MQTT stats 
+- ✅ MQTT-explorer shows those infos for the current broker (probably fropm $SYS), i want to show the same somewhere (maybe config page) like broker name and version, sent received messages, clients and subscriptions, sent 5m received 5m, memory and memory max
+- ✅ also in explorer page it should show the $SYS topic but add a toggle to hide it
+- ($sys are not stored in history) right now the placeholder feature to show $sys topics before messages are coming is not working properly, i think the front is waiting for the config show $sys in db 
+- the log panel show duplicates messages for the $sys topics
+- i need to add tests to fix code coverage
+
 
 ## Future improvements
 

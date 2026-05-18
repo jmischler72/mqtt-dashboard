@@ -16,6 +16,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
+import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
 
 const statusDot: Record<string, string> = {
   CONNECTED: "bg-success",
@@ -132,6 +133,7 @@ export default function ConfigPage() {
   const brokerStatuses = useBrokerStatuses();
   const [retentionValue, setRetentionValue] = useState(24);
   const [retentionUnit, setRetentionUnit] = useState<"hours" | "days">("hours");
+  const [showSysTopics, setShowSysTopics] = useState(false);
   const [retentionSaving, setRetentionSaving] = useState(false);
 
   const sensors = useSensors(
@@ -187,7 +189,9 @@ export default function ConfigPage() {
 
   useEffect(() => {
     api
-      .get<{ retention_period_hours: number }>("/api/settings")
+      .get<{ retention_period_hours: number; show_sys_topics: boolean }>(
+        "/api/settings",
+      )
       .then((s) => {
         const h = s.retention_period_hours;
         if (h % 24 === 0) {
@@ -197,6 +201,7 @@ export default function ConfigPage() {
           setRetentionValue(h);
           setRetentionUnit("hours");
         }
+        setShowSysTopics(Boolean(s.show_sys_topics));
       })
       .catch((error) => {
         void error;
@@ -212,10 +217,13 @@ export default function ConfigPage() {
     }
     setRetentionSaving(true);
     try {
-      await api.put("/api/settings", { retention_period_hours: hours });
-      showToast("Retention settings saved");
+      await api.put("/api/settings", {
+        retention_period_hours: hours,
+        show_sys_topics: showSysTopics,
+      });
+      showToast("Settings saved");
     } catch {
-      showToast("Failed to save retention settings", false);
+      showToast("Failed to save settings", false);
     } finally {
       setRetentionSaving(false);
     }
@@ -621,6 +629,14 @@ export default function ConfigPage() {
                     </div>
                   )}
                 </div>
+                {!isCreatingNew && selectedBroker && (
+                  <BrokerInfoPanel
+                    brokerId={selectedBroker.id}
+                    isConnected={
+                      getBrokerStatus(selectedBroker) === "CONNECTED"
+                    }
+                  />
+                )}
               </div>
             ) : null}
 
@@ -668,6 +684,17 @@ export default function ConfigPage() {
                     Topic history older than this window is automatically purged
                     every 30 minutes.
                   </p>
+                  <label className="label cursor-pointer justify-start gap-3 px-0 py-1">
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-primary"
+                      checked={showSysTopics}
+                      onChange={(e) => setShowSysTopics(e.target.checked)}
+                    />
+                    <span className="label-text font-medium">
+                      Show $SYS topics in Explorer by default
+                    </span>
+                  </label>
                   <div>
                     <button
                       className="btn btn-sm btn-primary"

@@ -37,4 +37,17 @@ export const api = {
     >(
       `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,
     ),
+  getBrokerInfo: (brokerId: string) =>
+    request<{
+      version: string;
+      uptime: number;
+      clients_connected: number;
+      messages_sent: number;
+      messages_received: number;
+      messages_5m_sent: number;
+      messages_5m_received: number;
+      memory_used: number;
+      memory_max: number;
+      updated_at: string;
+    }>(`/api/brokers/${encodeURIComponent(brokerId)}/info`),
 };

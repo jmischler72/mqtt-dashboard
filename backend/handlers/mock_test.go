@@ -82,6 +82,14 @@ func (m *mockRegistry) Publish(brokerID, topic string, payload []byte) error {
 	return m.publishErr
 }
 
+func (m *mockRegistry) GetStats(brokerID string) *models.BrokerStats {
+	return &models.BrokerStats{
+		Version:          "test-version",
+		Uptime:           3600,
+		ClientsConnected: 1,
+	}
+}
+
 // mockScheduler implements handlers.CronScheduler.
 type mockScheduler struct {
 	mu        sync.Mutex

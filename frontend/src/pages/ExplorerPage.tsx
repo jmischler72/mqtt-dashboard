@@ -11,12 +11,26 @@ interface WSMessage {
   payload: string;
 }
 
+const commonSysTopics = [
+  "$SYS/broker/version",
+  "$SYS/broker/uptime",
+  "$SYS/broker/clients/connected",
+  "$SYS/broker/messages/sent",
+  "$SYS/broker/messages/received",
+  "$SYS/broker/messages/sent/5m",
+  "$SYS/broker/messages/received/5m",
+  "$SYS/broker/heap/current",
+  "$SYS/broker/heap/maximum",
+];
+
 export default function ExplorerPage() {
   const brokerStatuses = useBrokerStatuses();
   const [selectedBrokerId, setSelectedBrokerId] = useState<string>("");
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
+  const [showSysTopic, setShowSysTopic] = useState(false);
+  const [settingsRetentionHours, setSettingsRetentionHours] = useState(24);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
     const firstConnected = brokerStatuses.find(
@@ -39,6 +53,51 @@ export default function ExplorerPage() {
         void error;
       });
   }, [effectiveBrokerId]);
+
+  // Load persisted Explorer preference from app settings.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ retention_period_hours: number; show_sys_topics: boolean }>(
+        "/api/settings",
+      )
+      .then((s) => {
+        if (cancelled) return;
+        setShowSysTopic(Boolean(s.show_sys_topics));
+        setSettingsRetentionHours(s.retention_period_hours ?? 24);
+      })
+      .catch((error) => {
+        void error;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleShowSysChange = async (checked: boolean) => {
+    setShowSysTopic(checked);
+    try {
+      await api.put("/api/settings", {
+        retention_period_hours: settingsRetentionHours,
+        show_sys_topics: checked,
+      });
+    } catch (error) {
+      void error;
+      // Revert UI state if persistence fails.
+      setShowSysTopic((prev) => !prev);
+    }
+  };
+
+  // Make $SYS branch visible immediately when enabled, without waiting for the
+  // next periodic broker publish.
+  useEffect(() => {
+    if (!showSysTopic || !effectiveBrokerId) return;
+    setTopics((prev) => {
+      const merged = new Set(prev);
+      for (const t of commonSysTopics) merged.add(t);
+      return Array.from(merged).sort();
+    });
+  }, [showSysTopic, effectiveBrokerId]);
 
   // Subscribe to # on selected broker via WebSocket
   const { subscribe } = useWebSocket({
@@ -63,7 +122,7 @@ export default function ExplorerPage() {
     subscribe({
       panel_id: panelId,
       broker_id: effectiveBrokerId,
-      topics: ["#"],
+      topics: ["#", "$SYS/#"],
     });
   }, [effectiveBrokerId, panelId, subscribe]);
 
@@ -98,6 +157,17 @@ export default function ExplorerPage() {
         <span className="text-xs text-base-content/40">
           {topics.length} topics captured
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="label cursor-pointer gap-2 p-0">
+            <span className="label-text text-xs">Show $SYS</span>
+            <input
+              type="checkbox"
+              className="toggle toggle-xs toggle-primary"
+              checked={showSysTopic}
+              onChange={(e) => void handleShowSysChange(e.target.checked)}
+            />
+          </label>
+        </div>
       </div>
 
       {/* ── Split layout ── */}
@@ -112,6 +182,7 @@ export default function ExplorerPage() {
             liveMessages={liveMessages}
             selectedTopic={selectedTopic}
             onSelectTopic={handleTopicSelect}
+            showSysTopic={showSysTopic}
           />
         </aside>
 
@@ -128,6 +199,7 @@ export default function ExplorerPage() {
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
                 <LogPanel
+                  key={`${effectiveBrokerId}:${selectedTopic}`}
                   panelId={panelId}
                   brokerId={effectiveBrokerId}
                   config={{

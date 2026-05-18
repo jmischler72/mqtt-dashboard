@@ -47,7 +47,8 @@ type PanelPosition struct {
 }
 
 type AppSettings struct {
-	RetentionPeriodHours int `json:"retention_period_hours"`
+	RetentionPeriodHours int  `json:"retention_period_hours"`
+	ShowSysTopics        bool `json:"show_sys_topics"`
 }
 
 type MQTTHistoryRecord struct {
@@ -56,4 +57,17 @@ type MQTTHistoryRecord struct {
 	Topic     string `json:"topic"`
 	Payload   string `json:"payload"`
 	Timestamp string `json:"timestamp"`
+}
+
+type BrokerStats struct {
+	Version            string `json:"version"`
+	Uptime             int64  `json:"uptime"` // seconds
+	ClientsConnected   int    `json:"clients_connected"`
+	MessagesSent       int64  `json:"messages_sent"`
+	MessagesReceived   int64  `json:"messages_received"`
+	Messages5mSent     int64  `json:"messages_5m_sent"`
+	Messages5mReceived int64  `json:"messages_5m_received"`
+	MemoryUsed         int64  `json:"memory_used"` // bytes
+	MemoryMax          int64  `json:"memory_max"`  // bytes
+	UpdatedAt          string `json:"updated_at"`  // ISO 8601 timestamp
 }

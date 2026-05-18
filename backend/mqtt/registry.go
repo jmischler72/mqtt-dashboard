@@ -16,12 +16,14 @@ type BrokerRegistry struct {
 	clients         map[string]*MQTTManager // brokerID → manager
 	defaultBrokerID string
 	db              *sql.DB
+	statsCache      *StatsCache
 }
 
 func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
-		clients: make(map[string]*MQTTManager),
-		db:      db,
+		clients:    make(map[string]*MQTTManager),
+		db:         db,
+		statsCache: NewStatsCache(),
 	}
 }
 
@@ -39,6 +41,10 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	brokerID := broker.ID
 	mgr.Subscribe("#", func(topic string, payload []byte) { //nolint
 		r.writeHistory(brokerID, topic, payload)
+	})
+	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats.
+	mgr.Subscribe("$SYS/#", func(topic string, payload []byte) { //nolint
+		r.parseSysStats(brokerID, topic, payload)
 	})
 	return err
 }
@@ -64,6 +70,7 @@ func (r *BrokerRegistry) RemoveBroker(id string) {
 		mgr.Disconnect()
 		delete(r.clients, id)
 	}
+	r.statsCache.ClearStats(id)
 	if r.defaultBrokerID == id {
 		r.defaultBrokerID = ""
 	}
@@ -132,5 +139,57 @@ func (r *BrokerRegistry) Subscribe(brokerID, topic string, handler MessageHandle
 func (r *BrokerRegistry) Unsubscribe(brokerID, topic string, handler MessageHandler) {
 	if mgr, ok := r.GetClient(brokerID); ok {
 		mgr.Unsubscribe(topic, handler)
+	}
+}
+
+// GetStats returns the cached broker statistics.
+func (r *BrokerRegistry) GetStats(brokerID string) *models.BrokerStats {
+	return r.statsCache.GetStats(brokerID)
+}
+
+// parseSysStats extracts and updates broker statistics from $SYS topic messages.
+func (r *BrokerRegistry) parseSysStats(brokerID, topic string, payload []byte) {
+	if !strings.HasPrefix(topic, "$SYS/broker/") {
+		return
+	}
+
+	payloadStr := string(payload)
+
+	// Map $SYS topics to stat keys
+	switch {
+	case strings.HasSuffix(topic, "$SYS/broker/version"):
+		r.statsCache.UpdateStat(brokerID, "version", payloadStr)
+	case strings.HasSuffix(topic, "$SYS/broker/uptime"):
+		var uptime int64
+		fmt.Sscanf(payloadStr, "%d", &uptime)
+		r.statsCache.UpdateStat(brokerID, "uptime", uptime)
+	case strings.HasSuffix(topic, "$SYS/broker/clients/connected"):
+		var clients int
+		fmt.Sscanf(payloadStr, "%d", &clients)
+		r.statsCache.UpdateStat(brokerID, "clients_connected", clients)
+	case strings.HasSuffix(topic, "$SYS/broker/messages/sent"):
+		var messages int64
+		fmt.Sscanf(payloadStr, "%d", &messages)
+		r.statsCache.UpdateStat(brokerID, "messages_sent", messages)
+	case strings.HasSuffix(topic, "$SYS/broker/messages/received"):
+		var messages int64
+		fmt.Sscanf(payloadStr, "%d", &messages)
+		r.statsCache.UpdateStat(brokerID, "messages_received", messages)
+	case strings.HasSuffix(topic, "$SYS/broker/messages/sent/5m"):
+		var messages int64
+		fmt.Sscanf(payloadStr, "%d", &messages)
+		r.statsCache.UpdateStat(brokerID, "messages_5m_sent", messages)
+	case strings.HasSuffix(topic, "$SYS/broker/messages/received/5m"):
+		var messages int64
+		fmt.Sscanf(payloadStr, "%d", &messages)
+		r.statsCache.UpdateStat(brokerID, "messages_5m_received", messages)
+	case strings.HasSuffix(topic, "$SYS/broker/heap/current"):
+		var memory int64
+		fmt.Sscanf(payloadStr, "%d", &memory)
+		r.statsCache.UpdateStat(brokerID, "memory_used", memory)
+	case strings.HasSuffix(topic, "$SYS/broker/heap/maximum"):
+		var memory int64
+		fmt.Sscanf(payloadStr, "%d", &memory)
+		r.statsCache.UpdateStat(brokerID, "memory_max", memory)
 	}
 }
