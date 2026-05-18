@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"encoding/json"
 	"sync"
 	"testing"
 
@@ -8,6 +9,23 @@ import (
 
 	"github.com/google/uuid"
 )
+
+func TestMarshalMessage_EncodesJSON(t *testing.T) {
+	raw := marshalMessage(WSMessage{
+		PanelID:  "panel-1",
+		BrokerID: "b1",
+		Topic:    "sensor/temp",
+		Payload:  "42",
+	})
+
+	var got WSMessage
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal marshaled message: %v", err)
+	}
+	if got.PanelID != "panel-1" || got.BrokerID != "b1" || got.Topic != "sensor/temp" || got.Payload != "42" {
+		t.Fatalf("unexpected marshaled payload: %+v", got)
+	}
+}
 
 // mockBrokerSub implements BrokerSubscriber for hub tests.
 type mockBrokerSub struct {
