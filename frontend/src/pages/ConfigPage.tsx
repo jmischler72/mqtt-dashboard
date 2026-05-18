@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -13,9 +13,9 @@ import {
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
-import {CSS} from "@dnd-kit/utilities";
-import {api} from "../api/client";
-import {useBrokerStatuses, type Broker} from "../hooks/useBrokers";
+import { CSS } from "@dnd-kit/utilities";
+import { api } from "../api/client";
+import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
 
 const statusDot: Record<string, string> = {
   CONNECTED: "bg-success",
@@ -41,8 +41,14 @@ function BrokerListItem({
   onSelect: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
-  const {attributes, listeners, setNodeRef, transform, transition, isDragging} =
-    useSortable({id: broker.id});
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: broker.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -122,18 +128,18 @@ export default function ConfigPage() {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [toast, setToast] = useState<{msg: string; ok: boolean} | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const brokerStatuses = useBrokerStatuses();
   const [retentionValue, setRetentionValue] = useState(24);
   const [retentionUnit, setRetentionUnit] = useState<"hours" | "days">("hours");
   const [retentionSaving, setRetentionSaving] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {activationConstraint: {distance: 5}}),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
   const showToast = (msg: string, ok = true) => {
-    setToast({msg, ok});
+    setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -181,7 +187,7 @@ export default function ConfigPage() {
 
   useEffect(() => {
     api
-      .get<{retention_period_hours: number}>("/api/settings")
+      .get<{ retention_period_hours: number }>("/api/settings")
       .then((s) => {
         const h = s.retention_period_hours;
         if (h % 24 === 0) {
@@ -206,7 +212,7 @@ export default function ConfigPage() {
     }
     setRetentionSaving(true);
     try {
-      await api.put("/api/settings", {retention_period_hours: hours});
+      await api.put("/api/settings", { retention_period_hours: hours });
       showToast("Retention settings saved");
     } catch {
       showToast("Failed to save retention settings", false);
@@ -250,7 +256,7 @@ export default function ConfigPage() {
       });
       setBrokers((prev) => prev.map((b) => (b.id === broker.id ? updated : b)));
       if (selectedId === broker.id) {
-        setForm((prev) => ({...prev, is_enabled: updated.is_enabled}));
+        setForm((prev) => ({ ...prev, is_enabled: updated.is_enabled }));
       }
     } catch (error) {
       showToast(getErrorMessage(error), false);
@@ -275,7 +281,7 @@ export default function ConfigPage() {
         showToast("Broker created");
       } else if (selectedId) {
         // Update existing (only send password if non-empty)
-        const payload: Record<string, unknown> = {...form};
+        const payload: Record<string, unknown> = { ...form };
         if (!payload.password) delete payload.password;
         const updated = await api.put<Broker>(
           `/api/brokers/${selectedId}`,
@@ -323,7 +329,7 @@ export default function ConfigPage() {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    const {active, over} = event;
+    const { active, over } = event;
     if (!over || active.id === over.id) return;
 
     const oldIndex = brokers.findIndex((b) => b.id === active.id);
@@ -336,7 +342,7 @@ export default function ConfigPage() {
 
     try {
       await api.put("/api/brokers/reorder", {
-        brokers: reordered.map((b) => ({id: b.id, sort_order: b.sort_order})),
+        brokers: reordered.map((b) => ({ id: b.id, sort_order: b.sort_order })),
       });
     } catch (error) {
       showToast(getErrorMessage(error), false);
@@ -353,7 +359,7 @@ export default function ConfigPage() {
   const f = (field: keyof typeof form) => ({
     value: form[field] as string,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({...prev, [field]: e.target.value})),
+      setForm((prev) => ({ ...prev, [field]: e.target.value })),
   });
 
   const selectedBroker = selectedId
@@ -493,7 +499,7 @@ export default function ConfigPage() {
                         placeholder={titleLabel}
                         value={form.name}
                         onChange={(e) =>
-                          setForm((prev) => ({...prev, name: e.target.value}))
+                          setForm((prev) => ({ ...prev, name: e.target.value }))
                         }
                         onBlur={() => setIsEditingTitle(false)}
                         onKeyDown={(e) => {

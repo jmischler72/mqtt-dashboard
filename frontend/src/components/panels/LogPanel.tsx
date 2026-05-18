@@ -1,7 +1,7 @@
-import {useState, useEffect, useRef} from "react";
-import {useWebSocket} from "../../hooks/useWebSocket";
-import {api} from "../../api/client";
-import type {BrokerStatus} from "../../hooks/useBrokers";
+import { useState, useEffect, useRef } from "react";
+import { useWebSocket } from "../../hooks/useWebSocket";
+import { api } from "../../api/client";
+import type { BrokerStatus } from "../../hooks/useBrokers";
 
 interface LogMessage {
   timestamp: string;
@@ -104,7 +104,7 @@ export function LogConfigModal({
             className="btn btn-primary"
             onClick={() =>
               onSave(
-                {topics, maxMessages, dateFormat},
+                { topics, maxMessages, dateFormat },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -134,7 +134,7 @@ interface LogPanelProps {
   config: LogConfig;
 }
 
-export default function LogPanel({panelId, brokerId, config}: LogPanelProps) {
+export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   const [messages, setMessages] = useState<LogMessage[]>([]);
   const [paused, setPaused] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -148,11 +148,11 @@ export default function LogPanel({panelId, brokerId, config}: LogPanelProps) {
     pausedRef.current = paused;
   }, [paused]);
 
-  const {subscribe} = useWebSocket({
+  const { subscribe } = useWebSocket({
     onMessage: (data) => {
       if (pausedRef.current) return;
       try {
-        const msg = JSON.parse(data) as {topic: string; payload: string};
+        const msg = JSON.parse(data) as { topic: string; payload: string };
         const entry: LogMessage = {
           timestamp: formatTimestamp(new Date(), dateFormat),
           topic: msg.topic,
@@ -214,7 +214,7 @@ export default function LogPanel({panelId, brokerId, config}: LogPanelProps) {
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
-    subscribe({panel_id: panelId, broker_id: brokerId, topics: topicList});
+    subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList });
   }, [panelId, brokerId, config.topics, subscribe]);
 
   useEffect(() => {

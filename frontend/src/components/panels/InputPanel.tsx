@@ -1,6 +1,6 @@
-import {useState} from "react";
-import {api} from "../../api/client";
-import type {BrokerStatus} from "../../hooks/useBrokers";
+import { useState } from "react";
+import { api } from "../../api/client";
+import type { BrokerStatus } from "../../hooks/useBrokers";
 
 export interface InputConfig {
   topic?: string;
@@ -90,7 +90,7 @@ export function InputConfigModal({
             className="btn btn-primary"
             onClick={() =>
               onSave(
-                {topic, placeholder, multiline},
+                { topic, placeholder, multiline },
                 selectedBrokerId || defaultBrokerId,
               )
             }

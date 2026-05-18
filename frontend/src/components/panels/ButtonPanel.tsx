@@ -1,6 +1,6 @@
-import {useState} from "react";
-import {api} from "../../api/client";
-import type {BrokerStatus} from "../../hooks/useBrokers";
+import { useState } from "react";
+import { api } from "../../api/client";
+import type { BrokerStatus } from "../../hooks/useBrokers";
 
 export interface ButtonConfig {
   label?: string;
@@ -87,7 +87,7 @@ export function ButtonConfigModal({
             className="btn btn-primary"
             onClick={() =>
               onSave(
-                {label, topic, payload},
+                { label, topic, payload },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -107,7 +107,7 @@ interface ButtonPanelProps {
   config: ButtonConfig;
 }
 
-export default function ButtonPanel({brokerId, config}: ButtonPanelProps) {
+export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
 

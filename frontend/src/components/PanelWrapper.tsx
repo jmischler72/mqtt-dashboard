@@ -1,5 +1,5 @@
-import {useEffect, useRef, useState} from "react";
-import {createPortal} from "react-dom";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ButtonPanel, {
   ButtonConfigModal,
   type ButtonConfig,
@@ -8,11 +8,14 @@ import InputPanel, {
   InputConfigModal,
   type InputConfig,
 } from "./panels/InputPanel";
-import LogPanel, {LogConfigModal, type LogConfig} from "./panels/LogPanel";
-import CronPanel, {CronConfigModal, type CronConfig} from "./panels/CronPanel";
-import {api} from "../api/client";
-import type {Panel} from "../pages/DashboardPage";
-import type {BrokerStatus} from "../hooks/useBrokers";
+import LogPanel, { LogConfigModal, type LogConfig } from "./panels/LogPanel";
+import CronPanel, {
+  CronConfigModal,
+  type CronConfig,
+} from "./panels/CronPanel";
+import { api } from "../api/client";
+import type { Panel } from "../pages/DashboardPage";
+import type { BrokerStatus } from "../hooks/useBrokers";
 
 interface Props {
   panel: Panel;
@@ -157,13 +160,7 @@ export default function PanelWrapper({
           />
         );
       case "input":
-        return (
-          <InputPanel
-            panelId={panel.id}
-            brokerId={brokerId}
-            config={cfg as InputConfig}
-          />
-        );
+        return <InputPanel brokerId={brokerId} config={cfg as InputConfig} />;
       case "log":
         return (
           <LogPanel

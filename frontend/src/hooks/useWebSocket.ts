@@ -1,4 +1,4 @@
-import {useEffect, useRef, useCallback} from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 interface UseWebSocketOptions {
   onMessage: (data: string) => void;
@@ -88,5 +88,5 @@ export function useWebSocket(options: UseWebSocketOptions) {
     };
   }, [connect]);
 
-  return {subscribe};
+  return { subscribe };
 }

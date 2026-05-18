@@ -1,6 +1,6 @@
-import {useState, useEffect, useMemo, useCallback} from "react";
-import {api} from "../../api/client";
-import type {BrokerStatus} from "../../hooks/useBrokers";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { api } from "../../api/client";
+import type { BrokerStatus } from "../../hooks/useBrokers";
 
 export interface CronConfig {
   cron_expr?: string;
@@ -10,16 +10,16 @@ export interface CronConfig {
 }
 
 // Visual Cron Builder maps friendly options to cron expressions
-const PRESETS: {label: string; value: string}[] = [
-  {label: "Every minute", value: "* * * * *"},
-  {label: "Every 5 minutes", value: "*/5 * * * *"},
-  {label: "Every 15 minutes", value: "*/15 * * * *"},
-  {label: "Every 30 minutes", value: "*/30 * * * *"},
-  {label: "Every hour", value: "0 * * * *"},
-  {label: "Daily at midnight", value: "0 0 * * *"},
-  {label: "Daily at noon", value: "0 12 * * *"},
-  {label: "Weekly (Sunday midnight)", value: "0 0 * * 0"},
-  {label: "Custom", value: "custom"},
+const PRESETS: { label: string; value: string }[] = [
+  { label: "Every minute", value: "* * * * *" },
+  { label: "Every 5 minutes", value: "*/5 * * * *" },
+  { label: "Every 15 minutes", value: "*/15 * * * *" },
+  { label: "Every 30 minutes", value: "*/30 * * * *" },
+  { label: "Every hour", value: "0 * * * *" },
+  { label: "Daily at midnight", value: "0 0 * * *" },
+  { label: "Daily at noon", value: "0 12 * * *" },
+  { label: "Weekly (Sunday midnight)", value: "0 0 * * 0" },
+  { label: "Custom", value: "custom" },
 ];
 
 interface Props {
@@ -41,13 +41,13 @@ export function CronConfigModal({
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
   const initialCronState = useMemo(() => {
     if (!config.cron_expr) {
-      return {preset: "* * * * *", customExpr: ""};
+      return { preset: "* * * * *", customExpr: "" };
     }
     const found = PRESETS.find((p) => p.value === config.cron_expr);
     if (found) {
-      return {preset: found.value, customExpr: config.cron_expr};
+      return { preset: found.value, customExpr: config.cron_expr };
     }
-    return {preset: "custom", customExpr: config.cron_expr};
+    return { preset: "custom", customExpr: config.cron_expr };
   }, [config.cron_expr]);
   const [topic, setTopic] = useState(config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
@@ -153,7 +153,7 @@ export function CronConfigModal({
             disabled={!topic || !cronExpr}
             onClick={() =>
               onSave(
-                {cron_expr: cronExpr, topic, payload, enabled},
+                { cron_expr: cronExpr, topic, payload, enabled },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -185,7 +185,7 @@ export default function CronPanel({
 
   const fetchStatus = useCallback(() => {
     api
-      .get<{next_run: string}>(`/api/cron/${panelId}`)
+      .get<{ next_run: string }>(`/api/cron/${panelId}`)
       .then((r) => {
         setNextRun(new Date(r.next_run));
       })
@@ -219,8 +219,8 @@ export default function CronPanel({
   const handleToggle = async (enabled: boolean) => {
     setToggling(true);
     try {
-      await api.put(`/api/cron/${panelId}/toggle`, {enabled});
-      onConfigChange({...config, enabled});
+      await api.put(`/api/cron/${panelId}/toggle`, { enabled });
+      onConfigChange({ ...config, enabled });
       if (enabled) fetchStatus();
     } catch (error) {
       void error;

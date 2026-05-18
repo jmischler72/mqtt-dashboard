@@ -139,7 +139,6 @@ export default function ExplorerPage() {
               </div>
               <div className="shrink-0">
                 <InputPanel
-                  panelId={panelId}
                   brokerId={effectiveBrokerId}
                   config={{}}
                   overrideTopic={selectedTopic}

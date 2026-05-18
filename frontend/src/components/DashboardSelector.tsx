@@ -1,5 +1,5 @@
-import {useRef, useState, useEffect} from "react";
-import {api} from "../api/client";
+import { useRef, useState, useEffect } from "react";
+import { api } from "../api/client";
 
 export interface Dashboard {
   id: string;
@@ -83,7 +83,7 @@ export default function DashboardSelector({
     if (!name || busy) return;
     setBusy(true);
     try {
-      const d = await api.post<Dashboard>("/api/dashboards", {name});
+      const d = await api.post<Dashboard>("/api/dashboards", { name });
       onCreate(d);
       setCreateOpen(false);
       setCreateValue("");
@@ -100,7 +100,7 @@ export default function DashboardSelector({
     try {
       const d = await api.put<Dashboard>(
         `/api/dashboards/${activeDashboardId}`,
-        {name},
+        { name },
       );
       onRename(d);
       setRenameOpen(false);
