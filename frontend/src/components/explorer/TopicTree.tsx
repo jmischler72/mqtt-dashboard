@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef} from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface WSMessage {
   topic: string;
@@ -62,7 +62,7 @@ function TreeNodeItem({
       <div
         className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer select-none text-sm transition-colors duration-300
                     ${isSelected ? "bg-primary text-primary-content" : isFlashing ? "bg-info/30" : "hover:bg-base-200"}`}
-        style={{paddingLeft: `${8 + depth * 16}px`}}
+        style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={() => {
           onSelect(node.fullPath);
         }}
