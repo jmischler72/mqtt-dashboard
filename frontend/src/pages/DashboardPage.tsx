@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {useState, useEffect, useCallback, useRef} from "react";
 import ReactGridLayout from "react-grid-layout";
-import { useOutletContext } from "react-router-dom";
+import {useOutletContext} from "react-router-dom";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const RGL = ReactGridLayout as any;
-import { api } from "../api/client";
+import {api} from "../api/client";
 import PanelWrapper from "../components/PanelWrapper";
-import type { BrokerStatus } from "../hooks/useBrokers";
+import type {BrokerStatus} from "../hooks/useBrokers";
 
 type GridLayout = {
   i: string;
@@ -30,10 +30,10 @@ export interface Panel {
 }
 
 const PANEL_TYPES = [
-  { value: "button", label: "Button" },
-  { value: "input", label: "Input" },
-  { value: "log", label: "Log" },
-  { value: "cron", label: "Cron" },
+  {value: "button", label: "Button"},
+  {value: "input", label: "Input"},
+  {value: "log", label: "Log"},
+  {value: "cron", label: "Cron"},
 ];
 
 type LayoutContext = {
@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
-  const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } =
+  const {editMode, activeDashboardId, dashboardsLoading, brokerStatuses} =
     useOutletContext<LayoutContext>();
 
   useEffect(() => {
@@ -103,7 +103,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (dashboardsLoading || !activeDashboardId) return;
     let active = true;
-    setIsLoadingLayout(true);
+    queueMicrotask(() => {
+      if (active) setIsLoadingLayout(true);
+    });
 
     api
       .get<Panel[]>(`/api/layouts?dashboard_id=${activeDashboardId}`)
@@ -111,7 +113,9 @@ export default function DashboardPage() {
         if (!active) return;
         setPanels(loadedPanels);
       })
-      .catch(() => {})
+      .catch((error) => {
+        void error;
+      })
       .finally(() => {
         if (active) setIsLoadingLayout(false);
       });
@@ -145,11 +149,11 @@ export default function DashboardPage() {
         w: l.w,
         h: l.h,
       }));
-      api.put("/api/layouts/batch", { panels: patches }).catch(() => {});
+      api.put("/api/layouts/batch", {panels: patches}).catch(() => {});
       setPanels((prev) =>
         prev.map((p) => {
           const l = newLayout.find((n) => n.i === p.id);
-          return l ? { ...p, x: l.x, y: l.y, w: l.w, h: l.h } : p;
+          return l ? {...p, x: l.x, y: l.y, w: l.w, h: l.h} : p;
         }),
       );
     }, 300);
@@ -165,7 +169,9 @@ export default function DashboardPage() {
         title: `${PANEL_TYPES.find((t) => t.value === panelType)?.label ?? "New"} Panel`,
       });
       setPanels((prev) => [...prev, panel]);
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   };
 
   const removePanel = (id: string) => {

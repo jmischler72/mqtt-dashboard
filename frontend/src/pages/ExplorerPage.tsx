@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -17,29 +17,28 @@ export default function ExplorerPage() {
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
-  const panelId = useRef("explorer-" + Math.random().toString(36).slice(2));
-
-  // Auto-select first connected broker
-  useEffect(() => {
-    if (selectedBrokerId || brokerStatuses.length === 0) return;
-    const first =
-      brokerStatuses.find((b) => b.is_enabled && b.status === "CONNECTED") ??
-      brokerStatuses.find((b) => b.is_enabled) ??
-      brokerStatuses[0];
-    if (first) setSelectedBrokerId(first.id);
-  }, [brokerStatuses, selectedBrokerId]);
+  const panelId = useId();
+  const autoSelectedBrokerId = useMemo(() => {
+    const firstConnected = brokerStatuses.find(
+      (b) => b.is_enabled && b.status === "CONNECTED",
+    );
+    if (firstConnected) return firstConnected.id;
+    const firstEnabled = brokerStatuses.find((b) => b.is_enabled);
+    if (firstEnabled) return firstEnabled.id;
+    return brokerStatuses[0]?.id ?? "";
+  }, [brokerStatuses]);
+  const effectiveBrokerId = selectedBrokerId || autoSelectedBrokerId;
 
   // Load topic tree when broker changes
   useEffect(() => {
-    if (!selectedBrokerId) return;
-    setTopics([]);
-    setSelectedTopic(null);
-    setLiveMessages([]);
+    if (!effectiveBrokerId) return;
     api
-      .getExplorerTree(selectedBrokerId)
+      .getExplorerTree(effectiveBrokerId)
       .then(setTopics)
-      .catch(() => {});
-  }, [selectedBrokerId]);
+      .catch((error) => {
+        void error;
+      });
+  }, [effectiveBrokerId]);
 
   // Subscribe to # on selected broker via WebSocket
   const { subscribe } = useWebSocket({
@@ -53,18 +52,20 @@ export default function ExplorerPage() {
           if (prev.includes(msg.topic)) return prev;
           return [...prev, msg.topic].sort();
         });
-      } catch {}
+      } catch (error) {
+        void error;
+      }
     },
   });
 
   useEffect(() => {
-    if (!selectedBrokerId) return;
+    if (!effectiveBrokerId) return;
     subscribe({
-      panel_id: panelId.current,
-      broker_id: selectedBrokerId,
+      panel_id: panelId,
+      broker_id: effectiveBrokerId,
       topics: ["#"],
     });
-  }, [selectedBrokerId, subscribe]);
+  }, [effectiveBrokerId, panelId, subscribe]);
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
@@ -77,8 +78,13 @@ export default function ExplorerPage() {
         <span className="text-sm font-medium text-base-content/60">Broker</span>
         <select
           className="select select-bordered select-sm"
-          value={selectedBrokerId}
-          onChange={(e) => setSelectedBrokerId(e.target.value)}
+          value={effectiveBrokerId}
+          onChange={(e) => {
+            setSelectedBrokerId(e.target.value);
+            setTopics([]);
+            setSelectedTopic(null);
+            setLiveMessages([]);
+          }}
         >
           {brokerStatuses.length === 0 && (
             <option value="">No brokers configured</option>
@@ -122,8 +128,8 @@ export default function ExplorerPage() {
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
                 <LogPanel
-                  panelId={panelId.current}
-                  brokerId={selectedBrokerId}
+                  panelId={panelId}
+                  brokerId={effectiveBrokerId}
                   config={{
                     topics: selectedTopic,
                     maxMessages: 500,
@@ -133,11 +139,11 @@ export default function ExplorerPage() {
               </div>
               <div className="shrink-0">
                 <InputPanel
-                  panelId={panelId.current}
-                  brokerId={selectedBrokerId}
+                  panelId={panelId}
+                  brokerId={effectiveBrokerId}
                   config={{}}
                   overrideTopic={selectedTopic}
-                  overrideBrokerId={selectedBrokerId}
+                  overrideBrokerId={effectiveBrokerId}
                 />
               </div>
             </>

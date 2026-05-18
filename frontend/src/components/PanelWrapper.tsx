@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import ButtonPanel, { ButtonConfigModal } from "./panels/ButtonPanel";
-import InputPanel, { InputConfigModal } from "./panels/InputPanel";
-import LogPanel, { LogConfigModal } from "./panels/LogPanel";
-import CronPanel, { CronConfigModal } from "./panels/CronPanel";
-import { api } from "../api/client";
-import type { Panel } from "../pages/DashboardPage";
-import type { BrokerStatus } from "../hooks/useBrokers";
+import {useEffect, useRef, useState} from "react";
+import {createPortal} from "react-dom";
+import ButtonPanel, {
+  ButtonConfigModal,
+  type ButtonConfig,
+} from "./panels/ButtonPanel";
+import InputPanel, {
+  InputConfigModal,
+  type InputConfig,
+} from "./panels/InputPanel";
+import LogPanel, {LogConfigModal, type LogConfig} from "./panels/LogPanel";
+import CronPanel, {CronConfigModal, type CronConfig} from "./panels/CronPanel";
+import {api} from "../api/client";
+import type {Panel} from "../pages/DashboardPage";
+import type {BrokerStatus} from "../hooks/useBrokers";
 
 interface Props {
   panel: Panel;
@@ -24,6 +30,8 @@ const brokerDotColor: Record<string, string> = {
   ERROR: "bg-error",
   DISABLED: "bg-neutral",
 };
+
+type PanelConfig = ButtonConfig | InputConfig | LogConfig | CronConfig;
 
 export default function PanelWrapper({
   panel,
@@ -61,12 +69,13 @@ export default function PanelWrapper({
         title,
       });
       onUpdate(updated);
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   };
 
   // cfg = panel-specific config, brokerId = the broker assignment for this panel
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const saveConfig = async (cfg: any, brokerId: string) => {
+  const saveConfig = async (cfg: PanelConfig, brokerId: string) => {
     setShowConfig(false);
     try {
       const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
@@ -82,7 +91,9 @@ export default function PanelWrapper({
           broker_id: brokerId,
         });
       }
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   };
 
   const handleDelete = async () => {
@@ -90,7 +101,9 @@ export default function PanelWrapper({
     try {
       await api.delete(`/api/layouts/${panel.id}`);
       onDelete();
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   };
 
   const handleOpenConfig = () => {
@@ -136,39 +149,35 @@ export default function PanelWrapper({
     const brokerId = panel.broker_id ?? "";
     switch (panel.panel_type) {
       case "button":
-         
         return (
           <ButtonPanel
             panelId={panel.id}
             brokerId={brokerId}
-            config={cfg as any}
+            config={cfg as ButtonConfig}
           />
         );
       case "input":
-         
         return (
           <InputPanel
             panelId={panel.id}
             brokerId={brokerId}
-            config={cfg as any}
+            config={cfg as InputConfig}
           />
         );
       case "log":
-         
         return (
           <LogPanel
             panelId={panel.id}
             brokerId={brokerId}
-            config={cfg as any}
+            config={cfg as LogConfig}
           />
         );
       case "cron":
-         
         return (
           <CronPanel
             panelId={panel.id}
             brokerId={brokerId}
-            config={cfg as any}
+            config={cfg as CronConfig}
             onConfigChange={(cfg) => saveConfig(cfg, brokerId)}
           />
         );
@@ -186,61 +195,54 @@ export default function PanelWrapper({
 
     const cfg = panel.config_json ?? {};
     const brokerId = panel.broker_id ?? "";
-    let modal = null;
     switch (panel.panel_type) {
       case "button":
-        modal = (
+        return createPortal(
           <ButtonConfigModal
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            config={cfg as any}
+            config={cfg as ButtonConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
-          />
+          />,
+          document.body,
         );
-        break;
       case "input":
-        modal = (
+        return createPortal(
           <InputConfigModal
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            config={cfg as any}
+            config={cfg as InputConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
-          />
+          />,
+          document.body,
         );
-        break;
       case "log":
-        modal = (
+        return createPortal(
           <LogConfigModal
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            config={cfg as any}
+            config={cfg as LogConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
-          />
+          />,
+          document.body,
         );
-        break;
       case "cron":
-        modal = (
+        return createPortal(
           <CronConfigModal
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            config={cfg as any}
+            config={cfg as CronConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
-          />
+          />,
+          document.body,
         );
-        break;
       default:
         return null;
     }
-
-    return createPortal(modal, document.body);
   };
 
   return (

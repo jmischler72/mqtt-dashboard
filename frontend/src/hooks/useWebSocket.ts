@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import {useEffect, useRef, useCallback} from "react";
 
 interface UseWebSocketOptions {
   onMessage: (data: string) => void;
@@ -18,11 +18,13 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const onOpenRef = useRef(options.onOpen);
   const onCloseRef = useRef(options.onClose);
 
-  onMessageRef.current = options.onMessage;
-  onOpenRef.current = options.onOpen;
-  onCloseRef.current = options.onClose;
+  useEffect(() => {
+    onMessageRef.current = options.onMessage;
+    onOpenRef.current = options.onOpen;
+    onCloseRef.current = options.onClose;
+  }, [options.onMessage, options.onOpen, options.onClose]);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(function connectImpl() {
     if (unmounted.current || cancelled.current) return;
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${proto}://${window.location.host}/ws`);
@@ -50,7 +52,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
       if (!unmounted.current && !cancelled.current) {
         reconnectTimeout.current = setTimeout(() => {
           backoff.current = Math.min(backoff.current * 2, 30000);
-          connect();
+          connectImpl();
         }, backoff.current);
       }
     };
@@ -86,5 +88,5 @@ export function useWebSocket(options: UseWebSocketOptions) {
     };
   }, [connect]);
 
-  return { subscribe };
+  return {subscribe};
 }

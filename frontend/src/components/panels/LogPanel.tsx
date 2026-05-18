@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { useWebSocket } from "../../hooks/useWebSocket";
-import { api } from "../../api/client";
-import type { BrokerStatus } from "../../hooks/useBrokers";
+import {useState, useEffect, useRef} from "react";
+import {useWebSocket} from "../../hooks/useWebSocket";
+import {api} from "../../api/client";
+import type {BrokerStatus} from "../../hooks/useBrokers";
 
 interface LogMessage {
   timestamp: string;
@@ -10,7 +10,7 @@ interface LogMessage {
   historical?: boolean;
 }
 
-interface LogConfig {
+export interface LogConfig {
   topics?: string;
   maxMessages?: number;
   dateFormat?: "time" | "full";
@@ -104,7 +104,7 @@ export function LogConfigModal({
             className="btn btn-primary"
             onClick={() =>
               onSave(
-                { topics, maxMessages, dateFormat },
+                {topics, maxMessages, dateFormat},
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -134,7 +134,7 @@ interface LogPanelProps {
   config: LogConfig;
 }
 
-export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
+export default function LogPanel({panelId, brokerId, config}: LogPanelProps) {
   const [messages, setMessages] = useState<LogMessage[]>([]);
   const [paused, setPaused] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -143,13 +143,16 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   const maxMessages = config.maxMessages ?? 200;
   const dateFormat = config.dateFormat ?? "time";
   const pausedRef = useRef(paused);
-  pausedRef.current = paused;
 
-  const { subscribe } = useWebSocket({
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  const {subscribe} = useWebSocket({
     onMessage: (data) => {
       if (pausedRef.current) return;
       try {
-        const msg = JSON.parse(data) as { topic: string; payload: string };
+        const msg = JSON.parse(data) as {topic: string; payload: string};
         const entry: LogMessage = {
           timestamp: formatTimestamp(new Date(), dateFormat),
           topic: msg.topic,
@@ -161,7 +164,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
             ? next.slice(next.length - maxMessages)
             : next;
         });
-      } catch {}
+      } catch (error) {
+        void error;
+      }
     },
   });
 
@@ -176,7 +181,10 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     let cancelled = false;
     Promise.all(
       topics.map((topic) =>
-        api.getExplorerHistory(brokerId, topic).catch(() => []),
+        api.getExplorerHistory(brokerId, topic).catch((error) => {
+          void error;
+          return [];
+        }),
       ),
     ).then((results) => {
       if (cancelled) return;
@@ -206,7 +214,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
-    subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList });
+    subscribe({panel_id: panelId, broker_id: brokerId, topics: topicList});
   }, [panelId, brokerId, config.topics, subscribe]);
 
   useEffect(() => {

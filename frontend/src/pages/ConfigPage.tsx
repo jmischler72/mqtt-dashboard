@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {
   DndContext,
   closestCenter,
@@ -13,9 +13,9 @@ import {
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { api } from "../api/client";
-import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
+import {CSS} from "@dnd-kit/utilities";
+import {api} from "../api/client";
+import {useBrokerStatuses, type Broker} from "../hooks/useBrokers";
 
 const statusDot: Record<string, string> = {
   CONNECTED: "bg-success",
@@ -41,14 +41,8 @@ function BrokerListItem({
   onSelect: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: broker.id });
+  const {attributes, listeners, setNodeRef, transform, transition, isDragging} =
+    useSortable({id: broker.id});
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -107,27 +101,39 @@ const emptyForm = () => ({
   is_enabled: true,
 });
 
+const toForm = (b: Broker) => ({
+  name: b.name,
+  host: b.host,
+  port: String(b.port),
+  client_id: b.client_id ?? "",
+  username: b.username ?? "",
+  password: "",
+  is_enabled: b.is_enabled,
+});
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unexpected error";
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [selectionInitialized, setSelectionInitialized] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [toast, setToast] = useState<{msg: string; ok: boolean} | null>(null);
   const brokerStatuses = useBrokerStatuses();
   const [retentionValue, setRetentionValue] = useState(24);
   const [retentionUnit, setRetentionUnit] = useState<"hours" | "days">("hours");
   const [retentionSaving, setRetentionSaving] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {activationConstraint: {distance: 5}}),
   );
 
   const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok });
+    setToast({msg, ok});
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -135,16 +141,47 @@ export default function ConfigPage() {
     try {
       const list = await api.get<Broker[]>("/api/brokers");
       setBrokers(list);
-    } catch {}
+      return list;
+    } catch (error) {
+      void error;
+      return null;
+    }
   }, []);
 
   useEffect(() => {
-    loadBrokers();
+    let cancelled = false;
+
+    api
+      .get<Broker[]>("/api/brokers")
+      .then((list) => {
+        if (cancelled) return;
+        setBrokers(list);
+
+        const enabled = list.filter((b) => b.is_enabled);
+        const fallback = enabled[0] ?? list[0];
+        if (!fallback) {
+          setSelectedId(null);
+          setIsCreatingNew(false);
+          setForm(emptyForm());
+          return;
+        }
+
+        setSelectedId(fallback.id);
+        setIsCreatingNew(false);
+        setForm(toForm(fallback));
+      })
+      .catch((error) => {
+        void error;
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadBrokers]);
 
   useEffect(() => {
     api
-      .get<{ retention_period_hours: number }>("/api/settings")
+      .get<{retention_period_hours: number}>("/api/settings")
       .then((s) => {
         const h = s.retention_period_hours;
         if (h % 24 === 0) {
@@ -155,7 +192,9 @@ export default function ConfigPage() {
           setRetentionUnit("hours");
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        void error;
+      });
   }, []);
 
   const handleSaveRetention = async () => {
@@ -167,7 +206,7 @@ export default function ConfigPage() {
     }
     setRetentionSaving(true);
     try {
-      await api.put("/api/settings", { retention_period_hours: hours });
+      await api.put("/api/settings", {retention_period_hours: hours});
       showToast("Retention settings saved");
     } catch {
       showToast("Failed to save retention settings", false);
@@ -175,62 +214,6 @@ export default function ConfigPage() {
       setRetentionSaving(false);
     }
   };
-
-  // Initial selection: default broker when available; otherwise empty state.
-  useEffect(() => {
-    if (!selectionInitialized) {
-      if (brokers.length === 0) {
-        setSelectedId(null);
-        setIsCreatingNew(false);
-        setSelectionInitialized(true);
-        return;
-      }
-
-      const enabled = brokers.filter((b) => b.is_enabled);
-      const defaultBroker = enabled[0] ?? brokers[0];
-      setSelectedId(defaultBroker.id);
-      setIsCreatingNew(false);
-      setSelectionInitialized(true);
-      return;
-    }
-
-    if (selectedId && !brokers.some((b) => b.id === selectedId)) {
-      const enabled = brokers.filter((b) => b.is_enabled);
-      const fallback = enabled[0] ?? brokers[0];
-      setSelectedId(fallback?.id ?? null);
-      setIsCreatingNew(false);
-    }
-  }, [brokers, selectionInitialized, selectedId]);
-
-  // Populate form from selected broker, or reset for new broker.
-  useEffect(() => {
-    if (isCreatingNew) {
-      setForm(emptyForm());
-      return;
-    }
-
-    if (!selectedId) return;
-    const b = brokers.find((x) => x.id === selectedId);
-    if (!b) return;
-
-    setForm({
-      name: b.name,
-      host: b.host,
-      port: String(b.port),
-      client_id: b.client_id ?? "",
-      username: b.username ?? "",
-      password: "",
-      is_enabled: b.is_enabled,
-    });
-  }, [selectedId, isCreatingNew]);
-
-  // Keep enable toggle synced with latest server state to avoid stale status in form.
-  useEffect(() => {
-    if (isCreatingNew || !selectedId) return;
-    const b = brokers.find((x) => x.id === selectedId);
-    if (!b) return;
-    setForm((prev) => ({ ...prev, is_enabled: b.is_enabled }));
-  }, [brokers, selectedId, isCreatingNew]);
 
   const statusById = useMemo(() => {
     const map = new Map<string, string>();
@@ -251,9 +234,13 @@ export default function ConfigPage() {
   };
 
   const handleSelect = (id: string) => {
+    const selected = brokers.find((b) => b.id === id);
     setSelectedId(id);
     setIsCreatingNew(false);
     setIsEditingTitle(false);
+    if (selected) {
+      setForm(toForm(selected));
+    }
   };
 
   const handleToggle = async (broker: Broker, enabled: boolean) => {
@@ -262,8 +249,11 @@ export default function ConfigPage() {
         is_enabled: enabled,
       });
       setBrokers((prev) => prev.map((b) => (b.id === broker.id ? updated : b)));
-    } catch (e: any) {
-      showToast(e.message, false);
+      if (selectedId === broker.id) {
+        setForm((prev) => ({...prev, is_enabled: updated.is_enabled}));
+      }
+    } catch (error) {
+      showToast(getErrorMessage(error), false);
     }
   };
 
@@ -281,10 +271,11 @@ export default function ConfigPage() {
         setSelectedId(created.id);
         setIsCreatingNew(false);
         setIsEditingTitle(false);
+        setForm(toForm(created));
         showToast("Broker created");
       } else if (selectedId) {
         // Update existing (only send password if non-empty)
-        const payload: Record<string, unknown> = { ...form };
+        const payload: Record<string, unknown> = {...form};
         if (!payload.password) delete payload.password;
         const updated = await api.put<Broker>(
           `/api/brokers/${selectedId}`,
@@ -294,10 +285,11 @@ export default function ConfigPage() {
           prev.map((b) => (b.id === selectedId ? updated : b)),
         );
         setIsEditingTitle(false);
+        setForm(toForm(updated));
         showToast("Broker saved");
       }
-    } catch (e: any) {
-      showToast(e.message, false);
+    } catch (error) {
+      showToast(getErrorMessage(error), false);
     } finally {
       setSaving(false);
     }
@@ -316,19 +308,22 @@ export default function ConfigPage() {
       if (remaining.length === 0) {
         setSelectedId(null);
         setIsCreatingNew(false);
+        setForm(emptyForm());
       } else {
         const enabled = remaining.filter((x) => x.is_enabled);
-        setSelectedId((enabled[0] ?? remaining[0]).id);
+        const fallback = enabled[0] ?? remaining[0];
+        setSelectedId(fallback.id);
         setIsCreatingNew(false);
+        setForm(toForm(fallback));
       }
       showToast("Broker deleted");
-    } catch (e: any) {
-      showToast(e.message, false);
+    } catch (error) {
+      showToast(getErrorMessage(error), false);
     }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
+    const {active, over} = event;
     if (!over || active.id === over.id) return;
 
     const oldIndex = brokers.findIndex((b) => b.id === active.id);
@@ -341,10 +336,10 @@ export default function ConfigPage() {
 
     try {
       await api.put("/api/brokers/reorder", {
-        brokers: reordered.map((b) => ({ id: b.id, sort_order: b.sort_order })),
+        brokers: reordered.map((b) => ({id: b.id, sort_order: b.sort_order})),
       });
-    } catch (e: any) {
-      showToast(e.message, false);
+    } catch (error) {
+      showToast(getErrorMessage(error), false);
       loadBrokers(); // revert on failure
     }
   };
@@ -358,7 +353,7 @@ export default function ConfigPage() {
   const f = (field: keyof typeof form) => ({
     value: form[field] as string,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value })),
+      setForm((prev) => ({...prev, [field]: e.target.value})),
   });
 
   const selectedBroker = selectedId
@@ -498,7 +493,7 @@ export default function ConfigPage() {
                         placeholder={titleLabel}
                         value={form.name}
                         onChange={(e) =>
-                          setForm((prev) => ({ ...prev, name: e.target.value }))
+                          setForm((prev) => ({...prev, name: e.target.value}))
                         }
                         onBlur={() => setIsEditingTitle(false)}
                         onKeyDown={(e) => {
