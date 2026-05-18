@@ -41,7 +41,7 @@ type brokerTopic struct {
 type Hub struct {
 	mu       sync.RWMutex
 	clients  map[string]*Client
-	registry *mqttclient.BrokerRegistry
+	registry BrokerSubscriber
 
 	// (brokerID, topic) → set of clientIDs
 	topicClients map[brokerTopic]map[string]struct{}
@@ -49,7 +49,7 @@ type Hub struct {
 	topicHandlers map[brokerTopic]mqttclient.MessageHandler
 }
 
-func NewHub(registry *mqttclient.BrokerRegistry) *Hub {
+func NewHub(registry BrokerSubscriber) *Hub {
 	return &Hub{
 		clients:       make(map[string]*Client),
 		registry:      registry,

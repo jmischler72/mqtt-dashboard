@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
-
-	mqttclient "mqtt-dashboard/mqtt"
 )
 
 type JobInfo struct {
@@ -27,10 +25,10 @@ type Scheduler struct {
 	mu       sync.Mutex
 	s        gocron.Scheduler
 	jobs     map[string]*JobInfo // panelID → JobInfo
-	registry *mqttclient.BrokerRegistry
+	registry BrokerPublisher
 }
 
-func NewScheduler(registry *mqttclient.BrokerRegistry) (*Scheduler, error) {
+func NewScheduler(registry BrokerPublisher) (*Scheduler, error) {
 	s, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, err

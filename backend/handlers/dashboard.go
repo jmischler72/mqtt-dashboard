@@ -8,16 +8,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"mqtt-dashboard/cron"
 	"mqtt-dashboard/models"
 )
 
 type DashboardHandler struct {
 	db        *sql.DB
-	scheduler *cron.Scheduler
+	scheduler CronScheduler
 }
 
-func NewDashboardHandler(db *sql.DB, scheduler *cron.Scheduler) *DashboardHandler {
+func NewDashboardHandler(db *sql.DB, scheduler CronScheduler) *DashboardHandler {
 	return &DashboardHandler{db: db, scheduler: scheduler}
 }
 

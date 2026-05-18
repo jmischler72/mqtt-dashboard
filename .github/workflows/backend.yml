@@ -1,0 +1,47 @@
+name: Backend CI
+
+on:
+    push:
+        paths:
+            - "backend/**"
+            - ".github/workflows/backend.yml"
+    pull_request:
+        paths:
+            - "backend/**"
+            - ".github/workflows/backend.yml"
+
+jobs:
+    test:
+        name: Build & Test
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: backend/go.mod
+                  cache-dependency-path: backend/go.sum
+
+            - name: Download dependencies
+              working-directory: backend
+              run: go mod download
+
+            - name: Build
+              working-directory: backend
+              run: go build ./...
+
+            - name: Test with coverage
+              working-directory: backend
+              run: go test ./... -coverprofile=coverage.out -count=1
+
+            - name: Check coverage threshold
+              working-directory: backend
+              run: |
+                  COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+                  echo "Total coverage: ${COVERAGE}%"
+                  if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+                    echo "Coverage ${COVERAGE}% is below the 70% threshold"
+                    exit 1
+                  fi
