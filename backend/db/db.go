@@ -83,9 +83,6 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
-	// Beta-safe compatibility: add the column if DB was created before this field.
-	_, _ = db.Exec(`ALTER TABLE app_settings ADD COLUMN show_sys_topics BOOLEAN DEFAULT 0`)
-
 	_, err := db.Exec(`INSERT OR IGNORE INTO app_settings (id) VALUES (1)`)
 	return err
 }
