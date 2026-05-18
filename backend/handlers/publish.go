@@ -5,16 +5,14 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-
-	mqttclient "mqtt-dashboard/mqtt"
 )
 
 type PublishHandler struct {
 	db       *sql.DB
-	registry *mqttclient.BrokerRegistry
+	registry BrokerRegistry
 }
 
-func NewPublishHandler(db *sql.DB, registry *mqttclient.BrokerRegistry) *PublishHandler {
+func NewPublishHandler(db *sql.DB, registry BrokerRegistry) *PublishHandler {
 	return &PublishHandler{db: db, registry: registry}
 }
 

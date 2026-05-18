@@ -6,16 +6,14 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-
-	"mqtt-dashboard/cron"
 )
 
 type CronHandler struct {
 	db        *sql.DB
-	scheduler *cron.Scheduler
+	scheduler CronScheduler
 }
 
-func NewCronHandler(db *sql.DB, scheduler *cron.Scheduler) *CronHandler {
+func NewCronHandler(db *sql.DB, scheduler CronScheduler) *CronHandler {
 	return &CronHandler{db: db, scheduler: scheduler}
 }
 

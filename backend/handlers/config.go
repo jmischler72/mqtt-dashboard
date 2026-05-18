@@ -11,15 +11,14 @@ import (
 	"github.com/google/uuid"
 
 	"mqtt-dashboard/models"
-	mqttclient "mqtt-dashboard/mqtt"
 )
 
 type BrokerHandler struct {
 	db       *sql.DB
-	registry *mqttclient.BrokerRegistry
+	registry BrokerRegistry
 }
 
-func NewBrokerHandler(db *sql.DB, registry *mqttclient.BrokerRegistry) *BrokerHandler {
+func NewBrokerHandler(db *sql.DB, registry BrokerRegistry) *BrokerHandler {
 	return &BrokerHandler{db: db, registry: registry}
 }
 
