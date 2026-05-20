@@ -154,41 +154,39 @@ func (r *BrokerRegistry) parseSysStats(brokerID, topic string, payload []byte) {
 
 	payloadStr := string(payload)
 
+	updateInt64Stat := func(statKey string) {
+		var value int64
+		if n, err := fmt.Sscanf(payloadStr, "%d", &value); err == nil && n == 1 {
+			r.statsCache.UpdateStat(brokerID, statKey, value)
+		}
+	}
+
+	updateIntStat := func(statKey string) {
+		var value int
+		if n, err := fmt.Sscanf(payloadStr, "%d", &value); err == nil && n == 1 {
+			r.statsCache.UpdateStat(brokerID, statKey, value)
+		}
+	}
+
 	// Map $SYS topics to stat keys
 	switch {
 	case strings.HasSuffix(topic, "$SYS/broker/version"):
 		r.statsCache.UpdateStat(brokerID, "version", payloadStr)
 	case strings.HasSuffix(topic, "$SYS/broker/uptime"):
-		var uptime int64
-		fmt.Sscanf(payloadStr, "%d", &uptime)
-		r.statsCache.UpdateStat(brokerID, "uptime", uptime)
+		updateInt64Stat("uptime")
 	case strings.HasSuffix(topic, "$SYS/broker/clients/connected"):
-		var clients int
-		fmt.Sscanf(payloadStr, "%d", &clients)
-		r.statsCache.UpdateStat(brokerID, "clients_connected", clients)
+		updateIntStat("clients_connected")
 	case strings.HasSuffix(topic, "$SYS/broker/messages/sent"):
-		var messages int64
-		fmt.Sscanf(payloadStr, "%d", &messages)
-		r.statsCache.UpdateStat(brokerID, "messages_sent", messages)
+		updateInt64Stat("messages_sent")
 	case strings.HasSuffix(topic, "$SYS/broker/messages/received"):
-		var messages int64
-		fmt.Sscanf(payloadStr, "%d", &messages)
-		r.statsCache.UpdateStat(brokerID, "messages_received", messages)
+		updateInt64Stat("messages_received")
 	case strings.HasSuffix(topic, "$SYS/broker/messages/sent/5m"):
-		var messages int64
-		fmt.Sscanf(payloadStr, "%d", &messages)
-		r.statsCache.UpdateStat(brokerID, "messages_5m_sent", messages)
+		updateInt64Stat("messages_5m_sent")
 	case strings.HasSuffix(topic, "$SYS/broker/messages/received/5m"):
-		var messages int64
-		fmt.Sscanf(payloadStr, "%d", &messages)
-		r.statsCache.UpdateStat(brokerID, "messages_5m_received", messages)
+		updateInt64Stat("messages_5m_received")
 	case strings.HasSuffix(topic, "$SYS/broker/heap/current"):
-		var memory int64
-		fmt.Sscanf(payloadStr, "%d", &memory)
-		r.statsCache.UpdateStat(brokerID, "memory_used", memory)
+		updateInt64Stat("memory_used")
 	case strings.HasSuffix(topic, "$SYS/broker/heap/maximum"):
-		var memory int64
-		fmt.Sscanf(payloadStr, "%d", &memory)
-		r.statsCache.UpdateStat(brokerID, "memory_max", memory)
+		updateInt64Stat("memory_max")
 	}
 }
