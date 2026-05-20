@@ -91,7 +91,7 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
     return (
       <div className="card bg-base-200">
         <div className="card-body">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-base-content/70">
             Broker info will appear when connected
           </p>
         </div>
