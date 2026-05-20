@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/fstest"
 )
 
 func TestCorsMiddleware_SetsHeaders(t *testing.T) {
@@ -90,7 +91,9 @@ func TestSpaHandler_DelegatesToFileServer(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	h := spaHandler(inner)
+	// Use an empty in-memory FS so all paths fall through to the inner handler.
+	emptyFS := fstest.MapFS{}
+	h := spaHandler(emptyFS, inner)
 	req := httptest.NewRequest(http.MethodGet, "/some/path", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
