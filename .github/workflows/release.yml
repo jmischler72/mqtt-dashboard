@@ -22,7 +22,9 @@ jobs:
             - uses: googleapis/release-please-action@v4
               id: release
               with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
+                  token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+                  config-file: release-please-config.json
+                  manifest-file: .release-please-manifest.json
     docker-build-push:
         name: Build & Push Docker Image
         runs-on: ubuntu-latest

@@ -1,50 +1,54 @@
 {
     "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-    "release-type": "simple",
     "bump-minor-pre-major": true,
-    "changelog-sections": [
-        {
-            "type": "feat",
-            "section": "Features"
-        },
-        {
-            "type": "fix",
-            "section": "Bug Fixes"
-        },
-        {
-            "type": "perf",
-            "section": "Performance Improvements"
-        },
-        {
-            "type": "refactor",
-            "section": "Code Refactoring"
-        },
-        {
-            "type": "docs",
-            "section": "Documentation",
-            "hidden": true
-        },
-        {
-            "type": "style",
-            "section": "Styles",
-            "hidden": true
-        },
-        {
-            "type": "test",
-            "section": "Tests",
-            "hidden": true
-        },
-        {
-            "type": "chore",
-            "section": "Miscellaneous",
-            "hidden": true
+    "packages": {
+        ".": {
+            "release-type": "simple",
+            "changelog-sections": [
+                {
+                    "type": "feat",
+                    "section": "Features"
+                },
+                {
+                    "type": "fix",
+                    "section": "Bug Fixes"
+                },
+                {
+                    "type": "perf",
+                    "section": "Performance Improvements"
+                },
+                {
+                    "type": "refactor",
+                    "section": "Code Refactoring"
+                },
+                {
+                    "type": "docs",
+                    "section": "Documentation",
+                    "hidden": true
+                },
+                {
+                    "type": "style",
+                    "section": "Styles",
+                    "hidden": true
+                },
+                {
+                    "type": "test",
+                    "section": "Tests",
+                    "hidden": true
+                },
+                {
+                    "type": "chore",
+                    "section": "Miscellaneous",
+                    "hidden": true
+                }
+            ],
+            "extra-files": [
+                {
+                    "type": "json",
+                    "path": "frontend/package.json",
+                    "jsonpath": "$.version"
+                }
+            ]
         }
-    ],
-    "extra-files": [
-        {
-            "type": "json",
-            "path": "frontend/package.json",
-            "jsonpath": "$.version"
-        }
-    ]
+    }
 }
