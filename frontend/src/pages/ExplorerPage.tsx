@@ -98,11 +98,18 @@ export default function ExplorerPage() {
     }
   };
 
-  // Derive displayed topics: merge $SYS placeholders when enabled so the branch
-  // is visible immediately without waiting for the next broker publish.
+  // Derive displayed topics so this list always matches what should be visible.
+  // When $SYS topics are hidden, filter them out here to keep counts and the tree
+  // in sync. When enabled, merge $SYS placeholders so the branch is visible
+  // immediately without waiting for the next broker publish.
   const displayedTopics = useMemo(() => {
-    if (!showSysTopic || !effectiveBrokerId) return topics;
-    const merged = new Set(topics);
+    const visibleTopics = showSysTopic
+      ? topics
+      : topics.filter((topic) => !topic.startsWith("$SYS"));
+
+    if (!showSysTopic || !effectiveBrokerId) return visibleTopics;
+
+    const merged = new Set(visibleTopics);
     for (const t of commonSysTopics) merged.add(t);
     return Array.from(merged).sort();
   }, [topics, showSysTopic, effectiveBrokerId]);
