@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   DndContext,
   closestCenter,
@@ -123,6 +124,7 @@ const getErrorMessage = (error: unknown) =>
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
+  const [searchParams] = useSearchParams();
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -135,6 +137,9 @@ export default function ConfigPage() {
   const [retentionUnit, setRetentionUnit] = useState<"hours" | "days">("hours");
   const [showSysTopics, setShowSysTopics] = useState(false);
   const [retentionSaving, setRetentionSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"brokers" | "general">("brokers");
+
+  const requestedBrokerId = searchParams.get("broker");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -167,16 +172,21 @@ export default function ConfigPage() {
 
         const enabled = list.filter((b) => b.is_enabled);
         const fallback = enabled[0] ?? list[0];
-        if (!fallback) {
+        const fromQuery = requestedBrokerId
+          ? list.find((b) => b.id === requestedBrokerId)
+          : null;
+        const preferred = fromQuery ?? fallback;
+        if (!preferred) {
           setSelectedId(null);
           setIsCreatingNew(false);
           setForm(emptyForm());
           return;
         }
 
-        setSelectedId(fallback.id);
+        setSelectedId(preferred.id);
         setIsCreatingNew(false);
-        setForm(toForm(fallback));
+        setIsEditingTitle(false);
+        setForm(toForm(preferred));
       })
       .catch((error) => {
         void error;
@@ -185,7 +195,19 @@ export default function ConfigPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadBrokers]);
+  }, [loadBrokers, requestedBrokerId]);
+
+  useEffect(() => {
+    if (!requestedBrokerId || brokers.length === 0) return;
+    const target = brokers.find((b) => b.id === requestedBrokerId);
+    if (!target) return;
+
+    setActiveTab("brokers");
+    setSelectedId(target.id);
+    setIsCreatingNew(false);
+    setIsEditingTitle(false);
+    setForm(toForm(target));
+  }, [brokers, requestedBrokerId]);
 
   useEffect(() => {
     api
@@ -357,8 +379,6 @@ export default function ConfigPage() {
       loadBrokers(); // revert on failure
     }
   };
-
-  const [activeTab, setActiveTab] = useState<"brokers" | "general">("brokers");
 
   const enabledBrokers = brokers.filter((b) => b.is_enabled);
   const disabledBrokers = brokers.filter((b) => !b.is_enabled);

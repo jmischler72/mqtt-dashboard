@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
 
@@ -33,6 +33,7 @@ const statusDot: Record<string, string> = {
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const brokerStatuses = useBrokerStatuses();
   const [showCredits, setShowCredits] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -234,9 +235,13 @@ export default function Layout() {
                   </p>
                 ) : (
                   brokerStatuses.map((bs) => (
-                    <div
+                    <button
                       key={bs.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base-200"
+                      className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base-200 cursor-pointer"
+                      onClick={() => {
+                        navigate(`/config?broker=${encodeURIComponent(bs.id)}`);
+                        setFlyoutOpen(false);
+                      }}
                     >
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 ${statusDot[bs.status] ?? "bg-neutral"}`}
@@ -245,7 +250,7 @@ export default function Layout() {
                       <span className="text-xs text-base-content/50">
                         {bs.status}
                       </span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>

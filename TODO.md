@@ -6,7 +6,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 
 - ✅ (dashboard) handle no brokers in select broker in panels modal
 - ✅ (dashboard) creating a new panel should scroll to it and temporarily highlight with blue
-- (connection-status) clicking a broker should redirect to the config page of the broker
+- ✅ (connection-status) clicking a broker should redirect to the config page of the broker
 - (explorer-page) add breadcrumb in title of topic to navigate easier over the log panel
 - (log-panel) i think log panels doesnt handle well wildcards in topic input
 - (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
