@@ -127,3 +127,51 @@ func TestGetHistory_FiltersByBroker(t *testing.T) {
 		t.Errorf("expected 1 record for b1, got %d", len(records))
 	}
 }
+
+func TestGetHistory_WildcardHash(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'sensors/temp', '25')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'sensors/humidity', '60')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'sensors/deep/nested', '1')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'other/topic', 'x')`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=sensors%2F%23", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var records []map[string]any
+	decodeJSON(t, rec.Body, &records)
+	if len(records) != 3 {
+		t.Errorf("expected 3 records for sensors/#, got %d", len(records))
+	}
+}
+
+func TestGetHistory_WildcardPlus(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/living/status', 'on')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/kitchen/status', 'off')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/living/room/status', 'on')`) // should not match
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/status', 'x')`)            // should not match
+
+	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=home%2F%2B%2Fstatus", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var records []map[string]any
+	decodeJSON(t, rec.Body, &records)
+	if len(records) != 2 {
+		t.Errorf("expected 2 records for home/+/status, got %d", len(records))
+	}
+}

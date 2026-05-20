@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	mqttutil "mqtt-dashboard/mqtt"
 	"mqtt-dashboard/models"
 )
 
@@ -61,12 +62,24 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		retentionHours = 24
 	}
 
-	rows, err := h.db.Query(
-		`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp FROM mqtt_history
-		 WHERE broker_id = ? AND topic = ? AND timestamp > DATETIME('now', '-' || ? || ' hours')
-		 ORDER BY timestamp ASC`,
-		brokerID, topic, retentionHours,
-	)
+	var rows *sql.Rows
+	var err error
+	if mqttutil.HasWildcard(topic) {
+		likePattern := mqttutil.ToSQLLikePattern(topic)
+		rows, err = h.db.Query(
+			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp FROM mqtt_history
+			 WHERE broker_id = ? AND topic LIKE ? AND timestamp > DATETIME('now', '-' || ? || ' hours')
+			 ORDER BY timestamp ASC`,
+			brokerID, likePattern, retentionHours,
+		)
+	} else {
+		rows, err = h.db.Query(
+			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp FROM mqtt_history
+			 WHERE broker_id = ? AND topic = ? AND timestamp > DATETIME('now', '-' || ? || ' hours')
+			 ORDER BY timestamp ASC`,
+			brokerID, topic, retentionHours,
+		)
+	}
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -77,6 +90,9 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var rec models.MQTTHistoryRecord
 		if err := rows.Scan(&rec.ID, &rec.BrokerID, &rec.Topic, &rec.Payload, &rec.Timestamp); err != nil {
+			continue
+		}
+		if mqttutil.HasWildcard(topic) && !mqttutil.TopicMatches(topic, rec.Topic) {
 			continue
 		}
 		records = append(records, rec)

@@ -262,6 +262,17 @@ func (m *MQTTManager) buildHandler(topic string) paho.MessageHandler {
 				specificHandlers = make([]MessageHandler, len(hs))
 				copy(specificHandlers, hs)
 			}
+			// Also dispatch to sub-wildcard pattern handlers (e.g. "sensors/#",
+			// "home/+/status") whose MQTT-level subscription was intentionally
+			// skipped because the global "#" or "$SYS/#" already covers them.
+			for t, hs := range m.subs {
+				if t == topic || t == msgTopic || len(hs) == 0 || !HasWildcard(t) {
+					continue
+				}
+				if TopicMatches(t, msgTopic) {
+					specificHandlers = append(specificHandlers, hs...)
+				}
+			}
 		}
 		m.mu.RUnlock()
 		for _, h := range handlers {
