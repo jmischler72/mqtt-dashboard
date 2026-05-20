@@ -21,6 +21,7 @@ interface Props {
   panel: Panel;
   editMode: boolean;
   brokerStatuses: BrokerStatus[];
+  highlight?: boolean;
   onDelete: () => void;
   onUpdate: (p: Panel) => void;
   onConfigModalChange: (panelId: string, isOpen: boolean) => void;
@@ -40,6 +41,7 @@ export default function PanelWrapper({
   panel,
   editMode,
   brokerStatuses,
+  highlight,
   onDelete,
   onUpdate,
   onConfigModalChange,
@@ -246,7 +248,7 @@ export default function PanelWrapper({
     <>
       <div
         ref={panelRef}
-        className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"}`}
+        className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`}
       >
         {/* Header */}
         <div

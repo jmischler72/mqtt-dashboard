@@ -3,3 +3,19 @@
 @import "react-resizable/css/styles.css";
 
 @plugin "daisyui";
+
+@keyframes panel-highlight-fade {
+
+    0%,
+    60% {
+        box-shadow: 0 0 0 2px #3b82f6;
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+.panel-new-highlight {
+    animation: panel-highlight-fade 2s ease-out forwards;
+}

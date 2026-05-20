@@ -1,18 +1,20 @@
 # TODO
 
+This page describes small tasks that needs to be done, bigger features are described in docs/PRD/*.md
+
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-## To do
-- (dash) handle no brokers in select broker in panels modal
+- ✅ (dashboard) handle no brokers in select broker in panels modal
+- ✅ (dashboard) creating a new panel should scroll to it and temporarily highlight with blue
+- (connection-status) clicking a broker should redirect to the config page of the broker
+- (explorer-page) add breadcrumb in title of topic to navigate easier over the log panel
+- (log-panel) i think log panels doesnt handle well wildcards in topic input
+- (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
+- (config-page) Configure tls connections with certificates for brokers
+- (log-panel) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
 - ✅ (docker) make a production dockerfile that works using the embeded react build i did
 - ✅ (docker) how to handle the volume for the database
 - ✅ (release) add release-please to handle releasing + ci to verify pr uses conventional commits 
-- (connection-status) clicking a broker should redirect to the config page of the broker
-- (log-panel) i think log panels doesnt handle well wildcards in topic input
-- (explorer-page) add breadcrumb in title of topic to navigate easier over the log panel
-- (mqtt-handling) Handle QOS things mqtt and retains ..
-- (mqtt-handling) Handle tls connections with certs
-- (technical-debts) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
 - ✅ (mqtt-stats) i want the Broker Information section in config to be next to the config form instead of below
 - ✅ (multi-broker)fix config page connecting stays on in form but it is shown as connected in top right status
 - ✅ (multi-broker)form in config page is not centered, redesign it
@@ -35,21 +37,3 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - ✅ (mqtt-stats)the log panel show duplicates messages only for the $sys topics
 - ✅ (mqtt-stats)i need to add tests to fix code coverage (still at 66.2%)
 - ✅ (mqtt-stats)now the issue is that when i click a topic i dont see anything on some topics and sometimes i see messages but they are still duplicated
-
-
-## Future improvements
-
-- panels as plugins
-  - func specs: Allow users to create custom panels and share them, the app should let users give a github link to a plugin and the app would get the panel so its usable, it should be managed by a sub page in configuration
-  - tech specs: We could provide a template in this repo with a make script like make create-plugin <name> <path-to-plugin> that would copy it and change the name (in readme and others)
-    The template would contain a plugin.tsx with a boilerplate for a panel along with its editing modal, a templated readme
-    The user can then edit a plugin.tsx to add whatever they want and just push to github
-    In the app, when you then add plugin from github it will build the react component and dynamically add to the frontend, the backend can already handle custom config from json, we would just need to handle conflicts from same name panel-type
-  - concerns: im wondering how the infos are passed to the panel, either the panel wrapper gets all the infos based on what the panel needs and provide them to the panel, or it is the responsability of the developer to fetch the data it needs inside the panel implementation which could be helped using helper functions
-- Export dashboard as sharable file (maybe json)
-- panels: add more customization
-  - button: size font color of button (maybe with a custom css but this could add more complexity)
-  - log panel: same but also add config for history displaying
-  - input should be redesigned completely as it doesnt fit for a panel layout
-  - cron should also be redesigned as it doesnt fit for a panel layout
-- add interactions between dashboard and explorer like a topic picking button that allow to quickly select a topic from the explorer page

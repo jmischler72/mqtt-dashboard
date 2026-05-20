@@ -39,17 +39,23 @@ export function ButtonConfigModal({
         <div className="flex flex-col gap-3">
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Broker</legend>
-            <select
-              className="select select-bordered w-full"
-              value={selectedBrokerId}
-              onChange={(e) => setSelectedBrokerId(e.target.value)}
-            >
-              {brokerStatuses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+            {brokerStatuses.length === 0 ? (
+              <div role="alert" className="alert alert-warning py-2">
+                <span className="text-sm">No brokers configured. <a href="/config" className="underline">Add one in the Config page.</a></span>
+              </div>
+            ) : (
+              <select
+                className="select select-bordered w-full"
+                value={selectedBrokerId}
+                onChange={(e) => setSelectedBrokerId(e.target.value)}
+              >
+                {brokerStatuses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Button Label</legend>
@@ -85,6 +91,7 @@ export function ButtonConfigModal({
           </button>
           <button
             className="btn btn-primary"
+            disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
                 { label, topic, payload },

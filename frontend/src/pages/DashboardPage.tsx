@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [gridWidth, setGridWidth] = useState(1200);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [newPanelId, setNewPanelId] = useState<string | null>(null);
   const [openConfigPanels, setOpenConfigPanels] = useState<Set<string>>(
     new Set(),
   );
@@ -149,7 +150,7 @@ export default function DashboardPage() {
         w: l.w,
         h: l.h,
       }));
-      api.put("/api/layouts/batch", { panels: patches }).catch(() => {});
+      api.put("/api/layouts/batch", { panels: patches }).catch(() => { });
       setPanels((prev) =>
         prev.map((p) => {
           const l = newLayout.find((n) => n.i === p.id);
@@ -169,6 +170,7 @@ export default function DashboardPage() {
         title: `${PANEL_TYPES.find((t) => t.value === panelType)?.label ?? "New"} Panel`,
       });
       setPanels((prev) => [...prev, panel]);
+      setNewPanelId(panel.id);
     } catch (error) {
       void error;
     }
@@ -196,6 +198,24 @@ export default function DashboardPage() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!newPanelId) return;
+    // Defer scroll to let ReactGridLayout finish positioning the new item
+    const scrollTimer = setTimeout(() => {
+      const el = document.getElementById(`panel-${newPanelId}`);
+      if (el) {
+        // Scroll the RGL grid item wrapper (positioned ancestor) into view
+        const target = el.closest(".react-grid-item") ?? el;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 150);
+    const clearTimer = setTimeout(() => setNewPanelId(null), 2200);
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [newPanelId]);
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -261,11 +281,12 @@ export default function DashboardPage() {
               draggableCancel=".no-drag"
             >
               {panels.map((panel) => (
-                <div key={panel.id}>
+                <div key={panel.id} id={`panel-${panel.id}`}>
                   <PanelWrapper
                     panel={panel}
                     editMode={editMode}
                     brokerStatuses={brokerStatuses}
+                    highlight={panel.id === newPanelId}
                     onDelete={() => removePanel(panel.id)}
                     onUpdate={updatePanel}
                     onConfigModalChange={handleConfigModalChange}
