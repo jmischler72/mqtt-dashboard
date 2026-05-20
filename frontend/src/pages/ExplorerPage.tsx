@@ -30,7 +30,6 @@ export default function ExplorerPage() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
-  const [settingsRetentionHours, setSettingsRetentionHours] = useState(24);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
     const firstConnected = brokerStatuses.find(
@@ -77,7 +76,6 @@ export default function ExplorerPage() {
       .then((s) => {
         if (cancelled) return;
         setShowSysTopic(Boolean(s.show_sys_topics));
-        setSettingsRetentionHours(s.retention_period_hours ?? 24);
       })
       .catch((error) => {
         void error;
