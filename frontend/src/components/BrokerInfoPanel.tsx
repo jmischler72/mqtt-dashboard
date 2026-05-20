@@ -89,7 +89,7 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
 
   if (!isConnected) {
     return (
-      <div className="card bg-base-200 mt-4">
+      <div className="card bg-base-200">
         <div className="card-body">
           <p className="text-sm text-gray-500">
             Broker info will appear when connected
@@ -101,7 +101,7 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
 
   if (loading && !stats) {
     return (
-      <div className="card bg-base-200 mt-4">
+      <div className="card bg-base-200">
         <div className="card-body">
           <div className="flex items-center gap-2">
             <span className="loading loading-spinner loading-sm"></span>
@@ -114,7 +114,7 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
 
   if (error) {
     return (
-      <div className="card bg-error/10 border border-error mt-4">
+      <div className="card bg-error/10 border border-error">
         <div className="card-body">
           <p className="text-sm text-error">{error}</p>
           <button
@@ -133,7 +133,7 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
   }
 
   return (
-    <div className="card bg-base-200 mt-4">
+    <div className="card bg-base-200">
       <div className="card-body gap-4">
         <div className="flex justify-between items-center">
           <h3 className="card-title text-base">Broker Information</h3>

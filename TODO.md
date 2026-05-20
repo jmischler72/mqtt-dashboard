@@ -4,12 +4,12 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 
 ## To do
 - (connection-status) clicking a broker should redirect to the config page of the broker
-- (mqtt-stats) i want the Broker Information section in config to be next to the config form instead of below
 - (log-panel) i think log panels doesnt handle well wildcards in topic input
 - (explorer-page) add breadcrumb in title of topic to navigate easier over the log panel
 - (mqtt-handling) Handle QOS things mqtt and retains ..
 - (mqtt-handling) Handle tls connections with certs
 - (technical-debts) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
+- ✅ (mqtt-stats) i want the Broker Information section in config to be next to the config form instead of below
 - ✅ (multi-broker)fix config page connecting stays on in form but it is shown as connected in top right status
 - ✅ (multi-broker)form in config page is not centered, redesign it
 - ✅ (multi-broker)when i come to config page it goes to the new broker form instead of editing the default one also it should have an empty state letting the user click the new broker button
