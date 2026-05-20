@@ -14,6 +14,8 @@ interface ModalProps {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: ButtonConfig, brokerId: string) => void;
   onClose: () => void;
+  onPickTopic?: (data: { currentTopic: string; selectedBrokerId: string }) => void;
+  initialTopic?: string;
 }
 
 export function ButtonConfigModal({
@@ -22,11 +24,13 @@ export function ButtonConfigModal({
   brokerStatuses,
   onSave,
   onClose,
+  onPickTopic,
+  initialTopic,
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
   const [label, setLabel] = useState(config.label ?? "Click");
-  const [topic, setTopic] = useState(config.topic ?? "");
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     brokerId || defaultBrokerId,
@@ -67,12 +71,26 @@ export function ButtonConfigModal({
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Topic</legend>
-            <input
-              className="input input-bordered w-full"
-              placeholder="home/light/switch"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-            />
+            <div className="join w-full">
+              <input
+                className="input input-bordered join-item flex-1"
+                placeholder="home/light/switch"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+              />
+              {onPickTopic && (
+                <button
+                  type="button"
+                  className="btn btn-ghost join-item px-3"
+                  title="Browse topics in Explorer"
+                  onClick={() => onPickTopic({ currentTopic: topic, selectedBrokerId })}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Payload</legend>

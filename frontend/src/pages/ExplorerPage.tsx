@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -24,8 +25,32 @@ const commonSysTopics = [
 ];
 
 export default function ExplorerPage() {
+  const navigate = useNavigate();
   const brokerStatuses = useBrokerStatuses();
-  const [selectedBrokerId, setSelectedBrokerId] = useState<string>("");
+
+  const [pickerCtx, setPickerCtx] = useState<{
+    brokerId: string;
+    dashboardId: string;
+    panelId: string;
+    currentTopic: string;
+  } | null>(() => {
+    const raw = sessionStorage.getItem("topicPickerOutbound");
+    if (!raw) return null;
+    sessionStorage.removeItem("topicPickerOutbound");
+    try {
+      return JSON.parse(raw) as {
+        brokerId: string;
+        dashboardId: string;
+        panelId: string;
+        currentTopic: string;
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedBrokerId, setSelectedBrokerId] = useState<string>(pickerCtx?.brokerId ?? "");
+  const [pickerSelectedTopic, setPickerSelectedTopic] = useState<string>(pickerCtx?.currentTopic ?? "");
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
@@ -141,10 +166,65 @@ export default function ExplorerPage() {
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
+    if (pickerCtx) setPickerSelectedTopic(topic);
   };
+
+  const handlePickerConfirm = () => {
+    if (pickerSelectedTopic && pickerCtx) {
+      sessionStorage.setItem(
+        "topicPickerReturn",
+        JSON.stringify({
+          panelId: pickerCtx.panelId,
+          topic: pickerSelectedTopic,
+          dashboardId: pickerCtx.dashboardId,
+        }),
+      );
+    }
+    navigate("/dashboard");
+  };
+
+  const handlePickerCancel = () => {
+    setPickerCtx(null);
+  };
+
+  const handlePickerDoubleClick = pickerCtx
+    ? (topic: string) => {
+      sessionStorage.setItem(
+        "topicPickerReturn",
+        JSON.stringify({
+          panelId: pickerCtx.panelId,
+          topic,
+          dashboardId: pickerCtx.dashboardId,
+        }),
+      );
+      navigate("/dashboard");
+    }
+    : undefined;
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* ── Picker Mode announcement bar ── */}
+      {pickerCtx && (
+        <div role="alert" className="alert rounded-none shrink-0 border-x-0 border-t-0 bg-info/10 border-b-2 border-info">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <span className="badge badge-info badge-sm font-semibold shrink-0">Picker Mode</span>
+            {pickerSelectedTopic ? (
+              <span className="font-mono text-sm truncate">Selected topic: <span className="text-accent">{pickerSelectedTopic}</span></span>
+            ) : (
+              <span className="text-sm opacity-60">Click a topic to select it, or double-click to confirm instantly</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button className="btn btn-sm btn-primary" onClick={handlePickerConfirm}>
+              {pickerSelectedTopic ? "Confirm" : "Return to Panel"}
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={handlePickerCancel}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Header bar ── */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-base-300 bg-base-100 shrink-0">
         <span className="text-sm font-medium text-base-content/60">Broker</span>
@@ -197,6 +277,7 @@ export default function ExplorerPage() {
             liveMessages={liveMessages}
             selectedTopic={selectedTopic}
             onSelectTopic={handleTopicSelect}
+            onDoubleClickTopic={handlePickerDoubleClick}
             showSysTopic={showSysTopic}
           />
         </aside>

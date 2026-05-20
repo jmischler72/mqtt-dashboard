@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import ButtonPanel, {
   ButtonConfigModal,
   type ButtonConfig,
@@ -21,10 +22,13 @@ interface Props {
   panel: Panel;
   editMode: boolean;
   brokerStatuses: BrokerStatus[];
+  activeDashboardId: string;
   highlight?: boolean;
+  pickerReturnTopic?: string;
   onDelete: () => void;
   onUpdate: (p: Panel) => void;
   onConfigModalChange: (panelId: string, isOpen: boolean) => void;
+  onPickerConsumed?: () => void;
 }
 
 const brokerDotColor: Record<string, string> = {
@@ -41,11 +45,15 @@ export default function PanelWrapper({
   panel,
   editMode,
   brokerStatuses,
+  activeDashboardId,
   highlight,
+  pickerReturnTopic,
   onDelete,
   onUpdate,
   onConfigModalChange,
+  onPickerConsumed,
 }: Props) {
+  const navigate = useNavigate();
   const [showConfig, setShowConfig] = useState(false);
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -111,7 +119,7 @@ export default function PanelWrapper({
     }
   };
 
-  const handleOpenConfig = () => {
+  const handleOpenConfig = useCallback(() => {
     const panelEl = panelRef.current;
     if (!panelEl) {
       setShowConfig(true);
@@ -143,6 +151,34 @@ export default function PanelWrapper({
       setShowConfig(true);
       openConfigTimeoutRef.current = null;
     }, 280);
+  }, []);
+
+  const onPickerConsumedRef = useRef(onPickerConsumed);
+  useEffect(() => {
+    onPickerConsumedRef.current = onPickerConsumed;
+  });
+
+  useEffect(() => {
+    if (pickerReturnTopic === undefined) return;
+    const id = setTimeout(() => {
+      handleOpenConfig();
+      onPickerConsumedRef.current?.();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [pickerReturnTopic, handleOpenConfig]);
+
+  const handlePickTopic = ({ currentTopic, selectedBrokerId }: { currentTopic: string; selectedBrokerId: string }) => {
+    setShowConfig(false);
+    sessionStorage.setItem(
+      "topicPickerOutbound",
+      JSON.stringify({
+        brokerId: selectedBrokerId,
+        dashboardId: activeDashboardId,
+        panelId: panel.id,
+        currentTopic,
+      }),
+    );
+    navigate("/explorer");
   };
 
   const brokerStatus = brokerStatuses.find((bs) => bs.id === panel.broker_id);
@@ -203,6 +239,8 @@ export default function PanelWrapper({
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
+            onPickTopic={handlePickTopic}
+            initialTopic={pickerReturnTopic || undefined}
           />,
           document.body,
         );
@@ -214,10 +252,18 @@ export default function PanelWrapper({
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
+            onPickTopic={handlePickTopic}
+            initialTopic={pickerReturnTopic || undefined}
           />,
           document.body,
         );
-      case "log":
+      case "log": {
+        const existingTopics = (cfg as LogConfig).topics ?? "";
+        const logInitialTopic = pickerReturnTopic
+          ? existingTopics
+            ? `${existingTopics}, ${pickerReturnTopic}`
+            : pickerReturnTopic
+          : undefined;
         return createPortal(
           <LogConfigModal
             config={cfg as LogConfig}
@@ -225,9 +271,12 @@ export default function PanelWrapper({
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
+            onPickTopic={handlePickTopic}
+            initialTopic={logInitialTopic}
           />,
           document.body,
         );
+      }
       case "cron":
         return createPortal(
           <CronConfigModal
@@ -236,6 +285,8 @@ export default function PanelWrapper({
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={() => setShowConfig(false)}
+            onPickTopic={handlePickTopic}
+            initialTopic={pickerReturnTopic || undefined}
           />,
           document.body,
         );

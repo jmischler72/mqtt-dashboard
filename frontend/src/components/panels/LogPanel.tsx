@@ -22,6 +22,8 @@ interface ModalProps {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: LogConfig, brokerId: string) => void;
   onClose: () => void;
+  onPickTopic?: (data: { currentTopic: string; selectedBrokerId: string }) => void;
+  initialTopic?: string;
 }
 
 export function LogConfigModal({
@@ -30,10 +32,12 @@ export function LogConfigModal({
   brokerStatuses,
   onSave,
   onClose,
+  onPickTopic,
+  initialTopic,
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topics, setTopics] = useState(config.topics ?? "");
+  const [topics, setTopics] = useState(initialTopic ?? config.topics ?? "");
   const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200);
   const [dateFormat, setDateFormat] = useState<"time" | "full">(
     config.dateFormat ?? "time",
@@ -78,6 +82,19 @@ export function LogConfigModal({
               value={topics}
               onChange={(e) => setTopics(e.target.value)}
             />
+            {onPickTopic && (
+              <button
+                type="button"
+                className="btn btn-xs btn-ghost mt-1 self-start gap-1"
+                title="Browse topics in Explorer"
+                onClick={() => onPickTopic({ currentTopic: topics, selectedBrokerId })}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Browse topics
+              </button>
+            )}
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Max Messages</legend>

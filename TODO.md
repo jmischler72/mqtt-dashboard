@@ -4,6 +4,9 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- (explorer-picker) i dont like the design of the search icon
+- (explorer-picker) the breadcrumb doesnt work with the picker
+- (explorer-picker) when i select another broker and select a topic from this other it doesnt change the broker in the edit modla
 - ✅ (dashboard) handle no brokers in select broker in panels modal
 - ✅ (dashboard) creating a new panel should scroll to it and temporarily highlight with blue
 - ✅ (connection-status) clicking a broker should redirect to the config page of the broker

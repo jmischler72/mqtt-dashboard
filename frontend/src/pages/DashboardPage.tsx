@@ -54,6 +54,24 @@ export default function DashboardPage() {
     new Set(),
   );
   const [hasAnyModalOpen, setHasAnyModalOpen] = useState(false);
+  const [pendingPickerReturn, setPendingPickerReturn] = useState<{
+    panelId: string;
+    topic: string;
+  } | null>(() => {
+    const raw = sessionStorage.getItem("topicPickerReturn");
+    if (!raw) return null;
+    sessionStorage.removeItem("topicPickerReturn");
+    try {
+      const data = JSON.parse(raw) as {
+        panelId: string;
+        topic: string;
+        dashboardId: string;
+      };
+      return { panelId: data.panelId, topic: data.topic };
+    } catch {
+      return null;
+    }
+  });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -199,6 +217,10 @@ export default function DashboardPage() {
     [],
   );
 
+  const handlePickerConsumed = useCallback(() => {
+    setPendingPickerReturn(null);
+  }, []);
+
   useEffect(() => {
     if (!newPanelId) return;
     // Defer scroll to let ReactGridLayout finish positioning the new item
@@ -286,10 +308,17 @@ export default function DashboardPage() {
                     panel={panel}
                     editMode={editMode}
                     brokerStatuses={brokerStatuses}
+                    activeDashboardId={activeDashboardId}
                     highlight={panel.id === newPanelId}
+                    pickerReturnTopic={
+                      pendingPickerReturn?.panelId === panel.id
+                        ? pendingPickerReturn.topic
+                        : undefined
+                    }
                     onDelete={() => removePanel(panel.id)}
                     onUpdate={updatePanel}
                     onConfigModalChange={handleConfigModalChange}
+                    onPickerConsumed={handlePickerConsumed}
                   />
                 </div>
               ))}
