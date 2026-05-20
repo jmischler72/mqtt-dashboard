@@ -209,8 +209,18 @@ export default function ExplorerPage() {
             </div>
           ) : (
             <>
-              <div className="text-xs font-mono text-base-content/50 px-1">
-                <span className="text-accent">{selectedTopic}</span>
+              <div className="text-xs font-mono text-base-content/50 px-1 flex items-center gap-1 flex-wrap">
+                {selectedTopic.split('/').map((part, index, parts) => (
+                  <div key={index} className="flex items-center gap-1">
+                    <button
+                      onClick={() => setSelectedTopic(parts.slice(0, index + 1).join('/'))}
+                      className="text-accent hover:text-accent-focus cursor-pointer"
+                    >
+                      {part}
+                    </button>
+                    {index < parts.length - 1 && <span className="text-base-content/30">/</span>}
+                  </div>
+                ))}
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
                 <LogPanel

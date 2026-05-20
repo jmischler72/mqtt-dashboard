@@ -59,7 +59,7 @@ export default function Layout() {
             healthRetryRef.current = null;
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     check();
     healthRetryRef.current = setInterval(check, 3000);
     return () => {
@@ -89,7 +89,7 @@ export default function Layout() {
         setActiveDashboardId(defaultId);
         localStorage.setItem(ACTIVE_DASHBOARD_KEY, defaultId);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setDashboardsLoading(false));
   }, [backendReady]);
 
