@@ -17,6 +17,7 @@ RUN go build -o mqtt-dashboard .
 
 # Stage 3: Minimal production image
 FROM alpine:3.21
+LABEL org.opencontainers.image.source="https://github.com/jmischler72/mqtt-dashboard"
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=backend-builder /app/mqtt-dashboard .
