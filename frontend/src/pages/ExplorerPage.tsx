@@ -90,10 +90,7 @@ export default function ExplorerPage() {
   const handleShowSysChange = async (checked: boolean) => {
     setShowSysTopic(checked);
     try {
-      await api.put("/api/settings", {
-        retention_period_hours: settingsRetentionHours,
-        show_sys_topics: checked,
-      });
+      await api.patch("/api/settings", { show_sys_topics: checked });
     } catch (error) {
       void error;
       // Revert UI state if persistence fails.

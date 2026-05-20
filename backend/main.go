@@ -6,18 +6,18 @@ import (
 	"encoding/json"
 	"io/fs"
 	"log/slog"
+	"mqtt-dashboard/cron"
+	"mqtt-dashboard/db"
+	"mqtt-dashboard/handlers"
+	"mqtt-dashboard/models"
+	"mqtt-dashboard/ws"
 	"net/http"
 	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"mqtt-dashboard/cron"
-	"mqtt-dashboard/db"
-	"mqtt-dashboard/handlers"
-	"mqtt-dashboard/models"
 	mqttclient "mqtt-dashboard/mqtt"
-	"mqtt-dashboard/ws"
 )
 
 //go:embed dist/*
@@ -121,6 +121,7 @@ func main() {
 	// Settings
 	r.Get("/api/settings", settingsH.GetSettings)
 	r.Put("/api/settings", settingsH.UpdateSettings)
+	r.Patch("/api/settings", settingsH.PatchSettings)
 
 	// Explorer
 	r.Get("/api/explorer/tree", explorerH.GetTree)
