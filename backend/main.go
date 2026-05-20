@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"log/slog"
+	"strings"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
 	"mqtt-dashboard/handlers"
@@ -137,7 +138,7 @@ func main() {
 			slog.Error("embed dist", "err", err)
 			os.Exit(1)
 		}
-		r.Handle("/*", spaHandler(http.FileServer(http.FS(distFS))))
+		r.Handle("/*", spaHandler(distFS, http.FileServer(http.FS(distFS))))
 	}
 
 	addr := ":8080"
@@ -201,8 +202,19 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 }
 
 // spaHandler wraps a file server to serve index.html for unknown paths (client-side routing).
-func spaHandler(h http.Handler) http.Handler {
+func spaHandler(distFS fs.FS, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if _, err := fs.Stat(distFS, path); err != nil {
+			// File not found — serve index.html so React Router handles the path.
+			r2 := r.Clone(r.Context())
+			r2.URL.Path = "/"
+			h.ServeHTTP(w, r2)
+			return
+		}
 		h.ServeHTTP(w, r)
 	})
 }
