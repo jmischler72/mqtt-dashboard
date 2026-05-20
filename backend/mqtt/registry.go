@@ -42,18 +42,17 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	mgr.Subscribe("#", func(topic string, payload []byte) { //nolint
 		r.writeHistory(brokerID, topic, payload)
 	})
-	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats.
+	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats
+	// and history capture.
 	mgr.Subscribe("$SYS/#", func(topic string, payload []byte) { //nolint
 		r.parseSysStats(brokerID, topic, payload)
+		r.writeHistory(brokerID, topic, payload)
 	})
 	return err
 }
 
-// writeHistory persists an incoming MQTT message to mqtt_history, skipping $SYS/ topics.
+// writeHistory persists an incoming MQTT message to mqtt_history.
 func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
-	if strings.HasPrefix(topic, "$SYS/") {
-		return
-	}
 	if r.db == nil {
 		return
 	}

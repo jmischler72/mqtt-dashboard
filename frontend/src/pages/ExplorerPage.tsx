@@ -46,12 +46,25 @@ export default function ExplorerPage() {
   // Load topic tree when broker changes
   useEffect(() => {
     if (!effectiveBrokerId) return;
+    let cancelled = false;
     api
       .getExplorerTree(effectiveBrokerId)
-      .then(setTopics)
+      .then((result) => {
+        if (cancelled) return;
+        // Use functional update to preserve $SYS placeholder topics that may
+        // have been injected by the showSysTopic effect.
+        setTopics((prev) => {
+          const sysFromPrev = prev.filter((t) => t.startsWith("$SYS/"));
+          const merged = new Set([...result, ...sysFromPrev]);
+          return Array.from(merged).sort();
+        });
+      })
       .catch((error) => {
         void error;
       });
+    return () => {
+      cancelled = true;
+    };
   }, [effectiveBrokerId]);
 
   // Load persisted Explorer preference from app settings.
@@ -159,7 +172,9 @@ export default function ExplorerPage() {
         </span>
         <div className="ml-auto flex items-center gap-2">
           <label className="label cursor-pointer gap-2 p-0">
-            <span className="label-text text-xs">Show $SYS</span>
+            <div className="tooltip tooltip-left" data-tip="$SYS topics are stored in history and may use significant disk space">
+              <span className="label-text text-xs">Show $SYS</span>
+            </div>
             <input
               type="checkbox"
               className="toggle toggle-xs toggle-primary"

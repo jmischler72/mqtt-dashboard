@@ -52,7 +52,7 @@ function TreeNodeItem({
   onSelect,
   depth,
 }: NodeProps) {
-  const [open, setOpen] = useState(depth < 2);
+  const [open, setOpen] = useState(depth < 1); // Auto-open top-level nodes
   const hasChildren = node.children.size > 0;
   const isSelected = node.fullPath === selectedTopic;
   const isFlashing = flashTopics.has(node.fullPath);

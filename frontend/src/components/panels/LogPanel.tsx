@@ -185,12 +185,6 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
       .filter(Boolean);
     if (topics.length === 0) return;
 
-    // $SYS topics are not persisted in DB history. Skip history fetch to avoid
-    // wiping live messages with an empty historical result.
-    if (topics.every((topic) => topic.startsWith("$SYS/"))) {
-      return;
-    }
-
     let cancelled = false;
     Promise.all(
       topics.map((topic) =>

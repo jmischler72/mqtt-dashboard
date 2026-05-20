@@ -18,6 +18,7 @@ func newBrokerRouter(h *handlers.BrokerHandler) chi.Router {
 	r.Post("/api/brokers", h.CreateBroker)
 	r.Get("/api/brokers/status", h.GetBrokersStatus)
 	r.Put("/api/brokers/reorder", h.ReorderBrokers)
+	r.Get("/api/brokers/{id}/info", h.GetBrokerInfo)
 	r.Put("/api/brokers/{id}", h.UpdateBroker)
 	r.Delete("/api/brokers/{id}", h.DeleteBroker)
 	return r
@@ -467,5 +468,45 @@ func TestUpdateBroker_InvalidJSON(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestGetBrokerInfo_Success(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, 0)`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/brokers/b1/info", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var stats models.BrokerStats
+	decodeJSON(t, rec.Body, &stats)
+	if stats.Version != "test-version" {
+		t.Errorf("Version = %q, want 'test-version'", stats.Version)
+	}
+	if stats.Uptime != 3600 {
+		t.Errorf("Uptime = %d, want 3600", stats.Uptime)
+	}
+}
+
+func TestGetBrokerInfo_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(db, reg)
+	r := newBrokerRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/brokers/nonexistent/info", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
