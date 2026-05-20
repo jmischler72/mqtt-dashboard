@@ -149,10 +149,11 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   }, [paused]);
 
   useEffect(() => {
-    // Clear buffer immediately when switching topic/broker to avoid stale lines.
-    setMessages([]);
+    // Clear buffer when switching topic/broker to avoid stale lines.
     prevLengthRef.current = 0;
     shouldAutoScrollRef.current = true;
+    const id = setTimeout(() => setMessages([]), 0);
+    return () => clearTimeout(id);
   }, [brokerId, config.topics]);
 
   const { subscribe } = useWebSocket({

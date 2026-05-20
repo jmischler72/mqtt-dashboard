@@ -78,10 +78,13 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
   useEffect(() => {
     if (!isConnected || !brokerId) return;
 
-    fetchBrokerInfo();
+    const timeout = setTimeout(fetchBrokerInfo, 0);
     const interval = setInterval(fetchBrokerInfo, 5000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, [brokerId, isConnected, fetchBrokerInfo]);
 
   if (!isConnected) {

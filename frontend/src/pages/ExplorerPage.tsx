@@ -101,16 +101,14 @@ export default function ExplorerPage() {
     }
   };
 
-  // Make $SYS branch visible immediately when enabled, without waiting for the
-  // next periodic broker publish.
-  useEffect(() => {
-    if (!showSysTopic || !effectiveBrokerId) return;
-    setTopics((prev) => {
-      const merged = new Set(prev);
-      for (const t of commonSysTopics) merged.add(t);
-      return Array.from(merged).sort();
-    });
-  }, [showSysTopic, effectiveBrokerId]);
+  // Derive displayed topics: merge $SYS placeholders when enabled so the branch
+  // is visible immediately without waiting for the next broker publish.
+  const displayedTopics = useMemo(() => {
+    if (!showSysTopic || !effectiveBrokerId) return topics;
+    const merged = new Set(topics);
+    for (const t of commonSysTopics) merged.add(t);
+    return Array.from(merged).sort();
+  }, [topics, showSysTopic, effectiveBrokerId]);
 
   // Subscribe to # on selected broker via WebSocket
   const { subscribe } = useWebSocket({
@@ -168,7 +166,7 @@ export default function ExplorerPage() {
           ))}
         </select>
         <span className="text-xs text-base-content/40">
-          {topics.length} topics captured
+          {displayedTopics.length} topics captured
         </span>
         <div className="ml-auto flex items-center gap-2">
           <label className="label cursor-pointer gap-2 p-0">
@@ -193,7 +191,7 @@ export default function ExplorerPage() {
             Topics
           </div>
           <TopicTree
-            topics={topics}
+            topics={displayedTopics}
             liveMessages={liveMessages}
             selectedTopic={selectedTopic}
             onSelectTopic={handleTopicSelect}
