@@ -118,7 +118,7 @@ func TestWriteHistory_PersistsRecord(t *testing.T) {
 	}
 }
 
-func TestWriteHistory_SkipsSysTopic(t *testing.T) {
+func TestWriteHistory_StoresSysTopic(t *testing.T) {
 	database := testutil.SetupTestDB(t)
 	r := NewRegistry(database)
 
@@ -126,8 +126,8 @@ func TestWriteHistory_SkipsSysTopic(t *testing.T) {
 
 	var count int
 	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1'`).Scan(&count)
-	if count != 0 {
-		t.Errorf("expected 0 records for $SYS/ topic, got %d", count)
+	if count != 1 {
+		t.Errorf("expected 1 record for $SYS/ topic, got %d", count)
 	}
 }
 
@@ -200,5 +200,121 @@ func TestStatus_ExistingBroker(t *testing.T) {
 
 	if s := r.Status("b1"); s != "CONNECTED" {
 		t.Errorf("status = %q, want CONNECTED", s)
+	}
+}
+
+func TestGetStats_ReturnsCachedStats(t *testing.T) {
+	r := NewRegistry(nil)
+	r.statsCache.UpdateStat("b1", "version", "1.6.0")
+	r.statsCache.UpdateStat("b1", "clients_connected", 3)
+
+	stats := r.GetStats("b1")
+	if stats.Version != "1.6.0" {
+		t.Errorf("Version = %q, want '1.6.0'", stats.Version)
+	}
+	if stats.ClientsConnected != 3 {
+		t.Errorf("ClientsConnected = %d, want 3", stats.ClientsConnected)
+	}
+}
+
+func TestGetStats_UnknownBrokerReturnsZero(t *testing.T) {
+	r := NewRegistry(nil)
+	stats := r.GetStats("nonexistent")
+	if stats == nil {
+		t.Fatal("expected non-nil stats")
+	}
+	if stats.Version != "" {
+		t.Errorf("expected empty Version, got %q", stats.Version)
+	}
+}
+
+func TestParseSysStats_Version(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/version", []byte("mosquitto version 2.0.18"))
+	stats := r.GetStats("b1")
+	if stats.Version != "mosquitto version 2.0.18" {
+		t.Errorf("Version = %q, want 'mosquitto version 2.0.18'", stats.Version)
+	}
+}
+
+func TestParseSysStats_Uptime(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/uptime", []byte("3600"))
+	stats := r.GetStats("b1")
+	if stats.Uptime != 3600 {
+		t.Errorf("Uptime = %d, want 3600", stats.Uptime)
+	}
+}
+
+func TestParseSysStats_ClientsConnected(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/clients/connected", []byte("5"))
+	stats := r.GetStats("b1")
+	if stats.ClientsConnected != 5 {
+		t.Errorf("ClientsConnected = %d, want 5", stats.ClientsConnected)
+	}
+}
+
+func TestParseSysStats_MessagesSent(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/messages/sent", []byte("1000"))
+	stats := r.GetStats("b1")
+	if stats.MessagesSent != 1000 {
+		t.Errorf("MessagesSent = %d, want 1000", stats.MessagesSent)
+	}
+}
+
+func TestParseSysStats_MessagesReceived(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/messages/received", []byte("500"))
+	stats := r.GetStats("b1")
+	if stats.MessagesReceived != 500 {
+		t.Errorf("MessagesReceived = %d, want 500", stats.MessagesReceived)
+	}
+}
+
+func TestParseSysStats_Messages5mSent(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/messages/sent/5m", []byte("42"))
+	stats := r.GetStats("b1")
+	if stats.Messages5mSent != 42 {
+		t.Errorf("Messages5mSent = %d, want 42", stats.Messages5mSent)
+	}
+}
+
+func TestParseSysStats_Messages5mReceived(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/messages/received/5m", []byte("21"))
+	stats := r.GetStats("b1")
+	if stats.Messages5mReceived != 21 {
+		t.Errorf("Messages5mReceived = %d, want 21", stats.Messages5mReceived)
+	}
+}
+
+func TestParseSysStats_MemoryUsed(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/heap/current", []byte("2048"))
+	stats := r.GetStats("b1")
+	if stats.MemoryUsed != 2048 {
+		t.Errorf("MemoryUsed = %d, want 2048", stats.MemoryUsed)
+	}
+}
+
+func TestParseSysStats_MemoryMax(t *testing.T) {
+	r := NewRegistry(nil)
+	r.parseSysStats("b1", "$SYS/broker/heap/maximum", []byte("8192"))
+	stats := r.GetStats("b1")
+	if stats.MemoryMax != 8192 {
+		t.Errorf("MemoryMax = %d, want 8192", stats.MemoryMax)
+	}
+}
+
+func TestParseSysStats_NonSysTopic_Ignored(t *testing.T) {
+	r := NewRegistry(nil)
+	// Should not panic and should not store anything
+	r.parseSysStats("b1", "some/regular/topic", []byte("data"))
+	stats := r.GetStats("b1")
+	if stats.Version != "" {
+		t.Error("expected no stats update for non-$SYS topic")
 	}
 }

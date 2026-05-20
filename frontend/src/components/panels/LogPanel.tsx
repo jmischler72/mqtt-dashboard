@@ -148,6 +148,14 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     pausedRef.current = paused;
   }, [paused]);
 
+  useEffect(() => {
+    // Clear buffer when switching topic/broker to avoid stale lines.
+    prevLengthRef.current = 0;
+    shouldAutoScrollRef.current = true;
+    const id = setTimeout(() => setMessages([]), 0);
+    return () => clearTimeout(id);
+  }, [brokerId, config.topics]);
+
   const { subscribe } = useWebSocket({
     onMessage: (data) => {
       if (pausedRef.current) return;
@@ -200,13 +208,19 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           payload: r.payload,
           historical: true,
         }));
-      setMessages(hist);
+      // Merge history with already-received live messages to prevent flicker.
+      setMessages((prev) => {
+        const live = prev.filter((m) => !m.historical);
+        const next = [...hist, ...live];
+        return next.length > maxMessages
+          ? next.slice(next.length - maxMessages)
+          : next;
+      });
     });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brokerId, config.topics]);
+  }, [brokerId, config.topics, dateFormat, maxMessages]);
 
   useEffect(() => {
     if (!config.topics) return;

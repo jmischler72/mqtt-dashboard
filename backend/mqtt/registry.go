@@ -16,12 +16,14 @@ type BrokerRegistry struct {
 	clients         map[string]*MQTTManager // brokerID → manager
 	defaultBrokerID string
 	db              *sql.DB
+	statsCache      *StatsCache
 }
 
 func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
-		clients: make(map[string]*MQTTManager),
-		db:      db,
+		clients:    make(map[string]*MQTTManager),
+		db:         db,
+		statsCache: NewStatsCache(),
 	}
 }
 
@@ -40,14 +42,17 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	mgr.Subscribe("#", func(topic string, payload []byte) { //nolint
 		r.writeHistory(brokerID, topic, payload)
 	})
+	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats
+	// and history capture.
+	mgr.Subscribe("$SYS/#", func(topic string, payload []byte) { //nolint
+		r.parseSysStats(brokerID, topic, payload)
+		r.writeHistory(brokerID, topic, payload)
+	})
 	return err
 }
 
-// writeHistory persists an incoming MQTT message to mqtt_history, skipping $SYS/ topics.
+// writeHistory persists an incoming MQTT message to mqtt_history.
 func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
-	if strings.HasPrefix(topic, "$SYS/") {
-		return
-	}
 	if r.db == nil {
 		return
 	}
@@ -64,6 +69,7 @@ func (r *BrokerRegistry) RemoveBroker(id string) {
 		mgr.Disconnect()
 		delete(r.clients, id)
 	}
+	r.statsCache.ClearStats(id)
 	if r.defaultBrokerID == id {
 		r.defaultBrokerID = ""
 	}
@@ -132,5 +138,55 @@ func (r *BrokerRegistry) Subscribe(brokerID, topic string, handler MessageHandle
 func (r *BrokerRegistry) Unsubscribe(brokerID, topic string, handler MessageHandler) {
 	if mgr, ok := r.GetClient(brokerID); ok {
 		mgr.Unsubscribe(topic, handler)
+	}
+}
+
+// GetStats returns the cached broker statistics.
+func (r *BrokerRegistry) GetStats(brokerID string) *models.BrokerStats {
+	return r.statsCache.GetStats(brokerID)
+}
+
+// parseSysStats extracts and updates broker statistics from $SYS topic messages.
+func (r *BrokerRegistry) parseSysStats(brokerID, topic string, payload []byte) {
+	if !strings.HasPrefix(topic, "$SYS/broker/") {
+		return
+	}
+
+	payloadStr := string(payload)
+
+	updateInt64Stat := func(statKey string) {
+		var value int64
+		if n, err := fmt.Sscanf(payloadStr, "%d", &value); err == nil && n == 1 {
+			r.statsCache.UpdateStat(brokerID, statKey, value)
+		}
+	}
+
+	updateIntStat := func(statKey string) {
+		var value int
+		if n, err := fmt.Sscanf(payloadStr, "%d", &value); err == nil && n == 1 {
+			r.statsCache.UpdateStat(brokerID, statKey, value)
+		}
+	}
+
+	// Map $SYS topics to stat keys
+	switch {
+	case strings.HasSuffix(topic, "$SYS/broker/version"):
+		r.statsCache.UpdateStat(brokerID, "version", payloadStr)
+	case strings.HasSuffix(topic, "$SYS/broker/uptime"):
+		updateInt64Stat("uptime")
+	case strings.HasSuffix(topic, "$SYS/broker/clients/connected"):
+		updateIntStat("clients_connected")
+	case strings.HasSuffix(topic, "$SYS/broker/messages/sent"):
+		updateInt64Stat("messages_sent")
+	case strings.HasSuffix(topic, "$SYS/broker/messages/received"):
+		updateInt64Stat("messages_received")
+	case strings.HasSuffix(topic, "$SYS/broker/messages/sent/5m"):
+		updateInt64Stat("messages_5m_sent")
+	case strings.HasSuffix(topic, "$SYS/broker/messages/received/5m"):
+		updateInt64Stat("messages_5m_received")
+	case strings.HasSuffix(topic, "$SYS/broker/heap/current"):
+		updateInt64Stat("memory_used")
+	case strings.HasSuffix(topic, "$SYS/broker/heap/maximum"):
+		updateInt64Stat("memory_max")
 	}
 }

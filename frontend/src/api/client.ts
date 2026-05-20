@@ -20,6 +20,8 @@ export const api = {
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   getExplorerTree: (brokerId: string) =>
     request<string[]>(
@@ -37,4 +39,17 @@ export const api = {
     >(
       `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,
     ),
+  getBrokerInfo: (brokerId: string) =>
+    request<{
+      version: string;
+      uptime: number;
+      clients_connected: number;
+      messages_sent: number;
+      messages_received: number;
+      messages_5m_sent: number;
+      messages_5m_received: number;
+      memory_used: number;
+      memory_max: number;
+      updated_at: string;
+    }>(`/api/brokers/${encodeURIComponent(brokerId)}/info`),
 };

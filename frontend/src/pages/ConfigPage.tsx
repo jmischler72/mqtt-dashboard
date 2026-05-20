@@ -16,6 +16,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
+import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
 
 const statusDot: Record<string, string> = {
   CONNECTED: "bg-success",
@@ -132,6 +133,7 @@ export default function ConfigPage() {
   const brokerStatuses = useBrokerStatuses();
   const [retentionValue, setRetentionValue] = useState(24);
   const [retentionUnit, setRetentionUnit] = useState<"hours" | "days">("hours");
+  const [showSysTopics, setShowSysTopics] = useState(false);
   const [retentionSaving, setRetentionSaving] = useState(false);
 
   const sensors = useSensors(
@@ -187,7 +189,9 @@ export default function ConfigPage() {
 
   useEffect(() => {
     api
-      .get<{ retention_period_hours: number }>("/api/settings")
+      .get<{ retention_period_hours: number; show_sys_topics: boolean }>(
+        "/api/settings",
+      )
       .then((s) => {
         const h = s.retention_period_hours;
         if (h % 24 === 0) {
@@ -197,6 +201,7 @@ export default function ConfigPage() {
           setRetentionValue(h);
           setRetentionUnit("hours");
         }
+        setShowSysTopics(Boolean(s.show_sys_topics));
       })
       .catch((error) => {
         void error;
@@ -212,10 +217,13 @@ export default function ConfigPage() {
     }
     setRetentionSaving(true);
     try {
-      await api.put("/api/settings", { retention_period_hours: hours });
-      showToast("Retention settings saved");
+      await api.put("/api/settings", {
+        retention_period_hours: hours,
+        show_sys_topics: showSysTopics,
+      });
+      showToast("Settings saved");
     } catch {
-      showToast("Failed to save retention settings", false);
+      showToast("Failed to save settings", false);
     } finally {
       setRetentionSaving(false);
     }
@@ -475,7 +483,7 @@ export default function ConfigPage() {
 
         {/* ── Detail / General form ────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto flex flex-col gap-6 my-6 px-6">
+          <div className="max-w-5xl mx-auto flex flex-col gap-6 my-6 px-6">
             {activeTab === "brokers" && !canShowForm ? (
               <div className="text-center py-8">
                 <h2 className="text-2xl font-semibold mb-2">
@@ -489,138 +497,147 @@ export default function ConfigPage() {
                 </button>
               </div>
             ) : activeTab === "brokers" ? (
-              <div className="card bg-base-100 border border-base-300 shadow-sm">
-                <div className="card-body gap-4">
-                  <div>
-                    {isEditingTitle ? (
+              <div className="flex gap-6 items-start">
+                <div className="card bg-base-100 border border-base-300 shadow-sm flex-1 min-w-0">
+                  <div className="card-body gap-4">
+                    <div className="flex items-center justify-between gap-3">
+                      {isEditingTitle ? (
+                        <input
+                          autoFocus
+                          className="input input-bordered input-lg flex-1 font-semibold"
+                          placeholder={titleLabel}
+                          value={form.name}
+                          onChange={(e) =>
+                            setForm((prev) => ({ ...prev, name: e.target.value }))
+                          }
+                          onBlur={() => setIsEditingTitle(false)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") setIsEditingTitle(false);
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="text-left hover:opacity-80 transition-opacity"
+                          onClick={() => setIsEditingTitle(true)}
+                          title="Click to rename broker"
+                        >
+                          <h2 className="text-2xl font-semibold">
+                            {titleDisplay}
+                          </h2>
+                          <p className="text-xs text-base-content/50 mt-1">
+                            Click title to rename
+                          </p>
+                        </button>
+                      )}
+                      <label className="label cursor-pointer gap-2 px-0 py-0 shrink-0">
+                        <span className="label-text text-sm font-medium">Enabled</span>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary toggle-sm"
+                          checked={form.is_enabled}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              is_enabled: e.target.checked,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <fieldset className="fieldset">
+                      <legend className="fieldset-legend">Host</legend>
                       <input
-                        autoFocus
-                        className="input input-bordered input-lg w-full font-semibold"
-                        placeholder={titleLabel}
-                        value={form.name}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, name: e.target.value }))
-                        }
-                        onBlur={() => setIsEditingTitle(false)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") setIsEditingTitle(false);
-                        }}
+                        className="input input-bordered w-full"
+                        placeholder="localhost"
+                        {...f("host")}
                       />
-                    ) : (
+                    </fieldset>
+
+                    <fieldset className="fieldset">
+                      <legend className="fieldset-legend">Port</legend>
+                      <input
+                        className="input input-bordered w-full"
+                        placeholder="1883"
+                        {...f("port")}
+                      />
+                    </fieldset>
+
+                    <fieldset className="fieldset">
+                      <legend className="fieldset-legend">Client ID</legend>
+                      <input
+                        className="input input-bordered w-full"
+                        placeholder="mqtt-dashboard"
+                        {...f("client_id")}
+                      />
+                    </fieldset>
+
+                    <fieldset className="fieldset">
+                      <legend className="fieldset-legend">
+                        Username (optional)
+                      </legend>
+                      <input
+                        className="input input-bordered w-full"
+                        placeholder="username"
+                        {...f("username")}
+                      />
+                    </fieldset>
+
+                    <fieldset className="fieldset">
+                      <legend className="fieldset-legend">
+                        Password (optional)
+                      </legend>
+                      <input
+                        className="input input-bordered w-full"
+                        type="password"
+                        placeholder={selectedId ? "(unchanged)" : "••••••"}
+                        {...f("password")}
+                      />
+                    </fieldset>
+
+                    <div className="flex gap-2 mt-1">
                       <button
-                        className="text-left hover:opacity-80 transition-opacity"
-                        onClick={() => setIsEditingTitle(true)}
-                        title="Click to rename broker"
+                        className="btn btn-primary flex-1"
+                        onClick={handleSave}
+                        disabled={saving}
                       >
-                        <h2 className="text-2xl font-semibold">
-                          {titleDisplay}
-                        </h2>
-                        <p className="text-xs text-base-content/50 mt-1">
-                          Click title to rename
-                        </p>
+                        {saving ? (
+                          <span className="loading loading-spinner loading-xs" />
+                        ) : null}
+                        {isCreatingNew ? "Create & Connect" : "Save"}
                       </button>
+                      {!isCreatingNew && selectedId && (
+                        <button
+                          className="btn btn-error btn-outline"
+                          onClick={handleDelete}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+
+                    {!isCreatingNew && selectedBroker && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? "bg-neutral"}`}
+                        />
+                        <span className="text-sm text-base-content/60">
+                          {getBrokerStatus(selectedBroker)}
+                        </span>
+                      </div>
                     )}
                   </div>
-
-                  <fieldset className="fieldset">
-                    <legend className="fieldset-legend">Host</legend>
-                    <input
-                      className="input input-bordered w-full"
-                      placeholder="localhost"
-                      {...f("host")}
-                    />
-                  </fieldset>
-
-                  <fieldset className="fieldset">
-                    <legend className="fieldset-legend">Port</legend>
-                    <input
-                      className="input input-bordered w-full"
-                      placeholder="1883"
-                      {...f("port")}
-                    />
-                  </fieldset>
-
-                  <fieldset className="fieldset">
-                    <legend className="fieldset-legend">Client ID</legend>
-                    <input
-                      className="input input-bordered w-full"
-                      placeholder="mqtt-dashboard"
-                      {...f("client_id")}
-                    />
-                  </fieldset>
-
-                  <fieldset className="fieldset">
-                    <legend className="fieldset-legend">
-                      Username (optional)
-                    </legend>
-                    <input
-                      className="input input-bordered w-full"
-                      placeholder="username"
-                      {...f("username")}
-                    />
-                  </fieldset>
-
-                  <fieldset className="fieldset">
-                    <legend className="fieldset-legend">
-                      Password (optional)
-                    </legend>
-                    <input
-                      className="input input-bordered w-full"
-                      type="password"
-                      placeholder={selectedId ? "(unchanged)" : "••••••"}
-                      {...f("password")}
-                    />
-                  </fieldset>
-
-                  <label className="label cursor-pointer justify-start gap-3 px-0 py-2">
-                    <input
-                      type="checkbox"
-                      className="toggle toggle-primary"
-                      checked={form.is_enabled}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          is_enabled: e.target.checked,
-                        }))
+                </div>
+                {!isCreatingNew && selectedBroker && (
+                  <div className="w-80 shrink-0">
+                    <BrokerInfoPanel
+                      brokerId={selectedBroker.id}
+                      isConnected={
+                        getBrokerStatus(selectedBroker) === "CONNECTED"
                       }
                     />
-                    <span className="label-text font-medium">
-                      Enable this MQTT Server
-                    </span>
-                  </label>
-
-                  <div className="flex gap-2 mt-1">
-                    <button
-                      className="btn btn-primary flex-1"
-                      onClick={handleSave}
-                      disabled={saving}
-                    >
-                      {saving ? (
-                        <span className="loading loading-spinner loading-xs" />
-                      ) : null}
-                      {isCreatingNew ? "Create & Connect" : "Save"}
-                    </button>
-                    {!isCreatingNew && selectedId && (
-                      <button
-                        className="btn btn-error btn-outline"
-                        onClick={handleDelete}
-                      >
-                        Delete
-                      </button>
-                    )}
                   </div>
-
-                  {!isCreatingNew && selectedBroker && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? "bg-neutral"}`}
-                      />
-                      <span className="text-sm text-base-content/60">
-                        {getBrokerStatus(selectedBroker)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             ) : null}
 
@@ -667,6 +684,21 @@ export default function ConfigPage() {
                   <p className="text-xs text-base-content/50">
                     Topic history older than this window is automatically purged
                     every 30 minutes.
+                  </p>
+                  <div className="divider" />
+                  <label className="label cursor-pointer justify-start gap-3 px-0 py-1">
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-primary"
+                      checked={showSysTopics}
+                      onChange={(e) => setShowSysTopics(e.target.checked)}
+                    />
+                    <span className="label-text font-medium">
+                      Show $SYS topics in Explorer by default
+                    </span>
+                  </label>
+                  <p className="text-xs text-base-content/50">
+                    $SYS topics are stored in history and may use significant disk space over time.
                   </p>
                   <div>
                     <button

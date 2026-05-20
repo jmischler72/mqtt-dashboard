@@ -398,3 +398,215 @@ func TestPublish_TokenError(t *testing.T) {
 		t.Error("expected error from token.Error(), got nil")
 	}
 }
+
+// --- $SYS/# coverage tests ---
+
+func TestSubscribe_SysWildcardUnsubscribesSpecificSysTopics(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	// Add a specific $SYS subscription first
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte) {}}
+
+	// Now subscribe to "$SYS/#" — should unsubscribe $SYS/broker/uptime at MQTT level
+	if err := m.Subscribe("$SYS/#", func(string, []byte) {}); err != nil {
+		t.Fatalf("Subscribe $SYS/#: %v", err)
+	}
+
+	if len(mock.unsubscribeCalls) == 0 {
+		t.Error("expected Unsubscribe to be called for specific $SYS topics when '$SYS/#' added")
+	}
+	found := false
+	for _, c := range mock.unsubscribeCalls {
+		if c == "$SYS/broker/uptime" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected '$SYS/broker/uptime' to be unsubscribed, got %v", mock.unsubscribeCalls)
+	}
+}
+
+func TestSubscribe_SpecificSysSkippedWhenSysWildcardActive(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	// $SYS/# already active
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte) {}}
+
+	// Adding specific $SYS topic should NOT call MQTT subscribe ($SYS/# covers it)
+	if err := m.Subscribe("$SYS/broker/uptime", func(string, []byte) {}); err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	if len(mock.subscribeCalls) != 0 {
+		t.Errorf("expected no MQTT subscribe when '$SYS/#' is active, got %v", mock.subscribeCalls)
+	}
+}
+
+func TestUnsubscribe_SpecificSysWhenSysWildcardActive_NoMQTTUnsub(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	h := func(string, []byte) {}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{h}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte) {}}
+
+	// Removing a specific $SYS topic when '$SYS/#' is active should NOT call MQTT Unsubscribe
+	m.Unsubscribe("$SYS/broker/uptime", h)
+
+	if len(mock.unsubscribeCalls) != 0 {
+		t.Errorf("expected no MQTT Unsubscribe when '$SYS/#' is active, got %v", mock.unsubscribeCalls)
+	}
+}
+
+func TestUnsubscribe_SysWildcardRemoved_RestoresSpecificSysTopics(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	sysWildcardH := func(string, []byte) {}
+	m.subs["$SYS/#"] = []MessageHandler{sysWildcardH}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte) {}}
+
+	m.Unsubscribe("$SYS/#", sysWildcardH)
+
+	// Should call Unsubscribe("$SYS/#") and then Subscribe specific $SYS topics
+	foundUnsub := false
+	for _, c := range mock.unsubscribeCalls {
+		if c == "$SYS/#" {
+			foundUnsub = true
+		}
+	}
+	if !foundUnsub {
+		t.Errorf("expected MQTT Unsubscribe('$SYS/#'), got %v", mock.unsubscribeCalls)
+	}
+	foundSub := false
+	for _, c := range mock.subscribeCalls {
+		if c == "$SYS/broker/uptime" {
+			foundSub = true
+		}
+	}
+	if !foundSub {
+		t.Errorf("expected MQTT Subscribe('$SYS/broker/uptime') after '$SYS/#' removed, got %v", mock.subscribeCalls)
+	}
+}
+
+func TestBuildHandler_SysWildcardDispatchesToSpecificSysHandlers(t *testing.T) {
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+	}
+
+	sysWildcardCalls := 0
+	specificSysCalls := 0
+	m.subs["$SYS/#"] = []MessageHandler{
+		func(string, []byte) { sysWildcardCalls++ },
+	}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{
+		func(string, []byte) { specificSysCalls++ },
+	}
+
+	handler := m.buildHandler("$SYS/#")
+	handler(nil, &mockMessage{topic: "$SYS/broker/uptime", payload: []byte("12345")})
+
+	if sysWildcardCalls != 1 {
+		t.Errorf("$SYS/# handler called %d times, want 1", sysWildcardCalls)
+	}
+	if specificSysCalls != 1 {
+		t.Errorf("specific $SYS handler called %d times via $SYS/# dispatch, want 1", specificSysCalls)
+	}
+}
+
+func TestBuildHandler_SysWildcardDoesNotDoubleDispatch(t *testing.T) {
+	// When msgTopic == "$SYS/#", no specific dispatch should occur
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+	}
+	calls := 0
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte) { calls++ }}
+
+	handler := m.buildHandler("$SYS/#")
+	handler(nil, &mockMessage{topic: "$SYS/#", payload: []byte("x")})
+
+	if calls != 1 {
+		t.Errorf("calls = %d, want 1 (no double dispatch when topic == '$SYS/#')", calls)
+	}
+}
+
+func TestBuildHandler_WildcardSkipsSysWhenSysWildcardActive(t *testing.T) {
+	// Paho's '#' matches $SYS topics at the client level. The '#' handler must
+	// skip $SYS messages when '$SYS/#' is also registered to avoid duplicates.
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+	}
+	hashCalls := 0
+	m.subs["#"] = []MessageHandler{func(string, []byte) { hashCalls++ }}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte) {}}
+
+	handler := m.buildHandler("#")
+	handler(nil, &mockMessage{topic: "$SYS/broker/uptime", payload: []byte("123")})
+
+	if hashCalls != 0 {
+		t.Errorf("'#' handler called %d times for $SYS message when '$SYS/#' active, want 0", hashCalls)
+	}
+}
+
+func TestBuildHandler_WildcardStillHandlesNonSysWhenSysWildcardActive(t *testing.T) {
+	// The '#' handler must still process non-$SYS messages normally.
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+	}
+	hashCalls := 0
+	m.subs["#"] = []MessageHandler{func(string, []byte) { hashCalls++ }}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte) {}}
+
+	handler := m.buildHandler("#")
+	handler(nil, &mockMessage{topic: "sensor/temp", payload: []byte("25")})
+
+	if hashCalls != 1 {
+		t.Errorf("'#' handler called %d times for regular message, want 1", hashCalls)
+	}
+}
+
+func TestUnsubscribe_WildcardRemoved_SkipsSysTopicsCoveredBySysWildcard(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	wildcardH := func(string, []byte) {}
+	m.subs["#"] = []MessageHandler{wildcardH}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte) {}}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte) {}}
+
+	m.Unsubscribe("#", wildcardH)
+
+	// When '#' is removed, specific $SYS topics covered by '$SYS/#' should
+	// NOT be re-subscribed individually at the MQTT level.
+	for _, c := range mock.subscribeCalls {
+		if c == "$SYS/broker/uptime" {
+			t.Error("should not re-subscribe '$SYS/broker/uptime' since '$SYS/#' covers it")
+		}
+	}
+}

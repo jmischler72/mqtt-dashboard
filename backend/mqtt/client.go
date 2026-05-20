@@ -3,6 +3,7 @@ package mqtt
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,16 +57,27 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 			slog.Info("mqtt connected")
 			m.mu.Lock()
 			m.setStatus("CONNECTED")
-			// Resubscribe after reconnect. If '#' is active it covers all specific topics,
-			// so only subscribe '#' to avoid overlapping MQTT deliveries from the broker.
+			// Resubscribe after reconnect.
+			// '#' does NOT match '$SYS/*' topics by MQTT spec. '$SYS/#'
+			// covers all specific $SYS topics. Avoid overlapping subs.
 			if len(m.subs["#"]) > 0 {
 				m.client.Subscribe("#", 0, m.buildHandler("#")) //nolint
-			} else {
-				for topic, handlers := range m.subs {
-					if len(handlers) > 0 {
-						m.client.Subscribe(topic, 0, m.buildHandler(topic)) //nolint
-					}
+			}
+			if len(m.subs["$SYS/#"]) > 0 {
+				m.client.Subscribe("$SYS/#", 0, m.buildHandler("$SYS/#")) //nolint
+			}
+			for topic, handlers := range m.subs {
+				if topic == "#" || topic == "$SYS/#" || len(handlers) == 0 {
+					continue
 				}
+				// Skip topics covered by '#' or '$SYS/#'.
+				if len(m.subs["#"]) > 0 && !isSysFilter(topic) {
+					continue
+				}
+				if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
+					continue
+				}
+				m.client.Subscribe(topic, 0, m.buildHandler(topic)) //nolint
 			}
 			m.mu.Unlock()
 		})
@@ -132,10 +144,10 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 	}
 	slog.Debug("mqtt subscribe", "topic", topic)
 	if topic == "#" {
-		// '#' now covers all topics — remove any specific MQTT subscriptions that are
-		// now redundant to prevent the broker from delivering messages twice.
+		// '#' now covers non-$SYS topics. Keep $SYS subscriptions because '#'
+		// does not match reserved '$' topics.
 		for t := range m.subs {
-			if t != "#" {
+			if t != "#" && !isSysFilter(t) {
 				m.client.Unsubscribe(t) //nolint
 			}
 		}
@@ -143,9 +155,23 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 		token.Wait()
 		return token.Error()
 	}
-	// Specific topic: skip the MQTT subscribe if '#' is already active — it already
-	// covers this topic, and buildHandler("#") will dispatch to our handlers.
-	if len(m.subs["#"]) > 0 {
+	if topic == "$SYS/#" {
+		// '$SYS/#' covers all $SYS topics. Unsubscribe specific $SYS MQTT
+		// subscriptions to avoid overlapping deliveries.
+		for t := range m.subs {
+			if t != "$SYS/#" && isSysFilter(t) {
+				m.client.Unsubscribe(t) //nolint
+			}
+		}
+		token := m.client.Subscribe("$SYS/#", 0, m.buildHandler("$SYS/#"))
+		token.Wait()
+		return token.Error()
+	}
+	// Specific topic: skip MQTT subscribe only if '#' or '$SYS/#' can cover it.
+	if len(m.subs["#"]) > 0 && !isSysFilter(topic) {
+		return nil
+	}
+	if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
 		return nil
 	}
 	token := m.client.Subscribe(topic, 0, m.buildHandler(topic))
@@ -176,29 +202,62 @@ func (m *MQTTManager) Unsubscribe(topic string, _ MessageHandler) {
 		m.client.Unsubscribe("#") //nolint
 		for t, hs := range m.subs {
 			if len(hs) > 0 {
+				// Don't restore specific $SYS topics if $SYS/# is still active.
+				if isSysFilter(t) && t != "$SYS/#" && len(m.subs["$SYS/#"]) > 0 {
+					continue
+				}
 				m.client.Subscribe(t, 0, m.buildHandler(t)) //nolint
 			}
 		}
 		return
 	}
-	// Specific topic: only unsubscribe from MQTT if '#' is not currently covering it.
-	if len(m.subs["#"]) == 0 {
-		m.client.Unsubscribe(topic) //nolint
+	if topic == "$SYS/#" {
+		// '$SYS/#' removed — restore individual $SYS MQTT subscriptions.
+		m.client.Unsubscribe("$SYS/#") //nolint
+		for t, hs := range m.subs {
+			if len(hs) > 0 && isSysFilter(t) && t != "$SYS/#" {
+				m.client.Subscribe(t, 0, m.buildHandler(t)) //nolint
+			}
+		}
+		return
 	}
+	// Specific topic: only unsubscribe from MQTT if it's not covered by '#' or '$SYS/#'.
+	if len(m.subs["#"]) > 0 && !isSysFilter(topic) {
+		return // covered by '#'
+	}
+	if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
+		return // covered by '$SYS/#'
+	}
+	m.client.Unsubscribe(topic) //nolint
+}
+
+func isSysFilter(topic string) bool {
+	return strings.HasPrefix(topic, "$SYS/") || topic == "$SYS/#"
 }
 
 // buildHandler returns a paho handler for the given subscription topic.
-// When topic is "#", it additionally dispatches to handlers registered under the
-// specific incoming topic — because those specific topics have no MQTT-level
-// subscription while "#" is active, preventing overlapping broker deliveries.
+// When topic is "#" or "$SYS/#", it additionally dispatches to handlers
+// registered under the specific incoming topic — because those specific topics
+// have no MQTT-level subscription while the wildcard is active, preventing
+// overlapping broker deliveries.
 func (m *MQTTManager) buildHandler(topic string) paho.MessageHandler {
 	return func(_ paho.Client, msg paho.Message) {
 		msgTopic := msg.Topic()
 		m.mu.RLock()
+
+		// Paho's '#' route matches $SYS topics at the client level even though
+		// the MQTT broker excludes them from '#' delivery. When '$SYS/#' is
+		// also subscribed, let that handler process $SYS messages to avoid
+		// double dispatch.
+		if topic == "#" && strings.HasPrefix(msgTopic, "$SYS/") && len(m.subs["$SYS/#"]) > 0 {
+			m.mu.RUnlock()
+			return
+		}
+
 		handlers := make([]MessageHandler, len(m.subs[topic]))
 		copy(handlers, m.subs[topic])
 		var specificHandlers []MessageHandler
-		if topic == "#" && msgTopic != "#" {
+		if (topic == "#" || topic == "$SYS/#") && msgTopic != topic {
 			if hs := m.subs[msgTopic]; len(hs) > 0 {
 				specificHandlers = make([]MessageHandler, len(hs))
 				copy(specificHandlers, hs)

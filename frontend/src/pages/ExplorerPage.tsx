@@ -11,12 +11,25 @@ interface WSMessage {
   payload: string;
 }
 
+const commonSysTopics = [
+  "$SYS/broker/version",
+  "$SYS/broker/uptime",
+  "$SYS/broker/clients/connected",
+  "$SYS/broker/messages/sent",
+  "$SYS/broker/messages/received",
+  "$SYS/broker/messages/sent/5m",
+  "$SYS/broker/messages/received/5m",
+  "$SYS/broker/heap/current",
+  "$SYS/broker/heap/maximum",
+];
+
 export default function ExplorerPage() {
   const brokerStatuses = useBrokerStatuses();
   const [selectedBrokerId, setSelectedBrokerId] = useState<string>("");
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
+  const [showSysTopic, setShowSysTopic] = useState(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
     const firstConnected = brokerStatuses.find(
@@ -32,13 +45,72 @@ export default function ExplorerPage() {
   // Load topic tree when broker changes
   useEffect(() => {
     if (!effectiveBrokerId) return;
+    let cancelled = false;
     api
       .getExplorerTree(effectiveBrokerId)
-      .then(setTopics)
+      .then((result) => {
+        if (cancelled) return;
+        // Use functional update to preserve $SYS placeholder topics that may
+        // have been injected by the showSysTopic effect.
+        setTopics((prev) => {
+          const sysFromPrev = prev.filter((t) => t.startsWith("$SYS/"));
+          const merged = new Set([...result, ...sysFromPrev]);
+          return Array.from(merged).sort();
+        });
+      })
       .catch((error) => {
         void error;
       });
+    return () => {
+      cancelled = true;
+    };
   }, [effectiveBrokerId]);
+
+  // Load persisted Explorer preference from app settings.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ retention_period_hours: number; show_sys_topics: boolean }>(
+        "/api/settings",
+      )
+      .then((s) => {
+        if (cancelled) return;
+        setShowSysTopic(Boolean(s.show_sys_topics));
+      })
+      .catch((error) => {
+        void error;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleShowSysChange = async (checked: boolean) => {
+    setShowSysTopic(checked);
+    try {
+      await api.patch("/api/settings", { show_sys_topics: checked });
+    } catch (error) {
+      void error;
+      // Revert UI state if persistence fails.
+      setShowSysTopic((prev) => !prev);
+    }
+  };
+
+  // Derive displayed topics so this list always matches what should be visible.
+  // When $SYS topics are hidden, filter them out here to keep counts and the tree
+  // in sync. When enabled, merge $SYS placeholders so the branch is visible
+  // immediately without waiting for the next broker publish.
+  const displayedTopics = useMemo(() => {
+    const visibleTopics = showSysTopic
+      ? topics
+      : topics.filter((topic) => !topic.startsWith("$SYS"));
+
+    if (!showSysTopic || !effectiveBrokerId) return visibleTopics;
+
+    const merged = new Set(visibleTopics);
+    for (const t of commonSysTopics) merged.add(t);
+    return Array.from(merged).sort();
+  }, [topics, showSysTopic, effectiveBrokerId]);
 
   // Subscribe to # on selected broker via WebSocket
   const { subscribe } = useWebSocket({
@@ -63,9 +135,9 @@ export default function ExplorerPage() {
     subscribe({
       panel_id: panelId,
       broker_id: effectiveBrokerId,
-      topics: ["#"],
+      topics: ["#", showSysTopic ? "$SYS/#" : ""].filter(Boolean),
     });
-  }, [effectiveBrokerId, panelId, subscribe]);
+  }, [effectiveBrokerId, panelId, subscribe, showSysTopic]);
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
@@ -96,8 +168,21 @@ export default function ExplorerPage() {
           ))}
         </select>
         <span className="text-xs text-base-content/40">
-          {topics.length} topics captured
+          {displayedTopics.length} topics captured
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="label cursor-pointer gap-2 p-0">
+            <div className="tooltip tooltip-left" data-tip="$SYS topics are stored in history and may use significant disk space">
+              <span className="label-text text-xs">Show $SYS</span>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle toggle-xs toggle-primary"
+              checked={showSysTopic}
+              onChange={(e) => void handleShowSysChange(e.target.checked)}
+            />
+          </label>
+        </div>
       </div>
 
       {/* ── Split layout ── */}
@@ -108,10 +193,11 @@ export default function ExplorerPage() {
             Topics
           </div>
           <TopicTree
-            topics={topics}
+            topics={displayedTopics}
             liveMessages={liveMessages}
             selectedTopic={selectedTopic}
             onSelectTopic={handleTopicSelect}
+            showSysTopic={showSysTopic}
           />
         </aside>
 
@@ -128,6 +214,7 @@ export default function ExplorerPage() {
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
                 <LogPanel
+                  key={`${effectiveBrokerId}:${selectedTopic}`}
                   panelId={panelId}
                   brokerId={effectiveBrokerId}
                   config={{

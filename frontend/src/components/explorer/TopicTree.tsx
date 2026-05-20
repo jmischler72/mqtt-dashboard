@@ -52,7 +52,7 @@ function TreeNodeItem({
   onSelect,
   depth,
 }: NodeProps) {
-  const [open, setOpen] = useState(depth < 2);
+  const [open, setOpen] = useState(depth < 1); // Auto-open top-level nodes
   const hasChildren = node.children.size > 0;
   const isSelected = node.fullPath === selectedTopic;
   const isFlashing = flashTopics.has(node.fullPath);
@@ -109,6 +109,7 @@ interface TopicTreeProps {
   liveMessages: WSMessage[];
   selectedTopic: string | null;
   onSelectTopic: (topic: string) => void;
+  showSysTopic?: boolean;
 }
 
 export default function TopicTree({
@@ -116,8 +117,14 @@ export default function TopicTree({
   liveMessages,
   selectedTopic,
   onSelectTopic,
+  showSysTopic = false,
 }: TopicTreeProps) {
-  const tree = buildTree(topics);
+  // Filter out $SYS topics if showSysTopic is false
+  const filteredTopics = showSysTopic
+    ? topics
+    : topics.filter((t) => !t.startsWith("$SYS/"));
+
+  const tree = buildTree(filteredTopics);
   const [flashTopics, setFlashTopics] = useState<Set<string>>(new Set());
   const lastMessageRef = useRef<WSMessage | null>(null);
 
