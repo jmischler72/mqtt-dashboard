@@ -3,8 +3,9 @@
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
 ## To do
+- (dash) handle no brokers in select broker in panels modal
 - ✅ (docker) make a production dockerfile that works using the embeded react build i did
-- (docker) how to handle the volume for the database
+- ✅ (docker) how to handle the volume for the database
 - (release) add release-please to handle releasing + ci to verify pr uses conventional commits 
 - (connection-status) clicking a broker should redirect to the config page of the broker
 - (log-panel) i think log panels doesnt handle well wildcards in topic input

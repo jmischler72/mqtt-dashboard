@@ -1,38 +1,11 @@
 services:
   mqtt-dashboard-app:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
-      - "5173:5173"
     volumes:
-      - .:/app
-      # Shadow host node_modules with container-built Linux binaries
-      - frontend_node_modules:/app/frontend/node_modules
-    environment:
-      - APP_ENV=development
-    depends_on:
-      - mosquitto
+      - data_volume:/app/data
 
-  mosquitto:
-    image: eclipse-mosquitto:2
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
-
-  mosquitto2:
-    image: eclipse-mosquitto:2
-    ports:
-      - "1884:1883"
-      - "9002:9001"
-    volumes:
-      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
 volumes:
-  frontend_node_modules:
+  data_volume:
