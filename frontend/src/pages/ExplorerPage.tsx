@@ -137,9 +137,9 @@ export default function ExplorerPage() {
     subscribe({
       panel_id: panelId,
       broker_id: effectiveBrokerId,
-      topics: ["#", "$SYS/#"],
+      topics: ["#", showSysTopic ? "$SYS/#" : ""].filter(Boolean),
     });
-  }, [effectiveBrokerId, panelId, subscribe]);
+  }, [effectiveBrokerId, panelId, subscribe, showSysTopic]);
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
