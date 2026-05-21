@@ -392,8 +392,15 @@ export default function PanelWrapper({
           )}
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-hidden p-2">{renderPanel()}</div>
+        {/* Body blocks drag-start events so only header can move panels. */}
+        <div
+          className="flex-1 overflow-hidden p-2 no-drag"
+          onPointerDownCapture={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+          onTouchStartCapture={(e) => e.stopPropagation()}
+        >
+          {renderPanel()}
+        </div>
       </div>
       {renderConfigModal()}
     </>

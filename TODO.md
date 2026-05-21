@@ -8,7 +8,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [ ] (explorer) for breadcrumb use daisy ui breadcrumb component
 - [ ] (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
 - [ ] (config-page) Configure tls connections with certificates for brokers
-- [ ] (panels) only move a panel by dragging the header not the content
+- [x] (panels) only move a panel by dragging the header not the content
 - [x] (dark-mode) currently the app use system theme, and in light mode the app logo, log-panel date are not visible, the logo is svg so change to other color and log panel date too
 - [x] (log-panel) when i click quickly on a button with topic test, some messages are showing in live ws but when i reload they are missing in history
 - [x] (log-panel) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
