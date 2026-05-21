@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"mqtt-dashboard/models"
 	mqttutil "mqtt-dashboard/mqtt"
@@ -66,11 +67,15 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if mqttutil.HasWildcard(topic) {
 		likePattern := mqttutil.ToSQLLikePattern(topic)
+		prefixTopic := strings.TrimSuffix(topic, "/#")
+		if prefixTopic == topic {
+			prefixTopic = ""
+		}
 		rows, err = h.db.Query(
 			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp FROM mqtt_history
-			 WHERE broker_id = ? AND topic LIKE ? AND timestamp > DATETIME('now', '-' || ? || ' hours')
+			 WHERE broker_id = ? AND (topic = ? OR topic LIKE ?) AND timestamp > DATETIME('now', '-' || ? || ' hours')
 			 ORDER BY timestamp ASC`,
-			brokerID, likePattern, retentionHours,
+			brokerID, prefixTopic, likePattern, retentionHours,
 		)
 	} else {
 		rows, err = h.db.Query(

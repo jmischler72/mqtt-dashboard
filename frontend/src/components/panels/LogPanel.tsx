@@ -5,7 +5,7 @@ import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 
 interface LogMessage {
-  timestamp: string;
+  receivedAt: string;
   topic: string;
   payload: string;
   historical?: boolean;
@@ -158,13 +158,22 @@ export function LogConfigModal({
 }
 
 function formatTimestamp(date: Date, format: "time" | "full") {
+  const pad2 = (n: number) => String(n).padStart(2, "0");
   if (format === "full") {
-    return date.toLocaleString(undefined, {
-      dateStyle: "full",
-      timeStyle: "medium",
-    });
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
   }
   return date.toLocaleTimeString();
+}
+
+function normalizeTimestamp(value: string | undefined): string {
+  if (!value) {
+    return new Date().toISOString();
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+  return parsed.toISOString();
 }
 
 interface LogPanelProps {
@@ -199,9 +208,13 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     onMessage: (data) => {
       if (pausedRef.current) return;
       try {
-        const msg = JSON.parse(data) as { topic: string; payload: string };
+        const msg = JSON.parse(data) as {
+          topic: string;
+          payload: string;
+          timestamp?: string;
+        };
         const entry: LogMessage = {
-          timestamp: formatTimestamp(new Date(), dateFormat),
+          receivedAt: normalizeTimestamp(msg.timestamp),
           topic: msg.topic,
           payload: msg.payload,
         };
@@ -242,7 +255,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         )
         .map((r) => ({
-          timestamp: formatTimestamp(new Date(r.timestamp), dateFormat),
+          receivedAt: normalizeTimestamp(r.timestamp),
           topic: r.topic,
           payload: r.payload,
           historical: true,
@@ -259,7 +272,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [brokerId, config.topics, dateFormat, maxMessages]);
+  }, [brokerId, config.topics, maxMessages]);
 
   useEffect(() => {
     if (!config.topics) return;
@@ -314,7 +327,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
             key={i}
             className={`leading-tight ${m.historical ? "opacity-40" : ""}`}
           >
-            <span className="text-base-content/40">[{m.timestamp}]</span>{" "}
+            <span className="text-base-content/40">
+              [{formatTimestamp(new Date(m.receivedAt), dateFormat)}]
+            </span>{" "}
             <span className="text-accent">{m.topic}</span>{" "}
             <span>{m.payload}</span>
           </div>

@@ -25,6 +25,9 @@ func TestMarshalMessage_EncodesJSON(t *testing.T) {
 	if got.PanelID != "panel-1" || got.BrokerID != "b1" || got.Topic != "sensor/temp" || got.Payload != "42" {
 		t.Fatalf("unexpected marshaled payload: %+v", got)
 	}
+	if got.Timestamp != "" {
+		t.Fatalf("expected empty timestamp when not set, got %q", got.Timestamp)
+	}
 }
 
 // mockBrokerSub implements BrokerSubscriber for hub tests.
@@ -150,6 +153,9 @@ func TestSubscribe_FanOutMessage(t *testing.T) {
 		}
 		if msg.BrokerID != "broker1" {
 			t.Errorf("msg.BrokerID = %q, want 'broker1'", msg.BrokerID)
+		}
+		if msg.Timestamp == "" {
+			t.Errorf("msg.Timestamp should be set")
 		}
 	default:
 		t.Fatal("expected message in client send channel")

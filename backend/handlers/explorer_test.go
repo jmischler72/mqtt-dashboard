@@ -152,6 +152,50 @@ func TestGetHistory_WildcardHash(t *testing.T) {
 	}
 }
 
+func TestGetHistory_WildcardHash_MatchesParentTopic(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'test', 'root')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'test/child', 'leaf')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'other', 'nope')`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=test%2F%23", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var records []map[string]any
+	decodeJSON(t, rec.Body, &records)
+	if len(records) != 2 {
+		t.Errorf("expected 2 records for test/# (including parent topic), got %d", len(records))
+	}
+}
+
+func TestGetHistory_WildcardHash_ReportedScenarioIncludesParent(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'test/tetsgisf', 'payload')`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=test%2Ftetsgisf%2F%23", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var records []map[string]any
+	decodeJSON(t, rec.Body, &records)
+	if len(records) != 1 {
+		t.Errorf("expected 1 record for test/tetsgisf/# with parent topic payload, got %d", len(records))
+	}
+}
+
 func TestGetHistory_WildcardPlus(t *testing.T) {
 	database := setupTestDB(t)
 	h := handlers.NewExplorerHandler(database)
