@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [pendingPickerReturn, setPendingPickerReturn] = useState<{
     panelId: string;
     topic: string;
+    brokerId?: string;
   } | null>(() => {
     const raw = sessionStorage.getItem("topicPickerReturn");
     if (!raw) return null;
@@ -66,8 +67,9 @@ export default function DashboardPage() {
         panelId: string;
         topic: string;
         dashboardId: string;
+        brokerId?: string;
       };
-      return { panelId: data.panelId, topic: data.topic };
+      return { panelId: data.panelId, topic: data.topic, brokerId: data.brokerId };
     } catch {
       return null;
     }
@@ -313,6 +315,11 @@ export default function DashboardPage() {
                     pickerReturnTopic={
                       pendingPickerReturn?.panelId === panel.id
                         ? pendingPickerReturn.topic
+                        : undefined
+                    }
+                    pickerReturnBrokerId={
+                      pendingPickerReturn?.panelId === panel.id
+                        ? pendingPickerReturn.brokerId
                         : undefined
                     }
                     onDelete={() => removePanel(panel.id)}

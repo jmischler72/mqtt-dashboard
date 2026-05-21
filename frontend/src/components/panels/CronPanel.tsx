@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 
@@ -30,6 +31,7 @@ interface Props {
   onClose: () => void;
   onPickTopic?: (data: { currentTopic: string; selectedBrokerId: string }) => void;
   initialTopic?: string;
+  initialBrokerId?: string;
 }
 
 export function CronConfigModal({
@@ -40,6 +42,7 @@ export function CronConfigModal({
   onClose,
   onPickTopic,
   initialTopic,
+  initialBrokerId,
 }: Props) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
@@ -59,7 +62,7 @@ export function CronConfigModal({
   const [preset, setPreset] = useState(initialCronState.preset);
   const [customExpr, setCustomExpr] = useState(initialCronState.customExpr);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || defaultBrokerId,
   );
   const isCustom = preset === "custom";
   const cronExpr = isCustom ? customExpr : preset;
@@ -124,9 +127,9 @@ export function CronConfigModal({
           )}
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Topic</legend>
-            <div className="join w-full">
+            <div className="flex gap-1 w-full">
               <input
-                className="input input-bordered join-item flex-1"
+                className="input input-bordered flex-1"
                 placeholder="home/trigger"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
@@ -134,13 +137,11 @@ export function CronConfigModal({
               {onPickTopic && (
                 <button
                   type="button"
-                  className="btn btn-ghost join-item px-3"
+                  className="btn btn-outline"
                   title="Browse topics in Explorer"
                   onClick={() => onPickTopic({ currentTopic: topic, selectedBrokerId })}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <RiSearchLine />
                 </button>
               )}
             </div>

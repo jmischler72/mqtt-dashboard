@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 
@@ -16,6 +17,7 @@ interface ModalProps {
   onClose: () => void;
   onPickTopic?: (data: { currentTopic: string; selectedBrokerId: string }) => void;
   initialTopic?: string;
+  initialBrokerId?: string;
 }
 
 export function ButtonConfigModal({
@@ -26,6 +28,7 @@ export function ButtonConfigModal({
   onClose,
   onPickTopic,
   initialTopic,
+  initialBrokerId,
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
@@ -33,7 +36,7 @@ export function ButtonConfigModal({
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || defaultBrokerId,
   );
 
   return (
@@ -71,9 +74,9 @@ export function ButtonConfigModal({
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Topic</legend>
-            <div className="join w-full">
+            <div className="flex gap-1 w-full">
               <input
-                className="input input-bordered join-item flex-1"
+                className="input input-bordered flex-1"
                 placeholder="home/light/switch"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
@@ -81,13 +84,11 @@ export function ButtonConfigModal({
               {onPickTopic && (
                 <button
                   type="button"
-                  className="btn btn-ghost join-item px-3"
+                  className="btn btn-outline"
                   title="Browse topics in Explorer"
                   onClick={() => onPickTopic({ currentTopic: topic, selectedBrokerId })}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <RiSearchLine />
                 </button>
               )}
             </div>

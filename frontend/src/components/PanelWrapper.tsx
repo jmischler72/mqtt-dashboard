@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RiSettings3Line, RiCloseLine } from "react-icons/ri";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import ButtonPanel, {
@@ -25,6 +26,7 @@ interface Props {
   activeDashboardId: string;
   highlight?: boolean;
   pickerReturnTopic?: string;
+  pickerReturnBrokerId?: string;
   onDelete: () => void;
   onUpdate: (p: Panel) => void;
   onConfigModalChange: (panelId: string, isOpen: boolean) => void;
@@ -48,6 +50,7 @@ export default function PanelWrapper({
   activeDashboardId,
   highlight,
   pickerReturnTopic,
+  pickerReturnBrokerId,
   onDelete,
   onUpdate,
   onConfigModalChange,
@@ -55,6 +58,8 @@ export default function PanelWrapper({
 }: Props) {
   const navigate = useNavigate();
   const [showConfig, setShowConfig] = useState(false);
+  const [capturedPickerTopic, setCapturedPickerTopic] = useState<string | undefined>(undefined);
+  const [capturedPickerBrokerId, setCapturedPickerBrokerId] = useState<string | undefined>(undefined);
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -87,9 +92,15 @@ export default function PanelWrapper({
     }
   };
 
+  const closeConfigModal = useCallback(() => {
+    setShowConfig(false);
+    setCapturedPickerTopic(undefined);
+    setCapturedPickerBrokerId(undefined);
+  }, []);
+
   // cfg = panel-specific config, brokerId = the broker assignment for this panel
   const saveConfig = async (cfg: PanelConfig, brokerId: string) => {
-    setShowConfig(false);
+    closeConfigModal();
     try {
       const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
         config_json: cfg,
@@ -160,12 +171,16 @@ export default function PanelWrapper({
 
   useEffect(() => {
     if (pickerReturnTopic === undefined) return;
+    // Capture values into local state BEFORE calling onPickerConsumed, which
+    // clears the prop in the same React batch as setShowConfig(true).
+    setCapturedPickerTopic(pickerReturnTopic);
+    setCapturedPickerBrokerId(pickerReturnBrokerId || undefined);
     const id = setTimeout(() => {
       handleOpenConfig();
       onPickerConsumedRef.current?.();
     }, 0);
     return () => clearTimeout(id);
-  }, [pickerReturnTopic, handleOpenConfig]);
+  }, [pickerReturnTopic, pickerReturnBrokerId, handleOpenConfig]);
 
   const handlePickTopic = ({ currentTopic, selectedBrokerId }: { currentTopic: string; selectedBrokerId: string }) => {
     setShowConfig(false);
@@ -238,9 +253,10 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={pickerReturnTopic || undefined}
+            initialTopic={capturedPickerTopic}
+            initialBrokerId={capturedPickerBrokerId}
           />,
           document.body,
         );
@@ -251,18 +267,19 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={pickerReturnTopic || undefined}
+            initialTopic={capturedPickerTopic}
+            initialBrokerId={capturedPickerBrokerId}
           />,
           document.body,
         );
       case "log": {
         const existingTopics = (cfg as LogConfig).topics ?? "";
-        const logInitialTopic = pickerReturnTopic
+        const logInitialTopic = capturedPickerTopic
           ? existingTopics
-            ? `${existingTopics}, ${pickerReturnTopic}`
-            : pickerReturnTopic
+            ? `${existingTopics}, ${capturedPickerTopic}`
+            : capturedPickerTopic
           : undefined;
         return createPortal(
           <LogConfigModal
@@ -270,9 +287,10 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
             initialTopic={logInitialTopic}
+            initialBrokerId={capturedPickerBrokerId}
           />,
           document.body,
         );
@@ -284,9 +302,10 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={pickerReturnTopic || undefined}
+            initialTopic={capturedPickerTopic}
+            initialBrokerId={capturedPickerBrokerId}
           />,
           document.body,
         );
@@ -337,14 +356,14 @@ export default function PanelWrapper({
                 title="Configure"
                 onClick={handleOpenConfig}
               >
-                ⚙
+                <RiSettings3Line className="text-base" />
               </button>
               <button
                 className="btn btn-ghost btn-xs text-error no-drag"
                 title="Delete"
                 onClick={handleDelete}
               >
-                ✕
+                <RiCloseLine className="text-base" />
               </button>
             </div>
           )}

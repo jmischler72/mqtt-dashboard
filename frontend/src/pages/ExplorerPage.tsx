@@ -170,13 +170,14 @@ export default function ExplorerPage() {
   };
 
   const handlePickerConfirm = () => {
-    if (pickerSelectedTopic && pickerCtx) {
+    if (pickerCtx) {
       sessionStorage.setItem(
         "topicPickerReturn",
         JSON.stringify({
           panelId: pickerCtx.panelId,
           topic: pickerSelectedTopic,
           dashboardId: pickerCtx.dashboardId,
+          brokerId: effectiveBrokerId,
         }),
       );
     }
@@ -195,6 +196,7 @@ export default function ExplorerPage() {
           panelId: pickerCtx.panelId,
           topic,
           dashboardId: pickerCtx.dashboardId,
+          brokerId: effectiveBrokerId,
         }),
       );
       navigate("/dashboard");
@@ -294,7 +296,7 @@ export default function ExplorerPage() {
                 {selectedTopic.split('/').map((part, index, parts) => (
                   <div key={index} className="flex items-center gap-1">
                     <button
-                      onClick={() => setSelectedTopic(parts.slice(0, index + 1).join('/'))}
+                      onClick={() => handleTopicSelect(parts.slice(0, index + 1).join('/'))}
                       className="text-accent hover:text-accent-focus cursor-pointer"
                     >
                       {part}
