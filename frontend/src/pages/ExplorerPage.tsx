@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
@@ -55,6 +55,7 @@ export default function ExplorerPage() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
+  const pickerInitializedRef = useRef(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
     const firstConnected = brokerStatuses.find(
@@ -163,6 +164,19 @@ export default function ExplorerPage() {
       topics: ["#", showSysTopic ? "$SYS/#" : ""].filter(Boolean),
     });
   }, [effectiveBrokerId, panelId, subscribe, showSysTopic]);
+
+  // If in picker mode and a current topic exists, auto-select it in the tree
+  useEffect(() => {
+    if (pickerCtx && pickerSelectedTopic && displayedTopics.includes(pickerSelectedTopic)) {
+      if (!pickerInitializedRef.current) {
+        pickerInitializedRef.current = true;
+        setSelectedTopic(pickerSelectedTopic);
+      }
+    } else if (!pickerCtx) {
+      // Reset ref when exiting picker mode
+      pickerInitializedRef.current = false;
+    }
+  }, [pickerCtx, pickerSelectedTopic, displayedTopics]);
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);

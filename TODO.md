@@ -1,16 +1,17 @@
 # TODO
 
-This page describes small tasks that needs to be done, bigger features are described in docs/PRD/*.md
+This page describes small tasks that needs to be done, bigger features are described in docs/PRD/\*.md
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- (dark-mode) currently the app use system theme, and in light mode there is a lot broken (the app logo, log-panel date)
 - (dashboard) creating a new panel should create the closest to current view instead of always below
-- (explorer-picker) when going to explorer page, if the current selected topic exists it should open to it
 - (explorer) for breadcrumb use daisy ui breadcrumb component
 - (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
 - (config-page) Configure tls connections with certificates for brokers
 - (log-panel) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
 - (log-panel) handle correctly the change of date format between history and livestream
+- ✅ (explorer-picker) when going to explorer page, if the current selected topic exists it should open to it
 - ✅ (explorer-picker) i dont like the design of the search icon
 - ✅ (explorer-picker) the breadcrumb doesnt work with the picker
 - ✅ (explorer-picker) when i select another broker and select a topic from this other it doesnt change the broker in the edit modla
@@ -21,7 +22,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - ✅ (log-panel) i think log panels doesnt handle well wildcards in topic input
 - ✅ (docker) make a production dockerfile that works using the embeded react build i did
 - ✅ (docker) how to handle the volume for the database
-- ✅ (release) add release-please to handle releasing + ci to verify pr uses conventional commits 
+- ✅ (release) add release-please to handle releasing + ci to verify pr uses conventional commits
 - ✅ (mqtt-stats) i want the Broker Information section in config to be next to the config form instead of below
 - ✅ (multi-broker)fix config page connecting stays on in form but it is shown as connected in top right status
 - ✅ (multi-broker)form in config page is not centered, redesign it
