@@ -58,8 +58,12 @@ export default function PanelWrapper({
 }: Props) {
   const navigate = useNavigate();
   const [showConfig, setShowConfig] = useState(false);
-  const [capturedPickerTopic, setCapturedPickerTopic] = useState<string | undefined>(undefined);
-  const [capturedPickerBrokerId, setCapturedPickerBrokerId] = useState<string | undefined>(undefined);
+  const [capturedPickerTopic, setCapturedPickerTopic] = useState<
+    string | undefined
+  >(undefined);
+  const [capturedPickerBrokerId, setCapturedPickerBrokerId] = useState<
+    string | undefined
+  >(undefined);
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -182,7 +186,13 @@ export default function PanelWrapper({
     return () => clearTimeout(id);
   }, [pickerReturnTopic, pickerReturnBrokerId, handleOpenConfig]);
 
-  const handlePickTopic = ({ currentTopic, selectedBrokerId }: { currentTopic: string; selectedBrokerId: string }) => {
+  const handlePickTopic = ({
+    currentTopic,
+    selectedBrokerId,
+  }: {
+    currentTopic: string;
+    selectedBrokerId: string;
+  }) => {
     setShowConfig(false);
     sessionStorage.setItem(
       "topicPickerOutbound",

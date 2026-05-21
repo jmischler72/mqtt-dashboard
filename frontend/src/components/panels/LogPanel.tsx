@@ -23,7 +23,10 @@ interface ModalProps {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: LogConfig, brokerId: string) => void;
   onClose: () => void;
-  onPickTopic?: (data: { currentTopic: string; selectedBrokerId: string }) => void;
+  onPickTopic?: (data: {
+    currentTopic: string;
+    selectedBrokerId: string;
+  }) => void;
   initialTopic?: string;
   initialBrokerId?: string;
 }
@@ -58,7 +61,12 @@ export function LogConfigModal({
             <legend className="fieldset-legend">Broker</legend>
             {brokerStatuses.length === 0 ? (
               <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">No brokers configured. <a href="/config" className="underline">Add one in the Config page.</a></span>
+                <span className="text-sm">
+                  No brokers configured.{" "}
+                  <a href="/config" className="underline">
+                    Add one in the Config page.
+                  </a>
+                </span>
               </div>
             ) : (
               <select
@@ -90,7 +98,9 @@ export function LogConfigModal({
                 type="button"
                 className="btn btn-outline mt-1 self-end aspect-square"
                 title="Browse topics in Explorer"
-                onClick={() => onPickTopic({ currentTopic: topics, selectedBrokerId })}
+                onClick={() =>
+                  onPickTopic({ currentTopic: topics, selectedBrokerId })
+                }
               >
                 <RiSearchLine />
               </button>

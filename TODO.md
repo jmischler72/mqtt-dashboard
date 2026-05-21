@@ -4,6 +4,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- (log-panel) there is still issues with wildcard, i think the history is not properly fetched, ex: log-panel show test/tetsgisf/# and sending on test/tetsgisf will show in live log correctly but if i refresh i dont see messages from history, i also think we should add tests for this feature in front and in backend make them better
 - (dark-mode) currently the app use system theme, and in light mode there is a lot broken (the app logo, log-panel date)
 - (dashboard) creating a new panel should create the closest to current view instead of always below
 - (explorer) for breadcrumb use daisy ui breadcrumb component

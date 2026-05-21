@@ -69,7 +69,11 @@ export default function DashboardPage() {
         dashboardId: string;
         brokerId?: string;
       };
-      return { panelId: data.panelId, topic: data.topic, brokerId: data.brokerId };
+      return {
+        panelId: data.panelId,
+        topic: data.topic,
+        brokerId: data.brokerId,
+      };
     } catch {
       return null;
     }
@@ -170,7 +174,7 @@ export default function DashboardPage() {
         w: l.w,
         h: l.h,
       }));
-      api.put("/api/layouts/batch", { panels: patches }).catch(() => { });
+      api.put("/api/layouts/batch", { panels: patches }).catch(() => {});
       setPanels((prev) =>
         prev.map((p) => {
           const l = newLayout.find((n) => n.i === p.id);

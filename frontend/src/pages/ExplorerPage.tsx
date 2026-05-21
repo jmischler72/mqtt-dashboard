@@ -49,8 +49,12 @@ export default function ExplorerPage() {
     }
   });
 
-  const [selectedBrokerId, setSelectedBrokerId] = useState<string>(pickerCtx?.brokerId ?? "");
-  const [pickerSelectedTopic, setPickerSelectedTopic] = useState<string>(pickerCtx?.currentTopic ?? "");
+  const [selectedBrokerId, setSelectedBrokerId] = useState<string>(
+    pickerCtx?.brokerId ?? "",
+  );
+  const [pickerSelectedTopic, setPickerSelectedTopic] = useState<string>(
+    pickerCtx?.currentTopic ?? "",
+  );
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
@@ -167,7 +171,11 @@ export default function ExplorerPage() {
 
   // If in picker mode and a current topic exists, auto-select it in the tree
   useEffect(() => {
-    if (pickerCtx && pickerSelectedTopic && displayedTopics.includes(pickerSelectedTopic)) {
+    if (
+      pickerCtx &&
+      pickerSelectedTopic &&
+      displayedTopics.includes(pickerSelectedTopic)
+    ) {
       if (!pickerInitializedRef.current) {
         pickerInitializedRef.current = true;
         setSelectedTopic(pickerSelectedTopic);
@@ -204,37 +212,53 @@ export default function ExplorerPage() {
 
   const handlePickerDoubleClick = pickerCtx
     ? (topic: string) => {
-      sessionStorage.setItem(
-        "topicPickerReturn",
-        JSON.stringify({
-          panelId: pickerCtx.panelId,
-          topic,
-          dashboardId: pickerCtx.dashboardId,
-          brokerId: effectiveBrokerId,
-        }),
-      );
-      navigate("/dashboard");
-    }
+        sessionStorage.setItem(
+          "topicPickerReturn",
+          JSON.stringify({
+            panelId: pickerCtx.panelId,
+            topic,
+            dashboardId: pickerCtx.dashboardId,
+            brokerId: effectiveBrokerId,
+          }),
+        );
+        navigate("/dashboard");
+      }
     : undefined;
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* ── Picker Mode announcement bar ── */}
       {pickerCtx && (
-        <div role="alert" className="alert rounded-none shrink-0 border-x-0 border-t-0 bg-info/10 border-b-2 border-info">
+        <div
+          role="alert"
+          className="alert rounded-none shrink-0 border-x-0 border-t-0 bg-info/10 border-b-2 border-info"
+        >
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            <span className="badge badge-info badge-sm font-semibold shrink-0">Picker Mode</span>
+            <span className="badge badge-info badge-sm font-semibold shrink-0">
+              Picker Mode
+            </span>
             {pickerSelectedTopic ? (
-              <span className="font-mono text-sm truncate">Selected topic: <span className="text-accent">{pickerSelectedTopic}</span></span>
+              <span className="font-mono text-sm truncate">
+                Selected topic:{" "}
+                <span className="text-accent">{pickerSelectedTopic}</span>
+              </span>
             ) : (
-              <span className="text-sm opacity-60">Click a topic to select it, or double-click to confirm instantly</span>
+              <span className="text-sm opacity-60">
+                Click a topic to select it, or double-click to confirm instantly
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button className="btn btn-sm btn-primary" onClick={handlePickerConfirm}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={handlePickerConfirm}
+            >
               {pickerSelectedTopic ? "Confirm" : "Return to Panel"}
             </button>
-            <button className="btn btn-sm btn-ghost" onClick={handlePickerCancel}>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={handlePickerCancel}
+            >
               Cancel
             </button>
           </div>
@@ -268,7 +292,10 @@ export default function ExplorerPage() {
         </span>
         <div className="ml-auto flex items-center gap-2">
           <label className="label cursor-pointer gap-2 p-0">
-            <div className="tooltip tooltip-left" data-tip="$SYS topics are stored in history and may use significant disk space">
+            <div
+              className="tooltip tooltip-left"
+              data-tip="$SYS topics are stored in history and may use significant disk space"
+            >
               <span className="label-text text-xs">Show $SYS</span>
             </div>
             <input
@@ -307,15 +334,19 @@ export default function ExplorerPage() {
           ) : (
             <>
               <div className="text-xs font-mono text-base-content/50 px-1 flex items-center gap-1 flex-wrap">
-                {selectedTopic.split('/').map((part, index, parts) => (
+                {selectedTopic.split("/").map((part, index, parts) => (
                   <div key={index} className="flex items-center gap-1">
                     <button
-                      onClick={() => handleTopicSelect(parts.slice(0, index + 1).join('/'))}
+                      onClick={() =>
+                        handleTopicSelect(parts.slice(0, index + 1).join("/"))
+                      }
                       className="text-accent hover:text-accent-focus cursor-pointer"
                     >
                       {part}
                     </button>
-                    {index < parts.length - 1 && <span className="text-base-content/30">/</span>}
+                    {index < parts.length - 1 && (
+                      <span className="text-base-content/30">/</span>
+                    )}
                   </div>
                 ))}
               </div>

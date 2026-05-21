@@ -528,7 +528,10 @@ export default function ConfigPage() {
                           placeholder={titleLabel}
                           value={form.name}
                           onChange={(e) =>
-                            setForm((prev) => ({ ...prev, name: e.target.value }))
+                            setForm((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
                           }
                           onBlur={() => setIsEditingTitle(false)}
                           onKeyDown={(e) => {
@@ -550,7 +553,9 @@ export default function ConfigPage() {
                         </button>
                       )}
                       <label className="label cursor-pointer gap-2 px-0 py-0 shrink-0">
-                        <span className="label-text text-sm font-medium">Enabled</span>
+                        <span className="label-text text-sm font-medium">
+                          Enabled
+                        </span>
                         <input
                           type="checkbox"
                           className="toggle toggle-primary toggle-sm"
@@ -718,7 +723,8 @@ export default function ConfigPage() {
                     </span>
                   </label>
                   <p className="text-xs text-base-content/50">
-                    $SYS topics are stored in history and may use significant disk space over time.
+                    $SYS topics are stored in history and may use significant
+                    disk space over time.
                   </p>
                   <div>
                     <button

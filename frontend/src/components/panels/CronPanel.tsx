@@ -29,7 +29,10 @@ interface Props {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: CronConfig, brokerId: string) => void;
   onClose: () => void;
-  onPickTopic?: (data: { currentTopic: string; selectedBrokerId: string }) => void;
+  onPickTopic?: (data: {
+    currentTopic: string;
+    selectedBrokerId: string;
+  }) => void;
   initialTopic?: string;
   initialBrokerId?: string;
 }
@@ -76,7 +79,12 @@ export function CronConfigModal({
             <legend className="fieldset-legend">Broker</legend>
             {brokerStatuses.length === 0 ? (
               <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">No brokers configured. <a href="/config" className="underline">Add one in the Config page.</a></span>
+                <span className="text-sm">
+                  No brokers configured.{" "}
+                  <a href="/config" className="underline">
+                    Add one in the Config page.
+                  </a>
+                </span>
               </div>
             ) : (
               <select
@@ -139,7 +147,9 @@ export function CronConfigModal({
                   type="button"
                   className="btn btn-outline"
                   title="Browse topics in Explorer"
-                  onClick={() => onPickTopic({ currentTopic: topic, selectedBrokerId })}
+                  onClick={() =>
+                    onPickTopic({ currentTopic: topic, selectedBrokerId })
+                  }
                 >
                   <RiSearchLine />
                 </button>
