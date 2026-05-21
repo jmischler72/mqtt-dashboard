@@ -1,7 +1,7 @@
 services:
-  mqtt-dashboard-app:
-    build:
-      dockerfile: Dockerfile
+  mqtt-dashboard:
+    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    container_name: mqtt-dashboard
     ports:
       - "8080:8080"
     volumes:
