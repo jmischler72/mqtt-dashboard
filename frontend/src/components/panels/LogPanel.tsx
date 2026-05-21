@@ -325,9 +325,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`leading-tight ${m.historical ? "opacity-40" : ""}`}
+            className={`leading-tight ${m.historical ? "opacity-50" : ""}`}
           >
-            <span className="text-base-content/40">
+            <span className="text-neutral-content/70">
               [{formatTimestamp(new Date(m.receivedAt), dateFormat)}]
             </span>{" "}
             <span className="text-accent">{m.topic}</span>{" "}

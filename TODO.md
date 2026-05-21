@@ -4,7 +4,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-- (dark-mode) currently the app use system theme, and in light mode there is a lot broken (the app logo, log-panel date)
+- [x] (dark-mode) currently the app use system theme, and in light mode the app logo, log-panel date are not visible, the logo is svg so change to other color and log panel date too
 - (dashboard) creating a new panel should create the closest to current view instead of always below
 - (explorer) for breadcrumb use daisy ui breadcrumb component
 - (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
