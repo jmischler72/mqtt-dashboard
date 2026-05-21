@@ -56,6 +56,8 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 		DashboardID string `json:"dashboard_id"`
 		Title       string `json:"title"`
 		PanelType   string `json:"panel_type"`
+		X           *int   `json:"x"`
+		Y           *int   `json:"y"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -73,9 +75,22 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 		req.Title = "New Panel"
 	}
 
-	// Find max Y within this dashboard to place at bottom
+	// Find max Y within this dashboard to place at bottom when y is not provided
 	var maxY int
 	h.db.QueryRow(`SELECT COALESCE(MAX(y + h), 0) FROM dashboard_layouts WHERE dashboard_id = ?`, req.DashboardID).Scan(&maxY) //nolint
+
+	x := 0
+	if req.X != nil && *req.X >= 0 {
+		x = *req.X
+	}
+	if x > 8 {
+		x = 8
+	}
+
+	y := maxY
+	if req.Y != nil && *req.Y >= 0 {
+		y = *req.Y
+	}
 
 	// Auto-assign default broker
 	var defaultBrokerID string
@@ -86,8 +101,8 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 		DashboardID: req.DashboardID,
 		Title:       req.Title,
 		PanelType:   req.PanelType,
-		X:           0,
-		Y:           maxY,
+		X:           x,
+		Y:           y,
 		W:           4,
 		H:           4,
 		ConfigJSON:  json.RawMessage(`{}`),

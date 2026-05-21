@@ -70,6 +70,33 @@ func TestCreatePanel_Success(t *testing.T) {
 	}
 }
 
+func TestCreatePanel_WithProvidedPosition(t *testing.T) {
+	db := setupTestDB(t)
+	h := handlers.NewLayoutHandler(db)
+	r := newLayoutRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"dashboard_id": "default",
+		"panel_type":   "button",
+		"title":        "My Button",
+		"x":            3,
+		"y":            7,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	var p models.DashboardPanel
+	decodeJSON(t, rec.Body, &p)
+	if p.X != 3 || p.Y != 7 {
+		t.Errorf("position = {%d %d}, want {3 7}", p.X, p.Y)
+	}
+}
+
 func TestCreatePanel_MissingType(t *testing.T) {
 	db := setupTestDB(t)
 	h := handlers.NewLayoutHandler(db)

@@ -36,6 +36,12 @@ const PANEL_TYPES = [
   { value: "cron", label: "Cron" },
 ];
 
+const GRID_COLS = 12;
+const GRID_ROW_HEIGHT = 60;
+const GRID_ROW_GAP = 10;
+const NEW_PANEL_W = 4;
+const NEW_PANEL_H = 4;
+
 type LayoutContext = {
   editMode: boolean;
   setEditMode: React.Dispatch<React.SetStateAction<boolean>>;
@@ -187,13 +193,63 @@ export default function DashboardPage() {
     }, 300);
   }, []);
 
+  const getClosestInsertPosition = useCallback(() => {
+    const containerTop =
+      (containerRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
+    const viewportCenterY = window.scrollY + window.innerHeight / 2;
+    const approxY = Math.max(
+      0,
+      Math.floor(
+        (viewportCenterY - containerTop) / (GRID_ROW_HEIGHT + GRID_ROW_GAP),
+      ),
+    );
+
+    const collides = (x: number, y: number) =>
+      panels.some(
+        (panel) =>
+          x < panel.x + panel.w &&
+          x + NEW_PANEL_W > panel.x &&
+          y < panel.y + panel.h &&
+          y + NEW_PANEL_H > panel.y,
+      );
+
+    const maxExistingY = panels.reduce(
+      (max, panel) => Math.max(max, panel.y + panel.h),
+      0,
+    );
+    const searchLimit = Math.max(
+      approxY + NEW_PANEL_H,
+      maxExistingY + NEW_PANEL_H,
+    );
+
+    for (let distance = 0; distance <= searchLimit; distance += 1) {
+      const candidateYs =
+        distance === 0
+          ? [approxY]
+          : [approxY - distance, approxY + distance].filter((y) => y >= 0);
+
+      for (const y of candidateYs) {
+        for (let x = 0; x <= GRID_COLS - NEW_PANEL_W; x += 1) {
+          if (!collides(x, y)) {
+            return { x, y };
+          }
+        }
+      }
+    }
+
+    return { x: 0, y: maxExistingY };
+  }, [panels]);
+
   const addPanel = async (panelType: string) => {
     if (isLoadingLayout || !activeDashboardId) return;
     setAddMenuOpen(false);
+    const { x, y } = getClosestInsertPosition();
     try {
       const panel = await api.post<Panel>("/api/layouts", {
         dashboard_id: activeDashboardId,
         panel_type: panelType,
+        x,
+        y,
         title: `${PANEL_TYPES.find((t) => t.value === panelType)?.label ?? "New"} Panel`,
       });
       setPanels((prev) => [...prev, panel]);
