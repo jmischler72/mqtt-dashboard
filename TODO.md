@@ -9,7 +9,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - (explorer) for breadcrumb use daisy ui breadcrumb component
 - (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
 - (config-page) Configure tls connections with certificates for brokers
-- (log-panel) some messages are missing when loading history that showed in live ws
+- [x] (log-panel) when i click quickly on a button with topic test, some messages are showing in live ws but when i reload they are missing in history 
 - [x] (log-panel) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
 - [x] (log-panel) handle correctly the change of date format between history and livestream, when i chnage already logged from livestream show the old date format + add a new format like full date without the full phrase like date hour
 - [x] (log-panel) there is still issues with wildcard, i think the history is not properly fetched, ex: log-panel show test/tetsgisf/# and sending on test/tetsgisf will show in live log correctly but if i refresh i dont see messages from history, i also think we should add tests for this feature in front and in backend make them better

@@ -49,6 +49,8 @@ func main() {
 
 	// --- Init broker registry ---
 	registry := mqttclient.NewRegistry(database)
+	registry.StartHistoryWriter()
+	defer registry.StopHistoryWriter()
 	autoConnectFromDB(database, registry)
 
 	// --- Init Cron scheduler ---

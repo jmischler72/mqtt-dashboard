@@ -1,6 +1,8 @@
 package mqtt
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	"mqtt-dashboard/testutil"
@@ -316,5 +318,54 @@ func TestParseSysStats_NonSysTopic_Ignored(t *testing.T) {
 	stats := r.GetStats("b1")
 	if stats.Version != "" {
 		t.Error("expected no stats update for non-$SYS topic")
+	}
+}
+
+func TestWriteHistory_WithWorker_PersistsAllRapidWrites(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+	r.StartHistoryWriter()
+
+	const total = 400
+	var wg sync.WaitGroup
+	wg.Add(total)
+	for i := 0; i < total; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			r.writeHistory("b1", "rapid/topic", []byte(fmt.Sprintf("payload-%d", i)))
+		}()
+	}
+	wg.Wait()
+	r.StopHistoryWriter()
+
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1' AND topic='rapid/topic'`).Scan(&count); err != nil {
+		t.Fatalf("count history records: %v", err)
+	}
+	if count != total {
+		t.Fatalf("expected %d history records, got %d", total, count)
+	}
+}
+
+func TestStopHistoryWriter_DrainsPendingMessages(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+	r.StartHistoryWriter()
+
+	const total = 150
+	for i := 0; i < total; i++ {
+		r.writeHistory("b1", "drain/topic", []byte(fmt.Sprintf("msg-%d", i)))
+	}
+
+	// Stop should block until queued writes have been persisted.
+	r.StopHistoryWriter()
+
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1' AND topic='drain/topic'`).Scan(&count); err != nil {
+		t.Fatalf("count drained records: %v", err)
+	}
+	if count != total {
+		t.Fatalf("expected %d drained records, got %d", total, count)
 	}
 }
