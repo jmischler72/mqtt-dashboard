@@ -5,6 +5,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
 - [x] (input-panel) Handle QOS and retains (other mqtt things) when sending messages with arrow that show a section to config that maybe
+- [ ] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
 - [ ] (config-page) Configure tls connections with certificates for brokers
 - [x] (dashboard) creating a new panel should create the closest to current view instead of always below
 - [x] (panels) only move a panel by dragging the header not the content
