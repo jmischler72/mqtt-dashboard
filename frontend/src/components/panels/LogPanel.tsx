@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { RiSearchLine } from "react-icons/ri";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
@@ -22,6 +23,13 @@ interface ModalProps {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: LogConfig, brokerId: string) => void;
   onClose: () => void;
+  onPickTopic?: (data: {
+    currentTopic: string;
+    selectedBrokerId: string;
+    draftConfig?: LogConfig;
+  }) => void;
+  initialTopic?: string;
+  initialBrokerId?: string;
 }
 
 export function LogConfigModal({
@@ -30,16 +38,19 @@ export function LogConfigModal({
   brokerStatuses,
   onSave,
   onClose,
+  onPickTopic,
+  initialTopic,
+  initialBrokerId,
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topics, setTopics] = useState(config.topics ?? "");
+  const [topics, setTopics] = useState(initialTopic ?? config.topics ?? "");
   const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200);
   const [dateFormat, setDateFormat] = useState<"time" | "full">(
     config.dateFormat ?? "time",
   );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || defaultBrokerId,
   );
 
   return (
@@ -51,7 +62,12 @@ export function LogConfigModal({
             <legend className="fieldset-legend">Broker</legend>
             {brokerStatuses.length === 0 ? (
               <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">No brokers configured. <a href="/config" className="underline">Add one in the Config page.</a></span>
+                <span className="text-sm">
+                  No brokers configured.{" "}
+                  <a href="/config" className="underline">
+                    Add one in the Config page.
+                  </a>
+                </span>
               </div>
             ) : (
               <select
@@ -78,6 +94,22 @@ export function LogConfigModal({
               value={topics}
               onChange={(e) => setTopics(e.target.value)}
             />
+            {onPickTopic && (
+              <button
+                type="button"
+                className="btn btn-outline mt-1 self-end aspect-square"
+                title="Browse topics in Explorer"
+                onClick={() =>
+                  onPickTopic({
+                    currentTopic: "",
+                    selectedBrokerId,
+                    draftConfig: { topics, maxMessages, dateFormat },
+                  })
+                }
+              >
+                <RiSearchLine />
+              </button>
+            )}
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Max Messages</legend>

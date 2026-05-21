@@ -54,6 +54,33 @@ export default function DashboardPage() {
     new Set(),
   );
   const [hasAnyModalOpen, setHasAnyModalOpen] = useState(false);
+  const [pendingPickerReturn, setPendingPickerReturn] = useState<{
+    panelId: string;
+    topic: string;
+    brokerId?: string;
+    draftConfig?: Record<string, unknown>;
+  } | null>(() => {
+    const raw = sessionStorage.getItem("topicPickerReturn");
+    if (!raw) return null;
+    sessionStorage.removeItem("topicPickerReturn");
+    try {
+      const data = JSON.parse(raw) as {
+        panelId: string;
+        topic: string;
+        dashboardId: string;
+        brokerId?: string;
+        draftConfig?: Record<string, unknown>;
+      };
+      return {
+        panelId: data.panelId,
+        topic: data.topic,
+        brokerId: data.brokerId,
+        draftConfig: data.draftConfig,
+      };
+    } catch {
+      return null;
+    }
+  });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -150,7 +177,7 @@ export default function DashboardPage() {
         w: l.w,
         h: l.h,
       }));
-      api.put("/api/layouts/batch", { panels: patches }).catch(() => { });
+      api.put("/api/layouts/batch", { panels: patches }).catch(() => {});
       setPanels((prev) =>
         prev.map((p) => {
           const l = newLayout.find((n) => n.i === p.id);
@@ -198,6 +225,10 @@ export default function DashboardPage() {
     },
     [],
   );
+
+  const handlePickerConsumed = useCallback(() => {
+    setPendingPickerReturn(null);
+  }, []);
 
   useEffect(() => {
     if (!newPanelId) return;
@@ -286,10 +317,27 @@ export default function DashboardPage() {
                     panel={panel}
                     editMode={editMode}
                     brokerStatuses={brokerStatuses}
+                    activeDashboardId={activeDashboardId}
                     highlight={panel.id === newPanelId}
+                    pickerReturnTopic={
+                      pendingPickerReturn?.panelId === panel.id
+                        ? pendingPickerReturn.topic
+                        : undefined
+                    }
+                    pickerReturnBrokerId={
+                      pendingPickerReturn?.panelId === panel.id
+                        ? pendingPickerReturn.brokerId
+                        : undefined
+                    }
+                    pickerReturnDraftConfig={
+                      pendingPickerReturn?.panelId === panel.id
+                        ? pendingPickerReturn.draftConfig
+                        : undefined
+                    }
                     onDelete={() => removePanel(panel.id)}
                     onUpdate={updatePanel}
                     onConfigModalChange={handleConfigModalChange}
+                    onPickerConsumed={handlePickerConsumed}
                   />
                 </div>
               ))}

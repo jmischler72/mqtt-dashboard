@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 
@@ -28,6 +29,12 @@ interface Props {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: CronConfig, brokerId: string) => void;
   onClose: () => void;
+  onPickTopic?: (data: {
+    currentTopic: string;
+    selectedBrokerId: string;
+  }) => void;
+  initialTopic?: string;
+  initialBrokerId?: string;
 }
 
 export function CronConfigModal({
@@ -36,6 +43,9 @@ export function CronConfigModal({
   brokerStatuses,
   onSave,
   onClose,
+  onPickTopic,
+  initialTopic,
+  initialBrokerId,
 }: Props) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
@@ -49,13 +59,13 @@ export function CronConfigModal({
     }
     return { preset: "custom", customExpr: config.cron_expr };
   }, [config.cron_expr]);
-  const [topic, setTopic] = useState(config.topic ?? "");
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
   const [preset, setPreset] = useState(initialCronState.preset);
   const [customExpr, setCustomExpr] = useState(initialCronState.customExpr);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || defaultBrokerId,
   );
   const isCustom = preset === "custom";
   const cronExpr = isCustom ? customExpr : preset;
@@ -69,7 +79,12 @@ export function CronConfigModal({
             <legend className="fieldset-legend">Broker</legend>
             {brokerStatuses.length === 0 ? (
               <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">No brokers configured. <a href="/config" className="underline">Add one in the Config page.</a></span>
+                <span className="text-sm">
+                  No brokers configured.{" "}
+                  <a href="/config" className="underline">
+                    Add one in the Config page.
+                  </a>
+                </span>
               </div>
             ) : (
               <select
@@ -120,12 +135,26 @@ export function CronConfigModal({
           )}
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Topic</legend>
-            <input
-              className="input input-bordered w-full"
-              placeholder="home/trigger"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-            />
+            <div className="flex gap-1 w-full">
+              <input
+                className="input input-bordered flex-1"
+                placeholder="home/trigger"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+              />
+              {onPickTopic && (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  title="Browse topics in Explorer"
+                  onClick={() =>
+                    onPickTopic({ currentTopic: topic, selectedBrokerId })
+                  }
+                >
+                  <RiSearchLine />
+                </button>
+              )}
+            </div>
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Payload</legend>

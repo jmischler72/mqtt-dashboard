@@ -160,7 +160,7 @@ func TestGetHistory_WildcardPlus(t *testing.T) {
 	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/living/status', 'on')`)
 	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/kitchen/status', 'off')`)
 	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/living/room/status', 'on')`) // should not match
-	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/status', 'x')`)            // should not match
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/status', 'x')`)              // should not match
 
 	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=home%2F%2B%2Fstatus", nil)
 	rec := httptest.NewRecorder()

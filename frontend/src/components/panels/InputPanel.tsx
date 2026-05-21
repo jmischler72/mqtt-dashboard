@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 
@@ -14,6 +15,12 @@ interface ModalProps {
   brokerStatuses: BrokerStatus[];
   onSave: (cfg: InputConfig, brokerId: string) => void;
   onClose: () => void;
+  onPickTopic?: (data: {
+    currentTopic: string;
+    selectedBrokerId: string;
+  }) => void;
+  initialTopic?: string;
+  initialBrokerId?: string;
 }
 
 export function InputConfigModal({
@@ -22,14 +29,17 @@ export function InputConfigModal({
   brokerStatuses,
   onSave,
   onClose,
+  onPickTopic,
+  initialTopic,
+  initialBrokerId,
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topic, setTopic] = useState(config.topic ?? "");
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [placeholder, setPlaceholder] = useState(config.placeholder ?? "");
   const [multiline, setMultiline] = useState(config.multiline ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || defaultBrokerId,
   );
 
   return (
@@ -41,7 +51,12 @@ export function InputConfigModal({
             <legend className="fieldset-legend">Broker</legend>
             {brokerStatuses.length === 0 ? (
               <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">No brokers configured. <a href="/config" className="underline">Add one in the Config page.</a></span>
+                <span className="text-sm">
+                  No brokers configured.{" "}
+                  <a href="/config" className="underline">
+                    Add one in the Config page.
+                  </a>
+                </span>
               </div>
             ) : (
               <select
@@ -59,12 +74,26 @@ export function InputConfigModal({
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Topic</legend>
-            <input
-              className="input input-bordered w-full"
-              placeholder="home/sensor/cmd"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-            />
+            <div className="flex gap-1 w-full">
+              <input
+                className="input input-bordered flex-1"
+                placeholder="home/sensor/cmd"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+              />
+              {onPickTopic && (
+                <button
+                  type="button"
+                  className="btn btn-neutral"
+                  title="Browse topics in Explorer"
+                  onClick={() =>
+                    onPickTopic({ currentTopic: topic, selectedBrokerId })
+                  }
+                >
+                  <RiSearchLine />
+                </button>
+              )}
+            </div>
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Placeholder text</legend>

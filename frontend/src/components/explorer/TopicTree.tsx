@@ -42,6 +42,7 @@ interface NodeProps {
   selectedTopic: string | null;
   flashTopics: Set<string>;
   onSelect: (topic: string) => void;
+  onDoubleClickTopic?: (topic: string) => void;
   depth: number;
 }
 
@@ -50,6 +51,7 @@ function TreeNodeItem({
   selectedTopic,
   flashTopics,
   onSelect,
+  onDoubleClickTopic,
   depth,
 }: NodeProps) {
   const [open, setOpen] = useState(depth < 1); // Auto-open top-level nodes
@@ -66,6 +68,7 @@ function TreeNodeItem({
         onClick={() => {
           onSelect(node.fullPath);
         }}
+        onDoubleClick={() => onDoubleClickTopic?.(node.fullPath)}
       >
         {hasChildren ? (
           <span
@@ -74,6 +77,7 @@ function TreeNodeItem({
               e.stopPropagation();
               if (hasChildren) setOpen((o) => !o);
             }}
+            onDoubleClick={(e) => e.stopPropagation()}
           >
             {open ? "▾" : "▸"}
           </span>
@@ -95,6 +99,7 @@ function TreeNodeItem({
               selectedTopic={selectedTopic}
               flashTopics={flashTopics}
               onSelect={onSelect}
+              onDoubleClickTopic={onDoubleClickTopic}
               depth={depth + 1}
             />
           ))}
@@ -109,6 +114,7 @@ interface TopicTreeProps {
   liveMessages: WSMessage[];
   selectedTopic: string | null;
   onSelectTopic: (topic: string) => void;
+  onDoubleClickTopic?: (topic: string) => void;
   showSysTopic?: boolean;
 }
 
@@ -117,6 +123,7 @@ export default function TopicTree({
   liveMessages,
   selectedTopic,
   onSelectTopic,
+  onDoubleClickTopic,
   showSysTopic = false,
 }: TopicTreeProps) {
   // Filter out $SYS topics if showSysTopic is false
@@ -167,6 +174,7 @@ export default function TopicTree({
           selectedTopic={selectedTopic}
           flashTopics={flashTopics}
           onSelect={onSelectTopic}
+          onDoubleClickTopic={onDoubleClickTopic}
           depth={0}
         />
       ))}

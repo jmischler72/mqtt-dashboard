@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	mqttutil "mqtt-dashboard/mqtt"
 	"mqtt-dashboard/models"
+	mqttutil "mqtt-dashboard/mqtt"
 )
 
 type ExplorerHandler struct {

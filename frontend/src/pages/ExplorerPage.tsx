@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -24,12 +25,43 @@ const commonSysTopics = [
 ];
 
 export default function ExplorerPage() {
+  const navigate = useNavigate();
   const brokerStatuses = useBrokerStatuses();
-  const [selectedBrokerId, setSelectedBrokerId] = useState<string>("");
+
+  const [pickerCtx, setPickerCtx] = useState<{
+    brokerId: string;
+    dashboardId: string;
+    panelId: string;
+    currentTopic: string;
+    draftConfig?: Record<string, unknown>;
+  } | null>(() => {
+    const raw = sessionStorage.getItem("topicPickerOutbound");
+    if (!raw) return null;
+    sessionStorage.removeItem("topicPickerOutbound");
+    try {
+      return JSON.parse(raw) as {
+        brokerId: string;
+        dashboardId: string;
+        panelId: string;
+        currentTopic: string;
+        draftConfig?: Record<string, unknown>;
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedBrokerId, setSelectedBrokerId] = useState<string>(
+    pickerCtx?.brokerId ?? "",
+  );
+  const [pickerSelectedTopic, setPickerSelectedTopic] = useState<string>(
+    pickerCtx?.currentTopic ?? "",
+  );
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
+  const pickerInitializedRef = useRef(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
     const firstConnected = brokerStatuses.find(
@@ -139,12 +171,104 @@ export default function ExplorerPage() {
     });
   }, [effectiveBrokerId, panelId, subscribe, showSysTopic]);
 
+  // If in picker mode and a current topic exists, auto-select it in the tree
+  useEffect(() => {
+    if (
+      pickerCtx &&
+      pickerSelectedTopic &&
+      displayedTopics.includes(pickerSelectedTopic)
+    ) {
+      if (!pickerInitializedRef.current) {
+        pickerInitializedRef.current = true;
+        setSelectedTopic(pickerSelectedTopic);
+      }
+    } else if (!pickerCtx) {
+      // Reset ref when exiting picker mode
+      pickerInitializedRef.current = false;
+    }
+  }, [pickerCtx, pickerSelectedTopic, displayedTopics]);
+
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
+    if (pickerCtx) setPickerSelectedTopic(topic);
   };
+
+  const handlePickerConfirm = () => {
+    if (pickerCtx) {
+      sessionStorage.setItem(
+        "topicPickerReturn",
+        JSON.stringify({
+          panelId: pickerCtx.panelId,
+          topic: pickerSelectedTopic,
+          dashboardId: pickerCtx.dashboardId,
+          brokerId: effectiveBrokerId,
+          draftConfig: pickerCtx.draftConfig,
+        }),
+      );
+    }
+    navigate("/dashboard");
+  };
+
+  const handlePickerCancel = () => {
+    setPickerCtx(null);
+  };
+
+  const handlePickerDoubleClick = pickerCtx
+    ? (topic: string) => {
+        sessionStorage.setItem(
+          "topicPickerReturn",
+          JSON.stringify({
+            panelId: pickerCtx.panelId,
+            topic,
+            dashboardId: pickerCtx.dashboardId,
+            brokerId: effectiveBrokerId,
+            draftConfig: pickerCtx.draftConfig,
+          }),
+        );
+        navigate("/dashboard");
+      }
+    : undefined;
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* ── Picker Mode announcement bar ── */}
+      {pickerCtx && (
+        <div
+          role="alert"
+          className="alert rounded-none shrink-0 border-x-0 border-t-0 bg-info/10 border-b-2 border-info"
+        >
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <span className="badge badge-info badge-sm font-semibold shrink-0">
+              Picker Mode
+            </span>
+            {pickerSelectedTopic ? (
+              <span className="font-mono text-sm truncate">
+                Selected topic:{" "}
+                <span className="text-accent">{pickerSelectedTopic}</span>
+              </span>
+            ) : (
+              <span className="text-sm opacity-60">
+                Click a topic to select it, or double-click to confirm instantly
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={handlePickerConfirm}
+            >
+              {pickerSelectedTopic ? "Confirm" : "Return to Panel"}
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={handlePickerCancel}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Header bar ── */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-base-300 bg-base-100 shrink-0">
         <span className="text-sm font-medium text-base-content/60">Broker</span>
@@ -172,7 +296,10 @@ export default function ExplorerPage() {
         </span>
         <div className="ml-auto flex items-center gap-2">
           <label className="label cursor-pointer gap-2 p-0">
-            <div className="tooltip tooltip-left" data-tip="$SYS topics are stored in history and may use significant disk space">
+            <div
+              className="tooltip tooltip-left"
+              data-tip="$SYS topics are stored in history and may use significant disk space"
+            >
               <span className="label-text text-xs">Show $SYS</span>
             </div>
             <input
@@ -197,6 +324,7 @@ export default function ExplorerPage() {
             liveMessages={liveMessages}
             selectedTopic={selectedTopic}
             onSelectTopic={handleTopicSelect}
+            onDoubleClickTopic={handlePickerDoubleClick}
             showSysTopic={showSysTopic}
           />
         </aside>
@@ -210,15 +338,19 @@ export default function ExplorerPage() {
           ) : (
             <>
               <div className="text-xs font-mono text-base-content/50 px-1 flex items-center gap-1 flex-wrap">
-                {selectedTopic.split('/').map((part, index, parts) => (
+                {selectedTopic.split("/").map((part, index, parts) => (
                   <div key={index} className="flex items-center gap-1">
                     <button
-                      onClick={() => setSelectedTopic(parts.slice(0, index + 1).join('/'))}
+                      onClick={() =>
+                        handleTopicSelect(parts.slice(0, index + 1).join("/"))
+                      }
                       className="text-accent hover:text-accent-focus cursor-pointer"
                     >
                       {part}
                     </button>
-                    {index < parts.length - 1 && <span className="text-base-content/30">/</span>}
+                    {index < parts.length - 1 && (
+                      <span className="text-base-content/30">/</span>
+                    )}
                   </div>
                 ))}
               </div>

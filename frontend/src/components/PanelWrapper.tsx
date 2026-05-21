@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { RiSettings3Line, RiCloseLine } from "react-icons/ri";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import ButtonPanel, {
   ButtonConfigModal,
   type ButtonConfig,
@@ -21,10 +23,15 @@ interface Props {
   panel: Panel;
   editMode: boolean;
   brokerStatuses: BrokerStatus[];
+  activeDashboardId: string;
   highlight?: boolean;
+  pickerReturnTopic?: string;
+  pickerReturnBrokerId?: string;
+  pickerReturnDraftConfig?: unknown;
   onDelete: () => void;
   onUpdate: (p: Panel) => void;
   onConfigModalChange: (panelId: string, isOpen: boolean) => void;
+  onPickerConsumed?: () => void;
 }
 
 const brokerDotColor: Record<string, string> = {
@@ -41,12 +48,23 @@ export default function PanelWrapper({
   panel,
   editMode,
   brokerStatuses,
+  activeDashboardId,
   highlight,
+  pickerReturnTopic,
+  pickerReturnBrokerId,
+  pickerReturnDraftConfig,
   onDelete,
   onUpdate,
   onConfigModalChange,
+  onPickerConsumed,
 }: Props) {
+  const navigate = useNavigate();
   const [showConfig, setShowConfig] = useState(false);
+  const [capturedPicker, setCapturedPicker] = useState<{
+    topic?: string;
+    brokerId?: string;
+    draftConfig?: unknown;
+  }>({});
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -79,9 +97,14 @@ export default function PanelWrapper({
     }
   };
 
+  const closeConfigModal = useCallback(() => {
+    setShowConfig(false);
+    setCapturedPicker({});
+  }, []);
+
   // cfg = panel-specific config, brokerId = the broker assignment for this panel
   const saveConfig = async (cfg: PanelConfig, brokerId: string) => {
-    setShowConfig(false);
+    closeConfigModal();
     try {
       const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
         config_json: cfg,
@@ -111,7 +134,7 @@ export default function PanelWrapper({
     }
   };
 
-  const handleOpenConfig = () => {
+  const handleOpenConfig = useCallback(() => {
     const panelEl = panelRef.current;
     if (!panelEl) {
       setShowConfig(true);
@@ -143,6 +166,53 @@ export default function PanelWrapper({
       setShowConfig(true);
       openConfigTimeoutRef.current = null;
     }, 280);
+  }, []);
+
+  const onPickerConsumedRef = useRef(onPickerConsumed);
+  useEffect(() => {
+    onPickerConsumedRef.current = onPickerConsumed;
+  });
+
+  useEffect(() => {
+    if (pickerReturnTopic === undefined) return;
+    const id = setTimeout(() => {
+      setCapturedPicker({
+        topic: pickerReturnTopic,
+        brokerId: pickerReturnBrokerId || undefined,
+        draftConfig: pickerReturnDraftConfig,
+      });
+      handleOpenConfig();
+      onPickerConsumedRef.current?.();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [
+    pickerReturnTopic,
+    pickerReturnBrokerId,
+    pickerReturnDraftConfig,
+    handleOpenConfig,
+  ]);
+
+  const handlePickTopic = ({
+    currentTopic,
+    selectedBrokerId,
+    draftConfig,
+  }: {
+    currentTopic: string;
+    selectedBrokerId: string;
+    draftConfig?: unknown;
+  }) => {
+    setShowConfig(false);
+    sessionStorage.setItem(
+      "topicPickerOutbound",
+      JSON.stringify({
+        brokerId: selectedBrokerId,
+        dashboardId: activeDashboardId,
+        panelId: panel.id,
+        currentTopic,
+        draftConfig,
+      }),
+    );
+    navigate("/explorer");
   };
 
   const brokerStatus = brokerStatuses.find((bs) => bs.id === panel.broker_id);
@@ -202,7 +272,10 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
+            onPickTopic={handlePickTopic}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
@@ -213,21 +286,38 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
+            onPickTopic={handlePickTopic}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
-      case "log":
+      case "log": {
+        const logConfig = {
+          ...(cfg as LogConfig),
+          ...(capturedPicker.draftConfig as Partial<LogConfig> | undefined),
+        };
+        const existingTopics = logConfig.topics ?? "";
+        const logInitialTopic = capturedPicker.topic
+          ? existingTopics
+            ? `${existingTopics}, ${capturedPicker.topic}`
+            : capturedPicker.topic
+          : undefined;
         return createPortal(
           <LogConfigModal
-            config={cfg as LogConfig}
+            config={logConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
+            onPickTopic={handlePickTopic}
+            initialTopic={logInitialTopic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
+      }
       case "cron":
         return createPortal(
           <CronConfigModal
@@ -235,7 +325,10 @@ export default function PanelWrapper({
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
-            onClose={() => setShowConfig(false)}
+            onClose={closeConfigModal}
+            onPickTopic={handlePickTopic}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
@@ -252,7 +345,7 @@ export default function PanelWrapper({
       >
         {/* Header */}
         <div
-          className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem] ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
+          className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
         >
           {/* Broker status dot */}
           <span
@@ -286,14 +379,14 @@ export default function PanelWrapper({
                 title="Configure"
                 onClick={handleOpenConfig}
               >
-                ⚙
+                <RiSettings3Line className="text-base" />
               </button>
               <button
                 className="btn btn-ghost btn-xs text-error no-drag"
                 title="Delete"
                 onClick={handleDelete}
               >
-                ✕
+                <RiCloseLine className="text-base" />
               </button>
             </div>
           )}
