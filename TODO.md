@@ -12,6 +12,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - (config-page) Configure tls connections with certificates for brokers
 - (log-panel) when live streaming msg currently the log panels shows the timestamp for a message when the websocket receives it, it may not be the same as the real timestamp
 - (log-panel) handle correctly the change of date format between history and livestream
+- ✅ (explorer-picker) handle better log-panel topic picker, right now it changes the last item in comma separated topics and still show all items in explorer announcement bar
 - ✅ (explorer-picker) when going to explorer page, if the current selected topic exists it should open to it
 - ✅ (explorer-picker) i dont like the design of the search icon
 - ✅ (explorer-picker) the breadcrumb doesnt work with the picker

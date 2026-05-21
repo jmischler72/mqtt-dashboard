@@ -33,6 +33,7 @@ export default function ExplorerPage() {
     dashboardId: string;
     panelId: string;
     currentTopic: string;
+    draftConfig?: Record<string, unknown>;
   } | null>(() => {
     const raw = sessionStorage.getItem("topicPickerOutbound");
     if (!raw) return null;
@@ -43,6 +44,7 @@ export default function ExplorerPage() {
         dashboardId: string;
         panelId: string;
         currentTopic: string;
+        draftConfig?: Record<string, unknown>;
       };
     } catch {
       return null;
@@ -200,6 +202,7 @@ export default function ExplorerPage() {
           topic: pickerSelectedTopic,
           dashboardId: pickerCtx.dashboardId,
           brokerId: effectiveBrokerId,
+          draftConfig: pickerCtx.draftConfig,
         }),
       );
     }
@@ -219,6 +222,7 @@ export default function ExplorerPage() {
             topic,
             dashboardId: pickerCtx.dashboardId,
             brokerId: effectiveBrokerId,
+            draftConfig: pickerCtx.draftConfig,
           }),
         );
         navigate("/dashboard");

@@ -27,6 +27,7 @@ interface Props {
   highlight?: boolean;
   pickerReturnTopic?: string;
   pickerReturnBrokerId?: string;
+  pickerReturnDraftConfig?: unknown;
   onDelete: () => void;
   onUpdate: (p: Panel) => void;
   onConfigModalChange: (panelId: string, isOpen: boolean) => void;
@@ -51,6 +52,7 @@ export default function PanelWrapper({
   highlight,
   pickerReturnTopic,
   pickerReturnBrokerId,
+  pickerReturnDraftConfig,
   onDelete,
   onUpdate,
   onConfigModalChange,
@@ -58,12 +60,11 @@ export default function PanelWrapper({
 }: Props) {
   const navigate = useNavigate();
   const [showConfig, setShowConfig] = useState(false);
-  const [capturedPickerTopic, setCapturedPickerTopic] = useState<
-    string | undefined
-  >(undefined);
-  const [capturedPickerBrokerId, setCapturedPickerBrokerId] = useState<
-    string | undefined
-  >(undefined);
+  const [capturedPicker, setCapturedPicker] = useState<{
+    topic?: string;
+    brokerId?: string;
+    draftConfig?: unknown;
+  }>({});
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -98,8 +99,7 @@ export default function PanelWrapper({
 
   const closeConfigModal = useCallback(() => {
     setShowConfig(false);
-    setCapturedPickerTopic(undefined);
-    setCapturedPickerBrokerId(undefined);
+    setCapturedPicker({});
   }, []);
 
   // cfg = panel-specific config, brokerId = the broker assignment for this panel
@@ -175,23 +175,31 @@ export default function PanelWrapper({
 
   useEffect(() => {
     if (pickerReturnTopic === undefined) return;
-    // Capture values into local state BEFORE calling onPickerConsumed, which
-    // clears the prop in the same React batch as setShowConfig(true).
-    setCapturedPickerTopic(pickerReturnTopic);
-    setCapturedPickerBrokerId(pickerReturnBrokerId || undefined);
     const id = setTimeout(() => {
+      setCapturedPicker({
+        topic: pickerReturnTopic,
+        brokerId: pickerReturnBrokerId || undefined,
+        draftConfig: pickerReturnDraftConfig,
+      });
       handleOpenConfig();
       onPickerConsumedRef.current?.();
     }, 0);
     return () => clearTimeout(id);
-  }, [pickerReturnTopic, pickerReturnBrokerId, handleOpenConfig]);
+  }, [
+    pickerReturnTopic,
+    pickerReturnBrokerId,
+    pickerReturnDraftConfig,
+    handleOpenConfig,
+  ]);
 
   const handlePickTopic = ({
     currentTopic,
     selectedBrokerId,
+    draftConfig,
   }: {
     currentTopic: string;
     selectedBrokerId: string;
+    draftConfig?: unknown;
   }) => {
     setShowConfig(false);
     sessionStorage.setItem(
@@ -201,6 +209,7 @@ export default function PanelWrapper({
         dashboardId: activeDashboardId,
         panelId: panel.id,
         currentTopic,
+        draftConfig,
       }),
     );
     navigate("/explorer");
@@ -265,8 +274,8 @@ export default function PanelWrapper({
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPickerTopic}
-            initialBrokerId={capturedPickerBrokerId}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
@@ -279,28 +288,32 @@ export default function PanelWrapper({
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPickerTopic}
-            initialBrokerId={capturedPickerBrokerId}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
       case "log": {
-        const existingTopics = (cfg as LogConfig).topics ?? "";
-        const logInitialTopic = capturedPickerTopic
+        const logConfig = {
+          ...(cfg as LogConfig),
+          ...(capturedPicker.draftConfig as Partial<LogConfig> | undefined),
+        };
+        const existingTopics = logConfig.topics ?? "";
+        const logInitialTopic = capturedPicker.topic
           ? existingTopics
-            ? `${existingTopics}, ${capturedPickerTopic}`
-            : capturedPickerTopic
+            ? `${existingTopics}, ${capturedPicker.topic}`
+            : capturedPicker.topic
           : undefined;
         return createPortal(
           <LogConfigModal
-            config={cfg as LogConfig}
+            config={logConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
             initialTopic={logInitialTopic}
-            initialBrokerId={capturedPickerBrokerId}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
@@ -314,8 +327,8 @@ export default function PanelWrapper({
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPickerTopic}
-            initialBrokerId={capturedPickerBrokerId}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
@@ -332,7 +345,7 @@ export default function PanelWrapper({
       >
         {/* Header */}
         <div
-          className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-[2.5rem] ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
+          className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
         >
           {/* Broker status dot */}
           <span

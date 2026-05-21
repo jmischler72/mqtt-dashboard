@@ -176,6 +176,9 @@ export default function ConfigPage() {
           ? list.find((b) => b.id === requestedBrokerId)
           : null;
         const preferred = fromQuery ?? fallback;
+        if (fromQuery) {
+          setActiveTab("brokers");
+        }
         if (!preferred) {
           setSelectedId(null);
           setIsCreatingNew(false);
@@ -196,18 +199,6 @@ export default function ConfigPage() {
       cancelled = true;
     };
   }, [loadBrokers, requestedBrokerId]);
-
-  useEffect(() => {
-    if (!requestedBrokerId || brokers.length === 0) return;
-    const target = brokers.find((b) => b.id === requestedBrokerId);
-    if (!target) return;
-
-    setActiveTab("brokers");
-    setSelectedId(target.id);
-    setIsCreatingNew(false);
-    setIsEditingTitle(false);
-    setForm(toForm(target));
-  }, [brokers, requestedBrokerId]);
 
   useEffect(() => {
     api

@@ -26,6 +26,7 @@ interface ModalProps {
   onPickTopic?: (data: {
     currentTopic: string;
     selectedBrokerId: string;
+    draftConfig?: LogConfig;
   }) => void;
   initialTopic?: string;
   initialBrokerId?: string;
@@ -99,7 +100,11 @@ export function LogConfigModal({
                 className="btn btn-outline mt-1 self-end aspect-square"
                 title="Browse topics in Explorer"
                 onClick={() =>
-                  onPickTopic({ currentTopic: topics, selectedBrokerId })
+                  onPickTopic({
+                    currentTopic: "",
+                    selectedBrokerId,
+                    draftConfig: { topics, maxMessages, dateFormat },
+                  })
                 }
               >
                 <RiSearchLine />

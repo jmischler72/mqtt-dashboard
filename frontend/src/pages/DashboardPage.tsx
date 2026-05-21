@@ -58,6 +58,7 @@ export default function DashboardPage() {
     panelId: string;
     topic: string;
     brokerId?: string;
+    draftConfig?: Record<string, unknown>;
   } | null>(() => {
     const raw = sessionStorage.getItem("topicPickerReturn");
     if (!raw) return null;
@@ -68,11 +69,13 @@ export default function DashboardPage() {
         topic: string;
         dashboardId: string;
         brokerId?: string;
+        draftConfig?: Record<string, unknown>;
       };
       return {
         panelId: data.panelId,
         topic: data.topic,
         brokerId: data.brokerId,
+        draftConfig: data.draftConfig,
       };
     } catch {
       return null;
@@ -324,6 +327,11 @@ export default function DashboardPage() {
                     pickerReturnBrokerId={
                       pendingPickerReturn?.panelId === panel.id
                         ? pendingPickerReturn.brokerId
+                        : undefined
+                    }
+                    pickerReturnDraftConfig={
+                      pendingPickerReturn?.panelId === panel.id
+                        ? pendingPickerReturn.draftConfig
                         : undefined
                     }
                     onDelete={() => removePanel(panel.id)}
