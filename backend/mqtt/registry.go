@@ -35,10 +35,10 @@ const historyQueueSize = 1024
 
 func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
-		clients:      make(map[string]*MQTTManager),
-		db:           db,
-		statsCache:   NewStatsCache(),
-		historyQueue: make(chan historyRecord, historyQueueSize),
+		clients:       make(map[string]*MQTTManager),
+		db:            db,
+		statsCache:    NewStatsCache(),
+		historyQueue:  make(chan historyRecord, historyQueueSize),
 		historyStopCh: make(chan struct{}),
 	}
 }
@@ -212,12 +212,12 @@ func (r *BrokerRegistry) AllStatuses() map[string]string {
 }
 
 // Publish sends a message to a topic on the specified broker.
-func (r *BrokerRegistry) Publish(brokerID, topic string, payload []byte) error {
+func (r *BrokerRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
 	mgr, ok := r.GetClient(brokerID)
 	if !ok {
 		return fmt.Errorf("broker %q not found", brokerID)
 	}
-	return mgr.Publish(topic, payload)
+	return mgr.Publish(topic, qos, retain, payload)
 }
 
 // Subscribe registers a handler for a topic on the specified broker.

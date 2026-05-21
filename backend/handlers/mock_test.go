@@ -26,6 +26,8 @@ type publishCall struct {
 	brokerID string
 	topic    string
 	payload  []byte
+	qos      byte
+	retain   bool
 }
 
 func newMockRegistry() *mockRegistry {
@@ -75,10 +77,10 @@ func (m *mockRegistry) Status(id string) string {
 	return "DISCONNECTED"
 }
 
-func (m *mockRegistry) Publish(brokerID, topic string, payload []byte) error {
+func (m *mockRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.publishCalls = append(m.publishCalls, publishCall{brokerID, topic, payload})
+	m.publishCalls = append(m.publishCalls, publishCall{brokerID, topic, payload, qos, retain})
 	return m.publishErr
 }
 
@@ -103,7 +105,7 @@ func newMockScheduler() *mockScheduler {
 	return &mockScheduler{jobs: make(map[string]*cron.JobInfo)}
 }
 
-func (m *mockScheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, enabled bool) error {
+func (m *mockScheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, qos byte, retain bool, enabled bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.addCalls++
@@ -116,6 +118,8 @@ func (m *mockScheduler) AddJob(panelID, brokerID, cronExpr, topic, payload strin
 		CronExpr: cronExpr,
 		Topic:    topic,
 		Payload:  payload,
+		QoS:      qos,
+		Retain:   retain,
 		Enabled:  enabled,
 	}
 	return nil

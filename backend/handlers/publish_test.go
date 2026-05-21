@@ -123,3 +123,81 @@ func TestPublish_UsesBrokerIDFromRequest(t *testing.T) {
 		t.Errorf("brokerID = %q, want 'specific-broker'", reg.publishCalls[0].brokerID)
 	}
 }
+
+func TestPublish_QoSAndRetain(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.defaultID = "broker1"
+	h := handlers.NewPublishHandler(db, reg)
+	r := newPublishRouter(h)
+
+	qos := 1
+	retain := true
+	body := jsonBody(t, map[string]any{
+		"topic":   "test/topic",
+		"payload": "hello",
+		"qos":     qos,
+		"retain":  retain,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/publish", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	call := reg.publishCalls[0]
+	if call.qos != 1 {
+		t.Errorf("qos = %d, want 1", call.qos)
+	}
+	if !call.retain {
+		t.Error("retain = false, want true")
+	}
+}
+
+func TestPublish_InvalidQoS(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.defaultID = "broker1"
+	h := handlers.NewPublishHandler(db, reg)
+	r := newPublishRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"topic": "test/topic",
+		"qos":   5,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/publish", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestPublish_DefaultsQoS0Retain(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.defaultID = "broker1"
+	h := handlers.NewPublishHandler(db, reg)
+	r := newPublishRouter(h)
+
+	body := jsonBody(t, map[string]string{"topic": "test/topic", "payload": "hi"})
+	req := httptest.NewRequest(http.MethodPost, "/api/publish", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	call := reg.publishCalls[0]
+	if call.qos != 0 {
+		t.Errorf("default qos = %d, want 0", call.qos)
+	}
+	if call.retain {
+		t.Error("default retain = true, want false")
+	}
+}

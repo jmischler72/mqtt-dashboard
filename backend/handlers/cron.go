@@ -22,6 +22,8 @@ type cronConfigJSON struct {
 	CronExpr string `json:"cron_expr"`
 	Topic    string `json:"topic"`
 	Payload  string `json:"payload"`
+	QoS      int    `json:"qos"`
+	Retain   bool   `json:"retain"`
 	Enabled  bool   `json:"enabled"`
 }
 
@@ -38,7 +40,7 @@ func (h *CronHandler) UpsertCron(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.scheduler.AddJob(panelID, req.BrokerID, req.CronExpr, req.Topic, req.Payload, req.Enabled); err != nil {
+	if err := h.scheduler.AddJob(panelID, req.BrokerID, req.CronExpr, req.Topic, req.Payload, byte(req.QoS), req.Retain, req.Enabled); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

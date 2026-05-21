@@ -123,13 +123,13 @@ func (m *MQTTManager) Status() string {
 	return m.status
 }
 
-func (m *MQTTManager) Publish(topic string, payload []byte) error {
+func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byte) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.client == nil || !m.client.IsConnected() {
 		return fmt.Errorf("not connected")
 	}
-	token := m.client.Publish(topic, 0, false, payload)
+	token := m.client.Publish(topic, qos, retain, payload)
 	token.Wait()
 	return token.Error()
 }

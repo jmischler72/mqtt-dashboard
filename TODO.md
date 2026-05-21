@@ -4,10 +4,9 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-- [x] (dashboard) creating a new panel should create the closest to current view instead of always below
-- [ ] (explorer) for breadcrumb use daisy ui breadcrumb component
-- [ ] (input-panel) Handle QOS and retains when sending messages with arrow that show a section to config that maybe
+- [x] (input-panel) Handle QOS and retains (other mqtt things) when sending messages with arrow that show a section to config that maybe
 - [ ] (config-page) Configure tls connections with certificates for brokers
+- [x] (dashboard) creating a new panel should create the closest to current view instead of always below
 - [x] (panels) only move a panel by dragging the header not the content
 - [x] (dark-mode) currently the app use system theme, and in light mode the app logo, log-panel date are not visible, the logo is svg so change to other color and log panel date too
 - [x] (log-panel) when i click quickly on a button with topic test, some messages are showing in live ws but when i reload they are missing in history

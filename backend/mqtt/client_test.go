@@ -230,7 +230,7 @@ func TestSetStatus_UpdatesStatusField(t *testing.T) {
 
 func TestPublish_NotConnected(t *testing.T) {
 	m := NewManager()
-	err := m.Publish("test/topic", []byte("data"))
+	err := m.Publish("test/topic", 0, false, []byte("data"))
 	if err == nil {
 		t.Error("expected error when publishing without connection")
 	}
@@ -380,7 +380,7 @@ func TestPublish_WithConnectedClient(t *testing.T) {
 		client: mock,
 	}
 
-	if err := m.Publish("test/topic", []byte("hello")); err != nil {
+	if err := m.Publish("test/topic", 0, false, []byte("hello")); err != nil {
 		t.Errorf("Publish: unexpected error: %v", err)
 	}
 }
@@ -394,7 +394,7 @@ func TestPublish_TokenError(t *testing.T) {
 		client: mock,
 	}
 
-	if err := m.Publish("test/topic", []byte("hello")); err == nil {
+	if err := m.Publish("test/topic", 0, false, []byte("hello")); err == nil {
 		t.Error("expected error from token.Error(), got nil")
 	}
 }

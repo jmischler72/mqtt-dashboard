@@ -7,6 +7,8 @@ export interface CronConfig {
   cron_expr?: string;
   topic?: string;
   payload?: string;
+  qos?: number;
+  retain?: boolean;
   enabled?: boolean;
 }
 
@@ -62,6 +64,8 @@ export function CronConfigModal({
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
+  const [qos, setQos] = useState(config.qos ?? 0);
+  const [retain, setRetain] = useState(config.retain ?? false);
   const [preset, setPreset] = useState(initialCronState.preset);
   const [customExpr, setCustomExpr] = useState(initialCronState.customExpr);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
@@ -178,6 +182,32 @@ export function CronConfigModal({
               <span className="label-text">Run this schedule</span>
             </label>
           </fieldset>
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">MQTT Options</legend>
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex items-center gap-2">
+                <span className="text-sm">QoS</span>
+                <select
+                  className="select select-sm select-bordered"
+                  value={qos}
+                  onChange={(e) => setQos(Number(e.target.value))}
+                >
+                  <option value={0}>0 – At most once</option>
+                  <option value={1}>1 – At least once</option>
+                  <option value={2}>2 – Exactly once</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-sm">Retain</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-sm toggle-primary"
+                  checked={retain}
+                  onChange={(e) => setRetain(e.target.checked)}
+                />
+              </label>
+            </div>
+          </fieldset>
         </div>
         <div className="modal-action">
           <button className="btn" onClick={onClose}>
@@ -188,7 +218,7 @@ export function CronConfigModal({
             disabled={!topic || !cronExpr || brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { cron_expr: cronExpr, topic, payload, enabled },
+                { cron_expr: cronExpr, topic, payload, qos, retain, enabled },
                 selectedBrokerId || defaultBrokerId,
               )
             }

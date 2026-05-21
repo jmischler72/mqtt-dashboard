@@ -2,11 +2,14 @@ import { useState } from "react";
 import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
+import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface ButtonConfig {
   label?: string;
   topic?: string;
   payload?: string;
+  qos?: number;
+  retain?: boolean;
 }
 
 interface ModalProps {
@@ -38,6 +41,8 @@ export function ButtonConfigModal({
   const [label, setLabel] = useState(config.label ?? "Click");
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
+  const [qos, setQos] = useState(config.qos ?? 0);
+  const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
@@ -113,6 +118,32 @@ export function ButtonConfigModal({
               onChange={(e) => setPayload(e.target.value)}
             />
           </fieldset>
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">MQTT Options</legend>
+            <div className="flex gap-8 flex-wrap">
+              <label className="flex items-center gap-2">
+                <span className="text-sm">QoS</span>
+                <select
+                  className="select select-sm select-bordered"
+                  value={qos}
+                  onChange={(e) => setQos(Number(e.target.value))}
+                >
+                  <option value={0}>0 – At most once</option>
+                  <option value={1}>1 – At least once</option>
+                  <option value={2}>2 – Exactly once</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-sm">Retain</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-sm toggle-primary"
+                  checked={retain}
+                  onChange={(e) => setRetain(e.target.checked)}
+                />
+              </label>
+            </div>
+          </fieldset>
         </div>
         <div className="modal-action">
           <button className="btn" onClick={onClose}>
@@ -123,7 +154,7 @@ export function ButtonConfigModal({
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { label, topic, payload },
+                { label, topic, payload, qos, retain },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -146,6 +177,8 @@ interface ButtonPanelProps {
 export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
+  const [qos, setQos] = useState(config.qos ?? 0);
+  const [retain, setRetain] = useState(config.retain ?? false);
 
   const handleClick = async () => {
     if (!config.topic) return;
@@ -155,6 +188,8 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
         broker_id: brokerId,
         topic: config.topic,
         payload: config.payload ?? "",
+        qos,
+        retain,
       });
       setFlash("success");
     } catch {
@@ -166,7 +201,7 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   };
 
   return (
-    <div className="flex items-center justify-center h-full">
+    <div className="flex flex-col items-center justify-center h-full gap-2">
       <button
         className={`btn btn-lg ${flash === "success" ? "btn-success" : flash === "error" ? "btn-error" : "btn-primary"}`}
         onClick={handleClick}
@@ -178,6 +213,12 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
           (config.label ?? "Click")
         )}
       </button>
+      <MqttOptionsSection
+        qos={qos}
+        retain={retain}
+        onQosChange={setQos}
+        onRetainChange={setRetain}
+      />
     </div>
   );
 }
