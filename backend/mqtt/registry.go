@@ -17,14 +17,85 @@ type BrokerRegistry struct {
 	defaultBrokerID string
 	db              *sql.DB
 	statsCache      *StatsCache
+
+	historyMu            sync.RWMutex
+	historyQueue         chan historyRecord
+	historyStopCh        chan struct{}
+	historyWorkerStarted bool
+	historyWorkerWG      sync.WaitGroup
 }
+
+type historyRecord struct {
+	brokerID string
+	topic    string
+	payload  string
+}
+
+const historyQueueSize = 1024
 
 func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
-		clients:    make(map[string]*MQTTManager),
-		db:         db,
-		statsCache: NewStatsCache(),
+		clients:      make(map[string]*MQTTManager),
+		db:           db,
+		statsCache:   NewStatsCache(),
+		historyQueue: make(chan historyRecord, historyQueueSize),
+		historyStopCh: make(chan struct{}),
 	}
+}
+
+// StartHistoryWriter launches a single worker that serializes history writes.
+func (r *BrokerRegistry) StartHistoryWriter() {
+	if r.db == nil {
+		return
+	}
+
+	r.historyMu.Lock()
+	if r.historyWorkerStarted {
+		r.historyMu.Unlock()
+		return
+	}
+	r.historyWorkerStarted = true
+	r.historyWorkerWG.Add(1)
+	r.historyMu.Unlock()
+
+	slog.Info("history writer started", "queue_size", cap(r.historyQueue))
+	go func() {
+		defer r.historyWorkerWG.Done()
+		for {
+			select {
+			case rec := <-r.historyQueue:
+				r.insertHistoryRecord(rec)
+			case <-r.historyStopCh:
+				// Drain pending records to avoid losing buffered history during shutdown.
+				for {
+					select {
+					case rec := <-r.historyQueue:
+						r.insertHistoryRecord(rec)
+					default:
+						slog.Info("history writer stopped")
+						return
+					}
+				}
+			}
+		}
+	}()
+}
+
+// StopHistoryWriter asks the worker to stop and blocks until buffered messages are drained.
+func (r *BrokerRegistry) StopHistoryWriter() {
+	r.historyMu.Lock()
+	started := r.historyWorkerStarted
+	if started {
+		r.historyWorkerStarted = false
+		close(r.historyStopCh)
+	}
+	r.historyMu.Unlock()
+
+	if !started {
+		return
+	}
+
+	r.historyWorkerWG.Wait()
 }
 
 // AddBroker creates a new MQTTManager for the broker, connects it, and stores it.
@@ -56,8 +127,32 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
 	if r.db == nil {
 		return
 	}
-	r.db.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES (?, ?, ?)`, //nolint
-		brokerID, topic, string(payload))
+
+	rec := historyRecord{brokerID: brokerID, topic: topic, payload: string(payload)}
+
+	r.historyMu.RLock()
+	started := r.historyWorkerStarted
+	r.historyMu.RUnlock()
+
+	if !started {
+		r.insertHistoryRecord(rec)
+		return
+	}
+
+	select {
+	case r.historyQueue <- rec:
+	default:
+		// Fall back to direct insert when queue is saturated to avoid data loss.
+		slog.Warn("history queue full, writing synchronously", "broker_id", brokerID, "topic", topic)
+		r.insertHistoryRecord(rec)
+	}
+}
+
+func (r *BrokerRegistry) insertHistoryRecord(rec historyRecord) {
+	if _, err := r.db.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES (?, ?, ?)`,
+		rec.brokerID, rec.topic, rec.payload); err != nil {
+		slog.Error("write history failed", "broker_id", rec.brokerID, "topic", rec.topic, "err", err)
+	}
 }
 
 // RemoveBroker gracefully disconnects and removes a broker client.

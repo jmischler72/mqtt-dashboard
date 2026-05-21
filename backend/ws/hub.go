@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sync"
+	"time"
 
 	mqttclient "mqtt-dashboard/mqtt"
 )
@@ -14,6 +15,7 @@ type WSMessage struct {
 	BrokerID string `json:"broker_id"`
 	Topic    string `json:"topic"`
 	Payload  string `json:"payload"`
+	Timestamp string `json:"timestamp"`
 }
 
 // SubscribeRequest is the message a client sends to subscribe to topics on a broker.
@@ -126,6 +128,7 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 			BrokerID: brokerID,
 			Topic:    msgTopic,
 			Payload:  string(payload),
+			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		}
 		for _, c := range clients {
 			msg.PanelID = c.panelID
