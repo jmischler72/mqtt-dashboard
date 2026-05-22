@@ -34,10 +34,10 @@ services:
       - ./mosquitto/data/mosquitto-password:/mosquitto/data
       - ./mosquitto/log/mosquitto-password:/mosquitto/log
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "1884:1883"
+      - "9002:9001"
 
-  # TLS / mutual-TLS broker — run ignore/mosquitto3/certs/generate.sh first
+  # TLS / mutual-TLS broker — run ./mosquitto/certs/generate.sh first
   mosquitto-tls:
     image: eclipse-mosquitto:2
     volumes:

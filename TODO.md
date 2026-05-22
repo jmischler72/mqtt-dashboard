@@ -5,8 +5,13 @@ This page describes small tasks that needs to be done, bigger features are descr
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
 - [ ] (docker) fix issues with mosquitto-passwd
-- [ ] (config-page) it should provide more infos on errors
-- [ ] (config-page) when creating a new broker, it should show in sidebar but greyed out
+- [ ] (history) i still get errors like time=2026-05-22T11:08:30.181Z level=ERROR msg="write history failed" broker_id=dfc8e939-6e6c-4fe1-8d35-67ab058896cd topic=$SYS/broker/load/bytes/received/15min err="database is locked (5) (SQLITE_BUSY)"
+- [ ] (config-page) i often have some sqlbusy errors, i should investigate
+
+- [ ] (config-page) i had an issue with a broker stuck on connecting and i had to restart the app
+- [ ] (config-page) the certificate authentication is only possible when tls is configured, so i need some better ux on this part
+- [ ] (config-page) it should provide more infos on errors (return connection error / incorrect auth), maybe return the error directly
+- [ ] (config-page) when creating a new broker, it should really create it and you can then edit to make it work, i think its better ux
 - [ ] (config-page) in responsive (mobile), the broker status should show below the form
 - [x] (config-page) i want to update my docker-compose-dev with three mosquitto along with their config to tests those types of brokers connections, also i want you to write a doc in docs/ that explains all these types of auth like the tls/ssl option along with each auth options and their working in backend
 - [x] (input-panel) Handle QOS and retains (other mqtt things) when sending messages with arrow that show a section to config that maybe
