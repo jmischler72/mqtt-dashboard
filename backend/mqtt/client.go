@@ -47,9 +47,14 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 	brokerAddr := fmt.Sprintf("%s://%s:%d", scheme, broker.Host, broker.Port)
 	slog.Info("mqtt connecting", "broker", broker.Name, "addr", brokerAddr)
 
+	clientId := broker.ClientID
+	if clientId == "" {
+		clientId = "mqtt-dashboard-" + time.Now().Format("20060102150405")
+	}
+
 	opts := paho.NewClientOptions().
 		AddBroker(brokerAddr).
-		SetClientID(broker.ClientID).
+		SetClientID(clientId).
 		SetConnectTimeout(10 * time.Second).
 		SetAutoReconnect(true).
 		SetMaxReconnectInterval(30 * time.Second).
@@ -123,6 +128,8 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	client := paho.NewClient(opts)
 	m.client = client
+
+	// slog.Debug("mqtt connecting to broker", "name", broker.Name, "addr", brokerAddr, "opts", opts)
 
 	token := client.Connect()
 	if token.WaitTimeout(10*time.Second) && token.Error() != nil {
