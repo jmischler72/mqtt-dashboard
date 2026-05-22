@@ -87,7 +87,7 @@ func TestRemoveBroker_NonExistentNoError(t *testing.T) {
 
 func TestPublish_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
-	err := r.Publish("missing", "test/topic", []byte("data"))
+	err := r.Publish("missing", "test/topic", 0, false, []byte("data"))
 	if err == nil {
 		t.Error("expected error for missing broker")
 	}
@@ -187,7 +187,7 @@ func TestPublish_ConnectedBroker(t *testing.T) {
 	r.clients["b1"] = mgr
 	r.mu.Unlock()
 
-	if err := r.Publish("b1", "test/topic", []byte("hello")); err != nil {
+	if err := r.Publish("b1", "test/topic", 0, false, []byte("hello")); err != nil {
 		t.Errorf("Publish: unexpected error: %v", err)
 	}
 }

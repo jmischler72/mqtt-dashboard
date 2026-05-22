@@ -18,10 +18,12 @@ type publishCall struct {
 	brokerID string
 	topic    string
 	payload  []byte
+	qos      byte
+	retain   bool
 }
 
-func (m *mockPublisher) Publish(brokerID, topic string, payload []byte) error {
-	m.calls = append(m.calls, publishCall{brokerID, topic, payload})
+func (m *mockPublisher) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
+	m.calls = append(m.calls, publishCall{brokerID, topic, payload, qos, retain})
 	return nil
 }
 
@@ -46,7 +48,7 @@ func TestAddJob_Disabled(t *testing.T) {
 	sc.Start()
 	defer sc.Stop()
 
-	err := sc.AddJob("panel1", "b1", "*/5 * * * *", "test/topic", "ping", false)
+	err := sc.AddJob("panel1", "b1", "*/5 * * * *", "test/topic", "ping", 0, false, false)
 	if err != nil {
 		t.Fatalf("AddJob disabled: %v", err)
 	}
@@ -66,7 +68,7 @@ func TestAddJob_Enabled(t *testing.T) {
 	sc.Start()
 	defer sc.Stop()
 
-	err := sc.AddJob("panel1", "b1", "*/5 * * * *", "test/topic", "ping", true)
+	err := sc.AddJob("panel1", "b1", "*/5 * * * *", "test/topic", "ping", 0, false, true)
 	if err != nil {
 		t.Fatalf("AddJob enabled: %v", err)
 	}
@@ -89,7 +91,7 @@ func TestAddJob_InvalidCronExpression(t *testing.T) {
 	sc.Start()
 	defer sc.Stop()
 
-	err := sc.AddJob("panel1", "b1", "not-a-cron", "t", "p", true)
+	err := sc.AddJob("panel1", "b1", "not-a-cron", "t", "p", 0, false, true)
 	if err == nil {
 		t.Error("expected error for invalid cron expression")
 	}
@@ -101,8 +103,8 @@ func TestAddJob_ReplacesExisting(t *testing.T) {
 	sc.Start()
 	defer sc.Stop()
 
-	sc.AddJob("panel1", "b1", "*/5 * * * *", "old/topic", "p", false)  //nolint
-	sc.AddJob("panel1", "b1", "*/10 * * * *", "new/topic", "p", false) //nolint
+	sc.AddJob("panel1", "b1", "*/5 * * * *", "old/topic", "p", 0, false, false)  //nolint
+	sc.AddJob("panel1", "b1", "*/10 * * * *", "new/topic", "p", 0, false, false) //nolint
 
 	info, _ := sc.GetJob("panel1")
 	if info.Topic != "new/topic" {
@@ -119,7 +121,7 @@ func TestRemoveJob(t *testing.T) {
 	sc.Start()
 	defer sc.Stop()
 
-	sc.AddJob("panel1", "b1", "*/5 * * * *", "t", "p", false) //nolint
+	sc.AddJob("panel1", "b1", "*/5 * * * *", "t", "p", 0, false, false) //nolint
 	sc.RemoveJob("panel1")
 
 	if _, ok := sc.GetJob("panel1"); ok {
@@ -142,7 +144,7 @@ func TestToggleJob_EnableDisabled(t *testing.T) {
 	sc.Start()
 	defer sc.Stop()
 
-	sc.AddJob("panel1", "b1", "*/5 * * * *", "t", "p", false) //nolint
+	sc.AddJob("panel1", "b1", "*/5 * * * *", "t", "p", 0, false, false) //nolint
 
 	if err := sc.ToggleJob("panel1", true); err != nil {
 		t.Fatalf("ToggleJob: %v", err)

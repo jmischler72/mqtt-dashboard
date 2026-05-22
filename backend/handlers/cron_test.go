@@ -95,7 +95,7 @@ func TestUpsertCron_SchedulerError(t *testing.T) {
 func TestDeleteCron_Success(t *testing.T) {
 	database := setupTestDB(t)
 	sched := newMockScheduler()
-	sched.AddJob("panel1", "", "*/5 * * * *", "t", "p", true) //nolint
+	sched.AddJob("panel1", "", "*/5 * * * *", "t", "p", 0, false, true) //nolint
 	h := handlers.NewCronHandler(database, sched)
 	r := newCronRouter(h)
 
@@ -115,7 +115,7 @@ func TestToggleCron_Success(t *testing.T) {
 	database := setupTestDB(t)
 	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('panel1', 'default', 'P', 'cron', 0, 0, 4, 4)`)
 	sched := newMockScheduler()
-	sched.AddJob("panel1", "", "*/5 * * * *", "t", "p", true) //nolint
+	sched.AddJob("panel1", "", "*/5 * * * *", "t", "p", 0, false, true) //nolint
 	h := handlers.NewCronHandler(database, sched)
 	r := newCronRouter(h)
 
@@ -137,7 +137,7 @@ func TestToggleCron_Success(t *testing.T) {
 func TestGetCronStatus_Success(t *testing.T) {
 	database := setupTestDB(t)
 	sched := newMockScheduler()
-	sched.AddJob("panel1", "broker1", "*/10 * * * *", "my/topic", "data", true) //nolint
+	sched.AddJob("panel1", "broker1", "*/10 * * * *", "my/topic", "data", 0, false, true) //nolint
 	h := handlers.NewCronHandler(database, sched)
 	r := newCronRouter(h)
 

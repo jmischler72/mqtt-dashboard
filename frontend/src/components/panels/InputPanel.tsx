@@ -7,6 +7,8 @@ export interface InputConfig {
   topic?: string;
   placeholder?: string;
   multiline?: boolean;
+  qos?: number;
+  retain?: boolean;
 }
 
 interface ModalProps {
@@ -38,6 +40,8 @@ export function InputConfigModal({
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [placeholder, setPlaceholder] = useState(config.placeholder ?? "");
   const [multiline, setMultiline] = useState(config.multiline ?? false);
+  const [qos, setQos] = useState(config.qos ?? 0);
+  const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
@@ -116,6 +120,32 @@ export function InputConfigModal({
               <span className="label-text">Multi-line / JSON mode</span>
             </label>
           </fieldset>
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">MQTT Options</legend>
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex items-center gap-2">
+                <span className="text-sm">QoS</span>
+                <select
+                  className="select select-sm select-bordered"
+                  value={qos}
+                  onChange={(e) => setQos(Number(e.target.value))}
+                >
+                  <option value={0}>0 – At most once</option>
+                  <option value={1}>1 – At least once</option>
+                  <option value={2}>2 – Exactly once</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-sm">Retain</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-sm toggle-primary"
+                  checked={retain}
+                  onChange={(e) => setRetain(e.target.checked)}
+                />
+              </label>
+            </div>
+          </fieldset>
         </div>
         <div className="modal-action">
           <button className="btn" onClick={onClose}>
@@ -126,7 +156,7 @@ export function InputConfigModal({
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { topic, placeholder, multiline },
+                { topic, placeholder, multiline, qos, retain },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -159,6 +189,8 @@ export default function InputPanel({
 
   const effectiveTopic = overrideTopic ?? config.topic;
   const effectiveBrokerId = overrideBrokerId ?? brokerId;
+  const qos = config.qos ?? 0;
+  const retain = config.retain ?? false;
 
   const handlePublish = async () => {
     if (!effectiveTopic) return;
@@ -168,6 +200,8 @@ export default function InputPanel({
         broker_id: effectiveBrokerId,
         topic: effectiveTopic,
         payload: value,
+        qos,
+        retain,
       });
       setValue("");
       setFlash("success");

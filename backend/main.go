@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io/fs"
 	"log/slog"
-	"strings"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
 	"mqtt-dashboard/handlers"
@@ -14,6 +13,7 @@ import (
 	"mqtt-dashboard/ws"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -192,12 +192,14 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 			CronExpr string `json:"cron_expr"`
 			Topic    string `json:"topic"`
 			Payload  string `json:"payload"`
+			QoS      int    `json:"qos"`
+			Retain   bool   `json:"retain"`
 			Enabled  bool   `json:"enabled"`
 		}
 		if err := json.Unmarshal([]byte(cfgJSON), &cfg); err != nil || cfg.CronExpr == "" {
 			continue
 		}
-		if err := scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, cfg.Enabled); err != nil {
+		if err := scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err != nil {
 			slog.Error("load cron job", "panel_id", panelID, "err", err)
 		}
 	}

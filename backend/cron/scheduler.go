@@ -16,6 +16,8 @@ type JobInfo struct {
 	CronExpr   string    `json:"cron_expr"`
 	Topic      string    `json:"topic"`
 	Payload    string    `json:"payload"`
+	QoS        byte      `json:"qos"`
+	Retain     bool      `json:"retain"`
 	Enabled    bool      `json:"enabled"`
 	NextRun    time.Time `json:"next_run"`
 	gocronUUID string
@@ -48,7 +50,7 @@ func (sc *Scheduler) Stop() {
 	sc.s.Shutdown() //nolint
 }
 
-func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, enabled bool) error {
+func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, qos byte, retain bool, enabled bool) error {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
@@ -66,6 +68,8 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 		CronExpr: cronExpr,
 		Topic:    topic,
 		Payload:  payload,
+		QoS:      qos,
+		Retain:   retain,
 		Enabled:  enabled,
 	}
 
@@ -78,7 +82,7 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 				if bID == "" {
 					bID = sc.registry.DefaultBrokerID()
 				}
-				sc.registry.Publish(bID, topic, []byte(payload)) //nolint
+				sc.registry.Publish(bID, topic, qos, retain, []byte(payload)) //nolint
 			}),
 			gocron.WithTags(panelID),
 		)
@@ -109,7 +113,7 @@ func (sc *Scheduler) ToggleJob(panelID string, enabled bool) error {
 	if !ok {
 		return fmt.Errorf("job %q not found", panelID)
 	}
-	return sc.AddJob(panelID, info.BrokerID, info.CronExpr, info.Topic, info.Payload, enabled)
+	return sc.AddJob(panelID, info.BrokerID, info.CronExpr, info.Topic, info.Payload, info.QoS, info.Retain, enabled)
 }
 
 func (sc *Scheduler) GetJob(panelID string) (*JobInfo, bool) {

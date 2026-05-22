@@ -5,7 +5,7 @@ import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
 import TopicTree from "../components/explorer/TopicTree";
 import LogPanel from "../components/panels/LogPanel";
-import InputPanel from "../components/panels/InputPanel";
+import ExplorerPublishPanel from "../components/explorer/ExplorerPublishPanel";
 
 interface WSMessage {
   topic: string;
@@ -367,11 +367,9 @@ export default function ExplorerPage() {
                 />
               </div>
               <div className="shrink-0">
-                <InputPanel
+                <ExplorerPublishPanel
                   brokerId={effectiveBrokerId}
-                  config={{}}
-                  overrideTopic={selectedTopic}
-                  overrideBrokerId={effectiveBrokerId}
+                  selectedTopic={selectedTopic}
                 />
               </div>
             </>

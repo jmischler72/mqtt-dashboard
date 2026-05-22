@@ -1,5 +1,7 @@
-/data/
-/mqtt-dashboard
-/tmp/
+data
+mqtt-dashboard
+tmp
 
 .DS_Store
+
+coverage.out
