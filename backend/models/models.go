@@ -12,7 +12,8 @@ type MQTTBroker struct {
 	Password  string `json:"-"` // never serialized to client
 	IsEnabled bool   `json:"is_enabled"`
 	SortOrder int    `json:"sort_order"`
-	Status    string `json:"status,omitempty"` // runtime field, not stored in DB
+	Status      string `json:"status,omitempty"`       // runtime field, not stored in DB
+	StatusError string `json:"status_error,omitempty"` // last connection error, runtime only
 
 	// Authentication mode: "none" | "password" | "certificate"
 	AuthMode string `json:"auth_mode"`

@@ -201,7 +201,6 @@ export default function ConfigPage() {
   const [searchParams] = useSearchParams();
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -255,13 +254,10 @@ export default function ConfigPage() {
         }
         if (!preferred) {
           setSelectedId(null);
-          setIsCreatingNew(false);
-          setForm(emptyForm());
           return;
         }
 
         setSelectedId(preferred.id);
-        setIsCreatingNew(false);
         setIsEditingTitle(false);
         setForm(toForm(preferred));
       })
@@ -327,17 +323,27 @@ export default function ConfigPage() {
     return statusById.get(broker.id) ?? broker.status ?? "DISCONNECTED";
   };
 
-  const handleAddNew = () => {
-    setSelectedId(null);
-    setIsCreatingNew(true);
-    setIsEditingTitle(false);
-    setForm(emptyForm());
+  const handleAddNew = async () => {
+    try {
+      const created = await api.post<Broker>("/api/brokers", {
+        name: "New Broker",
+        host: "localhost",
+        port: "1883",
+        is_enabled: false,
+        auth_mode: "none",
+      });
+      setBrokers((prev) => [...prev, created]);
+      setSelectedId(created.id);
+      setIsEditingTitle(false);
+      setForm(toForm(created));
+    } catch (error) {
+      showToast(getErrorMessage(error), false);
+    }
   };
 
   const handleSelect = (id: string) => {
     const selected = brokers.find((b) => b.id === id);
     setSelectedId(id);
-    setIsCreatingNew(false);
     setIsEditingTitle(false);
     if (selected) {
       setForm(toForm(selected));
@@ -359,37 +365,27 @@ export default function ConfigPage() {
   };
 
   const handleSave = async () => {
+    if (!selectedId) return;
     setSaving(true);
     try {
-      if (isCreatingNew) {
-        // Create new
-        const payload = {
-          ...form,
-          name: form.name.trim() || "New Broker",
-        };
-        const created = await api.post<Broker>("/api/brokers", payload);
-        setBrokers((prev) => [...prev, created]);
-        setSelectedId(created.id);
-        setIsCreatingNew(false);
-        setIsEditingTitle(false);
-        setForm(toForm(created));
-        showToast("Broker created");
-      } else if (selectedId) {
-        // Update existing (only send password/certs if non-empty)
-        const payload: Record<string, unknown> = { ...form };
-        if (!payload.password) delete payload.password;
-        if (!payload.ca_cert) delete payload.ca_cert;
-        if (!payload.client_cert) delete payload.client_cert;
-        if (!payload.client_key) delete payload.client_key;
-        const updated = await api.put<Broker>(
-          `/api/brokers/${selectedId}`,
-          payload,
-        );
-        setBrokers((prev) =>
-          prev.map((b) => (b.id === selectedId ? updated : b)),
-        );
-        setIsEditingTitle(false);
-        setForm(toForm(updated));
+      // Only send password/certs if non-empty (avoids clearing existing stored values)
+      const payload: Record<string, unknown> = { ...form };
+      if (!payload.password) delete payload.password;
+      if (!payload.ca_cert) delete payload.ca_cert;
+      if (!payload.client_cert) delete payload.client_cert;
+      if (!payload.client_key) delete payload.client_key;
+      const updated = await api.put<Broker>(
+        `/api/brokers/${selectedId}`,
+        payload,
+      );
+      setBrokers((prev) =>
+        prev.map((b) => (b.id === selectedId ? updated : b)),
+      );
+      setIsEditingTitle(false);
+      setForm(toForm(updated));
+      if (updated.status === "ERROR" && updated.status_error) {
+        showToast(`Connection failed: ${updated.status_error}`, false);
+      } else {
         showToast("Broker saved");
       }
     } catch (error) {
@@ -411,13 +407,10 @@ export default function ConfigPage() {
 
       if (remaining.length === 0) {
         setSelectedId(null);
-        setIsCreatingNew(false);
-        setForm(emptyForm());
       } else {
         const enabled = remaining.filter((x) => x.is_enabled);
         const fallback = enabled[0] ?? remaining[0];
         setSelectedId(fallback.id);
-        setIsCreatingNew(false);
         setForm(toForm(fallback));
       }
       showToast("Broker deleted");
@@ -461,10 +454,8 @@ export default function ConfigPage() {
   const selectedBroker = selectedId
     ? brokers.find((b) => b.id === selectedId)
     : null;
-  const canShowForm = isCreatingNew || !!selectedBroker;
-  const titleLabel = isCreatingNew
-    ? "New Broker"
-    : (selectedBroker?.name ?? "Broker");
+  const canShowForm = !!selectedBroker;
+  const titleLabel = selectedBroker?.name ?? "Broker";
   const titleDisplay = form.name.trim() || titleLabel;
 
   return (
@@ -525,7 +516,7 @@ export default function ConfigPage() {
                           broker={b}
                           status={getBrokerStatus(b)}
                           isDefault={b.id === defaultBrokerId}
-                          isSelected={b.id === selectedId && !isCreatingNew}
+                          isSelected={b.id === selectedId}
                           onSelect={() => handleSelect(b.id)}
                           onToggle={(en) => handleToggle(b, en)}
                         />
@@ -550,7 +541,7 @@ export default function ConfigPage() {
                           broker={b}
                           status={getBrokerStatus(b)}
                           isDefault={false}
-                          isSelected={b.id === selectedId && !isCreatingNew}
+                          isSelected={b.id === selectedId}
                           onSelect={() => handleSelect(b.id)}
                           onToggle={(en) => handleToggle(b, en)}
                         />
@@ -585,7 +576,7 @@ export default function ConfigPage() {
                 </button>
               </div>
             ) : activeTab === "brokers" ? (
-              <div className="flex gap-6 items-start">
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
                 <div className="card bg-base-100 border border-base-300 shadow-sm flex-1 min-w-0">
                   <div className="card-body gap-4">
                     <div className="flex items-center justify-between gap-3">
@@ -678,6 +669,11 @@ export default function ConfigPage() {
                             setForm((prev) => ({
                               ...prev,
                               tls_enabled: enabled,
+                              // Reset certificate auth when disabling TLS
+                              auth_mode:
+                                !enabled && prev.auth_mode === "certificate"
+                                  ? "none"
+                                  : prev.auth_mode,
                               // Suggest standard TLS port when enabling
                               port:
                                 enabled && prev.port === "1883"
@@ -695,14 +691,7 @@ export default function ConfigPage() {
                             label="CA Certificate (optional)"
                             fieldKey="ca_cert"
                             placeholder="-----BEGIN CERTIFICATE-----"
-                            configured={
-                              !isCreatingNew &&
-                              !!(
-                                selectedBroker as Broker & {
-                                  has_ca_cert?: boolean;
-                                }
-                              )?.has_ca_cert
-                            }
+                            configured={!!selectedBroker?.has_ca_cert}
                             value={form.ca_cert}
                             onChange={(v) =>
                               setForm((prev) => ({ ...prev, ca_cert: v }))
@@ -738,26 +727,42 @@ export default function ConfigPage() {
                       </span>
                       <div role="tablist" className="tabs tabs-box tabs-sm">
                         {(["none", "password", "certificate"] as const).map(
-                          (mode) => (
-                            <button
-                              key={mode}
-                              role="tab"
-                              type="button"
-                              className={`tab ${form.auth_mode === mode ? "tab-active" : ""}`}
-                              onClick={() =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  auth_mode: mode,
-                                }))
-                              }
-                            >
-                              {mode === "none"
-                                ? "None"
-                                : mode === "password"
-                                  ? "Username / Password"
-                                  : "Client Certificate"}
-                            </button>
-                          ),
+                          (mode) => {
+                            const isCert = mode === "certificate";
+                            const disabled = isCert && !form.tls_enabled;
+                            const btn = (
+                              <button
+                                role="tab"
+                                type="button"
+                                className={`tab ${form.auth_mode === mode ? "tab-active" : ""} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                                disabled={disabled}
+                                onClick={() =>
+                                  !disabled &&
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    auth_mode: mode,
+                                  }))
+                                }
+                              >
+                                {mode === "none"
+                                  ? "None"
+                                  : mode === "password"
+                                    ? "Username / Password"
+                                    : "Client Certificate"}
+                              </button>
+                            );
+                            return disabled ? (
+                              <span
+                                key={mode}
+                                className="tooltip tooltip-bottom"
+                                data-tip="Requires TLS to be enabled"
+                              >
+                                {btn}
+                              </span>
+                            ) : (
+                              <React.Fragment key={mode}>{btn}</React.Fragment>
+                            );
+                          },
                         )}
                       </div>
 
@@ -801,14 +806,7 @@ export default function ConfigPage() {
                             label="Client Certificate"
                             fieldKey="client_cert"
                             placeholder="-----BEGIN CERTIFICATE-----"
-                            configured={
-                              !isCreatingNew &&
-                              !!(
-                                selectedBroker as Broker & {
-                                  has_client_cert?: boolean;
-                                }
-                              )?.has_client_cert
-                            }
+                            configured={!!selectedBroker?.has_client_cert}
                             value={form.client_cert}
                             onChange={(v) =>
                               setForm((prev) => ({ ...prev, client_cert: v }))
@@ -818,14 +816,7 @@ export default function ConfigPage() {
                             label="Client Key"
                             fieldKey="client_key"
                             placeholder="-----BEGIN PRIVATE KEY-----"
-                            configured={
-                              !isCreatingNew &&
-                              !!(
-                                selectedBroker as Broker & {
-                                  has_client_cert?: boolean;
-                                }
-                              )?.has_client_cert
-                            }
+                            configured={!!selectedBroker?.has_client_cert}
                             value={form.client_key}
                             onChange={(v) =>
                               setForm((prev) => ({ ...prev, client_key: v }))
@@ -844,9 +835,9 @@ export default function ConfigPage() {
                         {saving ? (
                           <span className="loading loading-spinner loading-xs" />
                         ) : null}
-                        {isCreatingNew ? "Create & Connect" : "Save"}
+                        Save
                       </button>
-                      {!isCreatingNew && selectedId && (
+                      {selectedId && (
                         <button
                           className="btn btn-error btn-outline"
                           onClick={handleDelete}
@@ -856,20 +847,28 @@ export default function ConfigPage() {
                       )}
                     </div>
 
-                    {!isCreatingNew && selectedBroker && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? "bg-neutral"}`}
-                        />
-                        <span className="text-sm text-base-content/60">
-                          {getBrokerStatus(selectedBroker)}
-                        </span>
+                    {selectedBroker && (
+                      <div className="flex flex-col gap-1 mt-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${statusDot[getBrokerStatus(selectedBroker)] ?? "bg-neutral"}`}
+                          />
+                          <span className="text-sm text-base-content/60">
+                            {getBrokerStatus(selectedBroker)}
+                          </span>
+                        </div>
+                        {getBrokerStatus(selectedBroker) === "ERROR" &&
+                          selectedBroker.status_error && (
+                            <p className="text-error text-xs">
+                              {selectedBroker.status_error}
+                            </p>
+                          )}
                       </div>
                     )}
                   </div>
                 </div>
-                {!isCreatingNew && selectedBroker && (
-                  <div className="w-80 shrink-0">
+                {selectedBroker && (
+                  <div className="w-full lg:w-80 lg:shrink-0">
                     <BrokerInfoPanel
                       brokerId={selectedBroker.id}
                       isConnected={

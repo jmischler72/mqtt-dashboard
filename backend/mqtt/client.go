@@ -17,10 +17,11 @@ import (
 type MessageHandler func(topic string, payload []byte)
 
 type MQTTManager struct {
-	mu     sync.RWMutex
-	client paho.Client
-	status string
-	subs   map[string][]MessageHandler
+	mu         sync.RWMutex
+	client     paho.Client
+	status     string
+	connectErr string
+	subs       map[string][]MessageHandler
 }
 
 func NewManager() *MQTTManager {
@@ -101,6 +102,8 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 		if broker.CACert != "" {
 			pool := x509.NewCertPool()
 			if !pool.AppendCertsFromPEM([]byte(broker.CACert)) {
+				m.setStatus("ERROR")
+				m.connectErr = "failed to parse CA certificate"
 				return fmt.Errorf("failed to parse CA certificate")
 			}
 			tlsCfg.RootCAs = pool
@@ -108,7 +111,10 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 		if broker.ClientCert != "" && broker.ClientKey != "" {
 			cert, err := tls.X509KeyPair([]byte(broker.ClientCert), []byte(broker.ClientKey))
 			if err != nil {
-				return fmt.Errorf("failed to parse client certificate: %w", err)
+				connErr := fmt.Errorf("failed to parse client certificate: %w", err)
+				m.setStatus("ERROR")
+				m.connectErr = connErr.Error()
+				return connErr
 			}
 			tlsCfg.Certificates = []tls.Certificate{cert}
 		}
@@ -135,14 +141,17 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 	if token.WaitTimeout(10*time.Second) && token.Error() != nil {
 		slog.Error("mqtt connect failed", "err", token.Error())
 		m.setStatus("ERROR")
+		m.connectErr = token.Error().Error()
 		return fmt.Errorf("connect: %w", token.Error())
 	}
 	if !client.IsConnected() {
 		slog.Error("mqtt connection failed")
 		m.setStatus("ERROR")
+		m.connectErr = "connection failed"
 		return fmt.Errorf("connection failed")
 	}
 
+	m.connectErr = ""
 	return nil
 }
 
@@ -160,6 +169,12 @@ func (m *MQTTManager) Status() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.status
+}
+
+func (m *MQTTManager) ConnectError() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.connectErr
 }
 
 func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byte) error {

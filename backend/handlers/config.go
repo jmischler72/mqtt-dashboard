@@ -43,6 +43,9 @@ func (h *BrokerHandler) ListBrokers(w http.ResponseWriter, r *http.Request) {
 		b.HasClientCert = clientCert != ""
 		if b.IsEnabled {
 			b.Status = h.registry.Status(b.ID)
+			if b.Status == "ERROR" {
+				b.StatusError = h.registry.StatusError(b.ID)
+			}
 		} else {
 			b.Status = "DISABLED"
 		}
@@ -128,6 +131,7 @@ func (h *BrokerHandler) CreateBroker(w http.ResponseWriter, r *http.Request) {
 		if err := h.registry.AddBroker(broker); err != nil {
 			slog.Error("broker connect on create", "broker", broker.Name, "err", err)
 			broker.Status = "ERROR"
+			broker.StatusError = err.Error()
 		} else {
 			broker.Status = h.registry.Status(broker.ID)
 		}
@@ -243,6 +247,7 @@ func (h *BrokerHandler) UpdateBroker(w http.ResponseWriter, r *http.Request) {
 	if !wasEnabled && b.IsEnabled {
 		if err := h.registry.AddBroker(b); err != nil {
 			b.Status = "ERROR"
+			b.StatusError = err.Error()
 		} else {
 			b.Status = h.registry.Status(b.ID)
 		}
@@ -253,6 +258,7 @@ func (h *BrokerHandler) UpdateBroker(w http.ResponseWriter, r *http.Request) {
 		h.registry.RemoveBroker(b.ID)
 		if err := h.registry.AddBroker(b); err != nil {
 			b.Status = "ERROR"
+			b.StatusError = err.Error()
 		} else {
 			b.Status = h.registry.Status(b.ID)
 		}
@@ -296,10 +302,11 @@ func (h *BrokerHandler) GetBrokersStatus(w http.ResponseWriter, r *http.Request)
 	defer rows.Close()
 
 	type brokerStatus struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		IsEnabled bool   `json:"is_enabled"`
-		Status    string `json:"status"`
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		IsEnabled   bool   `json:"is_enabled"`
+		Status      string `json:"status"`
+		StatusError string `json:"status_error,omitempty"`
 	}
 	result := []brokerStatus{}
 	for rows.Next() {
@@ -310,6 +317,9 @@ func (h *BrokerHandler) GetBrokersStatus(w http.ResponseWriter, r *http.Request)
 		}
 		if bs.IsEnabled {
 			bs.Status = h.registry.Status(bs.ID)
+			if bs.Status == "ERROR" {
+				bs.StatusError = h.registry.StatusError(bs.ID)
+			}
 		} else {
 			bs.Status = "DISABLED"
 		}

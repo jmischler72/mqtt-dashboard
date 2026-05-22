@@ -6,6 +6,7 @@ export interface BrokerStatus {
   name: string;
   is_enabled: boolean;
   status: string;
+  status_error?: string;
 }
 
 export interface Broker {
@@ -26,6 +27,8 @@ export interface Broker {
   // Presence flags (server never sends cert content)
   has_ca_cert: boolean;
   has_client_cert: boolean;
+  // Runtime
+  status_error?: string;
 }
 
 /** Polls /api/brokers/status every 3 seconds. */

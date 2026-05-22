@@ -12,6 +12,7 @@ type BrokerRegistry interface {
 	SetDefault(id string)
 	DefaultBrokerID() string
 	Status(id string) string
+	StatusError(id string) string
 	Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error
 	GetStats(brokerID string) *models.BrokerStats
 }
