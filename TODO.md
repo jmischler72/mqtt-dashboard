@@ -4,9 +4,10 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- [ ] (config-page) i want to update my docker-compose-dev with three mosquitto along with their config to tests those types of brokers connections, also i want you to write a doc in docs/ that explains all these types of auth like the tls/ssl option along with each auth options and their working in backend
 - [x] (input-panel) Handle QOS and retains (other mqtt things) when sending messages with arrow that show a section to config that maybe
-- [ ] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
-- [ ] (config-page) Configure tls connections with certificates for brokers
+- [x] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
+- [x] (config-page) Configure tls connections with certificates for brokers, the username/password field should be changed to a tab to choose between auth options and we should add a new for certs
 - [x] (dashboard) creating a new panel should create the closest to current view instead of always below
 - [x] (panels) only move a panel by dragging the header not the content
 - [x] (dark-mode) currently the app use system theme, and in light mode the app logo, log-panel date are not visible, the logo is svg so change to other color and log panel date too

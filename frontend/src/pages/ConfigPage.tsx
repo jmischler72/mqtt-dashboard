@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   DndContext,
@@ -107,6 +107,12 @@ const emptyForm = () => ({
   username: "",
   password: "",
   is_enabled: true,
+  auth_mode: "none",
+  tls_enabled: false,
+  tls_skip_verify: false,
+  ca_cert: "",
+  client_cert: "",
+  client_key: "",
 });
 
 const toForm = (b: Broker) => ({
@@ -117,10 +123,78 @@ const toForm = (b: Broker) => ({
   username: b.username ?? "",
   password: "",
   is_enabled: b.is_enabled,
+  auth_mode: b.auth_mode ?? "none",
+  tls_enabled: b.tls_enabled ?? false,
+  tls_skip_verify: b.tls_skip_verify ?? false,
+  // Cert fields start empty; only sent when user provides new content
+  ca_cert: "",
+  client_cert: "",
+  client_key: "",
 });
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unexpected error";
+
+// ─── CertField: textarea + file-upload for PEM content ───────────────────────
+function CertField({
+  label,
+  fieldKey,
+  placeholder,
+  configured,
+  value,
+  onChange,
+}: {
+  label: string;
+  fieldKey: string;
+  placeholder: string;
+  configured: boolean;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => onChange((ev.target?.result as string) ?? "");
+    reader.readAsText(file);
+    // Reset so the same file can be re-selected
+    e.target.value = "";
+  };
+
+  return (
+    <fieldset className="fieldset p-0! border-0!">
+      <div className="flex items-center justify-between mb-1">
+        <legend className="fieldset-legend">{label}</legend>
+        <button
+          type="button"
+          className="btn btn-xs btn-outline"
+          onClick={() => inputRef.current?.click()}
+        >
+          Upload file
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pem,.crt,.cer,.key"
+          className="hidden"
+          onChange={handleFile}
+          data-testid={`file-upload-${fieldKey}`}
+        />
+      </div>
+      <textarea
+        className="textarea textarea-bordered w-full font-mono text-xs"
+        rows={4}
+        placeholder={
+          configured ? "(configured — paste or upload to replace)" : placeholder
+        }
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </fieldset>
+  );
+}
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
@@ -301,9 +375,12 @@ export default function ConfigPage() {
         setForm(toForm(created));
         showToast("Broker created");
       } else if (selectedId) {
-        // Update existing (only send password if non-empty)
+        // Update existing (only send password/certs if non-empty)
         const payload: Record<string, unknown> = { ...form };
         if (!payload.password) delete payload.password;
+        if (!payload.ca_cert) delete payload.ca_cert;
+        if (!payload.client_cert) delete payload.client_cert;
+        if (!payload.client_key) delete payload.client_key;
         const updated = await api.put<Broker>(
           `/api/brokers/${selectedId}`,
           payload,
@@ -588,28 +665,175 @@ export default function ConfigPage() {
                       />
                     </fieldset>
 
-                    <fieldset className="fieldset">
-                      <legend className="fieldset-legend">
-                        Username (optional)
-                      </legend>
-                      <input
-                        className="input input-bordered w-full"
-                        placeholder="username"
-                        {...f("username")}
-                      />
-                    </fieldset>
+                    {/* ── TLS / SSL ─────────────────────────────────── */}
+                    <div className="border border-base-300 rounded-lg p-3 flex flex-col gap-3">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="font-medium text-sm">TLS / SSL</span>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary toggle-sm"
+                          checked={form.tls_enabled}
+                          onChange={(e) => {
+                            const enabled = e.target.checked;
+                            setForm((prev) => ({
+                              ...prev,
+                              tls_enabled: enabled,
+                              // Suggest standard TLS port when enabling
+                              port:
+                                enabled && prev.port === "1883"
+                                  ? "8883"
+                                  : !enabled && prev.port === "8883"
+                                    ? "1883"
+                                    : prev.port,
+                            }));
+                          }}
+                        />
+                      </label>
+                      {form.tls_enabled && (
+                        <>
+                          <CertField
+                            label="CA Certificate (optional)"
+                            fieldKey="ca_cert"
+                            placeholder="-----BEGIN CERTIFICATE-----"
+                            configured={
+                              !isCreatingNew &&
+                              !!(
+                                selectedBroker as Broker & {
+                                  has_ca_cert?: boolean;
+                                }
+                              )?.has_ca_cert
+                            }
+                            value={form.ca_cert}
+                            onChange={(v) =>
+                              setForm((prev) => ({ ...prev, ca_cert: v }))
+                            }
+                          />
+                          <label className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input
+                              type="checkbox"
+                              className="checkbox checkbox-sm checkbox-warning"
+                              checked={form.tls_skip_verify}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  tls_skip_verify: e.target.checked,
+                                }))
+                              }
+                            />
+                            <span>Skip TLS verification</span>
+                            {form.tls_skip_verify && (
+                              <span className="text-warning text-xs">
+                                (insecure — only for testing)
+                              </span>
+                            )}
+                          </label>
+                        </>
+                      )}
+                    </div>
 
-                    <fieldset className="fieldset">
-                      <legend className="fieldset-legend">
-                        Password (optional)
-                      </legend>
-                      <input
-                        className="input input-bordered w-full"
-                        type="password"
-                        placeholder={selectedId ? "(unchanged)" : "••••••"}
-                        {...f("password")}
-                      />
-                    </fieldset>
+                    {/* ── Authentication ────────────────────────────── */}
+                    <div className="border border-base-300 rounded-lg p-3 flex flex-col gap-3">
+                      <span className="font-medium text-sm">
+                        Authentication
+                      </span>
+                      <div role="tablist" className="tabs tabs-box tabs-sm">
+                        {(["none", "password", "certificate"] as const).map(
+                          (mode) => (
+                            <button
+                              key={mode}
+                              role="tab"
+                              type="button"
+                              className={`tab ${form.auth_mode === mode ? "tab-active" : ""}`}
+                              onClick={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  auth_mode: mode,
+                                }))
+                              }
+                            >
+                              {mode === "none"
+                                ? "None"
+                                : mode === "password"
+                                  ? "Username / Password"
+                                  : "Client Certificate"}
+                            </button>
+                          ),
+                        )}
+                      </div>
+
+                      {form.auth_mode === "none" && (
+                        <p className="text-sm text-base-content/50">
+                          Anonymous connection — no credentials sent.
+                        </p>
+                      )}
+
+                      {form.auth_mode === "password" && (
+                        <>
+                          <fieldset className="fieldset p-0! border-0!">
+                            <legend className="fieldset-legend">
+                              Username (optional)
+                            </legend>
+                            <input
+                              className="input input-bordered w-full"
+                              placeholder="username"
+                              {...f("username")}
+                            />
+                          </fieldset>
+                          <fieldset className="fieldset p-0! border-0!">
+                            <legend className="fieldset-legend">
+                              Password (optional)
+                            </legend>
+                            <input
+                              className="input input-bordered w-full"
+                              type="password"
+                              placeholder={
+                                selectedId ? "(unchanged)" : "••••••"
+                              }
+                              {...f("password")}
+                            />
+                          </fieldset>
+                        </>
+                      )}
+
+                      {form.auth_mode === "certificate" && (
+                        <>
+                          <CertField
+                            label="Client Certificate"
+                            fieldKey="client_cert"
+                            placeholder="-----BEGIN CERTIFICATE-----"
+                            configured={
+                              !isCreatingNew &&
+                              !!(
+                                selectedBroker as Broker & {
+                                  has_client_cert?: boolean;
+                                }
+                              )?.has_client_cert
+                            }
+                            value={form.client_cert}
+                            onChange={(v) =>
+                              setForm((prev) => ({ ...prev, client_cert: v }))
+                            }
+                          />
+                          <CertField
+                            label="Client Key"
+                            fieldKey="client_key"
+                            placeholder="-----BEGIN PRIVATE KEY-----"
+                            configured={
+                              !isCreatingNew &&
+                              !!(
+                                selectedBroker as Broker & {
+                                  has_client_cert?: boolean;
+                                }
+                              )?.has_client_cert
+                            }
+                            value={form.client_key}
+                            onChange={(v) =>
+                              setForm((prev) => ({ ...prev, client_key: v }))
+                            }
+                          />
+                        </>
+                      )}
+                    </div>
 
                     <div className="flex gap-2 mt-1">
                       <button

@@ -24,7 +24,7 @@ func NewBrokerHandler(db *sql.DB, registry BrokerRegistry) *BrokerHandler {
 
 // ListBrokers returns all brokers ordered by sort_order, augmented with runtime status.
 func (h *BrokerHandler) ListBrokers(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.db.Query(`SELECT id, name, host, port, client_id, username, is_enabled, sort_order FROM mqtt_brokers ORDER BY sort_order ASC`)
+	rows, err := h.db.Query(`SELECT id, name, host, port, COALESCE(client_id,''), COALESCE(username,''), is_enabled, sort_order, COALESCE(auth_mode,'none'), tls_enabled, tls_skip_verify, COALESCE(ca_cert,''), COALESCE(client_cert,'') FROM mqtt_brokers ORDER BY sort_order ASC`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -34,10 +34,13 @@ func (h *BrokerHandler) ListBrokers(w http.ResponseWriter, r *http.Request) {
 	brokers := []models.MQTTBroker{}
 	for rows.Next() {
 		var b models.MQTTBroker
-		if err := rows.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.IsEnabled, &b.SortOrder); err != nil {
+		var caCert, clientCert string
+		if err := rows.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.IsEnabled, &b.SortOrder, &b.AuthMode, &b.TLSEnabled, &b.TLSSkipVerify, &caCert, &clientCert); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		b.HasCACert = caCert != ""
+		b.HasClientCert = clientCert != ""
 		if b.IsEnabled {
 			b.Status = h.registry.Status(b.ID)
 		} else {
@@ -53,13 +56,19 @@ func (h *BrokerHandler) ListBrokers(w http.ResponseWriter, r *http.Request) {
 // CreateBroker adds a new broker and connects it if is_enabled is true.
 func (h *BrokerHandler) CreateBroker(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name      string `json:"name"`
-		Host      string `json:"host"`
-		Port      string `json:"port"`
-		ClientID  string `json:"client_id"`
-		Username  string `json:"username"`
-		Password  string `json:"password"`
-		IsEnabled bool   `json:"is_enabled"`
+		Name          string `json:"name"`
+		Host          string `json:"host"`
+		Port          string `json:"port"`
+		ClientID      string `json:"client_id"`
+		Username      string `json:"username"`
+		Password      string `json:"password"`
+		IsEnabled     bool   `json:"is_enabled"`
+		AuthMode      string `json:"auth_mode"`
+		TLSEnabled    bool   `json:"tls_enabled"`
+		TLSSkipVerify bool   `json:"tls_skip_verify"`
+		CACert        string `json:"ca_cert"`
+		ClientCert    string `json:"client_cert"`
+		ClientKey     string `json:"client_key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -78,29 +87,42 @@ func (h *BrokerHandler) CreateBroker(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid port", http.StatusBadRequest)
 		return
 	}
+	if req.AuthMode == "" {
+		req.AuthMode = "none"
+	}
 
 	var maxOrder int
 	h.db.QueryRow(`SELECT COALESCE(MAX(sort_order), -1) FROM mqtt_brokers`).Scan(&maxOrder) //nolint
 
 	broker := models.MQTTBroker{
-		ID:        uuid.New().String(),
-		Name:      req.Name,
-		Host:      req.Host,
-		Port:      port,
-		ClientID:  req.ClientID,
-		Username:  req.Username,
-		Password:  req.Password,
-		IsEnabled: req.IsEnabled,
-		SortOrder: maxOrder + 1,
+		ID:            uuid.New().String(),
+		Name:          req.Name,
+		Host:          req.Host,
+		Port:          port,
+		ClientID:      req.ClientID,
+		Username:      req.Username,
+		Password:      req.Password,
+		IsEnabled:     req.IsEnabled,
+		SortOrder:     maxOrder + 1,
+		AuthMode:      req.AuthMode,
+		TLSEnabled:    req.TLSEnabled,
+		TLSSkipVerify: req.TLSSkipVerify,
+		CACert:        req.CACert,
+		ClientCert:    req.ClientCert,
+		ClientKey:     req.ClientKey,
 	}
 
 	if _, err := h.db.Exec(
-		`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, password, is_enabled, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, password, is_enabled, sort_order, auth_mode, tls_enabled, tls_skip_verify, ca_cert, client_cert, client_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		broker.ID, broker.Name, broker.Host, broker.Port, broker.ClientID, broker.Username, broker.Password, broker.IsEnabled, broker.SortOrder,
+		broker.AuthMode, broker.TLSEnabled, broker.TLSSkipVerify, broker.CACert, broker.ClientCert, broker.ClientKey,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	broker.HasCACert = broker.CACert != ""
+	broker.HasClientCert = broker.ClientCert != ""
 
 	if broker.IsEnabled {
 		if err := h.registry.AddBroker(broker); err != nil {
@@ -124,23 +146,29 @@ func (h *BrokerHandler) UpdateBroker(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	var req struct {
-		Name      *string `json:"name"`
-		Host      *string `json:"host"`
-		Port      *string `json:"port"`
-		ClientID  *string `json:"client_id"`
-		Username  *string `json:"username"`
-		Password  *string `json:"password"`
-		IsEnabled *bool   `json:"is_enabled"`
-		SortOrder *int    `json:"sort_order"`
+		Name          *string `json:"name"`
+		Host          *string `json:"host"`
+		Port          *string `json:"port"`
+		ClientID      *string `json:"client_id"`
+		Username      *string `json:"username"`
+		Password      *string `json:"password"`
+		IsEnabled     *bool   `json:"is_enabled"`
+		SortOrder     *int    `json:"sort_order"`
+		AuthMode      *string `json:"auth_mode"`
+		TLSEnabled    *bool   `json:"tls_enabled"`
+		TLSSkipVerify *bool   `json:"tls_skip_verify"`
+		CACert        *string `json:"ca_cert"`
+		ClientCert    *string `json:"client_cert"`
+		ClientKey     *string `json:"client_key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	row := h.db.QueryRow(`SELECT id, name, host, port, client_id, username, password, is_enabled, sort_order FROM mqtt_brokers WHERE id = ?`, id)
+	row := h.db.QueryRow(`SELECT id, name, host, port, COALESCE(client_id,''), COALESCE(username,''), COALESCE(password,''), is_enabled, sort_order, COALESCE(auth_mode,'none'), tls_enabled, tls_skip_verify, COALESCE(ca_cert,''), COALESCE(client_cert,''), COALESCE(client_key,'') FROM mqtt_brokers WHERE id = ?`, id)
 	var b models.MQTTBroker
-	if err := row.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.Password, &b.IsEnabled, &b.SortOrder); err == sql.ErrNoRows {
+	if err := row.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.Password, &b.IsEnabled, &b.SortOrder, &b.AuthMode, &b.TLSEnabled, &b.TLSSkipVerify, &b.CACert, &b.ClientCert, &b.ClientKey); err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -179,14 +207,37 @@ func (h *BrokerHandler) UpdateBroker(w http.ResponseWriter, r *http.Request) {
 	if req.SortOrder != nil {
 		b.SortOrder = *req.SortOrder
 	}
+	if req.AuthMode != nil {
+		b.AuthMode = *req.AuthMode
+	}
+	if req.TLSEnabled != nil {
+		b.TLSEnabled = *req.TLSEnabled
+	}
+	if req.TLSSkipVerify != nil {
+		b.TLSSkipVerify = *req.TLSSkipVerify
+	}
+	// Only update cert fields if a non-empty value is sent (same pattern as password).
+	if req.CACert != nil && *req.CACert != "" {
+		b.CACert = *req.CACert
+	}
+	if req.ClientCert != nil && *req.ClientCert != "" {
+		b.ClientCert = *req.ClientCert
+	}
+	if req.ClientKey != nil && *req.ClientKey != "" {
+		b.ClientKey = *req.ClientKey
+	}
 
 	if _, err := h.db.Exec(
-		`UPDATE mqtt_brokers SET name=?, host=?, port=?, client_id=?, username=?, password=?, is_enabled=?, sort_order=? WHERE id=?`,
-		b.Name, b.Host, b.Port, b.ClientID, b.Username, b.Password, b.IsEnabled, b.SortOrder, id,
+		`UPDATE mqtt_brokers SET name=?, host=?, port=?, client_id=?, username=?, password=?, is_enabled=?, sort_order=?, auth_mode=?, tls_enabled=?, tls_skip_verify=?, ca_cert=?, client_cert=?, client_key=? WHERE id=?`,
+		b.Name, b.Host, b.Port, b.ClientID, b.Username, b.Password, b.IsEnabled, b.SortOrder,
+		b.AuthMode, b.TLSEnabled, b.TLSSkipVerify, b.CACert, b.ClientCert, b.ClientKey, id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	b.HasCACert = b.CACert != ""
+	b.HasClientCert = b.ClientCert != ""
 
 	// Connection lifecycle management
 	if !wasEnabled && b.IsEnabled {

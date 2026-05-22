@@ -1,6 +1,8 @@
 package mqtt
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -38,7 +40,11 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	m.setStatus("CONNECTING")
 
-	brokerAddr := fmt.Sprintf("tcp://%s:%d", broker.Host, broker.Port)
+	scheme := "tcp"
+	if broker.TLSEnabled {
+		scheme = "tls"
+	}
+	brokerAddr := fmt.Sprintf("%s://%s:%d", scheme, broker.Host, broker.Port)
 	slog.Info("mqtt connecting", "broker", broker.Name, "addr", brokerAddr)
 
 	opts := paho.NewClientOptions().
@@ -82,11 +88,37 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 			m.mu.Unlock()
 		})
 
-	if broker.Username != "" {
-		opts.SetUsername(broker.Username)
+	// Configure TLS if enabled.
+	if broker.TLSEnabled {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: broker.TLSSkipVerify, //nolint:gosec // user-controlled opt-in
+		}
+		if broker.CACert != "" {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM([]byte(broker.CACert)) {
+				return fmt.Errorf("failed to parse CA certificate")
+			}
+			tlsCfg.RootCAs = pool
+		}
+		if broker.ClientCert != "" && broker.ClientKey != "" {
+			cert, err := tls.X509KeyPair([]byte(broker.ClientCert), []byte(broker.ClientKey))
+			if err != nil {
+				return fmt.Errorf("failed to parse client certificate: %w", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
+		opts.SetTLSConfig(tlsCfg)
 	}
-	if broker.Password != "" {
-		opts.SetPassword(broker.Password)
+
+	// Configure authentication based on auth mode.
+	switch broker.AuthMode {
+	case "password":
+		if broker.Username != "" {
+			opts.SetUsername(broker.Username)
+		}
+		if broker.Password != "" {
+			opts.SetPassword(broker.Password)
+		}
 	}
 
 	client := paho.NewClient(opts)

@@ -510,3 +510,145 @@ func TestGetBrokerInfo_NotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
+
+func TestCreateBroker_WithTLS(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(db, reg)
+	r := newBrokerRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"name":            "TLS Broker",
+		"host":            "secure.example.com",
+		"port":            "8883",
+		"is_enabled":      false,
+		"auth_mode":       "none",
+		"tls_enabled":     true,
+		"tls_skip_verify": true,
+		"ca_cert":         "-----BEGIN CERTIFICATE-----\nfakecert\n-----END CERTIFICATE-----",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/brokers", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	var b models.MQTTBroker
+	decodeJSON(t, rec.Body, &b)
+	if !b.TLSEnabled {
+		t.Error("expected tls_enabled=true")
+	}
+	if !b.TLSSkipVerify {
+		t.Error("expected tls_skip_verify=true")
+	}
+	if !b.HasCACert {
+		t.Error("expected has_ca_cert=true")
+	}
+}
+
+func TestCreateBroker_WithPasswordAuth(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(db, reg)
+	r := newBrokerRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"name":       "Auth Broker",
+		"host":       "localhost",
+		"port":       "1883",
+		"is_enabled": false,
+		"auth_mode":  "password",
+		"username":   "user",
+		"password":   "secret",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/brokers", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	var b models.MQTTBroker
+	decodeJSON(t, rec.Body, &b)
+	if b.AuthMode != "password" {
+		t.Errorf("auth_mode = %q, want 'password'", b.AuthMode)
+	}
+	if b.Username != "user" {
+		t.Errorf("username = %q, want 'user'", b.Username)
+	}
+	// Password must never be returned in API response.
+	if b.Password != "" {
+		t.Error("password must not be serialized in response")
+	}
+}
+
+func TestUpdateBroker_TLSFields(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, '', '', 0, 0)`)
+
+	tlsEnabled := true
+	body := jsonBody(t, map[string]any{
+		"tls_enabled": &tlsEnabled,
+		"ca_cert":     "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+		"auth_mode":   "certificate",
+		"client_cert": "-----BEGIN CERTIFICATE-----\nfakeclient\n-----END CERTIFICATE-----",
+		"client_key":  "-----BEGIN PRIVATE KEY-----\nfakekey\n-----END PRIVATE KEY-----",
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/brokers/b1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var b models.MQTTBroker
+	decodeJSON(t, rec.Body, &b)
+	if !b.TLSEnabled {
+		t.Error("expected tls_enabled=true after update")
+	}
+	if !b.HasCACert {
+		t.Error("expected has_ca_cert=true after update")
+	}
+	if !b.HasClientCert {
+		t.Error("expected has_client_cert=true after update")
+	}
+	if b.AuthMode != "certificate" {
+		t.Errorf("auth_mode = %q, want 'certificate'", b.AuthMode)
+	}
+}
+
+func TestListBrokers_HasCertFlags(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, is_enabled, sort_order, ca_cert, client_cert) VALUES ('b1', 'Test', 'localhost', 1883, '', '', 0, 0, 'PEMDATA', 'CLIENTPEM')`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/brokers", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var brokers []models.MQTTBroker
+	decodeJSON(t, rec.Body, &brokers)
+	if len(brokers) != 1 {
+		t.Fatalf("expected 1 broker, got %d", len(brokers))
+	}
+	if !brokers[0].HasCACert {
+		t.Error("expected has_ca_cert=true")
+	}
+	if !brokers[0].HasClientCert {
+		t.Error("expected has_client_cert=true")
+	}
+}

@@ -18,6 +18,14 @@ export interface Broker {
   is_enabled: boolean;
   sort_order: number;
   status?: string;
+  // Authentication
+  auth_mode: string; // "none" | "password" | "certificate"
+  // TLS
+  tls_enabled: boolean;
+  tls_skip_verify: boolean;
+  // Presence flags (server never sends cert content)
+  has_ca_cert: boolean;
+  has_client_cert: boolean;
 }
 
 /** Polls /api/brokers/status every 3 seconds. */
