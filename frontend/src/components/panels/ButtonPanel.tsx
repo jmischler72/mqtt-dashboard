@@ -2,7 +2,6 @@ import { useState } from "react";
 import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface ButtonConfig {
   label?: string;
@@ -120,7 +119,7 @@ export function ButtonConfigModal({
           </fieldset>
           <fieldset className="fieldset">
             <legend className="fieldset-legend">MQTT Options</legend>
-            <div className="flex gap-8 flex-wrap">
+            <div className="flex gap-4 flex-wrap">
               <label className="flex items-center gap-2">
                 <span className="text-sm">QoS</span>
                 <select
@@ -177,8 +176,9 @@ interface ButtonPanelProps {
 export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
-  const [qos, setQos] = useState(config.qos ?? 0);
-  const [retain, setRetain] = useState(config.retain ?? false);
+
+  const qos = config.qos ?? 0;
+  const retain = config.retain ?? false;
 
   const handleClick = async () => {
     if (!config.topic) return;
@@ -201,7 +201,7 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-2">
+    <div className="flex items-center justify-center h-full">
       <button
         className={`btn btn-lg ${flash === "success" ? "btn-success" : flash === "error" ? "btn-error" : "btn-primary"}`}
         onClick={handleClick}
@@ -213,12 +213,6 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
           (config.label ?? "Click")
         )}
       </button>
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
     </div>
   );
 }

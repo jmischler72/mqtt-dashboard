@@ -8,5 +8,10 @@
         "timeout": 5
       }
     ]
+  },
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Token savings: use `rtk git status` instead (rtk saves 60-90% tokens)"
   }
 }

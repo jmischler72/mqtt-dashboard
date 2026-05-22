@@ -2,7 +2,6 @@ import { useState } from "react";
 import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface InputConfig {
   topic?: string;
@@ -187,11 +186,11 @@ export default function InputPanel({
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
-  const [qos, setQos] = useState(config.qos ?? 0);
-  const [retain, setRetain] = useState(config.retain ?? false);
 
   const effectiveTopic = overrideTopic ?? config.topic;
   const effectiveBrokerId = overrideBrokerId ?? brokerId;
+  const qos = config.qos ?? 0;
+  const retain = config.retain ?? false;
 
   const handlePublish = async () => {
     if (!effectiveTopic) return;
@@ -232,12 +231,6 @@ export default function InputPanel({
           onKeyDown={(e) => e.key === "Enter" && handlePublish()}
         />
       )}
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
       <button
         className={`btn btn-sm ${flash === "success" ? "btn-success" : flash === "error" ? "btn-error" : "btn-primary"}`}
         onClick={handlePublish}
