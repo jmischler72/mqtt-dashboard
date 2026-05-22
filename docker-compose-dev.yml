@@ -18,22 +18,35 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     volumes:
-      - ./ignore/mosquitto/config:/mosquitto/config
-      - ./ignore/mosquitto/data:/mosquitto/data
-      - ./ignore/mosquitto/log:/mosquitto/log
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data/mosquitto:/mosquitto/data
+      - ./mosquitto/log/mosquitto:/mosquitto/log
     ports:
       - "1883:1883"
       - "9001:9001"
 
-  mosquitto2:
+  mosquitto-password:
     image: eclipse-mosquitto:2
     volumes:
-      - ./ignore/mosquitto2/config:/mosquitto/config
-      - ./ignore/mosquitto2/data:/mosquitto/data
-      - ./ignore/mosquitto2/log:/mosquitto/log
+      - ./mosquitto/config/mosquitto-password.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd/passwd:/mosquitto/config/passwd:ro
+      - ./mosquitto/data/mosquitto-password:/mosquitto/data
+      - ./mosquitto/log/mosquitto-password:/mosquitto/log
     ports:
       - "1884:1883"
       - "9002:9001"
+
+  # TLS / mutual-TLS broker — run ignore/mosquitto3/certs/generate.sh first
+  mosquitto-tls:
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./mosquitto/config/mosquitto-tls.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data/mosquitto-tls:/mosquitto/data
+      - ./mosquitto/log/mosquitto-tls:/mosquitto/log
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    ports:
+      - "8883:8883" # MQTT over TLS
+      - "9003:9003" # WebSocket over TLS
 
 volumes:
   frontend_node_modules:

@@ -1,0 +1,4 @@
+# Mosquitto password file
+# Generated with: docker run --rm eclipse-mosquitto:2 mosquitto_passwd -b -c /dev/stdout testuser testpass
+# Credentials: testuser / testpass
+testuser:$7$101$your-hash-here$placeholder==

@@ -4,7 +4,11 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-- [ ] (config-page) i want to update my docker-compose-dev with three mosquitto along with their config to tests those types of brokers connections, also i want you to write a doc in docs/ that explains all these types of auth like the tls/ssl option along with each auth options and their working in backend
+- [ ] (docker) fix issues with mosquitto-passwd
+- [ ] (config-page) it should provide more infos on errors
+- [ ] (config-page) when creating a new broker, it should show in sidebar but greyed out
+- [ ] (config-page) in responsive (mobile), the broker status should show below the form
+- [x] (config-page) i want to update my docker-compose-dev with three mosquitto along with their config to tests those types of brokers connections, also i want you to write a doc in docs/ that explains all these types of auth like the tls/ssl option along with each auth options and their working in backend
 - [x] (input-panel) Handle QOS and retains (other mqtt things) when sending messages with arrow that show a section to config that maybe
 - [x] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
 - [x] (config-page) Configure tls connections with certificates for brokers, the username/password field should be changed to a tab to choose between auth options and we should add a new for certs
