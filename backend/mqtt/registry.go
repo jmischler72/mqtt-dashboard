@@ -142,9 +142,11 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
 	select {
 	case r.historyQueue <- rec:
 	default:
-		// Fall back to direct insert when queue is saturated to avoid data loss.
-		slog.Warn("history queue full, writing synchronously", "broker_id", brokerID, "topic", topic)
-		r.insertHistoryRecord(rec)
+		// Drop the message rather than writing directly from the MQTT callback
+		// goroutine, which would bypass the single-writer serialisation and risk
+		// concurrent SQLite writes. $SYS metrics repeat every few seconds so
+		// losing one sample is acceptable.
+		slog.Warn("history queue full, dropping message", "broker_id", brokerID, "topic", topic)
 	}
 }
 

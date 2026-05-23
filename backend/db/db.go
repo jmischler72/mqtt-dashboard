@@ -17,6 +17,21 @@ func InitDB(path string) (*sql.DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
+	// Serialise all DB access through a single connection to prevent SQLITE_BUSY
+	// errors from concurrent goroutines (history writer, pruning cron, HTTP handlers).
+	db.SetMaxOpenConns(1)
+	// WAL mode allows concurrent reads alongside writes and is required for
+	// reliable multi-goroutine access. busy_timeout makes the driver retry for up
+	// to 5 s before returning SQLITE_BUSY instead of failing immediately.
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA busy_timeout=5000",
+		"PRAGMA synchronous=NORMAL",
+	} {
+		if _, err := db.Exec(pragma); err != nil {
+			return nil, fmt.Errorf("apply %s: %w", pragma, err)
+		}
+	}
 	if err := migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}

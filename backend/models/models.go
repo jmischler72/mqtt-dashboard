@@ -3,15 +3,15 @@ package models
 import "encoding/json"
 
 type MQTTBroker struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Host      string `json:"host"`
-	Port      int    `json:"port"`
-	ClientID  string `json:"client_id"`
-	Username  string `json:"username"`
-	Password  string `json:"-"` // never serialized to client
-	IsEnabled bool   `json:"is_enabled"`
-	SortOrder int    `json:"sort_order"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	ClientID    string `json:"client_id"`
+	Username    string `json:"username"`
+	Password    string `json:"-"` // never serialized to client
+	IsEnabled   bool   `json:"is_enabled"`
+	SortOrder   int    `json:"sort_order"`
 	Status      string `json:"status,omitempty"`       // runtime field, not stored in DB
 	StatusError string `json:"status_error,omitempty"` // last connection error, runtime only
 
