@@ -1,6 +1,7 @@
 data
 mqtt-dashboard
 tmp
+dist
 
 .DS_Store
 
