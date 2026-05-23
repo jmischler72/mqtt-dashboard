@@ -5,6 +5,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
 - [ ] (config) be able to config the history feature to disable it
+- [ ] (explorer) also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic
 - [ ] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics if you know what i mean
 - [x] (testing) i should try to add some worker container that sends messages to a broker to test features
 - [x] (history) i still get errors like time=2026-05-22T11:08:30.181Z level=ERROR msg="write history failed" broker_id=dfc8e939-6e6c-4fe1-8d35-67ab058896cd topic=$SYS/broker/load/bytes/received/15min err="database is locked (5) (SQLITE_BUSY)"
