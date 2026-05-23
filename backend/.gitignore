@@ -1,7 +1,9 @@
 data
 mqtt-dashboard
 tmp
-dist
+
+dist/**
+!dist/.gitkeep
 
 .DS_Store
 
