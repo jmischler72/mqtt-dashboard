@@ -6,7 +6,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 
 - [ ] (config) be able to config the history feature to disable it
 - [ ] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics if you know what i mean
-- [ ] (testing) i should try to add some worker container that sends messages to a broker to test features
+- [x] (testing) i should try to add some worker container that sends messages to a broker to test features
 - [x] (history) i still get errors like time=2026-05-22T11:08:30.181Z level=ERROR msg="write history failed" broker_id=dfc8e939-6e6c-4fe1-8d35-67ab058896cd topic=$SYS/broker/load/bytes/received/15min err="database is locked (5) (SQLITE_BUSY)"
 - [x] (config-page) i often see some sqlbusy errors in the info section, i should investigate, probably dual sql write with history workers (database is locked (5) (SQLITE_BUSY))
 - [x] (config-page) the certificate authentication is only possible when tls is configured, so i need some better ux on this part

@@ -1,13 +1,13 @@
 services:
   mqtt-dashboard-app:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: ./dev/Dockerfile.dev
+      context: ..
     ports:
       - "8080:8080"
       - "5173:5173"
     volumes:
-      - .:/app
+      - ..:/app
       # Shadow host node_modules with container-built Linux binaries
       - frontend_node_modules:/app/frontend/node_modules
     environment:
@@ -48,6 +48,30 @@ services:
     ports:
       - "8883:8883" # MQTT over TLS
       - "9003:9003" # WebSocket over TLS
+
+  # Worker that continuously publishes test messages to all three brokers
+  mqtt-worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - mosquitto-password
+      - mosquitto-tls
+    volumes:
+      - ./mosquitto/certs:/certs:ro
+    environment:
+      - PUBLISH_INTERVAL=5
+      - BROKER_PLAIN_HOST=mosquitto
+      - BROKER_PLAIN_PORT=1883
+      - BROKER_PASS_HOST=mosquitto-password
+      - BROKER_PASS_PORT=1883
+      - BROKER_PASS_USER=testuser
+      - BROKER_PASS_PASS=testpass
+      - BROKER_TLS_HOST=mosquitto-tls
+      - BROKER_TLS_PORT=8883
+      - TLS_CA_CERT=/certs/ca.crt
 
 volumes:
   frontend_node_modules:
