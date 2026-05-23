@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.0...v1.1.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **dev:** title + dev issues ([fef0291](https://github.com/jmischler72/mqtt-dashboard/commit/fef0291c6a450f1136e1aaffb20ae57004b519b2))
+* **security:** run Dockerfile with appuser permissions and add dependabot configuration ([02b0291](https://github.com/jmischler72/mqtt-dashboard/commit/02b029132c81126042f17d393f2fa6e406be375d))
+
 ## [1.1.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.0.0...v1.1.0) (2026-05-23)
 
 
