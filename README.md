@@ -100,6 +100,8 @@ go build -o mqtt-dashboard .
 
 Existing MQTT tools are either purely client-side, lack persistence, or don't support building custom control interfaces. MQTT Dashboard combines the best of monitoring tools like MQTT Explorer with the flexibility of a customizable panel-based dashboard — all self-hosted in a single binary.
 
+And here is the link to MQTT-Explorer that inspired a lot this project: https://github.com/thomasnordquist/MQTT-Explorer
+
 If you find this project useful, please consider giving it a ⭐!
 
 ---

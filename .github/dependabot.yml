@@ -1,0 +1,48 @@
+# .github/dependabot.yml
+version: 2
+updates:
+  # Go (Backend) Dependencies
+  - package-ecosystem: "gomod"
+    directory: "/backend" # Change to "/" if your go.mod is at the root
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "backend"
+      - "dependencies"
+
+  # React (Frontend) Dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend" # Change to "/" if your package.json is at the root
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "frontend"
+      - "dependencies"
+    # Grouping React updates prevents PR fatigue
+    groups:
+      react-ecosystem:
+        patterns:
+          - "react*"
+          - "eslint*"
+          - "typescript*"
+
+# Docker things
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+      - "dependencies"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "ci/cd"
