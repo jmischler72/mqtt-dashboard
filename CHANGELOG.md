@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.1...v1.1.2) (2026-05-23)
+
+
+### Bug Fixes
+
+* **deps:** update GitHub Actions to latest ver + create release ([040286b](https://github.com/jmischler72/mqtt-dashboard/commit/040286b403b10d43aef1c1b876bb27fc416edb1d))
+
 ## [1.1.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.0...v1.1.1) (2026-05-23)
 
 
