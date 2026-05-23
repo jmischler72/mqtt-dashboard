@@ -200,6 +200,14 @@ func (r *BrokerRegistry) Status(id string) string {
 	return "DISCONNECTED"
 }
 
+// StatusError returns the last connection error message for a broker, or empty string.
+func (r *BrokerRegistry) StatusError(id string) string {
+	if mgr, ok := r.GetClient(id); ok {
+		return mgr.ConnectError()
+	}
+	return ""
+}
+
 // AllStatuses returns a map of brokerID → status for all registered clients.
 func (r *BrokerRegistry) AllStatuses() map[string]string {
 	r.mu.RLock()

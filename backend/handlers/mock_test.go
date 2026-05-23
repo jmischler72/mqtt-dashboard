@@ -77,6 +77,15 @@ func (m *mockRegistry) Status(id string) string {
 	return "DISCONNECTED"
 }
 
+func (m *mockRegistry) StatusError(id string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s, ok := m.statuses[id]; ok && s == "ERROR" && m.addBrokerErr != nil {
+		return m.addBrokerErr.Error()
+	}
+	return ""
+}
+
 func (m *mockRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

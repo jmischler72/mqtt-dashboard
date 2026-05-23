@@ -12,7 +12,22 @@ type MQTTBroker struct {
 	Password  string `json:"-"` // never serialized to client
 	IsEnabled bool   `json:"is_enabled"`
 	SortOrder int    `json:"sort_order"`
-	Status    string `json:"status,omitempty"` // runtime field, not stored in DB
+	Status      string `json:"status,omitempty"`       // runtime field, not stored in DB
+	StatusError string `json:"status_error,omitempty"` // last connection error, runtime only
+
+	// Authentication mode: "none" | "password" | "certificate"
+	AuthMode string `json:"auth_mode"`
+
+	// TLS configuration
+	TLSEnabled    bool   `json:"tls_enabled"`
+	TLSSkipVerify bool   `json:"tls_skip_verify"`
+	CACert        string `json:"-"` // PEM content, never serialized
+	ClientCert    string `json:"-"` // PEM content, never serialized
+	ClientKey     string `json:"-"` // PEM content, never serialized
+
+	// Presence indicators (no sensitive content)
+	HasCACert     bool `json:"has_ca_cert"`
+	HasClientCert bool `json:"has_client_cert"`
 }
 
 type Dashboard struct {

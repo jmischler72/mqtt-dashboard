@@ -4,9 +4,18 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- [ ] (docker) fix issues with mosquitto-passwd
+- [ ] (history) i still get errors like time=2026-05-22T11:08:30.181Z level=ERROR msg="write history failed" broker_id=dfc8e939-6e6c-4fe1-8d35-67ab058896cd topic=$SYS/broker/load/bytes/received/15min err="database is locked (5) (SQLITE_BUSY)"
+- [ ] (config-page) i often have some sqlbusy errors, i should investigate
+- [ ] (config-page) i had an issue with a broker stuck on connecting and i had to restart the app
+- [x] (config-page) the certificate authentication is only possible when tls is configured, so i need some better ux on this part
+- [x] (config-page) we should provide more infos on errors (return connection error / incorrect auth), maybe return the error directly
+- [x] (config-page) when creating a new broker, it should really create it and you can then edit to make it work, i think its better ux
+- [x] (config-page) in responsive (mobile), the broker status should show below the form
+- [x] (config-page) i want to update my docker-compose-dev with three mosquitto along with their config to tests those types of brokers connections, also i want you to write a doc in docs/ that explains all these types of auth like the tls/ssl option along with each auth options and their working in backend
 - [x] (input-panel) Handle QOS and retains (other mqtt things) when sending messages with arrow that show a section to config that maybe
-- [ ] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
-- [ ] (config-page) Configure tls connections with certificates for brokers
+- [x] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
+- [x] (config-page) Configure tls connections with certificates for brokers, the username/password field should be changed to a tab to choose between auth options and we should add a new for certs
 - [x] (dashboard) creating a new panel should create the closest to current view instead of always below
 - [x] (panels) only move a panel by dragging the header not the content
 - [x] (dark-mode) currently the app use system theme, and in light mode the app logo, log-panel date are not visible, the logo is svg so change to other color and log panel date too

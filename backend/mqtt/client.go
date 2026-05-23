@@ -1,6 +1,8 @@
 package mqtt
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,10 +17,11 @@ import (
 type MessageHandler func(topic string, payload []byte)
 
 type MQTTManager struct {
-	mu     sync.RWMutex
-	client paho.Client
-	status string
-	subs   map[string][]MessageHandler
+	mu         sync.RWMutex
+	client     paho.Client
+	status     string
+	connectErr string
+	subs       map[string][]MessageHandler
 }
 
 func NewManager() *MQTTManager {
@@ -38,12 +41,21 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	m.setStatus("CONNECTING")
 
-	brokerAddr := fmt.Sprintf("tcp://%s:%d", broker.Host, broker.Port)
+	scheme := "tcp"
+	if broker.TLSEnabled {
+		scheme = "tls"
+	}
+	brokerAddr := fmt.Sprintf("%s://%s:%d", scheme, broker.Host, broker.Port)
 	slog.Info("mqtt connecting", "broker", broker.Name, "addr", brokerAddr)
+
+	clientId := broker.ClientID
+	if clientId == "" {
+		clientId = "mqtt-dashboard-" + time.Now().Format("20060102150405")
+	}
 
 	opts := paho.NewClientOptions().
 		AddBroker(brokerAddr).
-		SetClientID(broker.ClientID).
+		SetClientID(clientId).
 		SetConnectTimeout(10 * time.Second).
 		SetAutoReconnect(true).
 		SetMaxReconnectInterval(30 * time.Second).
@@ -82,28 +94,64 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 			m.mu.Unlock()
 		})
 
-	if broker.Username != "" {
-		opts.SetUsername(broker.Username)
+	// Configure TLS if enabled.
+	if broker.TLSEnabled {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: broker.TLSSkipVerify, //nolint:gosec // user-controlled opt-in
+		}
+		if broker.CACert != "" {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM([]byte(broker.CACert)) {
+				m.setStatus("ERROR")
+				m.connectErr = "failed to parse CA certificate"
+				return fmt.Errorf("failed to parse CA certificate")
+			}
+			tlsCfg.RootCAs = pool
+		}
+		if broker.ClientCert != "" && broker.ClientKey != "" {
+			cert, err := tls.X509KeyPair([]byte(broker.ClientCert), []byte(broker.ClientKey))
+			if err != nil {
+				connErr := fmt.Errorf("failed to parse client certificate: %w", err)
+				m.setStatus("ERROR")
+				m.connectErr = connErr.Error()
+				return connErr
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
+		opts.SetTLSConfig(tlsCfg)
 	}
-	if broker.Password != "" {
-		opts.SetPassword(broker.Password)
+
+	// Configure authentication based on auth mode.
+	switch broker.AuthMode {
+	case "password":
+		if broker.Username != "" {
+			opts.SetUsername(broker.Username)
+		}
+		if broker.Password != "" {
+			opts.SetPassword(broker.Password)
+		}
 	}
 
 	client := paho.NewClient(opts)
 	m.client = client
 
+	// slog.Debug("mqtt connecting to broker", "name", broker.Name, "addr", brokerAddr, "opts", opts)
+
 	token := client.Connect()
 	if token.WaitTimeout(10*time.Second) && token.Error() != nil {
 		slog.Error("mqtt connect failed", "err", token.Error())
 		m.setStatus("ERROR")
+		m.connectErr = token.Error().Error()
 		return fmt.Errorf("connect: %w", token.Error())
 	}
 	if !client.IsConnected() {
 		slog.Error("mqtt connection failed")
 		m.setStatus("ERROR")
+		m.connectErr = "connection failed"
 		return fmt.Errorf("connection failed")
 	}
 
+	m.connectErr = ""
 	return nil
 }
 
@@ -121,6 +169,12 @@ func (m *MQTTManager) Status() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.status
+}
+
+func (m *MQTTManager) ConnectError() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.connectErr
 }
 
 func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byte) error {

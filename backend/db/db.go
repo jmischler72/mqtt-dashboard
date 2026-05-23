@@ -34,7 +34,13 @@ func migrate(db *sql.DB) error {
 			username TEXT,
 			password TEXT,
 			is_enabled BOOLEAN DEFAULT 1,
-			sort_order INTEGER NOT NULL DEFAULT 0
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			auth_mode TEXT NOT NULL DEFAULT 'none',
+			tls_enabled BOOLEAN NOT NULL DEFAULT 0,
+			tls_skip_verify BOOLEAN NOT NULL DEFAULT 0,
+			ca_cert TEXT,
+			client_cert TEXT,
+			client_key TEXT
 		);
 
 		CREATE TABLE IF NOT EXISTS dashboards (
