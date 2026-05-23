@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.0.0...v1.1.0) (2026-05-23)
+
+
+### Features
+
+* **broker:** implement TLS and authentication options for MQTT brokers ([#10](https://github.com/jmischler72/mqtt-dashboard/issues/10)) ([24fe4fa](https://github.com/jmischler72/mqtt-dashboard/commit/24fe4fa96a45989ce78d666784f88ce8182fc05e))
+* **explorer:** enhance topic with breadcrumb clickable path segments ([c251842](https://github.com/jmischler72/mqtt-dashboard/commit/c2518427a00ca19cfc3473f1ab969518b9a8937f))
+* **explorer:** implement topic picker ([#7](https://github.com/jmischler72/mqtt-dashboard/issues/7)) ([0171192](https://github.com/jmischler72/mqtt-dashboard/commit/0171192ab73003d54fd7e6c67a15ab94cd8af26d))
+* **mqtt:** add QoS and retain options for message publishing ([#9](https://github.com/jmischler72/mqtt-dashboard/issues/9)) ([a6ec1fe](https://github.com/jmischler72/mqtt-dashboard/commit/a6ec1fe7c7ae975c909a381143602aada42322a4))
+* **navbar:** redirect to config on broker click ([807c274](https://github.com/jmischler72/mqtt-dashboard/commit/807c2744a55d2878d5fa2a5a2291945ecd9401bb))
+* **panel:** add position parameters for panel creation and auto-positioning logic ([1899efd](https://github.com/jmischler72/mqtt-dashboard/commit/1899efde8411008db00d89805186bb7c89b39e8c))
+* **panels:** scroll on new panel + empty state config when no brokers ([d4e4258](https://github.com/jmischler72/mqtt-dashboard/commit/d4e42581ac535a6a40357d55f3e4983d2a09d7ad))
+
+
+### Bug Fixes
+
+* **backend:** history storing using worker to handle quick topic sent ([#8](https://github.com/jmischler72/mqtt-dashboard/issues/8)) ([f2367c0](https://github.com/jmischler72/mqtt-dashboard/commit/f2367c00bc949b4b0f4495dc70a912f8b5f59347))
+* **db:** serialize DB access to prevent SQLITE_BUSY errors and optimize concurrent access ([70463cc](https://github.com/jmischler72/mqtt-dashboard/commit/70463ccff66e107073d0b13f6e57040ecf19c809))
+* **panel:** prevent dragging of panel content by blocking drag events on body ([e297772](https://github.com/jmischler72/mqtt-dashboard/commit/e29777220c52c6a2ef90e8495c32b14ac523f0d6))
+* **subscribe:** implement correctly wildcard support for topic filtering ([4386ebb](https://github.com/jmischler72/mqtt-dashboard/commit/4386ebb46bd952f33897130c07b7b887ce154728))
+
 ## 1.0.0 (2026-05-20)
 
 
