@@ -180,4 +180,4 @@ See [TODO.md](TODO.md) and [docs/PRD/](docs/PRD/) for full details.
 
 ---
 
-Thank you for checking it out ! Hope you like it.
+Thank you for checking it out ! Hope you like it. And yes the readme looks like Uptime Kuma because i like it
