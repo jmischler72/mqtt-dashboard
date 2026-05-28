@@ -178,7 +178,7 @@ See [TODO.md](TODO.md) and [docs/PRD/](docs/PRD/) for full details.
 
 ## 📄 License
 
-[MIT](LICENSE.txt)
+[GPL-3.0](LICENSE.txt)
 
 ---
 
