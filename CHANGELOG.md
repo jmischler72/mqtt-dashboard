@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.2...v1.1.3) (2026-05-28)
+
+
+### Bug Fixes
+
+* **build:** push package to arm arch for raspi ([#29](https://github.com/jmischler72/mqtt-dashboard/issues/29)) ([5c393b1](https://github.com/jmischler72/mqtt-dashboard/commit/5c393b10c19aaafb52fdb1737387154e1620f0f1))
+
 ## [1.1.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.1...v1.1.2) (2026-05-23)
 
 
