@@ -38,6 +38,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (docker) make a production dockerfile that works using the embeded react build i did
 - [x] (docker) how to handle the volume for the database
 - [x] (release) add release-please to handle releasing + ci to verify pr uses conventional commits
+- [x] (release) push docker image for arm64 architecture
 - [x] (mqtt-stats) i want the Broker Information section in config to be next to the config form instead of below
 - [x] (multi-broker)fix config page connecting stays on in form but it is shown as connected in top right status
 - [x] (multi-broker)form in config page is not centered, redesign it
