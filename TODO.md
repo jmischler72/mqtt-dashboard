@@ -4,6 +4,9 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- [ ] (panel) add panel for broker stats and charts on message activity
+- [x] (panel-header) hover broker status dot to show broker/topic sub-header with pin + topic summary rules + button payload preview dropdown
+- [ ] (dashboard) show preview of panel on hover
 - [ ] (config) i should show infos about the storage of history in config page
 - [ ] (config) Messages 5m and memory in mqtt details doesnt work
 - [ ] (explorer) the log panel of explorer only shows hours (and not configurable)

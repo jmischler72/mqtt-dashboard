@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RiSettings3Line, RiCloseLine } from "react-icons/ri";
+import {
+  RiSettings3Line,
+  RiCloseLine,
+  RiPushpinLine,
+  RiPushpinFill,
+  RiServerLine,
+  RiHashtag,
+} from "react-icons/ri";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import ButtonPanel, {
@@ -18,6 +25,7 @@ import CronPanel, {
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
+import { buildPanelHeaderMeta } from "./panels/panelHeaderMeta";
 
 interface Props {
   panel: Panel;
@@ -67,8 +75,16 @@ export default function PanelWrapper({
   }>({});
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [isMetaRegionHovered, setIsMetaRegionHovered] = useState(false);
+  const [isPayloadHovered, setIsPayloadHovered] = useState(false);
+  const [optimisticPinned, setOptimisticPinned] = useState<boolean | null>(
+    null,
+  );
   const panelRef = useRef<HTMLDivElement>(null);
   const openConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const closeMetaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
@@ -76,8 +92,26 @@ export default function PanelWrapper({
     return () => {
       if (openConfigTimeoutRef.current)
         clearTimeout(openConfigTimeoutRef.current);
+      if (closeMetaTimeoutRef.current) clearTimeout(closeMetaTimeoutRef.current);
     };
   }, []);
+
+  const handleMetaRegionEnter = () => {
+    if (closeMetaTimeoutRef.current) {
+      clearTimeout(closeMetaTimeoutRef.current);
+      closeMetaTimeoutRef.current = null;
+    }
+    setIsMetaRegionHovered(true);
+  };
+
+  const handleMetaRegionLeave = () => {
+    if (closeMetaTimeoutRef.current) clearTimeout(closeMetaTimeoutRef.current);
+    // Small handoff delay lets the cursor travel from dot to pin button.
+    closeMetaTimeoutRef.current = setTimeout(() => {
+      setIsMetaRegionHovered(false);
+      closeMetaTimeoutRef.current = null;
+    }, 180);
+  };
 
   useEffect(() => {
     onConfigModalChange(panel.id, showConfig);
@@ -106,8 +140,15 @@ export default function PanelWrapper({
   const saveConfig = async (cfg: PanelConfig, brokerId: string) => {
     closeConfigModal();
     try {
+      const currentCfg = (panel.config_json ?? {}) as Record<string, unknown>;
+      const nextCfg = {
+        ...(cfg as Record<string, unknown>),
+        ...(currentCfg.header_meta_pinned !== undefined
+          ? { header_meta_pinned: currentCfg.header_meta_pinned }
+          : {}),
+      };
       const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
-        config_json: cfg,
+        config_json: nextCfg,
         broker_id: brokerId,
       });
       onUpdate(updated);
@@ -218,6 +259,29 @@ export default function PanelWrapper({
   const brokerStatus = brokerStatuses.find((bs) => bs.id === panel.broker_id);
   const dotColor =
     brokerDotColor[brokerStatus?.status ?? "DISABLED"] ?? "bg-neutral";
+  const panelConfig = (panel.config_json ?? {}) as Record<string, unknown>;
+  const persistedPinned = panelConfig.header_meta_pinned === true;
+  const isPinned = optimisticPinned ?? persistedPinned;
+  const headerMeta = buildPanelHeaderMeta(panel.panel_type, panelConfig);
+  const showMetaPopover = isPinned || isMetaRegionHovered;
+
+  const updateMetaPinned = async (nextPinned: boolean) => {
+    if (nextPinned === isPinned) return;
+    setOptimisticPinned(nextPinned);
+    try {
+      const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
+        config_json: {
+          ...panelConfig,
+          header_meta_pinned: nextPinned,
+        },
+      });
+      onUpdate(updated);
+      setOptimisticPinned(null);
+    } catch (error) {
+      void error;
+      setOptimisticPinned(persistedPinned);
+    }
+  };
 
   const renderPanel = () => {
     const cfg = panel.config_json ?? {};
@@ -347,11 +411,19 @@ export default function PanelWrapper({
         <div
           className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
         >
-          {/* Broker status dot */}
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}
-            title={brokerStatus?.name ?? "No broker"}
-          />
+          <div
+            data-testid="panel-meta-anchor"
+            className="shrink-0 no-drag"
+            onMouseEnter={handleMetaRegionEnter}
+            onMouseLeave={handleMetaRegionLeave}
+          >
+            <button
+              type="button"
+              aria-label="Broker status details"
+              className={`w-2 h-2 rounded-full ${dotColor} ${brokerStatus?.status === "CONNECTED" ? "status-dot-hover-hint" : ""}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
 
           {editingTitle ? (
             <input
@@ -370,6 +442,27 @@ export default function PanelWrapper({
               >
                 {title}
               </span>
+            </div>
+          )}
+          {headerMeta.payloadPreview && (
+            <div
+              className="relative shrink-0 no-drag"
+              onMouseEnter={() => setIsPayloadHovered(true)}
+              onMouseLeave={() => setIsPayloadHovered(false)}
+            >
+              <span className="text-[10px] text-base-content/60 underline decoration-dotted cursor-default">
+                payload
+              </span>
+              {isPayloadHovered && (
+                <div className="absolute right-0 top-4 mt-1 z-30 w-72 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+                  <div className="text-[10px] uppercase tracking-wide text-base-content/55 mb-1">
+                    static payload
+                  </div>
+                  <pre className="text-[11px] leading-tight font-mono whitespace-pre-wrap break-all max-h-28 overflow-auto">
+                    {headerMeta.payloadPreview}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
           {editMode && (
@@ -391,6 +484,50 @@ export default function PanelWrapper({
             </div>
           )}
         </div>
+
+        {showMetaPopover && (
+          <div
+            className="flex items-center gap-2 px-3 py-1 bg-base-100 border-b border-base-300 text-[11px] no-drag"
+            onMouseEnter={handleMetaRegionEnter}
+            onMouseLeave={handleMetaRegionLeave}
+          >
+            <span className="inline-flex items-center gap-1 min-w-0">
+              <RiServerLine className="shrink-0 text-base-content/65" />
+              <span
+                className="truncate"
+                title={brokerStatus?.name ?? "No broker"}
+              >
+                {brokerStatus?.name ?? "No broker"}
+              </span>
+            </span>
+
+            <span className="text-base-content/35">|</span>
+
+            <span className="inline-flex items-center gap-1 min-w-0 flex-1">
+              <RiHashtag className="shrink-0 text-base-content/65" />
+              <span
+                className="truncate"
+                title={headerMeta.topicDetail ?? headerMeta.topicSummary}
+              >
+                {headerMeta.topicSummary}
+              </span>
+            </span>
+
+            <button
+              type="button"
+              aria-label={
+                isPinned ? "Unpin broker metadata" : "Pin broker metadata"
+              }
+              className="btn btn-ghost btn-xs h-6 min-h-6 w-6 px-0 shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateMetaPinned(!isPinned);
+              }}
+            >
+              {isPinned ? <RiPushpinFill /> : <RiPushpinLine />}
+            </button>
+          </div>
+        )}
 
         {/* Body blocks drag-start events so only header can move panels. */}
         <div

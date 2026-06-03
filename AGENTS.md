@@ -6,6 +6,7 @@
 
 - use daisyui components
 - Avoid calling `setState` synchronously inside `useEffect`. Never use effects to sync or duplicate state; use derived state/inline computation instead to prevent cascading renders.
+- dont create tests unless explicited
 
 ## Task Tracking
 
