@@ -41,6 +41,7 @@ export function buildPanelHeaderMeta(
 
   return {
     topicSummary: topic ? `${topic}` : "not configured",
-    payloadPreview: panelType === "button" ? payload : undefined,
+    payloadPreview:
+      panelType === "button" || panelType === "cron" ? payload : undefined,
   };
 }
