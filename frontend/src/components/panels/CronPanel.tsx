@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
+import { CiPause1 } from "react-icons/ci";
 
 export interface CronConfig {
   cron_expr?: string;
@@ -247,12 +248,15 @@ export default function CronPanel({
   const [nextRun, setNextRun] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState("");
   const [toggling, setToggling] = useState(false);
+  const [cronStart, setCronStart] = useState<Date | null>(null);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
 
   const fetchStatus = useCallback(() => {
     api
       .get<{ next_run: string }>(`/api/cron/${panelId}`)
       .then((r) => {
         setNextRun(new Date(r.next_run));
+        setCronStart(new Date());
       })
       .catch((error) => {
         void error;
@@ -281,6 +285,14 @@ export default function CronPanel({
     return () => clearInterval(tick);
   }, [nextRun, fetchStatus]);
 
+  useEffect(() => {
+    if (!config.enabled || !nextRun || !cronStart) return;
+    const clock = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+    return () => clearInterval(clock);
+  }, [config.enabled, nextRun, cronStart]);
+
   const handleToggle = async (enabled: boolean) => {
     setToggling(true);
     try {
@@ -298,9 +310,19 @@ export default function CronPanel({
       config.cron_expr)
     : "Not configured";
 
+  const progressPercent =
+    cronStart && nextRun
+      ? Math.min(
+          100,
+          ((currentTimeMs - cronStart.getTime()) /
+            (nextRun.getTime() - cronStart.getTime())) *
+            100,
+        )
+      : 0;
+
   return (
     <div className="flex flex-col gap-3 p-2 h-full">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-none">
         <span className="text-sm font-mono bg-base-200 rounded px-2 py-1">
           {prettyPreset}
         </span>
@@ -312,22 +334,33 @@ export default function CronPanel({
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>
-      {config.topic && (
-        <div className="text-xs text-base-content/60">
-          Topic: <span className="font-mono text-accent">{config.topic}</span>
-        </div>
-      )}
-      {config.enabled && countdown && (
-        <div className="text-center">
-          <div className="text-xs text-base-content/50">Next run in</div>
-          <div className="text-2xl font-bold font-mono">{countdown}</div>
-        </div>
-      )}
-      {!config.cron_expr && (
-        <div className="text-xs text-base-content/40 text-center mt-auto">
-          Configure via gear icon
-        </div>
-      )}
+      <div className="flex-1 flex flex-col items-center justify-center w-80 mx-auto">
+        {config.enabled && countdown && (
+          <div className="text-center w-full">
+            <div className="text-xs text-base-content/50 mb-2">Next run in</div>
+            <div className="text-2xl font-bold font-mono mb-3">{countdown}</div>
+            <progress
+              className="progress progress-primary w-full"
+              value={progressPercent}
+              max="100"
+            />
+          </div>
+        )}
+        {!config.enabled && config.cron_expr && (
+          <div className="flex flex-col items-center justify-center gap-3 w-full py-6 bg-gradient-to-br from-warning/10 to-warning/5 rounded-lg border border-warning/20">
+            <CiPause1 className="text-5xl text-warning" />
+            <div className="text-lg font-semibold text-warning">Job paused</div>
+            <div className="text-xs text-warning/60">
+              Enable to resume scheduling
+            </div>
+          </div>
+        )}
+        {!config.cron_expr && (
+          <div className="text-xs text-base-content/40 text-center">
+            Configure via gear icon
+          </div>
+        )}
+      </div>
     </div>
   );
 }
