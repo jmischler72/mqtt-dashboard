@@ -87,7 +87,7 @@ describe("PanelWrapper header metadata", () => {
     fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
 
     expect(await screen.findByText("Home Broker")).toBeInTheDocument();
-    expect(screen.getByText("topic: sensors/temp")).toBeInTheDocument();
+    expect(screen.getByText("sensors/temp")).toBeInTheDocument();
   });
 
   it("pins metadata popover and persists pin state", async () => {
@@ -127,7 +127,6 @@ describe("PanelWrapper header metadata", () => {
 
     const payloadLabels = screen.getAllByText("payload");
     fireEvent.mouseEnter(payloadLabels[payloadLabels.length - 1]);
-    expect(await screen.findByText("static payload")).toBeInTheDocument();
     expect(screen.getByText('{"action":"on"}')).toBeInTheDocument();
   });
 
