@@ -36,6 +36,8 @@ const PANEL_TYPES = [
   { value: "cron", label: "Cron" },
 ];
 
+const VISUAL_TYPES = [{ value: "image", label: "Image" }];
+
 const GRID_COLS = 12;
 const GRID_ROW_HEIGHT = 60;
 const GRID_ROW_GAP = 10;
@@ -54,7 +56,6 @@ export default function DashboardPage() {
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [gridWidth, setGridWidth] = useState(1200);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [newPanelId, setNewPanelId] = useState<string | null>(null);
   const [openConfigPanels, setOpenConfigPanels] = useState<Set<string>>(
     new Set(),
@@ -89,22 +90,8 @@ export default function DashboardPage() {
   });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const addMenuRef = useRef<HTMLDivElement>(null);
   const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } =
     useOutletContext<LayoutContext>();
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (
-        addMenuRef.current &&
-        !addMenuRef.current.contains(e.target as Node)
-      ) {
-        setAddMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   useEffect(() => {
     const checkAnyModalOpen = () => {
@@ -242,7 +229,6 @@ export default function DashboardPage() {
 
   const addPanel = async (panelType: string) => {
     if (isLoadingLayout || !activeDashboardId) return;
-    setAddMenuOpen(false);
     const { x, y } = getClosestInsertPosition();
     try {
       const panel = await api.post<Panel>("/api/layouts", {
@@ -286,6 +272,13 @@ export default function DashboardPage() {
     setPendingPickerReturn(null);
   }, []);
 
+  const handleAddPanel = useCallback(
+    (panelType: string) => {
+      void addPanel(panelType);
+    },
+    [addPanel],
+  );
+
   useEffect(() => {
     if (!newPanelId) return;
     // Defer scroll to let ReactGridLayout finish positioning the new item
@@ -308,27 +301,62 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-base-200">
       {editMode && (
         <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
-          <div className="relative" ref={addMenuRef}>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => setAddMenuOpen((o) => !o)}
-              disabled={isLoadingLayout}
-            >
-              {isLoadingLayout ? "Loading layout..." : "+ Add Panel"}
-            </button>
-            {addMenuOpen && !isLoadingLayout && (
-              <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
-                {PANEL_TYPES.map((t) => (
-                  <li key={t.value}>
-                    <button
-                      className="w-full text-left px-3 py-2 hover:bg-base-200 rounded"
-                      onClick={() => addPanel(t.value)}
-                    >
-                      {t.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+          <div className="flex gap-3">
+            {isLoadingLayout ? (
+              <button className="btn btn-sm btn-primary btn-disabled">
+                Loading layout...
+              </button>
+            ) : (
+              <>
+                <div className="dropdown">
+                  <button
+                    tabIndex={0}
+                    role="button"
+                    className="btn btn-sm btn-primary list-none"
+                  >
+                    + Add Panel
+                  </button>
+                  <ul
+                    tabIndex={-1}
+                    className="dropdown-content menu bg-base-100 rounded-box z-50 mt-2 w-40 border border-base-300 p-2 shadow"
+                  >
+                    {PANEL_TYPES.map((t) => (
+                      <li key={t.value}>
+                        <button
+                          onClick={() => {
+                            (document?.activeElement as HTMLElement)?.blur();
+                            handleAddPanel(t.value);
+                          }}
+                        >
+                          {t.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="dropdown">
+                  <button className="btn btn-sm btn-soft list-none">
+                    + Add Visuals
+                  </button>
+                  <ul
+                    tabIndex={-1}
+                    className="dropdown-content menu bg-base-100 rounded-box z-50 mt-2 w-40 border border-base-300 p-2 shadow"
+                  >
+                    {VISUAL_TYPES.map((t) => (
+                      <li key={t.value}>
+                        <button
+                          onClick={() => {
+                            (document?.activeElement as HTMLElement)?.blur();
+                            handleAddPanel(t.value);
+                          }}
+                        >
+                          {t.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -28,6 +28,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (qos/retain) dont add the collapsible component in panels in dashboard but i want it in explorer
 - [x] (config-page) Configure tls connections with certificates for brokers, the username/password field should be changed to a tab to choose between auth options and we should add a new for certs
 - [x] (dashboard) creating a new panel should create the closest to current view instead of always below
+- [x] (dashboard) use daisyui dropdowns for add panel and add visuals menus
 - [x] (panels) only move a panel by dragging the header not the content
 - [x] (dark-mode) currently the app use system theme, and in light mode the app logo, log-panel date are not visible, the logo is svg so change to other color and log panel date too
 - [x] (log-panel) when i click quickly on a button with topic test, some messages are showing in live ws but when i reload they are missing in history
