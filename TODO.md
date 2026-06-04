@@ -6,6 +6,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 
 - [ ] (panel) add panel for broker stats and charts on message activity
 - [x] (panel-header) hover broker status dot to show broker/topic sub-header with pin + topic summary rules + button payload preview dropdown
+- [x] (panel-header) when topic summary shows count, hover it to display full topic list
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (config) i should show infos about the storage of history in config page
 - [ ] (config) Messages 5m and memory in mqtt details doesnt work

@@ -146,9 +146,12 @@ describe("PanelWrapper header metadata", () => {
     });
     fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
 
-    expect(await screen.findByText("topics: 4 configured")).toBeInTheDocument();
+    const countSummary = await screen.findByText(/4 configured/i);
+    expect(countSummary).toBeInTheDocument();
+
+    fireEvent.mouseEnter(countSummary);
     expect(
-      screen.getByTitle(
+      await screen.findByText(
         "sensors/temp, sensors/humidity, sensors/pressure, alerts/system",
       ),
     ).toBeInTheDocument();

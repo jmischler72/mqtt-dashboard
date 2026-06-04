@@ -76,6 +76,7 @@ export default function PanelWrapper({
   const [title, setTitle] = useState(panel.title);
   const [editingTitle, setEditingTitle] = useState(false);
   const [isMetaRegionHovered, setIsMetaRegionHovered] = useState(false);
+  const [isTopicSummaryHovered, setIsTopicSummaryHovered] = useState(false);
   const [isPayloadHovered, setIsPayloadHovered] = useState(false);
   const [optimisticPinned, setOptimisticPinned] = useState<boolean | null>(
     null,
@@ -92,7 +93,8 @@ export default function PanelWrapper({
     return () => {
       if (openConfigTimeoutRef.current)
         clearTimeout(openConfigTimeoutRef.current);
-      if (closeMetaTimeoutRef.current) clearTimeout(closeMetaTimeoutRef.current);
+      if (closeMetaTimeoutRef.current)
+        clearTimeout(closeMetaTimeoutRef.current);
     };
   }, []);
 
@@ -109,6 +111,8 @@ export default function PanelWrapper({
     // Small handoff delay lets the cursor travel from dot to pin button.
     closeMetaTimeoutRef.current = setTimeout(() => {
       setIsMetaRegionHovered(false);
+      setIsTopicSummaryHovered(false);
+      setIsPayloadHovered(false);
       closeMetaTimeoutRef.current = null;
     }, 180);
   };
@@ -444,27 +448,6 @@ export default function PanelWrapper({
               </span>
             </div>
           )}
-          {headerMeta.payloadPreview && (
-            <div
-              className="relative shrink-0 no-drag"
-              onMouseEnter={() => setIsPayloadHovered(true)}
-              onMouseLeave={() => setIsPayloadHovered(false)}
-            >
-              <span className="text-[10px] text-base-content/60 underline decoration-dotted cursor-default">
-                payload
-              </span>
-              {isPayloadHovered && (
-                <div className="absolute right-0 top-4 mt-1 z-30 w-72 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-                  <div className="text-[10px] uppercase tracking-wide text-base-content/55 mb-1">
-                    static payload
-                  </div>
-                  <pre className="text-[11px] leading-tight font-mono whitespace-pre-wrap break-all max-h-28 overflow-auto">
-                    {headerMeta.payloadPreview}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
           {editMode && (
             <div className="flex gap-1 shrink-0 no-drag">
               <button
@@ -505,13 +488,51 @@ export default function PanelWrapper({
 
             <span className="inline-flex items-center gap-1 min-w-0 flex-1">
               <RiHashtag className="shrink-0 text-base-content/65" />
-              <span
-                className="truncate"
-                title={headerMeta.topicDetail ?? headerMeta.topicSummary}
-              >
-                {headerMeta.topicSummary}
-              </span>
+              {headerMeta.topicDetail ? (
+                <div
+                  className="relative min-w-0 flex-1 no-drag"
+                  onMouseEnter={() => setIsTopicSummaryHovered(true)}
+                  onMouseLeave={() => setIsTopicSummaryHovered(false)}
+                >
+                  <span
+                    className="truncate text-[10px] underline decoration-dotted cursor-default"
+                    title={headerMeta.topicDetail}
+                  >
+                    {headerMeta.topicSummary}
+                  </span>
+                  {isTopicSummaryHovered && (
+                    <div className="absolute left-0 top-4 mt-1 z-30 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+                      <pre className="text-[11px] leading-tight font-mono whitespace-pre-wrap break-all max-h-28 overflow-auto">
+                        {headerMeta.topicDetail}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="truncate" title={headerMeta.topicSummary}>
+                  {headerMeta.topicSummary}
+                </span>
+              )}
             </span>
+
+            {headerMeta.payloadPreview && (
+              <div
+                className="relative shrink-0 no-drag"
+                onMouseEnter={() => setIsPayloadHovered(true)}
+                onMouseLeave={() => setIsPayloadHovered(false)}
+              >
+                <span className="text-[10px] text-base-content/60 underline decoration-dotted cursor-default">
+                  Payload
+                </span>
+                {isPayloadHovered && (
+                  <div className="absolute right-0 top-4 mt-1 z-30 w-auto rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+                    <pre className="text-[11px] font-mono whitespace-pre-wrap max-h-28 overflow-auto">
+                      {headerMeta.payloadPreview}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
