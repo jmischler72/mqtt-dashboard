@@ -125,7 +125,7 @@ describe("PanelWrapper header metadata", () => {
   it("shows payload dropdown on payload label hover", async () => {
     renderWithPanel();
 
-    const payloadLabels = screen.getAllByText("payload");
+    const payloadLabels = screen.getAllByText("Payload");
     fireEvent.mouseEnter(payloadLabels[payloadLabels.length - 1]);
     expect(screen.getByText('{"action":"on"}')).toBeInTheDocument();
   });
