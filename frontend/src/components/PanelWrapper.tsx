@@ -26,6 +26,7 @@ import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
 import { buildPanelHeaderMeta } from "./panels/panelHeaderMeta";
+import { IoIosArrowDown } from "react-icons/io";
 
 interface Props {
   panel: Panel;
@@ -417,7 +418,7 @@ export default function PanelWrapper({
         >
           <div
             data-testid="panel-meta-anchor"
-            className="shrink-0 no-drag"
+            className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
             onMouseEnter={handleMetaRegionEnter}
             onMouseLeave={handleMetaRegionLeave}
           >
@@ -427,6 +428,14 @@ export default function PanelWrapper({
               className={`w-2 h-2 rounded-full ${dotColor} ${brokerStatus?.status === "CONNECTED" ? "status-dot-hover-hint" : ""}`}
               onClick={(e) => e.stopPropagation()}
             />
+            <div
+              className="transition-transform"
+              style={{
+                transform: showMetaPopover ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            >
+              {!isPinned && <IoIosArrowDown />}
+            </div>
           </div>
 
           {editingTitle ? (
