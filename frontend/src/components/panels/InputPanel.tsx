@@ -5,8 +5,6 @@ import type { BrokerStatus } from "../../hooks/useBrokers";
 
 export interface InputConfig {
   topic?: string;
-  placeholder?: string;
-  multiline?: boolean;
   qos?: number;
   retain?: boolean;
 }
@@ -38,8 +36,6 @@ export function InputConfigModal({
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  const [placeholder, setPlaceholder] = useState(config.placeholder ?? "");
-  const [multiline, setMultiline] = useState(config.multiline ?? false);
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
@@ -100,27 +96,6 @@ export function InputConfigModal({
             </div>
           </fieldset>
           <fieldset className="fieldset">
-            <legend className="fieldset-legend">Placeholder text</legend>
-            <input
-              className="input input-bordered w-full"
-              placeholder="Enter payload…"
-              value={placeholder}
-              onChange={(e) => setPlaceholder(e.target.value)}
-            />
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Mode</legend>
-            <label className="label cursor-pointer justify-start gap-3 px-0">
-              <input
-                type="checkbox"
-                className="toggle toggle-primary"
-                checked={multiline}
-                onChange={(e) => setMultiline(e.target.checked)}
-              />
-              <span className="label-text">Multi-line / JSON mode</span>
-            </label>
-          </fieldset>
-          <fieldset className="fieldset">
             <legend className="fieldset-legend">MQTT Options</legend>
             <div className="flex gap-4 flex-wrap">
               <label className="flex items-center gap-2">
@@ -156,7 +131,7 @@ export function InputConfigModal({
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { topic, placeholder, multiline, qos, retain },
+                { topic, qos, retain },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -215,22 +190,12 @@ export default function InputPanel({
 
   return (
     <div className="flex flex-col h-full gap-2 p-1">
-      {config.multiline ? (
-        <textarea
-          className="textarea textarea-bordered font-mono flex-1 resize-none"
-          placeholder={config.placeholder ?? "Enter payload…"}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-      ) : (
-        <input
-          className="input input-bordered w-full"
-          placeholder={config.placeholder ?? "Enter payload…"}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handlePublish()}
-        />
-      )}
+      <textarea
+        className="textarea textarea-bordered font-mono flex-1 resize-none w-full"
+        placeholder="Enter payload…"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
       <button
         className={`btn btn-sm ${flash === "success" ? "btn-success" : flash === "error" ? "btn-error" : "btn-primary"}`}
         onClick={handlePublish}
