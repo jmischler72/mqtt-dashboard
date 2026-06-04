@@ -249,6 +249,7 @@ export default function CronPanel({
   const [countdown, setCountdown] = useState("");
   const [toggling, setToggling] = useState(false);
   const [cronStart, setCronStart] = useState<Date | null>(null);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
 
   const fetchStatus = useCallback(() => {
     api
@@ -284,6 +285,14 @@ export default function CronPanel({
     return () => clearInterval(tick);
   }, [nextRun, fetchStatus]);
 
+  useEffect(() => {
+    if (!config.enabled || !nextRun || !cronStart) return;
+    const clock = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+    return () => clearInterval(clock);
+  }, [config.enabled, nextRun, cronStart]);
+
   const handleToggle = async (enabled: boolean) => {
     setToggling(true);
     try {
@@ -305,7 +314,7 @@ export default function CronPanel({
     cronStart && nextRun
       ? Math.min(
           100,
-          ((Date.now() - cronStart.getTime()) /
+          ((currentTimeMs - cronStart.getTime()) /
             (nextRun.getTime() - cronStart.getTime())) *
             100,
         )
