@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,11 +21,15 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// Allow localhost origins for development; tighten in production
 		origin := r.Header.Get("Origin")
-		return origin == "" ||
-			origin == "http://localhost:5173" ||
-			origin == "http://localhost:8080"
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		return u.Host == r.Host
 	},
 }
 
