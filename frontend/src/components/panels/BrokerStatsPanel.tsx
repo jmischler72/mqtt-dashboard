@@ -36,6 +36,9 @@ const TEXT_C = "#6b7280";
 export interface BrokerStatsConfig {
   topic?: string;
   defaultRange?: TimeRange;
+  showStatTiles?: boolean;
+  showChart?: boolean;
+  showTopicBreakdown?: boolean;
 }
 
 interface ModalProps {
@@ -71,6 +74,13 @@ export function BrokerStatsConfigModal({
   );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
+  );
+  const [showStatTiles, setShowStatTiles] = useState(
+    config.showStatTiles !== false,
+  );
+  const [showChart, setShowChart] = useState(config.showChart !== false);
+  const [showTopicBreakdown, setShowTopicBreakdown] = useState(
+    config.showTopicBreakdown !== false,
   );
 
   return (
@@ -148,6 +158,28 @@ export function BrokerStatsConfigModal({
               <option value={3600}>1 hour</option>
             </select>
           </fieldset>
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">Visible Sections</legend>
+            <div className="flex flex-col gap-2">
+              {(
+                [
+                  [showStatTiles, setShowStatTiles, "Stat tiles"],
+                  [showChart, setShowChart, "Chart"],
+                  [showTopicBreakdown, setShowTopicBreakdown, "Topic breakdown"],
+                ] as [boolean, (v: boolean) => void, string][]
+              ).map(([value, setter, label]) => (
+                <label key={label} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-sm toggle-primary"
+                    checked={value}
+                    onChange={(e) => setter(e.target.checked)}
+                  />
+                  <span className="label-text">{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </div>
         <div className="modal-action">
           <button className="btn" onClick={onClose}>
@@ -158,7 +190,13 @@ export function BrokerStatsConfigModal({
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { topic: topic.trim(), defaultRange },
+                {
+                  topic: topic.trim(),
+                  defaultRange,
+                  showStatTiles,
+                  showChart,
+                  showTopicBreakdown,
+                },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -229,6 +267,9 @@ export default function BrokerStatsPanel({
   config,
 }: BrokerStatsPanelProps) {
   const topicFilter = config.topic?.trim() || "#";
+  const showStatTiles = config.showStatTiles !== false;
+  const showChart = config.showChart !== false;
+  const showTopicBreakdown = config.showTopicBreakdown !== false;
   const [currentRange, setCurrentRange] = useState<TimeRange>(
     config.defaultRange ?? 60,
   );
@@ -442,7 +483,7 @@ export default function BrokerStatsPanel({
   return (
     <div className="flex flex-col h-full text-xs">
       {/* Time range bar */}
-      <div className="flex items-center gap-1 px-1 pb-1.5 border-b border-base-300">
+      <div className="flex items-center gap-1 px-1 pb-1.5 border-b border-base-300 overflow-hidden">
         {RANGE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -463,123 +504,136 @@ export default function BrokerStatsPanel({
       </div>
 
       {/* Stat tiles */}
-      <div className="grid grid-cols-4 border-b border-base-300">
-        <div className="px-2 py-2 border-r border-base-300">
-          <div className="text-[10px] uppercase tracking-wide text-base-content/45">
-            Msg / sec
-          </div>
-          <div className="text-xl font-semibold tabular-nums leading-none mt-1">
-            {rate.toFixed(1)}
-            <span className="text-xs font-normal text-base-content/50">/s</span>
-          </div>
-          <div
-            className={`text-[11px] tabular-nums mt-1 min-h-[14px] ${
-              Math.abs(delta) < 0.05
-                ? "text-base-content/50"
+      {showStatTiles && (
+        <div className="grid grid-cols-4 border-b border-base-300">
+          <div className="px-2 py-2 border-r border-base-300">
+            <div className="text-[10px] uppercase tracking-wide text-base-content/45">
+              Msg / sec
+            </div>
+            <div className="text-xl font-semibold tabular-nums leading-none mt-1">
+              {rate.toFixed(1)}
+              <span className="text-xs font-normal text-base-content/50">/s</span>
+            </div>
+            <div
+              className={`text-[11px] tabular-nums mt-1 min-h-3.5 ${
+                Math.abs(delta) < 0.05
+                  ? "text-base-content/50"
+                  : delta > 0
+                    ? "text-success"
+                    : "text-error"
+              }`}
+            >
+              {Math.abs(delta) < 0.05
+                ? "—"
                 : delta > 0
-                  ? "text-success"
-                  : "text-error"
-            }`}
-          >
-            {Math.abs(delta) < 0.05
-              ? "—"
-              : delta > 0
-                ? `▲ ${delta.toFixed(1)}/s`
-                : `▼ ${Math.abs(delta).toFixed(1)}/s`}
+                  ? `▲ ${delta.toFixed(1)}/s`
+                  : `▼ ${Math.abs(delta).toFixed(1)}/s`}
+            </div>
+          </div>
+          <div className="px-2 py-2 border-r border-base-300">
+            <div className="text-[10px] uppercase tracking-wide text-base-content/45">
+              Total msgs
+            </div>
+            <div className="text-xl font-semibold tabular-nums leading-none mt-1">
+              {total.toLocaleString()}
+            </div>
+            <div className="text-[11px] tabular-nums mt-1 min-h-3.5 text-base-content/50">
+              in {RANGE_LABELS[currentRange]}
+            </div>
+          </div>
+          <div className="px-2 py-2 border-r border-base-300">
+            <div className="text-[10px] uppercase tracking-wide text-base-content/45">
+              Active topics
+            </div>
+            <div className="text-xl font-semibold tabular-nums leading-none mt-1">
+              {topics.length}
+            </div>
+            <div className="min-h-3.5 mt-1">&nbsp;</div>
+          </div>
+          <div className="px-2 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-base-content/45">
+              Data in
+            </div>
+            <div className="text-xl font-semibold tabular-nums leading-none mt-1">
+              {totalKb.toFixed(1)}
+              <span className="text-xs font-normal text-base-content/50">
+                {" "}
+                kb
+              </span>
+            </div>
+            <div className="min-h-3.5 mt-1">&nbsp;</div>
           </div>
         </div>
-        <div className="px-2 py-2 border-r border-base-300">
-          <div className="text-[10px] uppercase tracking-wide text-base-content/45">
-            Total msgs
-          </div>
-          <div className="text-xl font-semibold tabular-nums leading-none mt-1">
-            {total.toLocaleString()}
-          </div>
-          <div className="text-[11px] tabular-nums mt-1 min-h-[14px] text-base-content/50">
-            in {RANGE_LABELS[currentRange]}
-          </div>
-        </div>
-        <div className="px-2 py-2 border-r border-base-300">
-          <div className="text-[10px] uppercase tracking-wide text-base-content/45">
-            Active topics
-          </div>
-          <div className="text-xl font-semibold tabular-nums leading-none mt-1">
-            {topics.length}
-          </div>
-          <div className="min-h-[14px] mt-1">&nbsp;</div>
-        </div>
-        <div className="px-2 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-base-content/45">
-            Data in
-          </div>
-          <div className="text-xl font-semibold tabular-nums leading-none mt-1">
-            {totalKb.toFixed(1)}
-            <span className="text-xs font-normal text-base-content/50">
-              {" "}
-              kb
-            </span>
-          </div>
-          <div className="min-h-[14px] mt-1">&nbsp;</div>
-        </div>
-      </div>
+      )}
 
       {/* Chart */}
-      <div className="px-2 py-2 border-b border-base-300">
-        <div className="text-[10px] uppercase tracking-wide text-base-content/45 mb-2">
-          Message rate — last {RANGE_LABELS[currentRange]}
+      {showChart && (
+        <div
+          className={`px-2 py-2 border-b border-base-300 ${!showTopicBreakdown ? "flex-1 flex flex-col" : ""}`}
+        >
+          <div className="text-[10px] uppercase tracking-wide text-base-content/45 mb-2">
+            Message rate — last {RANGE_LABELS[currentRange]}
+          </div>
+          <canvas
+            ref={canvasRef}
+            className={`block w-full ${!showTopicBreakdown ? "flex-1 min-h-22" : "h-22"}`}
+          />
         </div>
-        <canvas ref={canvasRef} className="block w-full h-22" />
-      </div>
+      )}
 
       {/* Topic breakdown */}
-      <div className="flex items-center px-2 py-1.5 border-b border-base-300">
-        <div className="flex-1 text-[10px] uppercase tracking-wide text-base-content/45">
-          Topic breakdown
-        </div>
-        <div className="w-12 text-right text-[10px] uppercase text-base-content/45">
-          rate
-        </div>
-        <div className="w-20" />
-        <div className="w-12 text-right text-[10px] uppercase text-base-content/45">
-          msgs
-        </div>
-        <div className="w-12 text-right text-[10px] uppercase text-base-content/45">
-          last
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {topics.length === 0 ? (
-          <div className="px-2 py-4 text-center text-base-content/40">
-            No messages in this range
-          </div>
-        ) : (
-          topics.map((t) => (
-            <div
-              key={t.topic}
-              className="flex items-center gap-2 px-2 py-1.5 border-b border-base-200 hover:bg-base-content/5"
-            >
-              <div className="flex-1 min-w-0 font-mono text-accent truncate">
-                {t.topic}
-              </div>
-              <div className="w-10 text-right text-base-content/50 tabular-nums">
-                {(t.count / currentRange).toFixed(1)}/s
-              </div>
-              <div className="w-20 h-0.75 rounded-full bg-base-300 overflow-hidden shrink-0">
-                <div
-                  className="h-full rounded-full bg-primary transition-[width] duration-500"
-                  style={{ width: `${(t.count / maxCount) * 100}%` }}
-                />
-              </div>
-              <div className="w-12 text-right text-base-content/70 tabular-nums">
-                {t.count.toLocaleString()}
-              </div>
-              <div className="w-12 text-right text-base-content/40">
-                {formatAge(t.lastSeenMs, nowMs)}
-              </div>
+      {showTopicBreakdown && (
+        <>
+          <div className="flex items-center px-2 py-1.5 border-b border-base-300">
+            <div className="flex-1 text-[10px] uppercase tracking-wide text-base-content/45">
+              Topic breakdown
             </div>
-          ))
-        )}
-      </div>
+            <div className="w-12 text-right text-[10px] uppercase text-base-content/45">
+              rate
+            </div>
+            <div className="w-20" />
+            <div className="w-12 text-right text-[10px] uppercase text-base-content/45">
+              msgs
+            </div>
+            <div className="w-12 text-right text-[10px] uppercase text-base-content/45">
+              last
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {topics.length === 0 ? (
+              <div className="px-2 py-4 text-center text-base-content/40">
+                No messages in this range
+              </div>
+            ) : (
+              topics.map((t) => (
+                <div
+                  key={t.topic}
+                  className="flex items-center gap-2 px-2 py-1.5 border-b border-base-200 hover:bg-base-content/5"
+                >
+                  <div className="flex-1 min-w-0 font-mono text-accent truncate">
+                    {t.topic}
+                  </div>
+                  <div className="w-10 text-right text-base-content/50 tabular-nums">
+                    {(t.count / currentRange).toFixed(1)}/s
+                  </div>
+                  <div className="w-20 h-0.75 rounded-full bg-base-300 overflow-hidden shrink-0">
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width] duration-500"
+                      style={{ width: `${(t.count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-right text-base-content/70 tabular-nums">
+                    {t.count.toLocaleString()}
+                  </div>
+                  <div className="w-12 text-right text-base-content/40">
+                    {formatAge(t.lastSeenMs, nowMs)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
