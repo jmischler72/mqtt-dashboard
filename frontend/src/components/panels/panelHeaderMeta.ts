@@ -36,6 +36,11 @@ export function buildPanelHeaderMeta(
     return { topicSummary: `${topics[0]}` };
   }
 
+  if (panelType === "stats") {
+    const topic = configuredTopic(config.topic);
+    return { topicSummary: topic ?? "# all topics" };
+  }
+
   const topic = configuredTopic(config.topic);
   const payload = configuredTopic(config.payload);
 
