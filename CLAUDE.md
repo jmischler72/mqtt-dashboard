@@ -1,7 +1,3 @@
-## Backend
-
-- dont write migrations for the sqlite database, the project is in beta, i will recreate the db file
-
 ## Frontend
 
 - use daisyui components

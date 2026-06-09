@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"mqtt-dashboard/models"
 	mqttutil "mqtt-dashboard/mqtt"
@@ -104,4 +106,176 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(records)
+}
+
+type activityBucket struct {
+	TS    int64 `json:"ts"`    // bucket start, unix seconds
+	Count int64 `json:"count"` // messages in the bucket
+	Bytes int64 `json:"bytes"` // payload bytes in the bucket
+}
+
+type activityTopic struct {
+	Topic    string `json:"topic"`
+	Count    int64  `json:"count"`
+	LastSeen string `json:"last_seen"`
+}
+
+type activityResponse struct {
+	BucketSeconds int64            `json:"bucket_seconds"`
+	Buckets       []activityBucket `json:"buckets"`
+	Total         int64            `json:"total"`
+	TotalBytes    int64            `json:"total_bytes"`
+	Topics        []activityTopic  `json:"topics"`
+}
+
+var allowedRanges = map[int]bool{60: true, 300: true, 900: true, 3600: true}
+
+// topicScope builds a SQL WHERE fragment (and its args) restricting mqtt_history
+// to the topics matching an MQTT filter. It avoids enumerating rows in the
+// common cases; only mid-level '+' wildcards require resolving the concrete
+// topic set first. ok=false means the filter matches nothing.
+func (h *ExplorerHandler) topicScope(brokerID, topic string) (clause string, args []any, ok bool) {
+	if !mqttutil.HasWildcard(topic) {
+		return "topic = ?", []any{topic}, true
+	}
+	if topic == "#" {
+		// Per MQTT spec, bare '#' excludes reserved '$' topics.
+		return "topic NOT LIKE '$%'", nil, true
+	}
+	if strings.HasSuffix(topic, "/#") && !strings.Contains(topic, "+") {
+		prefix := strings.TrimSuffix(topic, "/#")
+		return "(topic = ? OR topic LIKE ?)", []any{prefix, prefix + "/%"}, true
+	}
+
+	// '+' wildcard (or bare '+'): resolve the exact matching topic set.
+	like := mqttutil.ToSQLLikePattern(topic)
+	rows, err := h.db.Query(
+		`SELECT DISTINCT topic FROM mqtt_history WHERE broker_id = ? AND topic LIKE ?`,
+		brokerID, like,
+	)
+	if err != nil {
+		return "", nil, false
+	}
+	defer rows.Close()
+	matched := []any{}
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			continue
+		}
+		if mqttutil.TopicMatches(topic, t) {
+			matched = append(matched, t)
+		}
+	}
+	if len(matched) == 0 {
+		return "", nil, false
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(matched)), ",")
+	return "topic IN (" + placeholders + ")", matched, true
+}
+
+// GetActivity returns time-bucketed message activity for a broker + topic filter
+// over a recent range, plus a per-topic breakdown. Aggregation happens in SQL so
+// the response size is bounded by the bucket count, not the message volume.
+func (h *ExplorerHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
+	brokerID := r.URL.Query().Get("broker_id")
+	topic := r.URL.Query().Get("topic")
+	if brokerID == "" {
+		http.Error(w, "broker_id required", http.StatusBadRequest)
+		return
+	}
+	if topic == "" {
+		topic = "#"
+	}
+
+	rangeSeconds, _ := strconv.Atoi(r.URL.Query().Get("range_seconds"))
+	if !allowedRanges[rangeSeconds] {
+		rangeSeconds = 60
+	}
+	buckets, _ := strconv.Atoi(r.URL.Query().Get("buckets"))
+	if buckets < 10 || buckets > 120 {
+		buckets = 60
+	}
+	bucketSize := rangeSeconds / buckets
+	if bucketSize < 1 {
+		bucketSize = 1
+	}
+
+	nowBucket := time.Now().Unix() / int64(bucketSize)
+	startBucket := nowBucket - int64(buckets-1)
+	cutoffUnix := startBucket * int64(bucketSize)
+
+	resp := activityResponse{
+		BucketSeconds: int64(bucketSize),
+		Buckets:       make([]activityBucket, buckets),
+		Topics:        []activityTopic{},
+	}
+	// Pre-fill a dense, zeroed bucket series (oldest -> newest).
+	for i := 0; i < buckets; i++ {
+		b := startBucket + int64(i)
+		resp.Buckets[i] = activityBucket{TS: b * int64(bucketSize)}
+	}
+
+	scope, scopeArgs, ok := h.topicScope(brokerID, topic)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	bucketArgs := append([]any{int64(bucketSize), brokerID}, scopeArgs...)
+	bucketArgs = append(bucketArgs, cutoffUnix)
+	rows, err := h.db.Query(
+		`SELECT CAST(strftime('%s', timestamp) AS INTEGER)/? AS b,
+		        COUNT(*), COALESCE(SUM(LENGTH(COALESCE(payload, ''))), 0)
+		 FROM mqtt_history
+		 WHERE broker_id = ? AND `+scope+`
+		       AND CAST(strftime('%s', timestamp) AS INTEGER) >= ?
+		 GROUP BY b ORDER BY b`,
+		bucketArgs...,
+	)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b, count, bytes int64
+		if err := rows.Scan(&b, &count, &bytes); err != nil {
+			continue
+		}
+		idx := int(b - startBucket)
+		if idx < 0 || idx >= buckets {
+			continue
+		}
+		resp.Buckets[idx].Count = count
+		resp.Buckets[idx].Bytes = bytes
+		resp.Total += count
+		resp.TotalBytes += bytes
+	}
+
+	topicArgs := append([]any{brokerID}, scopeArgs...)
+	topicArgs = append(topicArgs, cutoffUnix)
+	trows, err := h.db.Query(
+		`SELECT topic, COUNT(*), MAX(timestamp) FROM mqtt_history
+		 WHERE broker_id = ? AND `+scope+`
+		       AND CAST(strftime('%s', timestamp) AS INTEGER) >= ?
+		 GROUP BY topic ORDER BY COUNT(*) DESC LIMIT 50`,
+		topicArgs...,
+	)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	defer trows.Close()
+	for trows.Next() {
+		var t activityTopic
+		if err := trows.Scan(&t.Topic, &t.Count, &t.LastSeen); err != nil {
+			continue
+		}
+		resp.Topics = append(resp.Topics, t)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }

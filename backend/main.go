@@ -134,6 +134,7 @@ func main() {
 	// Explorer
 	r.Get("/api/explorer/tree", explorerH.GetTree)
 	r.Get("/api/explorer/history", explorerH.GetHistory)
+	r.Get("/api/explorer/activity", explorerH.GetActivity)
 
 	// WebSocket
 	r.Get("/ws", wsHub.ServeWS)

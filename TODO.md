@@ -4,7 +4,8 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-- [ ] (stats-panel) the picker for last time doesnt work since the chart starts when loaded, im not sure the reset counter serves a purpose, and this panel should maybe get stat from history, i also need to check if i should use a lib for the chart
+- [ ] (stats-panel) we should add some customisation for each section of the stat panel (like toggle) in edit modal
+- [x] (stats-panel) the picker for last time doesnt work since the chart starts when loaded, im not sure the reset counter serves a purpose, and this panel should maybe get stat from history, i also need to check if i should use a lib for the chart
 - [x] ($sys) in config page, the toggle should toggle whether we save $sys topics in history whereas the toggle in explorer should set whether we show with ws the $sys topics (and it should be disabled by default)
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (explorer) also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic
