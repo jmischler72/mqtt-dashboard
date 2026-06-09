@@ -7,8 +7,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] ($sys) in config page, the toggle should toggle whether we save $sys topics in history whereas the toggle in explorer should set whether we show with ws the $sys topics (and it should be disabled by default)
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (config) be able to config the history feature to disable it
-- [ ] (explorer) also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic
-- [ ] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics if you know what i mean
+- [x] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics, also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic in breadcrumb and in explorer-picker, the cumulative show should be configured with a simple toggle like $sys 
 - [x] (cron-panel) fix centering when small panel
 - [ ] (panel) add panel for broker stats and charts on message activity
 - [x] (sub-header of panels) the hover of payload or 2 topics(log panel) are hidden behind the outside of panel also it should be dynamically displayed on left or right to not hide outside the window, and it should not have alt texts
