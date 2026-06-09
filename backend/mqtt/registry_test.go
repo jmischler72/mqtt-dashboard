@@ -277,7 +277,7 @@ func TestParseSysStats_MessagesReceived(t *testing.T) {
 
 func TestParseSysStats_Messages5mSent(t *testing.T) {
 	r := NewRegistry(nil)
-	r.parseSysStats("b1", "$SYS/broker/messages/sent/5m", []byte("42"))
+	r.parseSysStats("b1", "$SYS/broker/load/messages/sent/5min", []byte("42"))
 	stats := r.GetStats("b1")
 	if stats.Messages5mSent != 42 {
 		t.Errorf("Messages5mSent = %d, want 42", stats.Messages5mSent)
@@ -286,7 +286,7 @@ func TestParseSysStats_Messages5mSent(t *testing.T) {
 
 func TestParseSysStats_Messages5mReceived(t *testing.T) {
 	r := NewRegistry(nil)
-	r.parseSysStats("b1", "$SYS/broker/messages/received/5m", []byte("21"))
+	r.parseSysStats("b1", "$SYS/broker/load/messages/received/5min", []byte("21"))
 	stats := r.GetStats("b1")
 	if stats.Messages5mReceived != 21 {
 		t.Errorf("Messages5mReceived = %d, want 21", stats.Messages5mReceived)

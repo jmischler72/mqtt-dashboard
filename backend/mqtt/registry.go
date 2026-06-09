@@ -285,9 +285,9 @@ func (r *BrokerRegistry) parseSysStats(brokerID, topic string, payload []byte) {
 		updateInt64Stat("messages_sent")
 	case strings.HasSuffix(topic, "$SYS/broker/messages/received"):
 		updateInt64Stat("messages_received")
-	case strings.HasSuffix(topic, "$SYS/broker/messages/sent/5m"):
+	case strings.HasSuffix(topic, "$SYS/broker/load/messages/sent/5min"):
 		updateInt64Stat("messages_5m_sent")
-	case strings.HasSuffix(topic, "$SYS/broker/messages/received/5m"):
+	case strings.HasSuffix(topic, "$SYS/broker/load/messages/received/5min"):
 		updateInt64Stat("messages_5m_received")
 	case strings.HasSuffix(topic, "$SYS/broker/heap/current"):
 		updateInt64Stat("memory_used")

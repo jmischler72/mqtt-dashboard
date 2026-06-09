@@ -9,8 +9,8 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (panel-header) when topic summary shows count, hover it to display full topic list
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (config) i should show infos about the storage of history in config page
-- [ ] (config) Messages 5m and memory in mqtt details doesnt work
-- [ ] (explorer) the log panel of explorer only shows hours (and not configurable)
+- [x] (config) Messages 5m and memory in mqtt details doesnt work
+- [x] (explorer) the log panel of explorer only shows hours (and not configurable)
 - [x] (ws) WebSocket connection to 'ws://192.168.1.27:8080/ws' failed deployed in docker compose in my raspi
 - [ ] (panel) the name input in edit mode does not allow me to double click to select a word ..
 - [ ] (config) be able to config the history feature to disable it

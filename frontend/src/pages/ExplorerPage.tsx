@@ -362,7 +362,7 @@ export default function ExplorerPage() {
                   config={{
                     topics: selectedTopic,
                     maxMessages: 500,
-                    dateFormat: "time",
+                    dateFormat: "full",
                   }}
                 />
               </div>
