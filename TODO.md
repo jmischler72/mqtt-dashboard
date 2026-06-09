@@ -4,13 +4,13 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-- [ ] (sub-header of panels) the hover of payload or 2 topics(log panel) are hidden behind the outside of panel also it should be dynamically displayed on left or right to not hide outside the window, and it should not have alt texts
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (config) be able to config the history feature to disable it
 - [ ] (explorer) also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic
 - [ ] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics if you know what i mean
 - [ ] (cron-panel) fix centering when small panel
 - [ ] (panel) add panel for broker stats and charts on message activity
+- [x] (sub-header of panels) the hover of payload or 2 topics(log panel) are hidden behind the outside of panel also it should be dynamically displayed on left or right to not hide outside the window, and it should not have alt texts
 - [x] (panel-header) hover broker status dot to show broker/topic sub-header with pin + topic summary rules + button payload preview dropdown
 - [x] (panel-header) when topic summary shows count, hover it to display full topic list
 - [x] (config) i should show infos about the storage of history in config page
