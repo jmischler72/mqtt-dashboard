@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.2.0...v1.3.0) (2026-06-09)
+
+
+### Features
+
+* **explorer:** add cumulative show toggle for parent topic messages ([#52](https://github.com/jmischler72/mqtt-dashboard/issues/52)) ([da9898e](https://github.com/jmischler72/mqtt-dashboard/commit/da9898e475766e9bde506dc45e6923d6cba51724))
+* **panels:** add a new stats panel for topics ([#53](https://github.com/jmischler72/mqtt-dashboard/issues/53)) ([32beeef](https://github.com/jmischler72/mqtt-dashboard/commit/32beeef3a53961c560c15a393e84d7badd6087e5))
+
+
+### Bug Fixes
+
+* **CronPanel:** adjust width styling for countdown display ([#51](https://github.com/jmischler72/mqtt-dashboard/issues/51)) ([aa616d6](https://github.com/jmischler72/mqtt-dashboard/commit/aa616d656de8b5cd2eb34ad177a2ddb0dcc23fb4))
+* **panel:** correct hover popovers for topic summary and payload preview ([#48](https://github.com/jmischler72/mqtt-dashboard/issues/48)) ([ac374d3](https://github.com/jmischler72/mqtt-dashboard/commit/ac374d3334f7e203a46f013ac9b2c51de9acc0a9))
+* **sys_topics:** rename show_sys_topics to save_sys_topics and update show sys topic in explorer ([#50](https://github.com/jmischler72/mqtt-dashboard/issues/50)) ([719a808](https://github.com/jmischler72/mqtt-dashboard/commit/719a8085dd606f83f81b51281b2f35ab054be8f6))
+
 ## [1.2.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.3...v1.2.0) (2026-06-09)
 
 
