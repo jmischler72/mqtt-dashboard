@@ -12,6 +12,10 @@ import (
 	"mqtt-dashboard/models"
 )
 
+type noopRegistry struct{}
+
+func (noopRegistry) SetSaveSysTopics(_ bool) {}
+
 func newSettingsRouter(h *handlers.SettingsHandler) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/api/settings", h.GetSettings)
@@ -21,7 +25,7 @@ func newSettingsRouter(h *handlers.SettingsHandler) chi.Router {
 
 func TestGetSettings_Default(t *testing.T) {
 	db := setupTestDB(t)
-	h := handlers.NewSettingsHandler(db)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
 	r := newSettingsRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
@@ -40,7 +44,7 @@ func TestGetSettings_Default(t *testing.T) {
 
 func TestUpdateSettings_Success(t *testing.T) {
 	db := setupTestDB(t)
-	h := handlers.NewSettingsHandler(db)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
 	r := newSettingsRouter(h)
 
 	body := jsonBody(t, models.AppSettings{RetentionPeriodHours: 48})
@@ -61,7 +65,7 @@ func TestUpdateSettings_Success(t *testing.T) {
 
 func TestUpdateSettings_BelowMinimum(t *testing.T) {
 	db := setupTestDB(t)
-	h := handlers.NewSettingsHandler(db)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
 	r := newSettingsRouter(h)
 
 	body := jsonBody(t, models.AppSettings{RetentionPeriodHours: 10})
@@ -77,7 +81,7 @@ func TestUpdateSettings_BelowMinimum(t *testing.T) {
 
 func TestUpdateSettings_InvalidJSON(t *testing.T) {
 	db := setupTestDB(t)
-	h := handlers.NewSettingsHandler(db)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
 	r := newSettingsRouter(h)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader("{bad}"))
@@ -92,7 +96,7 @@ func TestUpdateSettings_InvalidJSON(t *testing.T) {
 
 func TestUpdateSettings_Persistence(t *testing.T) {
 	db := setupTestDB(t)
-	h := handlers.NewSettingsHandler(db)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
 	r := newSettingsRouter(h)
 
 	body := jsonBody(t, models.AppSettings{RetentionPeriodHours: 72})
