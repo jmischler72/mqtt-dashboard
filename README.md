@@ -21,18 +21,13 @@
 
 ## ⭐ Features
 
-- **Multi-Broker Support** — Connect to multiple MQTT brokers simultaneously and manage them from a single interface
 - **Drag & Drop Dashboard** — Build your own control center with resizable, draggable panels using a grid layout engine
-- **Topic Explorer** — Recursively browse the full topic hierarchy of your broker, inspired by MQTT Explorer
-- **Message History** — Persistent history tracking with configurable data retention, viewable even after a page refresh
-- **Cron Jobs** — Schedule automated MQTT publishes directly from the dashboard using a visual cron builder
-- **Panel Types** — Button, Input, Log, and Cron panels to publish, monitor, and automate
+- **Dashboard Panels** — Button, Input, Log, Cron, and Stats panels for publish, automation, and monitoring
+- **Topic Explorer + Wildcards** — Browse MQTT topic trees and subscribe with `+` and `#` patterns
+- **Message History** — Persistent history with retention settings and cleanup controls
+- **Multi-Broker Support** — Connect to multiple MQTT brokers simultaneously and manage them from a single interface
 - **TLS & Authentication** — Supports plain TCP, TLS/SSL, username/password, and certificate-based authentication
 - **Real-Time Updates** — WebSocket-powered live message streaming
-- **Broker Statistics** — View $SYS topics for broker health: clients, subscriptions, memory, throughput
-- **QoS & Retain** — Full MQTT QoS (0, 1, 2) and retain flag support on publish
-- **Wildcard Support** — Subscribe with `+` and `#` wildcards in log panels and explorer
-- **Multiple Dashboards** — Create, rename, and switch between separate dashboard layouts
 - **Single Binary** — Go backend with embedded React frontend, zero external dependencies
 - **Docker Ready** — One command to deploy with persistent data volume
 
@@ -134,6 +129,7 @@ In production, the Go binary serves the embedded React build directly (so no nee
 | **Input**  | Type and send ad-hoc messages to any topic                            |
 | **Log**    | Real-time message stream with history, wildcards, and date formatting |
 | **Cron**   | Scheduled automatic publishing with visual cron builder and countdown |
+| **Stats**  | Live topic activity charts with configurable time windows             |
 
 ---
 
@@ -150,7 +146,6 @@ MQTT Dashboard supports secure broker connections out of the box:
 
 ## 🗺️ Roadmap
 
-- [ ] Cumulative topic view in explorer
 - [ ] Configurable history toggle per broker
 - [ ] Allow users to create their custom panels and share them
 - [ ] More customisable options in base panels
