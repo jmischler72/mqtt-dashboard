@@ -126,6 +126,10 @@ func main() {
 	r.Put("/api/settings", settingsH.UpdateSettings)
 	r.Patch("/api/settings", settingsH.PatchSettings)
 
+	// History
+	r.Get("/api/history/size", settingsH.GetHistorySize)
+	r.Delete("/api/history", settingsH.ClearHistory)
+
 	// Explorer
 	r.Get("/api/explorer/tree", explorerH.GetTree)
 	r.Get("/api/explorer/history", explorerH.GetHistory)

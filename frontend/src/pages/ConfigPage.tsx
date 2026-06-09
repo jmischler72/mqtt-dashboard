@@ -196,6 +196,13 @@ function CertField({
   );
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
   const [searchParams] = useSearchParams();
@@ -210,6 +217,9 @@ export default function ConfigPage() {
   const [retentionUnit, setRetentionUnit] = useState<"hours" | "days">("hours");
   const [showSysTopics, setShowSysTopics] = useState(false);
   const [retentionSaving, setRetentionSaving] = useState(false);
+  const [historySize, setHistorySize] = useState<number | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<"brokers" | "general">("brokers");
 
   const requestedBrokerId = searchParams.get("broker");
@@ -289,7 +299,26 @@ export default function ConfigPage() {
       .catch((error) => {
         void error;
       });
+
+    api
+      .getHistorySize()
+      .then(({ size_bytes }) => setHistorySize(size_bytes))
+      .catch(() => setHistorySize(null));
   }, []);
+
+  const handleClearHistory = async () => {
+    setClearingHistory(true);
+    try {
+      await api.clearHistory();
+      setHistorySize(0);
+      setShowClearConfirm(false);
+      showToast("History cleared");
+    } catch {
+      showToast("Failed to clear history", false);
+    } finally {
+      setClearingHistory(false);
+    }
+  };
 
   const handleSaveRetention = async () => {
     const hours =
@@ -925,6 +954,22 @@ export default function ConfigPage() {
                     every 30 minutes.
                   </p>
                   <div className="divider" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">History storage</p>
+                      <p className="text-xs text-base-content/50">
+                        {historySize === null ? "—" : formatBytes(historySize)}
+                      </p>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-error btn-outline"
+                      onClick={() => setShowClearConfirm(true)}
+                      disabled={clearingHistory || historySize === 0}
+                    >
+                      Clear history
+                    </button>
+                  </div>
+                  <div className="divider" />
                   <label className="label cursor-pointer justify-start gap-3 px-0 py-1">
                     <input
                       type="checkbox"
@@ -961,6 +1006,39 @@ export default function ConfigPage() {
       {/* end content row */}
 
       {/* Toast */}
+      {showClearConfirm && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Clear all history?</h3>
+            <p className="py-4 text-sm text-base-content/70">
+              This will permanently delete all stored MQTT message history. This
+              action cannot be undone.
+            </p>
+            <div className="modal-action">
+              <button
+                className="btn btn-sm"
+                onClick={() => setShowClearConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-error"
+                onClick={handleClearHistory}
+                disabled={clearingHistory}
+              >
+                {clearingHistory ? (
+                  <span className="loading loading-spinner loading-xs" />
+                ) : null}
+                Clear history
+              </button>
+            </div>
+          </div>
+          <div
+            className="modal-backdrop"
+            onClick={() => setShowClearConfirm(false)}
+          />
+        </div>
+      )}
       {toast && (
         <div className="toast toast-top toast-end z-50">
           <div

@@ -39,6 +39,10 @@ export const api = {
     >(
       `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,
     ),
+  getHistorySize: () =>
+    request<{ size_bytes: number }>("/api/history/size"),
+  clearHistory: () =>
+    request<void>("/api/history", { method: "DELETE" }),
   getBrokerInfo: (brokerId: string) =>
     request<{
       version: string;

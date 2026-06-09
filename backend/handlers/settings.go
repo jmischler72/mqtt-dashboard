@@ -52,6 +52,24 @@ func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(settings)
 }
 
+func (h *SettingsHandler) GetHistorySize(w http.ResponseWriter, r *http.Request) {
+	var sizeBytes int64
+	row := h.db.QueryRow(`SELECT COALESCE(SUM(pgsize), 0) FROM dbstat WHERE name = 'mqtt_history'`)
+	if err := row.Scan(&sizeBytes); err != nil {
+		sizeBytes = 0
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int64{"size_bytes": sizeBytes})
+}
+
+func (h *SettingsHandler) ClearHistory(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.db.Exec(`DELETE FROM mqtt_history`); err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // PatchSettings performs a partial update: only the fields present in the
 // request body are written; omitted fields keep their current DB values.
 func (h *SettingsHandler) PatchSettings(w http.ResponseWriter, r *http.Request) {
