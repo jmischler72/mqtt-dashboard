@@ -61,6 +61,7 @@ export default function ExplorerPage() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
+  const [cumulativeShow, setCumulativeShow] = useState(true);
   const pickerInitializedRef = useRef(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
@@ -159,8 +160,12 @@ export default function ExplorerPage() {
   }, [pickerCtx, pickerSelectedTopic, displayedTopics]);
 
   const handleTopicSelect = (topic: string) => {
-    setSelectedTopic(topic);
-    if (pickerCtx) setPickerSelectedTopic(topic);
+    const isParent =
+      !topic.endsWith("/#") &&
+      displayedTopics.some((t) => t.startsWith(topic + "/"));
+    const effectiveTopic = cumulativeShow && isParent ? topic + "/#" : topic;
+    setSelectedTopic(effectiveTopic);
+    if (pickerCtx) setPickerSelectedTopic(effectiveTopic);
   };
 
   const handlePickerConfirm = () => {
@@ -264,7 +269,21 @@ export default function ExplorerPage() {
         <span className="text-xs text-base-content/40">
           {displayedTopics.length} topics captured
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-4">
+          <label className="label cursor-pointer gap-2 p-0">
+            <div
+              className="tooltip tooltip-left"
+              data-tip="When enabled, clicking a parent topic shows all messages from its child topics using a wildcard (topic/#)."
+            >
+              <span className="label-text text-xs">Show subtree</span>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle toggle-xs toggle-secondary"
+              checked={cumulativeShow}
+              onChange={(e) => setCumulativeShow(e.target.checked)}
+            />
+          </label>
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left"
