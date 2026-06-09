@@ -11,7 +11,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [ ] (config) i should show infos about the storage of history in config page
 - [ ] (config) Messages 5m and memory in mqtt details doesnt work
 - [ ] (explorer) the log panel of explorer only shows hours (and not configurable)
-- [ ] (ws) WebSocket connection to 'ws://192.168.1.27:8080/ws' failed deployed in docker compose in my raspi
+- [x] (ws) WebSocket connection to 'ws://192.168.1.27:8080/ws' failed deployed in docker compose in my raspi
 - [ ] (panel) the name input in edit mode does not allow me to double click to select a word ..
 - [ ] (config) be able to config the history feature to disable it
 - [ ] (explorer) also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic
