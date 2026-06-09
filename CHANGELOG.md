@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.3...v1.2.0) (2026-06-09)
+
+
+### Features
+
+* **config:** show and clear MQTT history size ([#47](https://github.com/jmischler72/mqtt-dashboard/issues/47)) ([66d4502](https://github.com/jmischler72/mqtt-dashboard/commit/66d4502e855944f2b7b4749da748f81163985c42))
+* **panel:** add arrow icon for meta popover toggle in PanelWrapper ([#39](https://github.com/jmischler72/mqtt-dashboard/issues/39)) ([7c46312](https://github.com/jmischler72/mqtt-dashboard/commit/7c463129b0f61eb78dcc0b082d5e6b137d2e11d2))
+* **panels:** add pinable sub-header that shows infos about panel + redesign cron/input panels  ([#37](https://github.com/jmischler72/mqtt-dashboard/issues/37)) ([392a7c3](https://github.com/jmischler72/mqtt-dashboard/commit/392a7c33f25b7640cf86aad43c507ee832f809c6))
+
+
+### Bug Fixes
+
+* **panel:** prevent event propagation on title input mouse down in PanelWrapper ([#46](https://github.com/jmischler72/mqtt-dashboard/issues/46)) ([47468e9](https://github.com/jmischler72/mqtt-dashboard/commit/47468e97effc875ea2c4261e245af87cee6802c6))
+* **registry:** update MQTT message topics for 5-minute stats in registry.go ([#45](https://github.com/jmischler72/mqtt-dashboard/issues/45)) ([fb1bd3d](https://github.com/jmischler72/mqtt-dashboard/commit/fb1bd3ddd28ee0f8e89a6ecdf1bcb1b49fc3a3e1))
+* **ws:** fix websocket connection origin check in production docker compose ([#44](https://github.com/jmischler72/mqtt-dashboard/issues/44)) ([00d2d93](https://github.com/jmischler72/mqtt-dashboard/commit/00d2d9386d7bf968b5e7f5a98afadfb54f86b39e))
+
 ## [1.1.3](https://github.com/jmischler72/mqtt-dashboard/compare/v1.1.2...v1.1.3) (2026-05-28)
 
 
