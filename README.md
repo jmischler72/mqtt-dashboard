@@ -14,11 +14,8 @@
   <a href="https://github.com/jmischler72/mqtt-dashboard/blob/main/LICENSE.txt"><img src="https://img.shields.io/github/license/jmischler72/mqtt-dashboard?style=flat-square" alt="License"></a>
 </p>
 
-<p align="center">
-  <img src="assets/dashboard-page.png" width="200" alt="MQTT Dashboard Screenshot" />
-  <img src="assets/explorer-page.png" width="200" alt="MQTT Dashboard Screenshot" />
-  <img src="assets/config-page.png" width="200" alt="MQTT Dashboard Screenshot" />
-</p>
+<img src="assets/dashboard-page.png" alt="MQTT Dashboard Screenshot" />
+<img src="assets/explorer-page.png" alt="MQTT Dashboard Screenshot" />
 
 ---
 

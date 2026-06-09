@@ -386,9 +386,18 @@ export default function BrokerStatsPanel({
       if (data.length === 0) return;
 
       const maxV = Math.max(...data, 0.5);
-      const pad = { t: 8, b: 18, l: 28, r: 6 };
+      // Hide axes when the canvas is too short to render them without clipping.
+      const showXAxis = H >= 36;
+      const showYAxis = W >= 60;
+      const pad = {
+        t: 8,
+        b: showXAxis ? 18 : 4,
+        l: showYAxis ? 28 : 4,
+        r: 6,
+      };
       const iW = W - pad.l - pad.r;
       const iH = H - pad.t - pad.b;
+      if (iH <= 0) return;
       const denom = data.length > 1 ? data.length - 1 : 1;
       const xOf = (i: number) => pad.l + (i / denom) * iW;
       const yOf = (v: number) => pad.t + iH - (v / (maxV * 1.15)) * iH;
@@ -404,22 +413,26 @@ export default function BrokerStatsPanel({
         ctx.lineTo(W - pad.r, y);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = TEXT_C;
-        ctx.font = "8px monospace";
-        ctx.textAlign = "right";
-        ctx.fillText((maxV * 1.15 * f).toFixed(1), pad.l - 4, y + 3);
+        if (showYAxis) {
+          ctx.fillStyle = TEXT_C;
+          ctx.font = "8px monospace";
+          ctx.textAlign = "right";
+          ctx.fillText((maxV * 1.15 * f).toFixed(1), pad.l - 4, y + 3);
+        }
       });
 
-      // X-axis labels (time ago, based on bucket size)
-      ctx.fillStyle = TEXT_C;
-      ctx.font = "8px monospace";
-      ctx.textAlign = "center";
-      const ticks = Math.min(6, data.length);
-      for (let i = 0; i < ticks; i++) {
-        const idx =
-          ticks > 1 ? Math.round((i * (data.length - 1)) / (ticks - 1)) : 0;
-        const secAgo = (data.length - 1 - idx) * bucketSeconds;
-        ctx.fillText(secAgoLabel(secAgo), xOf(idx), H - 3);
+      // X-axis labels — count scaled to available width so labels never overlap.
+      if (showXAxis) {
+        ctx.fillStyle = TEXT_C;
+        ctx.font = "8px monospace";
+        ctx.textAlign = "center";
+        const ticks = Math.min(Math.max(2, Math.floor(iW / 30)), 6, data.length);
+        for (let i = 0; i < ticks; i++) {
+          const idx =
+            ticks > 1 ? Math.round((i * (data.length - 1)) / (ticks - 1)) : 0;
+          const secAgo = (data.length - 1 - idx) * bucketSeconds;
+          ctx.fillText(secAgoLabel(secAgo), xOf(idx), H - 3);
+        }
       }
 
       // Area gradient
@@ -510,11 +523,15 @@ export default function BrokerStatsPanel({
     drawRef.current();
   }, [activity, liveRate, currentRange]);
 
-  // Redraw on resize.
+  const panelRootRef = useRef<HTMLDivElement>(null);
+
+  // Redraw whenever the panel itself resizes (covers both window resize and panel drag).
   useEffect(() => {
-    const handler = () => drawRef.current();
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    const el = panelRootRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => drawRef.current());
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const { rate, delta, liveTime, nowMs } = liveRate;
@@ -524,9 +541,9 @@ export default function BrokerStatsPanel({
   const maxCount = Math.max(1, ...topics.map((t) => t.count));
 
   return (
-    <div className="flex flex-col h-full text-xs">
+    <div ref={panelRootRef} className="flex flex-col h-full text-xs overflow-hidden">
       {/* Time range bar */}
-      <div className="flex items-center gap-1 px-1 pb-1.5 border-b border-base-300 overflow-hidden">
+      <div className="flex items-center gap-1 px-1 pb-1.5 border-b border-base-300 overflow-hidden shrink-0">
         {RANGE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -548,7 +565,7 @@ export default function BrokerStatsPanel({
 
       {/* Stat tiles */}
       {showStatTiles && (
-        <div className="grid grid-cols-4 border-b border-base-300">
+        <div className="grid grid-cols-4 border-b border-base-300 shrink-0">
           <div className="px-2 py-2 border-r border-base-300">
             <div className="text-[10px] uppercase tracking-wide text-base-content/45">
               Msg / sec
@@ -612,37 +629,41 @@ export default function BrokerStatsPanel({
       {/* Chart */}
       {showChart && (
         <div
-          className={`px-2 py-2 border-b border-base-300 ${!showTopicBreakdown ? "flex-1 flex flex-col" : ""}`}
+          className="px-2 py-2 border-b border-base-300 flex-1 flex flex-col"
         >
-          <div className="text-[10px] uppercase tracking-wide text-base-content/45 mb-2">
+          <div className="text-[10px] uppercase tracking-wide text-base-content/45 mb-2 shrink-0">
             Message rate — last {RANGE_LABELS[currentRange]}
           </div>
-          <canvas
-            ref={canvasRef}
-            className={`block w-full ${!showTopicBreakdown ? "flex-1 min-h-22" : "h-22"}`}
-            onMouseMove={(e) => {
-              const canvas = canvasRef.current;
-              if (!canvas || !activity) return;
-              const rect = canvas.getBoundingClientRect();
-              const x = e.clientX - rect.left;
-              const n = activity.counts.length;
-              const iW = rect.width - 28 - 6;
-              const idx = Math.round(((x - 28) / iW) * (n - 1));
-              hoverBucketRef.current = Math.max(0, Math.min(n - 1, idx));
-              drawRef.current();
-            }}
-            onMouseLeave={() => {
-              hoverBucketRef.current = null;
-              drawRef.current();
-            }}
-          />
+          {/* Wrapper owns the flex height; canvas is absolute so its width/height
+              attributes never affect flex layout and don't trigger relayout loops. */}
+          <div className={`relative flex-1 ${!showTopicBreakdown ? "min-h-22" : "min-h-12"}`}>
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full"
+              onMouseMove={(e) => {
+                const canvas = canvasRef.current;
+                if (!canvas || !activity) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const n = activity.counts.length;
+                const iW = rect.width - 28 - 6;
+                const idx = Math.round(((x - 28) / iW) * (n - 1));
+                hoverBucketRef.current = Math.max(0, Math.min(n - 1, idx));
+                drawRef.current();
+              }}
+              onMouseLeave={() => {
+                hoverBucketRef.current = null;
+                drawRef.current();
+              }}
+            />
+          </div>
         </div>
       )}
 
       {/* Topic breakdown */}
       {showTopicBreakdown && (
         <>
-          <div className="flex items-center px-2 py-1.5 border-b border-base-300">
+          <div className="flex items-center px-2 py-1.5 border-b border-base-300 shrink-0">
             <div className="flex-1 text-[10px] uppercase tracking-wide text-base-content/45">
               Topic breakdown
             </div>
@@ -657,7 +678,7 @@ export default function BrokerStatsPanel({
               last
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className={`min-h-0 overflow-y-auto ${showChart ? "max-h-1/3" : "flex-1"}`}>
             {topics.length === 0 ? (
               <div className="px-2 py-4 text-center text-base-content/40">
                 No messages in this range
