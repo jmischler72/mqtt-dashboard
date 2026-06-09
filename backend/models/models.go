@@ -63,7 +63,7 @@ type PanelPosition struct {
 
 type AppSettings struct {
 	RetentionPeriodHours int  `json:"retention_period_hours"`
-	ShowSysTopics        bool `json:"show_sys_topics"`
+	SaveSysTopics        bool `json:"save_sys_topics"`
 }
 
 type MQTTHistoryRecord struct {

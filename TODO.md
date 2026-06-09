@@ -4,6 +4,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- [x] ($sys) in config page, the toggle should toggle whether we save $sys topics in history whereas the toggle in explorer should set whether we show with ws the $sys topics (and it should be disabled by default) 
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (config) be able to config the history feature to disable it
 - [ ] (explorer) also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic

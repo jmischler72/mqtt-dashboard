@@ -51,6 +51,7 @@ func main() {
 	registry := mqttclient.NewRegistry(database)
 	registry.StartHistoryWriter()
 	defer registry.StopHistoryWriter()
+	initRegistrySettings(database, registry)
 	autoConnectFromDB(database, registry)
 
 	// --- Init Cron scheduler ---
@@ -75,7 +76,7 @@ func main() {
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
-	settingsH := handlers.NewSettingsHandler(database)
+	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
 
 	// --- Router ---
@@ -153,6 +154,16 @@ func main() {
 		slog.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+// initRegistrySettings reads app_settings from the DB and applies them to the registry.
+func initRegistrySettings(database *sql.DB, registry *mqttclient.BrokerRegistry) {
+	var saveSys bool
+	row := database.QueryRow(`SELECT COALESCE(save_sys_topics, 0) FROM app_settings WHERE id = 1`)
+	if err := row.Scan(&saveSys); err != nil {
+		saveSys = false
+	}
+	registry.SetSaveSysTopics(saveSys)
 }
 
 // autoConnectFromDB loads all enabled brokers and connects each one on startup.
