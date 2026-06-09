@@ -123,6 +123,7 @@ func TestWriteHistory_PersistsRecord(t *testing.T) {
 func TestWriteHistory_StoresSysTopic(t *testing.T) {
 	database := testutil.SetupTestDB(t)
 	r := NewRegistry(database)
+	r.SetSaveSysTopics(true)
 
 	r.writeHistory("b1", "$SYS/broker/clients/connected", []byte("5"))
 
