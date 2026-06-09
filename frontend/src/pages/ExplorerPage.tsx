@@ -98,36 +98,6 @@ export default function ExplorerPage() {
     };
   }, [effectiveBrokerId]);
 
-  // Load persisted Explorer preference from app settings.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ retention_period_hours: number; show_sys_topics: boolean }>(
-        "/api/settings",
-      )
-      .then((s) => {
-        if (cancelled) return;
-        setShowSysTopic(Boolean(s.show_sys_topics));
-      })
-      .catch((error) => {
-        void error;
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleShowSysChange = async (checked: boolean) => {
-    setShowSysTopic(checked);
-    try {
-      await api.patch("/api/settings", { show_sys_topics: checked });
-    } catch (error) {
-      void error;
-      // Revert UI state if persistence fails.
-      setShowSysTopic((prev) => !prev);
-    }
-  };
-
   // Derive displayed topics so this list always matches what should be visible.
   // When $SYS topics are hidden, filter them out here to keep counts and the tree
   // in sync. When enabled, merge $SYS placeholders so the branch is visible
@@ -298,7 +268,7 @@ export default function ExplorerPage() {
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left"
-              data-tip="$SYS topics are stored in history and may use significant disk space"
+              data-tip="Show $SYS broker system topics in the tree. If you have not enabled 'Save $SYS topics in history' in settings, these topics will only be visible here when they are published by the broker, and will not be saved to history."
             >
               <span className="label-text text-xs">Show $SYS</span>
             </div>
@@ -306,7 +276,7 @@ export default function ExplorerPage() {
               type="checkbox"
               className="toggle toggle-xs toggle-primary"
               checked={showSysTopic}
-              onChange={(e) => void handleShowSysChange(e.target.checked)}
+              onChange={(e) => setShowSysTopic(e.target.checked)}
             />
           </label>
         </div>

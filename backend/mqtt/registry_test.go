@@ -42,6 +42,40 @@ func TestGetClient_NonExistent(t *testing.T) {
 	}
 }
 
+func TestStatusError_NonExistentBroker(t *testing.T) {
+	r := NewRegistry(nil)
+	if got := r.StatusError("nonexistent"); got != "" {
+		t.Errorf("StatusError = %q, want empty string", got)
+	}
+}
+
+func TestStatusError_ExistingBroker(t *testing.T) {
+	r := NewRegistry(nil)
+	mgr := NewManager()
+	r.mu.Lock()
+	r.clients["b1"] = mgr
+	r.mu.Unlock()
+
+	got := r.StatusError("b1")
+	// No connection attempt so error is empty
+	if got != "" {
+		t.Errorf("StatusError = %q, want empty string", got)
+	}
+}
+
+func TestInsertHistoryRecord_WritesToDB(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+
+	r.insertHistoryRecord(historyRecord{brokerID: "b1", topic: "a/b", payload: "hi"})
+
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1' AND topic='a/b'`).Scan(&count)
+	if count != 1 {
+		t.Errorf("expected 1 record, got %d", count)
+	}
+}
+
 func TestAllStatuses_ReturnsAll(t *testing.T) {
 	r := NewRegistry(nil)
 	// Manually inject managers to avoid network calls
@@ -123,6 +157,7 @@ func TestWriteHistory_PersistsRecord(t *testing.T) {
 func TestWriteHistory_StoresSysTopic(t *testing.T) {
 	database := testutil.SetupTestDB(t)
 	r := NewRegistry(database)
+	r.SetSaveSysTopics(true)
 
 	r.writeHistory("b1", "$SYS/broker/clients/connected", []byte("5"))
 

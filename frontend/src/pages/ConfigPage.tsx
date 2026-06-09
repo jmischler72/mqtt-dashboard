@@ -282,7 +282,7 @@ export default function ConfigPage() {
 
   useEffect(() => {
     api
-      .get<{ retention_period_hours: number; show_sys_topics: boolean }>(
+      .get<{ retention_period_hours: number; save_sys_topics: boolean }>(
         "/api/settings",
       )
       .then((s) => {
@@ -294,7 +294,7 @@ export default function ConfigPage() {
           setRetentionValue(h);
           setRetentionUnit("hours");
         }
-        setShowSysTopics(Boolean(s.show_sys_topics));
+        setShowSysTopics(Boolean(s.save_sys_topics));
       })
       .catch((error) => {
         void error;
@@ -331,7 +331,7 @@ export default function ConfigPage() {
     try {
       await api.put("/api/settings", {
         retention_period_hours: hours,
-        show_sys_topics: showSysTopics,
+        save_sys_topics: showSysTopics,
       });
       showToast("Settings saved");
     } catch {
@@ -953,7 +953,6 @@ export default function ConfigPage() {
                     Topic history older than this window is automatically purged
                     every 30 minutes.
                   </p>
-                  <div className="divider" />
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">History storage</p>
@@ -978,12 +977,13 @@ export default function ConfigPage() {
                       onChange={(e) => setShowSysTopics(e.target.checked)}
                     />
                     <span className="label-text font-medium">
-                      Show $SYS topics in Explorer by default
+                      Save $SYS topics in history
                     </span>
                   </label>
                   <p className="text-xs text-base-content/50">
-                    $SYS topics are stored in history and may use significant
-                    disk space over time.
+                    When enabled, $SYS broker system topics are persisted to
+                    history. They publish frequently and may use significant disk
+                    space over time.
                   </p>
                   <div>
                     <button

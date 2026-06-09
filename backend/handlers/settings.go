@@ -8,27 +8,33 @@ import (
 	"mqtt-dashboard/models"
 )
 
+// SysTopicsSetter is satisfied by BrokerRegistry.
+type SysTopicsSetter interface {
+	SetSaveSysTopics(v bool)
+}
+
 // patchSettingsRequest holds optional fields for partial settings updates.
 // A nil pointer means "not provided / do not change".
 type patchSettingsRequest struct {
 	RetentionPeriodHours *int  `json:"retention_period_hours"`
-	ShowSysTopics        *bool `json:"show_sys_topics"`
+	SaveSysTopics        *bool `json:"save_sys_topics"`
 }
 
 type SettingsHandler struct {
-	db *sql.DB
+	db       *sql.DB
+	registry SysTopicsSetter
 }
 
-func NewSettingsHandler(db *sql.DB) *SettingsHandler {
-	return &SettingsHandler{db: db}
+func NewSettingsHandler(db *sql.DB, registry SysTopicsSetter) *SettingsHandler {
+	return &SettingsHandler{db: db, registry: registry}
 }
 
 func (h *SettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	var settings models.AppSettings
-	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(show_sys_topics, 0) FROM app_settings WHERE id = 1`)
-	if err := row.Scan(&settings.RetentionPeriodHours, &settings.ShowSysTopics); err != nil {
+	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(save_sys_topics, 0) FROM app_settings WHERE id = 1`)
+	if err := row.Scan(&settings.RetentionPeriodHours, &settings.SaveSysTopics); err != nil {
 		settings.RetentionPeriodHours = 24
-		settings.ShowSysTopics = false
+		settings.SaveSysTopics = false
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(settings)
@@ -44,10 +50,11 @@ func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "retention_period_hours must be >= 24", http.StatusBadRequest)
 		return
 	}
-	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, show_sys_topics = ? WHERE id = 1`, settings.RetentionPeriodHours, settings.ShowSysTopics); err != nil {
+	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, save_sys_topics = ? WHERE id = 1`, settings.RetentionPeriodHours, settings.SaveSysTopics); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
+	h.registry.SetSaveSysTopics(settings.SaveSysTopics)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(settings)
 }
@@ -78,7 +85,7 @@ func (h *SettingsHandler) PatchSettings(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if patch.RetentionPeriodHours == nil && patch.ShowSysTopics == nil {
+	if patch.RetentionPeriodHours == nil && patch.SaveSysTopics == nil {
 		http.Error(w, "no fields to update", http.StatusBadRequest)
 		return
 	}
@@ -89,24 +96,25 @@ func (h *SettingsHandler) PatchSettings(w http.ResponseWriter, r *http.Request) 
 
 	// Read current values so untouched fields are preserved.
 	var current models.AppSettings
-	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(show_sys_topics, 0) FROM app_settings WHERE id = 1`)
-	if err := row.Scan(&current.RetentionPeriodHours, &current.ShowSysTopics); err != nil {
+	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(save_sys_topics, 0) FROM app_settings WHERE id = 1`)
+	if err := row.Scan(&current.RetentionPeriodHours, &current.SaveSysTopics); err != nil {
 		current.RetentionPeriodHours = 24
-		current.ShowSysTopics = false
+		current.SaveSysTopics = false
 	}
 
 	if patch.RetentionPeriodHours != nil {
 		current.RetentionPeriodHours = *patch.RetentionPeriodHours
 	}
-	if patch.ShowSysTopics != nil {
-		current.ShowSysTopics = *patch.ShowSysTopics
+	if patch.SaveSysTopics != nil {
+		current.SaveSysTopics = *patch.SaveSysTopics
 	}
 
-	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, show_sys_topics = ? WHERE id = 1`,
-		current.RetentionPeriodHours, current.ShowSysTopics); err != nil {
+	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, save_sys_topics = ? WHERE id = 1`,
+		current.RetentionPeriodHours, current.SaveSysTopics); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
+	h.registry.SetSaveSysTopics(current.SaveSysTopics)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(current)
 }

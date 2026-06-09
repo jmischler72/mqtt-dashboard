@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"mqtt-dashboard/models"
 )
@@ -17,12 +18,18 @@ type BrokerRegistry struct {
 	defaultBrokerID string
 	db              *sql.DB
 	statsCache      *StatsCache
+	saveSysTopics   atomic.Bool
 
 	historyMu            sync.RWMutex
 	historyQueue         chan historyRecord
 	historyStopCh        chan struct{}
 	historyWorkerStarted bool
 	historyWorkerWG      sync.WaitGroup
+}
+
+// SetSaveSysTopics controls whether $SYS/* messages are persisted to history.
+func (r *BrokerRegistry) SetSaveSysTopics(v bool) {
+	r.saveSysTopics.Store(v)
 }
 
 type historyRecord struct {
@@ -125,6 +132,9 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 // writeHistory persists an incoming MQTT message to mqtt_history.
 func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
 	if r.db == nil {
+		return
+	}
+	if strings.HasPrefix(topic, "$SYS/") && !r.saveSysTopics.Load() {
 		return
 	}
 
