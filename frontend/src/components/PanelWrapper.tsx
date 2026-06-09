@@ -79,23 +79,41 @@ export default function PanelWrapper({
   const [isMetaRegionHovered, setIsMetaRegionHovered] = useState(false);
   const [isTopicSummaryHovered, setIsTopicSummaryHovered] = useState(false);
   const [isPayloadHovered, setIsPayloadHovered] = useState(false);
+  const [topicPopoverPos, setTopicPopoverPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [payloadPopoverPos, setPayloadPopoverPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const [optimisticPinned, setOptimisticPinned] = useState<boolean | null>(
     null,
   );
   const panelRef = useRef<HTMLDivElement>(null);
+  const topicAnchorRef = useRef<HTMLDivElement>(null);
+  const payloadAnchorRef = useRef<HTMLDivElement>(null);
   const openConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const closeMetaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const topicLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const payloadLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useEffect(() => {
+    const openCfg = openConfigTimeoutRef;
+    const closeMeta = closeMetaTimeoutRef;
+    const topicLeave = topicLeaveTimerRef;
+    const payloadLeave = payloadLeaveTimerRef;
     return () => {
-      if (openConfigTimeoutRef.current)
-        clearTimeout(openConfigTimeoutRef.current);
-      if (closeMetaTimeoutRef.current)
-        clearTimeout(closeMetaTimeoutRef.current);
+      if (openCfg.current) clearTimeout(openCfg.current);
+      if (closeMeta.current) clearTimeout(closeMeta.current);
+      if (topicLeave.current) clearTimeout(topicLeave.current);
+      if (payloadLeave.current) clearTimeout(payloadLeave.current);
     };
   }, []);
 
@@ -109,11 +127,8 @@ export default function PanelWrapper({
 
   const handleMetaRegionLeave = () => {
     if (closeMetaTimeoutRef.current) clearTimeout(closeMetaTimeoutRef.current);
-    // Small handoff delay lets the cursor travel from dot to pin button.
     closeMetaTimeoutRef.current = setTimeout(() => {
       setIsMetaRegionHovered(false);
-      setIsTopicSummaryHovered(false);
-      setIsPayloadHovered(false);
       closeMetaTimeoutRef.current = null;
     }, 180);
   };
@@ -268,7 +283,8 @@ export default function PanelWrapper({
   const persistedPinned = panelConfig.header_meta_pinned === true;
   const isPinned = optimisticPinned ?? persistedPinned;
   const headerMeta = buildPanelHeaderMeta(panel.panel_type, panelConfig);
-  const showMetaPopover = isPinned || isMetaRegionHovered;
+  const showMetaPopover =
+    isPinned || isMetaRegionHovered || isTopicSummaryHovered || isPayloadHovered;
 
   const updateMetaPinned = async (nextPinned: boolean) => {
     if (nextPinned === isPinned) return;
@@ -486,10 +502,7 @@ export default function PanelWrapper({
           >
             <span className="inline-flex items-center gap-1 min-w-0">
               <RiServerLine className="shrink-0 text-base-content/65" />
-              <span
-                className="truncate"
-                title={brokerStatus?.name ?? "No broker"}
-              >
+              <span className="truncate">
                 {brokerStatus?.name ?? "No broker"}
               </span>
             </span>
@@ -500,47 +513,72 @@ export default function PanelWrapper({
               <RiHashtag className="shrink-0 text-base-content/65" />
               {headerMeta.topicDetail ? (
                 <div
-                  className="relative min-w-0 flex-1 no-drag"
-                  onMouseEnter={() => setIsTopicSummaryHovered(true)}
-                  onMouseLeave={() => setIsTopicSummaryHovered(false)}
+                  ref={topicAnchorRef}
+                  className="min-w-0 flex-1 no-drag"
+                  onMouseEnter={() => {
+                    if (topicLeaveTimerRef.current) {
+                      clearTimeout(topicLeaveTimerRef.current);
+                      topicLeaveTimerRef.current = null;
+                    }
+                    setIsTopicSummaryHovered(true);
+                    if (topicAnchorRef.current) {
+                      const rect =
+                        topicAnchorRef.current.getBoundingClientRect();
+                      const POPOVER_WIDTH = 240;
+                      const top = rect.bottom + 4;
+                      let left = rect.left;
+                      if (left + POPOVER_WIDTH > window.innerWidth - 8) {
+                        left = window.innerWidth - POPOVER_WIDTH - 8;
+                      }
+                      setTopicPopoverPos({ top, left });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    topicLeaveTimerRef.current = setTimeout(() => {
+                      setIsTopicSummaryHovered(false);
+                      topicLeaveTimerRef.current = null;
+                    }, 150);
+                  }}
                 >
-                  <span
-                    className="truncate text-[10px] underline decoration-dotted cursor-default"
-                    title={headerMeta.topicDetail}
-                  >
+                  <span className="block truncate text-[10px] underline decoration-dotted cursor-default">
                     {headerMeta.topicSummary}
                   </span>
-                  {isTopicSummaryHovered && (
-                    <div className="absolute left-0 top-4 mt-1 z-30 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-                      <pre className="text-[11px] leading-tight font-mono whitespace-pre-wrap break-all max-h-28 overflow-auto">
-                        {headerMeta.topicDetail}
-                      </pre>
-                    </div>
-                  )}
                 </div>
               ) : (
-                <span className="truncate" title={headerMeta.topicSummary}>
-                  {headerMeta.topicSummary}
-                </span>
+                <span className="block truncate">{headerMeta.topicSummary}</span>
               )}
             </span>
 
             {headerMeta.payloadPreview && (
               <div
-                className="relative shrink-0 no-drag"
-                onMouseEnter={() => setIsPayloadHovered(true)}
-                onMouseLeave={() => setIsPayloadHovered(false)}
+                ref={payloadAnchorRef}
+                className="shrink-0 no-drag"
+                onMouseEnter={() => {
+                  if (payloadLeaveTimerRef.current) {
+                    clearTimeout(payloadLeaveTimerRef.current);
+                    payloadLeaveTimerRef.current = null;
+                  }
+                  setIsPayloadHovered(true);
+                  if (payloadAnchorRef.current) {
+                    const rect =
+                      payloadAnchorRef.current.getBoundingClientRect();
+                    const POPOVER_WIDTH = 240;
+                    const top = rect.bottom + 4;
+                    let left = rect.right - POPOVER_WIDTH;
+                    if (left < 8) left = 8;
+                    setPayloadPopoverPos({ top, left });
+                  }
+                }}
+                onMouseLeave={() => {
+                  payloadLeaveTimerRef.current = setTimeout(() => {
+                    setIsPayloadHovered(false);
+                    payloadLeaveTimerRef.current = null;
+                  }, 150);
+                }}
               >
                 <span className="text-[10px] text-base-content/60 underline decoration-dotted cursor-default">
                   Payload
                 </span>
-                {isPayloadHovered && (
-                  <div className="absolute right-0 top-4 mt-1 z-30 w-auto rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-                    <pre className="text-[11px] font-mono whitespace-pre-wrap max-h-28 overflow-auto">
-                      {headerMeta.payloadPreview}
-                    </pre>
-                  </div>
-                )}
               </div>
             )}
 
@@ -571,6 +609,56 @@ export default function PanelWrapper({
         </div>
       </div>
       {renderConfigModal()}
+      {isTopicSummaryHovered &&
+        topicPopoverPos &&
+        createPortal(
+          <div
+            className="fixed z-50 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+            style={{ top: topicPopoverPos.top, left: topicPopoverPos.left }}
+            onMouseEnter={() => {
+              if (topicLeaveTimerRef.current) {
+                clearTimeout(topicLeaveTimerRef.current);
+                topicLeaveTimerRef.current = null;
+              }
+            }}
+            onMouseLeave={() => {
+              topicLeaveTimerRef.current = setTimeout(() => {
+                setIsTopicSummaryHovered(false);
+                topicLeaveTimerRef.current = null;
+              }, 150);
+            }}
+          >
+            <pre className="text-[11px] leading-tight font-mono whitespace-pre-wrap break-all max-h-28 overflow-auto max-w-60">
+              {headerMeta.topicDetail}
+            </pre>
+          </div>,
+          document.body,
+        )}
+      {isPayloadHovered &&
+        payloadPopoverPos &&
+        createPortal(
+          <div
+            className="fixed z-50 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+            style={{ top: payloadPopoverPos.top, left: payloadPopoverPos.left }}
+            onMouseEnter={() => {
+              if (payloadLeaveTimerRef.current) {
+                clearTimeout(payloadLeaveTimerRef.current);
+                payloadLeaveTimerRef.current = null;
+              }
+            }}
+            onMouseLeave={() => {
+              payloadLeaveTimerRef.current = setTimeout(() => {
+                setIsPayloadHovered(false);
+                payloadLeaveTimerRef.current = null;
+              }, 150);
+            }}
+          >
+            <pre className="text-[11px] font-mono whitespace-pre-wrap max-h-28 overflow-auto max-w-60">
+              {headerMeta.payloadPreview}
+            </pre>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
