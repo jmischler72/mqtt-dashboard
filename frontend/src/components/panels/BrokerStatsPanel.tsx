@@ -86,7 +86,7 @@ export function BrokerStatsConfigModal({
   return (
     <dialog className="modal modal-open">
       <div className="modal-box max-h-[85vh] overflow-y-auto">
-        <h3 className="font-bold text-lg mb-4">Broker Stats Configuration</h3>
+        <h3 className="font-bold text-lg mb-4">Stats Configuration</h3>
         <div className="flex flex-col gap-3">
           <fieldset className="fieldset">
             <legend className="fieldset-legend">Broker</legend>
@@ -165,10 +165,17 @@ export function BrokerStatsConfigModal({
                 [
                   [showStatTiles, setShowStatTiles, "Stat tiles"],
                   [showChart, setShowChart, "Chart"],
-                  [showTopicBreakdown, setShowTopicBreakdown, "Topic breakdown"],
+                  [
+                    showTopicBreakdown,
+                    setShowTopicBreakdown,
+                    "Topic breakdown",
+                  ],
                 ] as [boolean, (v: boolean) => void, string][]
               ).map(([value, setter, label]) => (
-                <label key={label} className="flex items-center gap-3 cursor-pointer">
+                <label
+                  key={label}
+                  className="flex items-center gap-3 cursor-pointer"
+                >
                   <input
                     type="checkbox"
                     className="toggle toggle-sm toggle-primary"
@@ -426,7 +433,11 @@ export default function BrokerStatsPanel({
         ctx.fillStyle = TEXT_C;
         ctx.font = "8px monospace";
         ctx.textAlign = "center";
-        const ticks = Math.min(Math.max(2, Math.floor(iW / 30)), 6, data.length);
+        const ticks = Math.min(
+          Math.max(2, Math.floor(iW / 30)),
+          6,
+          data.length,
+        );
         for (let i = 0; i < ticks; i++) {
           const idx =
             ticks > 1 ? Math.round((i * (data.length - 1)) / (ticks - 1)) : 0;
@@ -541,7 +552,10 @@ export default function BrokerStatsPanel({
   const maxCount = Math.max(1, ...topics.map((t) => t.count));
 
   return (
-    <div ref={panelRootRef} className="flex flex-col h-full text-xs overflow-hidden">
+    <div
+      ref={panelRootRef}
+      className="flex flex-col h-full text-xs overflow-hidden"
+    >
       {/* Time range bar */}
       <div className="flex items-center gap-1 px-1 pb-1.5 border-b border-base-300 overflow-hidden shrink-0">
         {RANGE_OPTIONS.map((opt) => (
@@ -572,7 +586,9 @@ export default function BrokerStatsPanel({
             </div>
             <div className="text-xl font-semibold tabular-nums leading-none mt-1">
               {rate.toFixed(1)}
-              <span className="text-xs font-normal text-base-content/50">/s</span>
+              <span className="text-xs font-normal text-base-content/50">
+                /s
+              </span>
             </div>
             <div
               className={`text-[11px] tabular-nums mt-1 min-h-3.5 ${
@@ -628,15 +644,15 @@ export default function BrokerStatsPanel({
 
       {/* Chart */}
       {showChart && (
-        <div
-          className="px-2 py-2 border-b border-base-300 flex-1 flex flex-col"
-        >
+        <div className="px-2 py-2 border-b border-base-300 flex-1 flex flex-col">
           <div className="text-[10px] uppercase tracking-wide text-base-content/45 mb-2 shrink-0">
             Message rate — last {RANGE_LABELS[currentRange]}
           </div>
           {/* Wrapper owns the flex height; canvas is absolute so its width/height
               attributes never affect flex layout and don't trigger relayout loops. */}
-          <div className={`relative flex-1 ${!showTopicBreakdown ? "min-h-22" : "min-h-12"}`}>
+          <div
+            className={`relative flex-1 ${!showTopicBreakdown ? "min-h-22" : "min-h-12"}`}
+          >
             <canvas
               ref={canvasRef}
               className="absolute inset-0 w-full h-full"
@@ -678,7 +694,9 @@ export default function BrokerStatsPanel({
               last
             </div>
           </div>
-          <div className={`min-h-0 overflow-y-auto ${showChart ? "max-h-1/3" : "flex-1"}`}>
+          <div
+            className={`min-h-0 overflow-y-auto ${showChart ? "max-h-1/3" : "flex-1"}`}
+          >
             {topics.length === 0 ? (
               <div className="px-2 py-4 text-center text-base-content/40">
                 No messages in this range
