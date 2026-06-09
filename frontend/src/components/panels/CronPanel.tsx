@@ -334,7 +334,7 @@ export default function CronPanel({
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center w-80 mx-auto">
+      <div className="flex-1 flex flex-col items-center justify-center w-full min-w-0">
         {config.enabled && countdown && (
           <div className="text-center w-full">
             <div className="text-xs text-base-content/50 mb-2">Next run in</div>
