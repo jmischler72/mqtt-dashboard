@@ -22,6 +22,10 @@ import CronPanel, {
   CronConfigModal,
   type CronConfig,
 } from "./panels/CronPanel";
+import BrokerStatsPanel, {
+  BrokerStatsConfigModal,
+  type BrokerStatsConfig,
+} from "./panels/BrokerStatsPanel";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
@@ -51,7 +55,12 @@ const brokerDotColor: Record<string, string> = {
   DISABLED: "bg-neutral",
 };
 
-type PanelConfig = ButtonConfig | InputConfig | LogConfig | CronConfig;
+type PanelConfig =
+  | ButtonConfig
+  | InputConfig
+  | LogConfig
+  | CronConfig
+  | BrokerStatsConfig;
 
 export default function PanelWrapper({
   panel,
@@ -335,6 +344,14 @@ export default function PanelWrapper({
             onConfigChange={(cfg) => saveConfig(cfg, brokerId)}
           />
         );
+      case "stats":
+        return (
+          <BrokerStatsPanel
+            panelId={panel.id}
+            brokerId={brokerId}
+            config={cfg as BrokerStatsConfig}
+          />
+        );
       default:
         return (
           <div className="flex items-center justify-center h-full text-base-content/40">
@@ -407,6 +424,20 @@ export default function PanelWrapper({
         return createPortal(
           <CronConfigModal
             config={cfg as CronConfig}
+            brokerId={brokerId}
+            brokerStatuses={brokerStatuses}
+            onSave={(c, bid) => saveConfig(c, bid)}
+            onClose={closeConfigModal}
+            onPickTopic={handlePickTopic}
+            initialTopic={capturedPicker.topic}
+            initialBrokerId={capturedPicker.brokerId}
+          />,
+          document.body,
+        );
+      case "stats":
+        return createPortal(
+          <BrokerStatsConfigModal
+            config={cfg as BrokerStatsConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}

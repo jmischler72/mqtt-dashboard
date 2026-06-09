@@ -39,6 +39,21 @@ export const api = {
     >(
       `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,
     ),
+  getActivity: (
+    brokerId: string,
+    topic: string,
+    rangeSeconds: number,
+    buckets = 60,
+  ) =>
+    request<{
+      bucket_seconds: number;
+      buckets: { ts: number; count: number; bytes: number }[];
+      total: number;
+      total_bytes: number;
+      topics: { topic: string; count: number; last_seen: string }[];
+    }>(
+      `/api/explorer/activity?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}&range_seconds=${rangeSeconds}&buckets=${buckets}`,
+    ),
   getHistorySize: () =>
     request<{ size_bytes: number }>("/api/history/size"),
   clearHistory: () =>

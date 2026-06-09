@@ -34,6 +34,7 @@ const PANEL_TYPES = [
   { value: "input", label: "Input" },
   { value: "log", label: "Log" },
   { value: "cron", label: "Cron" },
+  { value: "stats", label: "Stats" },
 ];
 
 const GRID_COLS = 12;
