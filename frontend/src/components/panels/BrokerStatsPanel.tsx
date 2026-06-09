@@ -285,7 +285,7 @@ export default function BrokerStatsPanel({
   // Live overlay accumulators — mutated only in callbacks, never read in render.
   const liveCounterRef = useRef(0); // resets every second (drives Msg/sec tile)
   const lastRateRef = useRef(0); // previous second's rate (for the delta)
-  const liveDeltaRef = useRef(0); // msgs since last fetch (bumps the last bucket)
+  const hoverBucketRef = useRef<number | null>(null);
 
   // History-backed series: fetch on change, then refresh on an interval.
   useEffect(() => {
@@ -296,7 +296,6 @@ export default function BrokerStatsPanel({
         .getActivity(brokerId, topicFilter, currentRange)
         .then((data) => {
           if (cancelled) return;
-          liveDeltaRef.current = 0; // history now includes everything counted live
           setActivity({
             bucketSeconds: data.bucket_seconds,
             counts: data.buckets.map((b) => b.count),
@@ -323,7 +322,6 @@ export default function BrokerStatsPanel({
     onMessage: () => {
       // The hub only delivers messages matching this panel's subscription.
       liveCounterRef.current += 1;
-      liveDeltaRef.current += 1;
     },
   });
 
@@ -380,9 +378,10 @@ export default function BrokerStatsPanel({
       const data = activity
         ? activity.counts.map((c) => c / bucketSeconds)
         : [];
+      // Pin the last (incomplete) bucket to the live 1s rate so the right edge
+      // stays smooth — avoids the spike/dip cycle caused by delta accumulation.
       if (data.length > 0) {
-        // Overlay messages received since the last fetch on the latest bucket.
-        data[data.length - 1] += liveDeltaRef.current / bucketSeconds;
+        data[data.length - 1] = liveRate.rate;
       }
       if (data.length === 0) return;
 
@@ -459,6 +458,50 @@ export default function BrokerStatsPanel({
       ctx.arc(ex, ey, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = ACCENT;
       ctx.fill();
+
+      // Hover crosshair + tooltip
+      const hi = hoverBucketRef.current;
+      if (hi !== null && hi >= 0 && hi < data.length) {
+        const hx = xOf(hi);
+        const hy = yOf(data[hi]);
+
+        // Vertical rule
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 4]);
+        ctx.moveTo(hx, pad.t);
+        ctx.lineTo(hx, pad.t + iH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Dot on the line
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(hx, hy, 2, 0, Math.PI * 2);
+        ctx.fillStyle = ACCENT;
+        ctx.fill();
+
+        // Tooltip
+        const secAgo = (data.length - 1 - hi) * bucketSeconds;
+        const label = `${data[hi].toFixed(2)}/s  ${secAgoLabel(secAgo)}`;
+        ctx.font = "bold 9px monospace";
+        const tw = ctx.measureText(label).width;
+        const boxW = tw + 10;
+        const boxH = 16;
+        const tipX = Math.min(hx + 8, W - pad.r - boxW);
+        const tipY = Math.max(hy - boxH - 4, pad.t);
+        ctx.fillStyle = "rgba(15,15,20,0.88)";
+        ctx.beginPath();
+        ctx.roundRect(tipX, tipY, boxW, boxH, 3);
+        ctx.fill();
+        ctx.fillStyle = "#e5e7eb";
+        ctx.textAlign = "left";
+        ctx.fillText(label, tipX + 5, tipY + boxH - 4);
+      }
     };
   });
 
@@ -577,6 +620,21 @@ export default function BrokerStatsPanel({
           <canvas
             ref={canvasRef}
             className={`block w-full ${!showTopicBreakdown ? "flex-1 min-h-22" : "h-22"}`}
+            onMouseMove={(e) => {
+              const canvas = canvasRef.current;
+              if (!canvas || !activity) return;
+              const rect = canvas.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const n = activity.counts.length;
+              const iW = rect.width - 28 - 6;
+              const idx = Math.round(((x - 28) / iW) * (n - 1));
+              hoverBucketRef.current = Math.max(0, Math.min(n - 1, idx));
+              drawRef.current();
+            }}
+            onMouseLeave={() => {
+              hoverBucketRef.current = null;
+              drawRef.current();
+            }}
           />
         </div>
       )}
