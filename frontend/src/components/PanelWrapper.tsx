@@ -446,6 +446,7 @@ export default function PanelWrapper({
               onChange={(e) => setTitle(e.target.value)}
               onBlur={saveTitle}
               onKeyDown={(e) => e.key === "Enter" && saveTitle()}
+              onMouseDown={(e) => e.stopPropagation()}
             />
           ) : (
             <div className="flex-1 min-w-0">
