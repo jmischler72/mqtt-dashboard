@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 
 export interface ImageConfig {
   src?: string;
-  fit?: "cover" | "contain" | "fill";
-  alt?: string;
 }
 
 interface PresetEntry {
@@ -19,10 +17,6 @@ interface ModalProps {
 
 export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
   const [src, setSrc] = useState(config.src ?? "");
-  const [fit, setFit] = useState<NonNullable<ImageConfig["fit"]>>(
-    config.fit ?? "contain",
-  );
-  const [alt, setAlt] = useState(config.alt ?? "");
   const [presets, setPresets] = useState<PresetEntry[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,31 +123,6 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
               />
             </div>
           )}
-
-          <div className="flex flex-wrap gap-4">
-            <fieldset className="fieldset">
-              <legend className="fieldset-legend">Fit</legend>
-              <select
-                className="select select-bordered"
-                value={fit}
-                onChange={(e) =>
-                  setFit(e.target.value as NonNullable<ImageConfig["fit"]>)
-                }
-              >
-                <option value="contain">Contain</option>
-                <option value="cover">Cover</option>
-                <option value="fill">Fill</option>
-              </select>
-            </fieldset>
-            <fieldset className="fieldset flex-1">
-              <legend className="fieldset-legend">Alt text</legend>
-              <input
-                className="input input-bordered w-full"
-                value={alt}
-                onChange={(e) => setAlt(e.target.value)}
-              />
-            </fieldset>
-          </div>
         </div>
 
         <div className="modal-action">
@@ -162,7 +131,7 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => onSave({ src, fit, alt }, "")}
+            onClick={() => onSave({ src }, "")}
           >
             Save
           </button>
@@ -199,9 +168,8 @@ export default function ImagePanel({ config }: ImagePanelProps) {
   return (
     <img
       src={config.src}
-      alt={config.alt ?? ""}
-      className="h-full w-full"
-      style={{ objectFit: config.fit ?? "contain" }}
+      alt=""
+      className="h-full w-full object-contain"
       onError={() => setBroken(true)}
     />
   );

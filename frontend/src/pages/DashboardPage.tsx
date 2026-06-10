@@ -142,10 +142,7 @@ const PANEL_TYPES = [
             { label: "Topics", value: "8" },
             { label: "Data in", value: "3.1k" },
           ].map((s) => (
-            <div
-              key={s.label}
-              className="bg-base-200 rounded p-1 text-center"
-            >
+            <div key={s.label} className="bg-base-200 rounded p-1 text-center">
               <div className="text-xs text-base-content/50">{s.label}</div>
               <div className="text-sm font-bold">{s.value}</div>
             </div>
@@ -205,10 +202,6 @@ const VISUAL_PANEL_TYPES = [
 
 const ALL_PANEL_TYPES = [...PANEL_TYPES, ...VISUAL_PANEL_TYPES];
 
-const PANEL_MIN: Record<string, { minW: number; minH: number }> = {
-  separator: { minW: 1, minH: 1 },
-};
-
 const GRID_COLS = 12;
 const GRID_ROW_HEIGHT = 60;
 const GRID_ROW_GAP = 10;
@@ -267,7 +260,9 @@ export default function DashboardPage() {
     left: number;
   } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previewHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const addVisualMenuRef = useRef<HTMLDivElement>(null);
@@ -350,7 +345,18 @@ export default function DashboardPage() {
     editMode && openConfigPanels.size === 0 && !hasAnyModalOpen;
 
   const layout = panels.map((p) => {
-    const { minW, minH } = PANEL_MIN[p.panel_type] ?? { minW: 2, minH: 2 };
+    let minW = 2,
+      minH = 2;
+    let maxW: number | undefined, maxH: number | undefined;
+    if (p.panel_type === "separator") {
+      const orient =
+        (p.config_json as { orientation?: string })?.orientation ??
+        "horizontal";
+      minW = 1;
+      minH = 1;
+      if (orient === "horizontal") maxH = 1;
+      else maxW = 1;
+    }
     return {
       i: p.id,
       x: p.x,
@@ -359,6 +365,8 @@ export default function DashboardPage() {
       h: p.h,
       minW,
       minH,
+      maxW,
+      maxH,
       static: !gridInteractionsEnabled,
     };
   });
@@ -531,129 +539,129 @@ export default function DashboardPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-base-200">
-      {editMode && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
-          <div className="relative" ref={addMenuRef}>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => {
-                setAddVisualMenuOpen(false);
-                setAddMenuOpen((o) => !o);
-              }}
-              disabled={isLoadingLayout}
-            >
-              {isLoadingLayout ? "Loading layout..." : "+ Add Panel"}
-            </button>
-            {addMenuOpen && !isLoadingLayout && (
-              <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
-                {PANEL_TYPES.map((t) => (
-                  <li key={t.value}>{renderAddMenuItem(t)}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="relative" ref={addVisualMenuRef}>
-            <button
-              className="btn btn-sm btn-outline btn-primary"
-              onClick={() => {
-                setAddMenuOpen(false);
-                setAddVisualMenuOpen((o) => !o);
-              }}
-              disabled={isLoadingLayout}
-            >
-              + Add Visual
-            </button>
-            {addVisualMenuOpen && !isLoadingLayout && (
-              <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
-                {VISUAL_PANEL_TYPES.map((t) => (
-                  <li key={t.value}>{renderAddMenuItem(t)}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Grid */}
-      <div className="p-4" ref={containerRef}>
-        {dashboardsLoading || isLoadingLayout ? (
-          <div className="flex items-center justify-center h-64 text-base-content/60">
-            <div className="text-center">
-              <span className="loading loading-spinner loading-lg mb-4" />
-              <p className="text-xl">Loading dashboard layout...</p>
+      <div className="min-h-screen bg-base-200">
+        {editMode && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
+            <div className="relative" ref={addMenuRef}>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => {
+                  setAddVisualMenuOpen(false);
+                  setAddMenuOpen((o) => !o);
+                }}
+                disabled={isLoadingLayout}
+              >
+                {isLoadingLayout ? "Loading layout..." : "+ Add Panel"}
+              </button>
+              {addMenuOpen && !isLoadingLayout && (
+                <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
+                  {PANEL_TYPES.map((t) => (
+                    <li key={t.value}>{renderAddMenuItem(t)}</li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
-        ) : panels.length === 0 ? (
-          <div className="flex items-center justify-center h-64 text-base-content/40">
-            <div className="text-center">
-              <p className="text-2xl mb-2">No panels yet</p>
-              <p>
-                {editMode
-                  ? 'Click "+ Add Panel" to get started'
-                  : "Toggle Edit: ON in the navbar to add panels"}
-              </p>
+            <div className="relative" ref={addVisualMenuRef}>
+              <button
+                className="btn btn-sm btn-outline btn-primary"
+                onClick={() => {
+                  setAddMenuOpen(false);
+                  setAddVisualMenuOpen((o) => !o);
+                }}
+                disabled={isLoadingLayout}
+              >
+                + Add Visual
+              </button>
+              {addVisualMenuOpen && !isLoadingLayout && (
+                <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
+                  {VISUAL_PANEL_TYPES.map((t) => (
+                    <li key={t.value}>{renderAddMenuItem(t)}</li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className={hasAnyModalOpen ? "pointer-events-none" : ""}>
-            <RGL
-              width={gridWidth}
-              layout={layout}
-              cols={12}
-              rowHeight={60}
-              isDraggable={gridInteractionsEnabled}
-              isResizable={gridInteractionsEnabled}
-              onLayoutChange={handleLayoutChange}
-              draggableHandle=".drag-handle"
-              draggableCancel=".no-drag"
-            >
-              {panels.map((panel) => (
-                <div key={panel.id} id={`panel-${panel.id}`}>
-                  <PanelWrapper
-                    panel={panel}
-                    editMode={editMode}
-                    brokerStatuses={brokerStatuses}
-                    activeDashboardId={activeDashboardId}
-                    highlight={panel.id === newPanelId}
-                    pickerReturnTopic={
-                      pendingPickerReturn?.panelId === panel.id
-                        ? pendingPickerReturn.topic
-                        : undefined
-                    }
-                    pickerReturnBrokerId={
-                      pendingPickerReturn?.panelId === panel.id
-                        ? pendingPickerReturn.brokerId
-                        : undefined
-                    }
-                    pickerReturnDraftConfig={
-                      pendingPickerReturn?.panelId === panel.id
-                        ? pendingPickerReturn.draftConfig
-                        : undefined
-                    }
-                    onDelete={() => removePanel(panel.id)}
-                    onUpdate={updatePanel}
-                    onConfigModalChange={handleConfigModalChange}
-                    onPickerConsumed={handlePickerConsumed}
-                  />
-                </div>
-              ))}
-            </RGL>
           </div>
         )}
+
+        {/* Grid */}
+        <div className="p-4" ref={containerRef}>
+          {dashboardsLoading || isLoadingLayout ? (
+            <div className="flex items-center justify-center h-64 text-base-content/60">
+              <div className="text-center">
+                <span className="loading loading-spinner loading-lg mb-4" />
+                <p className="text-xl">Loading dashboard layout...</p>
+              </div>
+            </div>
+          ) : panels.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-base-content/40">
+              <div className="text-center">
+                <p className="text-2xl mb-2">No panels yet</p>
+                <p>
+                  {editMode
+                    ? 'Click "+ Add Panel" to get started'
+                    : "Toggle Edit: ON in the navbar to add panels"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className={hasAnyModalOpen ? "pointer-events-none" : ""}>
+              <RGL
+                width={gridWidth}
+                layout={layout}
+                cols={12}
+                rowHeight={60}
+                isDraggable={gridInteractionsEnabled}
+                isResizable={gridInteractionsEnabled}
+                onLayoutChange={handleLayoutChange}
+                draggableHandle=".drag-handle"
+                draggableCancel=".no-drag"
+              >
+                {panels.map((panel) => (
+                  <div key={panel.id} id={`panel-${panel.id}`}>
+                    <PanelWrapper
+                      panel={panel}
+                      editMode={editMode}
+                      brokerStatuses={brokerStatuses}
+                      activeDashboardId={activeDashboardId}
+                      highlight={panel.id === newPanelId}
+                      pickerReturnTopic={
+                        pendingPickerReturn?.panelId === panel.id
+                          ? pendingPickerReturn.topic
+                          : undefined
+                      }
+                      pickerReturnBrokerId={
+                        pendingPickerReturn?.panelId === panel.id
+                          ? pendingPickerReturn.brokerId
+                          : undefined
+                      }
+                      pickerReturnDraftConfig={
+                        pendingPickerReturn?.panelId === panel.id
+                          ? pendingPickerReturn.draftConfig
+                          : undefined
+                      }
+                      onDelete={() => removePanel(panel.id)}
+                      onUpdate={updatePanel}
+                      onConfigModalChange={handleConfigModalChange}
+                      onPickerConsumed={handlePickerConsumed}
+                    />
+                  </div>
+                ))}
+              </RGL>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-    {hoveredPanelType &&
-      previewPos &&
-      createPortal(
-        <div
-          className="fixed z-[100] rounded-box border border-base-300 bg-base-100 shadow-lg p-3 w-52 h-40 pointer-events-none"
-          style={{ top: previewPos.top, left: previewPos.left }}
-        >
-          {ALL_PANEL_TYPES.find((t) => t.value === hoveredPanelType)?.preview}
-        </div>,
-        document.body,
-      )}
+      {hoveredPanelType &&
+        previewPos &&
+        createPortal(
+          <div
+            className="fixed z-[100] rounded-box border border-base-300 bg-base-100 shadow-lg p-3 w-52 h-40 pointer-events-none"
+            style={{ top: previewPos.top, left: previewPos.left }}
+          >
+            {ALL_PANEL_TYPES.find((t) => t.value === hoveredPanelType)?.preview}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

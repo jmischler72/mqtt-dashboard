@@ -3,31 +3,10 @@ import ReactMarkdown from "react-markdown";
 
 export interface TextConfig {
   markdown?: string;
-  color?: string;
-  fontSize?: "sm" | "base" | "lg" | "xl";
-  align?: "left" | "center" | "right";
 }
 
-const FONT_SIZE_CLASS: Record<NonNullable<TextConfig["fontSize"]>, string> = {
-  sm: "prose-sm",
-  base: "prose-base",
-  lg: "prose-lg",
-  xl: "prose-xl",
-};
-
-const ALIGN_CLASS: Record<NonNullable<TextConfig["align"]>, string> = {
-  left: "text-left",
-  center: "text-center",
-  right: "text-right",
-};
-
-const TEMPLATE: TextConfig = {
-  markdown:
-    "# Section Title\n\nDescribe this part of your dashboard here.\n\n- Point one\n- Point two\n\n> Tip: use **Markdown** to format text.",
-  color: "#1f2937",
-  fontSize: "base",
-  align: "left",
-};
+const TEMPLATE_MARKDOWN =
+  "# Section Title\n\nDescribe this part of your dashboard here.\n\n- Point one\n- Point two\n\n> Tip: use **Markdown** to format text.";
 
 interface ModalProps {
   config: TextConfig;
@@ -37,28 +16,17 @@ interface ModalProps {
 
 export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
   const [markdown, setMarkdown] = useState(config.markdown ?? "");
-  const [color, setColor] = useState(config.color ?? "#1f2937");
-  const [fontSize, setFontSize] = useState<NonNullable<TextConfig["fontSize"]>>(
-    config.fontSize ?? "base",
-  );
-  const [align, setAlign] = useState<NonNullable<TextConfig["align"]>>(
-    config.align ?? "left",
-  );
   const [tab, setTab] = useState<"edit" | "preview">("edit");
-
-  const applyTemplate = () => {
-    setMarkdown(TEMPLATE.markdown ?? "");
-    setColor(TEMPLATE.color ?? "#1f2937");
-    setFontSize(TEMPLATE.fontSize ?? "base");
-    setAlign(TEMPLATE.align ?? "left");
-  };
 
   return (
     <dialog className="modal modal-open">
       <div className="modal-box max-h-[85vh] w-1/3 min-w-96 max-w-none overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-lg">Text Configuration</h3>
-          <button className="btn btn-xs btn-outline" onClick={applyTemplate}>
+          <button
+            className="btn btn-xs btn-outline"
+            onClick={() => setMarkdown(TEMPLATE_MARKDOWN)}
+          >
             Start with a template
           </button>
         </div>
@@ -90,53 +58,11 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
           />
         ) : (
           <div className="border border-base-300 rounded-box p-3 min-h-48 overflow-auto">
-            <TextRender
-              config={{ markdown, color, fontSize, align }}
-              fill={false}
-            />
+            <div className="prose max-w-none prose-base">
+              <ReactMarkdown>{markdown}</ReactMarkdown>
+            </div>
           </div>
         )}
-
-        <div className="flex flex-wrap gap-4 mt-3">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Color</legend>
-            <input
-              type="color"
-              className="input input-bordered h-9 w-16 p-1"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-            />
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Font size</legend>
-            <select
-              className="select select-bordered"
-              value={fontSize}
-              onChange={(e) =>
-                setFontSize(e.target.value as NonNullable<TextConfig["fontSize"]>)
-              }
-            >
-              <option value="sm">Small</option>
-              <option value="base">Normal</option>
-              <option value="lg">Large</option>
-              <option value="xl">Extra large</option>
-            </select>
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Alignment</legend>
-            <select
-              className="select select-bordered"
-              value={align}
-              onChange={(e) =>
-                setAlign(e.target.value as NonNullable<TextConfig["align"]>)
-              }
-            >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-          </fieldset>
-        </div>
 
         <div className="modal-action">
           <button className="btn" onClick={onClose}>
@@ -144,7 +70,7 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => onSave({ markdown, color, fontSize, align }, "")}
+            onClick={() => onSave({ markdown }, "")}
           >
             Save
           </button>
@@ -152,19 +78,6 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
       </div>
       <div className="modal-backdrop" onClick={onClose} />
     </dialog>
-  );
-}
-
-function TextRender({ config, fill }: { config: TextConfig; fill: boolean }) {
-  const fontSize = config.fontSize ?? "base";
-  const align = config.align ?? "left";
-  return (
-    <div
-      className={`prose max-w-none ${FONT_SIZE_CLASS[fontSize]} ${ALIGN_CLASS[align]} ${fill ? "h-full overflow-auto" : ""}`}
-      style={{ color: config.color }}
-    >
-      <ReactMarkdown>{config.markdown ?? ""}</ReactMarkdown>
-    </div>
   );
 }
 
@@ -180,5 +93,9 @@ export default function TextPanel({ config }: TextPanelProps) {
       </div>
     );
   }
-  return <TextRender config={config} fill />;
+  return (
+    <div className="prose max-w-none prose-base h-full overflow-auto p-1">
+      <ReactMarkdown>{config.markdown}</ReactMarkdown>
+    </div>
+  );
 }
