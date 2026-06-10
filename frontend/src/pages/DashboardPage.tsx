@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   MdSmartButton,
   MdInput,
@@ -37,11 +38,128 @@ export interface Panel {
 }
 
 const PANEL_TYPES = [
-  { value: "button", label: "Button", icon: MdSmartButton },
-  { value: "input", label: "Input", icon: MdInput },
-  { value: "log", label: "Log", icon: MdListAlt },
-  { value: "cron", label: "Cron", icon: MdSchedule },
-  { value: "stats", label: "Stats", icon: MdBarChart },
+  {
+    value: "button",
+    label: "Button",
+    icon: MdSmartButton,
+    preview: (
+      <div className="flex items-center justify-center h-full py-4">
+        <button className="btn btn-primary btn-lg pointer-events-none">
+          Click
+        </button>
+      </div>
+    ),
+  },
+  {
+    value: "input",
+    label: "Input",
+    icon: MdInput,
+    preview: (
+      <div className="flex flex-col gap-2 p-1 h-full">
+        <textarea
+          className="textarea textarea-bordered font-mono flex-1 resize-none w-full text-xs pointer-events-none"
+          placeholder="Enter payload…"
+          readOnly
+          value=""
+        />
+        <button className="btn btn-sm btn-primary pointer-events-none">
+          Publish
+        </button>
+      </div>
+    ),
+  },
+  {
+    value: "log",
+    label: "Log",
+    icon: MdListAlt,
+    preview: (
+      <div className="flex flex-col h-full gap-1">
+        <div className="flex gap-1 pb-1">
+          <span className="btn btn-xs pointer-events-none">Clear</span>
+          <span className="btn btn-xs pointer-events-none">Pause</span>
+          <span className="text-xs text-base-content/50 ml-auto self-center">
+            3 msgs
+          </span>
+        </div>
+        <div className="flex-1 bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5">
+          {[
+            { topic: "sensor/temp", payload: "22.4" },
+            { topic: "sensor/hum", payload: "61%" },
+            { topic: "device/status", payload: "online" },
+          ].map((m, i) => (
+            <div key={i} className="leading-tight">
+              <span className="text-neutral-content/70">[12:00:0{i}]</span>{" "}
+              <span className="text-accent">{m.topic}</span>{" "}
+              <span>{m.payload}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    value: "cron",
+    label: "Cron",
+    icon: MdSchedule,
+    preview: (
+      <div className="flex flex-col gap-3 p-1 h-full">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-mono bg-base-200 rounded px-2 py-1">
+            every minute
+          </span>
+          <input
+            type="checkbox"
+            className="toggle toggle-primary toggle-sm pointer-events-none"
+            readOnly
+            checked
+          />
+        </div>
+        <div className="flex flex-col items-center justify-center gap-1 flex-1">
+          <div className="text-xs text-base-content/50">Next run in</div>
+          <div className="text-xl font-bold font-mono">00:42</div>
+          <progress
+            className="progress progress-primary w-full"
+            value={30}
+            max="100"
+          />
+        </div>
+      </div>
+    ),
+  },
+  {
+    value: "stats",
+    label: "Stats",
+    icon: MdBarChart,
+    preview: (
+      <div className="flex flex-col gap-2 h-full">
+        <div className="grid grid-cols-2 gap-1">
+          {[
+            { label: "Msg/s", value: "4.2" },
+            { label: "Total", value: "1.2k" },
+            { label: "Topics", value: "8" },
+            { label: "Data in", value: "3.1k" },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="bg-base-200 rounded p-1 text-center"
+            >
+              <div className="text-xs text-base-content/50">{s.label}</div>
+              <div className="text-sm font-bold">{s.value}</div>
+            </div>
+          ))}
+        </div>
+        <svg viewBox="0 0 100 30" className="w-full opacity-60">
+          <polyline
+            points="0,28 20,20 40,22 60,10 80,14 100,6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="text-primary"
+          />
+        </svg>
+      </div>
+    ),
+  },
 ];
 
 const GRID_COLS = 12;
@@ -95,7 +213,13 @@ export default function DashboardPage() {
       return null;
     }
   });
+  const [hoveredPanelType, setHoveredPanelType] = useState<string | null>(null);
+  const [previewPos, setPreviewPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } =
@@ -313,6 +437,7 @@ export default function DashboardPage() {
   }, [newPanelId]);
 
   return (
+    <>
     <div className="min-h-screen bg-base-200">
       {editMode && (
         <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
@@ -331,6 +456,29 @@ export default function DashboardPage() {
                     <button
                       className="w-full text-left px-3 py-2 hover:bg-base-200 rounded flex items-center gap-2"
                       onClick={() => addPanel(t.value)}
+                      onMouseEnter={(e) => {
+                        if (previewHideTimerRef.current)
+                          clearTimeout(previewHideTimerRef.current);
+                        const rect = (
+                          e.currentTarget as HTMLElement
+                        ).getBoundingClientRect();
+                        const PREVIEW_W = 208;
+                        const left = Math.min(
+                          rect.right + 8,
+                          window.innerWidth - PREVIEW_W - 8,
+                        );
+                        setPreviewPos({
+                          top: rect.top,
+                          left,
+                        });
+                        setHoveredPanelType(t.value);
+                      }}
+                      onMouseLeave={() => {
+                        previewHideTimerRef.current = setTimeout(() => {
+                          setHoveredPanelType(null);
+                          setPreviewPos(null);
+                        }, 150);
+                      }}
                     >
                       <t.icon size={16} className="text-base-content/60 shrink-0" />
                       {t.label}
@@ -411,5 +559,17 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+    {hoveredPanelType &&
+      previewPos &&
+      createPortal(
+        <div
+          className="fixed z-[100] rounded-box border border-base-300 bg-base-100 shadow-lg p-3 w-52 h-40 pointer-events-none"
+          style={{ top: previewPos.top, left: previewPos.left }}
+        >
+          {PANEL_TYPES.find((t) => t.value === hoveredPanelType)?.preview}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
