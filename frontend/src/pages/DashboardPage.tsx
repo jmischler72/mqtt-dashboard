@@ -1,4 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  MdSmartButton,
+  MdInput,
+  MdListAlt,
+  MdSchedule,
+  MdBarChart,
+} from "react-icons/md";
 import ReactGridLayout from "react-grid-layout";
 import { useOutletContext } from "react-router-dom";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,11 +37,11 @@ export interface Panel {
 }
 
 const PANEL_TYPES = [
-  { value: "button", label: "Button" },
-  { value: "input", label: "Input" },
-  { value: "log", label: "Log" },
-  { value: "cron", label: "Cron" },
-  { value: "stats", label: "Stats" },
+  { value: "button", label: "Button", icon: MdSmartButton },
+  { value: "input", label: "Input", icon: MdInput },
+  { value: "log", label: "Log", icon: MdListAlt },
+  { value: "cron", label: "Cron", icon: MdSchedule },
+  { value: "stats", label: "Stats", icon: MdBarChart },
 ];
 
 const GRID_COLS = 12;
@@ -322,9 +329,10 @@ export default function DashboardPage() {
                 {PANEL_TYPES.map((t) => (
                   <li key={t.value}>
                     <button
-                      className="w-full text-left px-3 py-2 hover:bg-base-200 rounded"
+                      className="w-full text-left px-3 py-2 hover:bg-base-200 rounded flex items-center gap-2"
                       onClick={() => addPanel(t.value)}
                     >
+                      <t.icon size={16} className="text-base-content/60 shrink-0" />
                       {t.label}
                     </button>
                   </li>

@@ -6,7 +6,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 
 - [x] (stats-panel) we should add some customisation for each section of the stat panel (like toggle) in edit modal
 - [x] (stats-panel) the picker for last time doesnt work since the chart starts when loaded, im not sure the reset counter serves a purpose, and this panel should maybe get stat from history, i also need to check if i should use a lib for the chart
-- [x] ($sys) in config page, the toggle should toggle whether we save $sys topics in history whereas the toggle in explorer should set whether we show with ws the $sys topics (and it should be disabled by default)
+- [x] (sys) in config page, the toggle should toggle whether we save sys topics in history whereas the toggle in explorer should set whether we show with ws the sys topics (and it should be disabled by default)
 - [ ] (dashboard) show preview of panel on hover
 - [ ] (config) be able to config the history feature to disable it
 - [x] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics, also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic in breadcrumb and in explorer-picker, the cumulative show should be configured with a simple toggle like $sys 
