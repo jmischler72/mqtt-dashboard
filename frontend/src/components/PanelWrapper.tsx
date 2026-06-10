@@ -26,6 +26,18 @@ import BrokerStatsPanel, {
   BrokerStatsConfigModal,
   type BrokerStatsConfig,
 } from "./panels/BrokerStatsPanel";
+import SeparatorPanel, {
+  SeparatorConfigModal,
+  type SeparatorConfig,
+} from "./panels/SeparatorPanel";
+import TextPanel, {
+  TextConfigModal,
+  type TextConfig,
+} from "./panels/TextPanel";
+import ImagePanel, {
+  ImageConfigModal,
+  type ImageConfig,
+} from "./panels/ImagePanel";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
@@ -60,7 +72,12 @@ type PanelConfig =
   | InputConfig
   | LogConfig
   | CronConfig
-  | BrokerStatsConfig;
+  | BrokerStatsConfig
+  | SeparatorConfig
+  | TextConfig
+  | ImageConfig;
+
+const VISUAL_PANEL_TYPES = ["image", "separator", "text"];
 
 export default function PanelWrapper({
   panel,
@@ -292,8 +309,13 @@ export default function PanelWrapper({
   const persistedPinned = panelConfig.header_meta_pinned === true;
   const isPinned = optimisticPinned ?? persistedPinned;
   const headerMeta = buildPanelHeaderMeta(panel.panel_type, panelConfig);
+  const isVisual = VISUAL_PANEL_TYPES.includes(panel.panel_type);
   const showMetaPopover =
-    isPinned || isMetaRegionHovered || isTopicSummaryHovered || isPayloadHovered;
+    !isVisual &&
+    (isPinned ||
+      isMetaRegionHovered ||
+      isTopicSummaryHovered ||
+      isPayloadHovered);
 
   const updateMetaPinned = async (nextPinned: boolean) => {
     if (nextPinned === isPinned) return;
@@ -352,6 +374,12 @@ export default function PanelWrapper({
             config={cfg as BrokerStatsConfig}
           />
         );
+      case "separator":
+        return <SeparatorPanel config={cfg as SeparatorConfig} />;
+      case "text":
+        return <TextPanel config={cfg as TextConfig} />;
+      case "image":
+        return <ImagePanel config={cfg as ImageConfig} />;
       default:
         return (
           <div className="flex items-center justify-center h-full text-base-content/40">
@@ -448,6 +476,33 @@ export default function PanelWrapper({
           />,
           document.body,
         );
+      case "separator":
+        return createPortal(
+          <SeparatorConfigModal
+            config={cfg as SeparatorConfig}
+            onSave={(c) => saveConfig(c, "")}
+            onClose={closeConfigModal}
+          />,
+          document.body,
+        );
+      case "text":
+        return createPortal(
+          <TextConfigModal
+            config={cfg as TextConfig}
+            onSave={(c) => saveConfig(c, "")}
+            onClose={closeConfigModal}
+          />,
+          document.body,
+        );
+      case "image":
+        return createPortal(
+          <ImageConfigModal
+            config={cfg as ImageConfig}
+            onSave={(c) => saveConfig(c, "")}
+            onClose={closeConfigModal}
+          />,
+          document.body,
+        );
       default:
         return null;
     }
@@ -459,10 +514,12 @@ export default function PanelWrapper({
         ref={panelRef}
         className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`}
       >
-        {/* Header */}
+        {/* Header — hidden for visual panels in view mode */}
+        {(!isVisual || editMode) && (
         <div
           className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
         >
+          {!isVisual && (
           <div
             data-testid="panel-meta-anchor"
             className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
@@ -484,6 +541,7 @@ export default function PanelWrapper({
               {!isPinned && <IoIosArrowDown />}
             </div>
           </div>
+          )}
 
           {editingTitle ? (
             <input
@@ -524,6 +582,7 @@ export default function PanelWrapper({
             </div>
           )}
         </div>
+        )}
 
         {showMetaPopover && (
           <div

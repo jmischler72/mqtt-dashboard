@@ -6,6 +6,9 @@ import {
   MdListAlt,
   MdSchedule,
   MdBarChart,
+  MdImage,
+  MdHorizontalRule,
+  MdNotes,
 } from "react-icons/md";
 import ReactGridLayout from "react-grid-layout";
 import { useOutletContext } from "react-router-dom";
@@ -162,6 +165,50 @@ const PANEL_TYPES = [
   },
 ];
 
+const VISUAL_PANEL_TYPES = [
+  {
+    value: "text",
+    label: "Text",
+    icon: MdNotes,
+    preview: (
+      <div className="flex flex-col gap-1 p-2 h-full justify-center">
+        <div className="h-2 w-2/3 bg-base-content/30 rounded" />
+        <div className="h-1.5 w-full bg-base-content/15 rounded" />
+        <div className="h-1.5 w-5/6 bg-base-content/15 rounded" />
+        <div className="h-1.5 w-3/4 bg-base-content/15 rounded" />
+      </div>
+    ),
+  },
+  {
+    value: "separator",
+    label: "Separator",
+    icon: MdHorizontalRule,
+    preview: (
+      <div className="flex items-center justify-center h-full px-2">
+        <div className="w-full h-0.5 bg-base-content/40 rounded-full" />
+      </div>
+    ),
+  },
+  {
+    value: "image",
+    label: "Image",
+    icon: MdImage,
+    preview: (
+      <div className="flex items-center justify-center h-full p-2">
+        <div className="flex items-center justify-center w-full h-full bg-base-200 rounded">
+          <MdImage className="text-3xl text-base-content/30" />
+        </div>
+      </div>
+    ),
+  },
+];
+
+const ALL_PANEL_TYPES = [...PANEL_TYPES, ...VISUAL_PANEL_TYPES];
+
+const PANEL_MIN: Record<string, { minW: number; minH: number }> = {
+  separator: { minW: 1, minH: 1 },
+};
+
 const GRID_COLS = 12;
 const GRID_ROW_HEIGHT = 60;
 const GRID_ROW_GAP = 10;
@@ -181,6 +228,7 @@ export default function DashboardPage() {
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [gridWidth, setGridWidth] = useState(1200);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [addVisualMenuOpen, setAddVisualMenuOpen] = useState(false);
   const [newPanelId, setNewPanelId] = useState<string | null>(null);
   const [openConfigPanels, setOpenConfigPanels] = useState<Set<string>>(
     new Set(),
@@ -222,6 +270,7 @@ export default function DashboardPage() {
   const previewHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const addVisualMenuRef = useRef<HTMLDivElement>(null);
   const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } =
     useOutletContext<LayoutContext>();
 
@@ -232,6 +281,12 @@ export default function DashboardPage() {
         !addMenuRef.current.contains(e.target as Node)
       ) {
         setAddMenuOpen(false);
+      }
+      if (
+        addVisualMenuRef.current &&
+        !addVisualMenuRef.current.contains(e.target as Node)
+      ) {
+        setAddVisualMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -294,16 +349,19 @@ export default function DashboardPage() {
   const gridInteractionsEnabled =
     editMode && openConfigPanels.size === 0 && !hasAnyModalOpen;
 
-  const layout = panels.map((p) => ({
-    i: p.id,
-    x: p.x,
-    y: p.y,
-    w: p.w,
-    h: p.h,
-    minW: 2,
-    minH: 2,
-    static: !gridInteractionsEnabled,
-  }));
+  const layout = panels.map((p) => {
+    const { minW, minH } = PANEL_MIN[p.panel_type] ?? { minW: 2, minH: 2 };
+    return {
+      i: p.id,
+      x: p.x,
+      y: p.y,
+      w: p.w,
+      h: p.h,
+      minW,
+      minH,
+      static: !gridInteractionsEnabled,
+    };
+  });
 
   const handleLayoutChange = useCallback((newLayout: GridLayout[]) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -375,6 +433,13 @@ export default function DashboardPage() {
   const addPanel = async (panelType: string) => {
     if (isLoadingLayout || !activeDashboardId) return;
     setAddMenuOpen(false);
+    setAddVisualMenuOpen(false);
+    if (previewHideTimerRef.current) {
+      clearTimeout(previewHideTimerRef.current);
+      previewHideTimerRef.current = null;
+    }
+    setHoveredPanelType(null);
+    setPreviewPos(null);
     const { x, y } = getClosestInsertPosition();
     try {
       const panel = await api.post<Panel>("/api/layouts", {
@@ -382,7 +447,7 @@ export default function DashboardPage() {
         panel_type: panelType,
         x,
         y,
-        title: `${PANEL_TYPES.find((t) => t.value === panelType)?.label ?? "New"} Panel`,
+        title: `${ALL_PANEL_TYPES.find((t) => t.value === panelType)?.label ?? "New"} Panel`,
       });
       setPanels((prev) => [...prev, panel]);
       setNewPanelId(panel.id);
@@ -390,6 +455,34 @@ export default function DashboardPage() {
       void error;
     }
   };
+
+  const renderAddMenuItem = (t: (typeof ALL_PANEL_TYPES)[number]) => (
+    <button
+      className="w-full text-left px-3 py-2 hover:bg-base-200 rounded flex items-center gap-2"
+      onClick={() => addPanel(t.value)}
+      onMouseEnter={(e) => {
+        if (previewHideTimerRef.current)
+          clearTimeout(previewHideTimerRef.current);
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const PREVIEW_W = 208;
+        const left = Math.min(
+          rect.right + 8,
+          window.innerWidth - PREVIEW_W - 8,
+        );
+        setPreviewPos({ top: rect.top, left });
+        setHoveredPanelType(t.value);
+      }}
+      onMouseLeave={() => {
+        previewHideTimerRef.current = setTimeout(() => {
+          setHoveredPanelType(null);
+          setPreviewPos(null);
+        }, 150);
+      }}
+    >
+      <t.icon size={16} className="text-base-content/60 shrink-0" />
+      {t.label}
+    </button>
+  );
 
   const removePanel = (id: string) => {
     setPanels((prev) => prev.filter((p) => p.id !== id));
@@ -444,7 +537,10 @@ export default function DashboardPage() {
           <div className="relative" ref={addMenuRef}>
             <button
               className="btn btn-sm btn-primary"
-              onClick={() => setAddMenuOpen((o) => !o)}
+              onClick={() => {
+                setAddVisualMenuOpen(false);
+                setAddMenuOpen((o) => !o);
+              }}
               disabled={isLoadingLayout}
             >
               {isLoadingLayout ? "Loading layout..." : "+ Add Panel"}
@@ -452,38 +548,26 @@ export default function DashboardPage() {
             {addMenuOpen && !isLoadingLayout && (
               <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
                 {PANEL_TYPES.map((t) => (
-                  <li key={t.value}>
-                    <button
-                      className="w-full text-left px-3 py-2 hover:bg-base-200 rounded flex items-center gap-2"
-                      onClick={() => addPanel(t.value)}
-                      onMouseEnter={(e) => {
-                        if (previewHideTimerRef.current)
-                          clearTimeout(previewHideTimerRef.current);
-                        const rect = (
-                          e.currentTarget as HTMLElement
-                        ).getBoundingClientRect();
-                        const PREVIEW_W = 208;
-                        const left = Math.min(
-                          rect.right + 8,
-                          window.innerWidth - PREVIEW_W - 8,
-                        );
-                        setPreviewPos({
-                          top: rect.top,
-                          left,
-                        });
-                        setHoveredPanelType(t.value);
-                      }}
-                      onMouseLeave={() => {
-                        previewHideTimerRef.current = setTimeout(() => {
-                          setHoveredPanelType(null);
-                          setPreviewPos(null);
-                        }, 150);
-                      }}
-                    >
-                      <t.icon size={16} className="text-base-content/60 shrink-0" />
-                      {t.label}
-                    </button>
-                  </li>
+                  <li key={t.value}>{renderAddMenuItem(t)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="relative" ref={addVisualMenuRef}>
+            <button
+              className="btn btn-sm btn-outline btn-primary"
+              onClick={() => {
+                setAddMenuOpen(false);
+                setAddVisualMenuOpen((o) => !o);
+              }}
+              disabled={isLoadingLayout}
+            >
+              + Add Visual
+            </button>
+            {addVisualMenuOpen && !isLoadingLayout && (
+              <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
+                {VISUAL_PANEL_TYPES.map((t) => (
+                  <li key={t.value}>{renderAddMenuItem(t)}</li>
                 ))}
               </ul>
             )}
@@ -566,7 +650,7 @@ export default function DashboardPage() {
           className="fixed z-[100] rounded-box border border-base-300 bg-base-100 shadow-lg p-3 w-52 h-40 pointer-events-none"
           style={{ top: previewPos.top, left: previewPos.left }}
         >
-          {PANEL_TYPES.find((t) => t.value === hoveredPanelType)?.preview}
+          {ALL_PANEL_TYPES.find((t) => t.value === hoveredPanelType)?.preview}
         </div>,
         document.body,
       )}
