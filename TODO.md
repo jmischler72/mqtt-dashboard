@@ -4,12 +4,14 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- [ ] (sub-header) when topic is truncated, we should be able to see it on hover
+- [ ] (separator-panel) make it take half the space it does without grid changes
+- [ ] (config) be able to config the history feature to disable it
+- [x] (dashboard) show preview of panel on hover
 - [x] (stats-panel) we should add some customisation for each section of the stat panel (like toggle) in edit modal
 - [x] (stats-panel) the picker for last time doesnt work since the chart starts when loaded, im not sure the reset counter serves a purpose, and this panel should maybe get stat from history, i also need to check if i should use a lib for the chart
 - [x] (sys) in config page, the toggle should toggle whether we save sys topics in history whereas the toggle in explorer should set whether we show with ws the sys topics (and it should be disabled by default)
-- [ ] (dashboard) show preview of panel on hover
-- [ ] (config) be able to config the history feature to disable it
-- [x] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics, also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic in breadcrumb and in explorer-picker, the cumulative show should be configured with a simple toggle like $sys 
+- [x] (explorer) be able to show multiple topics at once, like a cumulative show of all child nodes topics, also when cumulative show is enabled, clicking a parent topic with the topic picker should config a wildcard topic in breadcrumb and in explorer-picker, the cumulative show should be configured with a simple toggle like $sys
 - [x] (cron-panel) fix centering when small panel
 - [x] (panel) add panel for broker stats and charts on message activity
 - [x] (sub-header of panels) the hover of payload or 2 topics(log panel) are hidden behind the outside of panel also it should be dynamically displayed on left or right to not hide outside the window, and it should not have alt texts
