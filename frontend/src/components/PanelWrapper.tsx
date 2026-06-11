@@ -26,6 +26,18 @@ import BrokerStatsPanel, {
   BrokerStatsConfigModal,
   type BrokerStatsConfig,
 } from "./panels/BrokerStatsPanel";
+import SeparatorPanel, {
+  SeparatorConfigModal,
+  type SeparatorConfig,
+} from "./panels/SeparatorPanel";
+import TextPanel, {
+  TextConfigModal,
+  type TextConfig,
+} from "./panels/TextPanel";
+import ImagePanel, {
+  ImageConfigModal,
+  type ImageConfig,
+} from "./panels/ImagePanel";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
@@ -60,7 +72,12 @@ type PanelConfig =
   | InputConfig
   | LogConfig
   | CronConfig
-  | BrokerStatsConfig;
+  | BrokerStatsConfig
+  | SeparatorConfig
+  | TextConfig
+  | ImageConfig;
+
+const VISUAL_PANEL_TYPES = ["image", "separator", "text"];
 
 export default function PanelWrapper({
   panel,
@@ -292,8 +309,16 @@ export default function PanelWrapper({
   const persistedPinned = panelConfig.header_meta_pinned === true;
   const isPinned = optimisticPinned ?? persistedPinned;
   const headerMeta = buildPanelHeaderMeta(panel.panel_type, panelConfig);
+  const isVisual = VISUAL_PANEL_TYPES.includes(panel.panel_type);
+  const isSeparator = panel.panel_type === "separator";
+  const sepOrientation =
+    (panelConfig as { orientation?: string })?.orientation ?? "horizontal";
   const showMetaPopover =
-    isPinned || isMetaRegionHovered || isTopicSummaryHovered || isPayloadHovered;
+    !isVisual &&
+    (isPinned ||
+      isMetaRegionHovered ||
+      isTopicSummaryHovered ||
+      isPayloadHovered);
 
   const updateMetaPinned = async (nextPinned: boolean) => {
     if (nextPinned === isPinned) return;
@@ -352,6 +377,12 @@ export default function PanelWrapper({
             config={cfg as BrokerStatsConfig}
           />
         );
+      case "separator":
+        return <SeparatorPanel config={cfg as SeparatorConfig} />;
+      case "text":
+        return <TextPanel config={cfg as TextConfig} />;
+      case "image":
+        return <ImagePanel config={cfg as ImageConfig} />;
       default:
         return (
           <div className="flex items-center justify-center h-full text-base-content/40">
@@ -448,6 +479,33 @@ export default function PanelWrapper({
           />,
           document.body,
         );
+      case "separator":
+        return createPortal(
+          <SeparatorConfigModal
+            config={cfg as SeparatorConfig}
+            onSave={(c) => saveConfig(c, "")}
+            onClose={closeConfigModal}
+          />,
+          document.body,
+        );
+      case "text":
+        return createPortal(
+          <TextConfigModal
+            config={cfg as TextConfig}
+            onSave={(c) => saveConfig(c, "")}
+            onClose={closeConfigModal}
+          />,
+          document.body,
+        );
+      case "image":
+        return createPortal(
+          <ImageConfigModal
+            config={cfg as ImageConfig}
+            onSave={(c) => saveConfig(c, "")}
+            onClose={closeConfigModal}
+          />,
+          document.body,
+        );
       default:
         return null;
     }
@@ -457,12 +515,18 @@ export default function PanelWrapper({
     <>
       <div
         ref={panelRef}
-        className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`}
+        className={
+          isSeparator && !editMode
+            ? `relative ${sepOrientation === "horizontal" ? "h-1/2 w-full" : "w-1/2 h-full"} overflow-hidden ${highlight ? "panel-new-highlight rounded-lg" : ""}`
+            : `flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
+        }
       >
-        {/* Header */}
+        {/* Header — hidden for visual panels in view mode */}
+        {(!isVisual || editMode) && (
         <div
           className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
         >
+          {!isVisual && (
           <div
             data-testid="panel-meta-anchor"
             className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
@@ -484,6 +548,7 @@ export default function PanelWrapper({
               {!isPinned && <IoIosArrowDown />}
             </div>
           </div>
+          )}
 
           {editingTitle ? (
             <input
@@ -524,6 +589,7 @@ export default function PanelWrapper({
             </div>
           )}
         </div>
+        )}
 
         {showMetaPopover && (
           <div
@@ -533,7 +599,7 @@ export default function PanelWrapper({
           >
             <span className="inline-flex items-center gap-1 min-w-0">
               <RiServerLine className="shrink-0 text-base-content/65" />
-              <span className="truncate">
+              <span className="truncate" title={brokerStatus?.name ?? "No broker"}>
                 {brokerStatus?.name ?? "No broker"}
               </span>
             </span>
@@ -576,7 +642,7 @@ export default function PanelWrapper({
                   </span>
                 </div>
               ) : (
-                <span className="block truncate">{headerMeta.topicSummary}</span>
+                <span className="block truncate" title={headerMeta.topicSummary}>{headerMeta.topicSummary}</span>
               )}
             </span>
 
@@ -631,7 +697,7 @@ export default function PanelWrapper({
 
         {/* Body blocks drag-start events so only header can move panels. */}
         <div
-          className="flex-1 overflow-hidden p-2 no-drag"
+          className={`overflow-hidden no-drag ${isSeparator && !editMode ? "h-full w-full" : "flex-1 p-2"}`}
           onPointerDownCapture={(e) => e.stopPropagation()}
           onMouseDownCapture={(e) => e.stopPropagation()}
           onTouchStartCapture={(e) => e.stopPropagation()}

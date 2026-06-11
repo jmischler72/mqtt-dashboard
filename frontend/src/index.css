@@ -3,6 +3,7 @@
 @import "react-resizable/css/styles.css";
 
 @plugin "daisyui";
+@plugin "@tailwindcss/typography";
 
 @keyframes panel-highlight-fade {
   0%,

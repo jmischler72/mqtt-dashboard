@@ -78,6 +78,7 @@ func main() {
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
+	imageH := handlers.NewImageHandler("./data")
 
 	// --- Router ---
 	r := chi.NewRouter()
@@ -130,6 +131,12 @@ func main() {
 	// History
 	r.Get("/api/history/size", settingsH.GetHistorySize)
 	r.Delete("/api/history", settingsH.ClearHistory)
+
+	// Images (visual panels)
+	r.Post("/api/images", imageH.UploadImage)
+	r.Get("/api/images/presets", imageH.ListPresets)
+	r.Get("/api/images/{filename}", imageH.ServeImage)
+	r.Delete("/api/images/{filename}", imageH.DeleteImage)
 
 	// Explorer
 	r.Get("/api/explorer/tree", explorerH.GetTree)
