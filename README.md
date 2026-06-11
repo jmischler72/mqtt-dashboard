@@ -146,7 +146,6 @@ MQTT Dashboard supports secure broker connections out of the box:
 
 ## 🗺️ Roadmap
 
-- [ ] Configurable history toggle per broker
 - [ ] Allow users to create their custom panels and share them
 - [ ] More customisable options in base panels
 
