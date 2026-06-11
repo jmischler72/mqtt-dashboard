@@ -94,7 +94,7 @@ export default function TextPanel({ config }: TextPanelProps) {
     );
   }
   return (
-    <div className="prose max-w-none prose-base h-full overflow-auto p-1">
+    <div className="prose max-w-none prose-base h-full overflow-auto p-4">
       <ReactMarkdown>{config.markdown}</ReactMarkdown>
     </div>
   );

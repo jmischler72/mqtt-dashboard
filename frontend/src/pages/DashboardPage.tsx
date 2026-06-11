@@ -617,7 +617,15 @@ export default function DashboardPage() {
                 draggableCancel=".no-drag"
               >
                 {panels.map((panel) => (
-                  <div key={panel.id} id={`panel-${panel.id}`}>
+                  <div
+                    key={panel.id}
+                    id={`panel-${panel.id}`}
+                    className={
+                      panel.panel_type === "separator" && !editMode
+                        ? "flex items-center justify-center"
+                        : ""
+                    }
+                  >
                     <PanelWrapper
                       panel={panel}
                       editMode={editMode}

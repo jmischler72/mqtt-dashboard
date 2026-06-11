@@ -310,6 +310,9 @@ export default function PanelWrapper({
   const isPinned = optimisticPinned ?? persistedPinned;
   const headerMeta = buildPanelHeaderMeta(panel.panel_type, panelConfig);
   const isVisual = VISUAL_PANEL_TYPES.includes(panel.panel_type);
+  const isSeparator = panel.panel_type === "separator";
+  const sepOrientation =
+    (panelConfig as { orientation?: string })?.orientation ?? "horizontal";
   const showMetaPopover =
     !isVisual &&
     (isPinned ||
@@ -512,7 +515,11 @@ export default function PanelWrapper({
     <>
       <div
         ref={panelRef}
-        className={`flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`}
+        className={
+          isSeparator && !editMode
+            ? `relative ${sepOrientation === "horizontal" ? "h-1/2 w-full" : "w-1/2 h-full"} overflow-hidden ${highlight ? "panel-new-highlight rounded-lg" : ""}`
+            : `flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
+        }
       >
         {/* Header — hidden for visual panels in view mode */}
         {(!isVisual || editMode) && (
@@ -690,7 +697,7 @@ export default function PanelWrapper({
 
         {/* Body blocks drag-start events so only header can move panels. */}
         <div
-          className="flex-1 overflow-hidden p-2 no-drag"
+          className={`overflow-hidden no-drag ${isSeparator && !editMode ? "h-full w-full" : "flex-1 p-2"}`}
           onPointerDownCapture={(e) => e.stopPropagation()}
           onMouseDownCapture={(e) => e.stopPropagation()}
           onTouchStartCapture={(e) => e.stopPropagation()}
