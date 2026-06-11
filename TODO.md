@@ -4,7 +4,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
-- [ ] (sub-header) when topic is truncated, we should be able to see it on hover
+- [x] (sub-header) when topic is truncated, we should be able to see it on hover
 - [ ] (separator-panel) make it take half the space it does without grid changes
 - [ ] (config) be able to config the history feature to disable it
 - [x] (dashboard) show preview of panel on hover

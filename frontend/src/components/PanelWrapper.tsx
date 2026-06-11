@@ -592,7 +592,7 @@ export default function PanelWrapper({
           >
             <span className="inline-flex items-center gap-1 min-w-0">
               <RiServerLine className="shrink-0 text-base-content/65" />
-              <span className="truncate">
+              <span className="truncate" title={brokerStatus?.name ?? "No broker"}>
                 {brokerStatus?.name ?? "No broker"}
               </span>
             </span>
@@ -635,7 +635,7 @@ export default function PanelWrapper({
                   </span>
                 </div>
               ) : (
-                <span className="block truncate">{headerMeta.topicSummary}</span>
+                <span className="block truncate" title={headerMeta.topicSummary}>{headerMeta.topicSummary}</span>
               )}
             </span>
 
