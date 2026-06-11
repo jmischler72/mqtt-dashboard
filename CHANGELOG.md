@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.3.0...v1.4.0) (2026-06-11)
+
+
+### Features
+
+* **panels:** add visual panels + preview ([#55](https://github.com/jmischler72/mqtt-dashboard/issues/55)) ([eccdd4d](https://github.com/jmischler72/mqtt-dashboard/commit/eccdd4d6bc0b24ddf5555229379454ef896be6d4))
+
 ## [1.3.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.2.0...v1.3.0) (2026-06-09)
 
 
