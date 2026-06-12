@@ -129,7 +129,7 @@ func TestPublish_BrokerNotFound(t *testing.T) {
 
 func TestSubscribe_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
-	err := r.Subscribe("missing", "test/topic", func(string, []byte) {})
+	err := r.Subscribe("missing", "test/topic", func(string, []byte, byte, bool) {})
 	if err == nil {
 		t.Error("expected error for missing broker")
 	}
@@ -138,14 +138,14 @@ func TestSubscribe_BrokerNotFound(t *testing.T) {
 func TestUnsubscribe_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
 	// Should not panic
-	r.Unsubscribe("missing", "test/topic", func(string, []byte) {})
+	r.Unsubscribe("missing", "test/topic", func(string, []byte, byte, bool) {})
 }
 
 func TestWriteHistory_PersistsRecord(t *testing.T) {
 	database := testutil.SetupTestDB(t)
 	r := NewRegistry(database)
 
-	r.writeHistory("b1", "sensor/temp", []byte("25"))
+	r.writeHistory("b1", "sensor/temp", []byte("25"), 0, false)
 
 	var count int
 	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1' AND topic='sensor/temp'`).Scan(&count)
@@ -159,7 +159,7 @@ func TestWriteHistory_StoresSysTopic(t *testing.T) {
 	r := NewRegistry(database)
 	r.SetSaveSysTopics(true)
 
-	r.writeHistory("b1", "$SYS/broker/clients/connected", []byte("5"))
+	r.writeHistory("b1", "$SYS/broker/clients/connected", []byte("5"), 0, false)
 
 	var count int
 	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1'`).Scan(&count)
@@ -171,7 +171,7 @@ func TestWriteHistory_StoresSysTopic(t *testing.T) {
 func TestWriteHistory_NilDB(t *testing.T) {
 	r := NewRegistry(nil)
 	// Should not panic with nil db
-	r.writeHistory("b1", "test/topic", []byte("data"))
+	r.writeHistory("b1", "test/topic", []byte("data"), 0, false)
 }
 
 func TestSubscribe_CallsManagerSubscribe(t *testing.T) {
@@ -182,7 +182,7 @@ func TestSubscribe_CallsManagerSubscribe(t *testing.T) {
 	r.mu.Unlock()
 
 	called := false
-	if err := r.Subscribe("b1", "my/topic", func(string, []byte) { called = true }); err != nil {
+	if err := r.Subscribe("b1", "my/topic", func(string, []byte, byte, bool) { called = true }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestUnsubscribe_CallsManagerUnsubscribe(t *testing.T) {
 	r.clients["b1"] = mgr
 	r.mu.Unlock()
 
-	h := func(string, []byte) {}
+	h := func(string, []byte, byte, bool) {}
 	mgr.subs["my/topic"] = []MessageHandler{h}
 
 	// Should not panic and should remove the handler
@@ -368,7 +368,7 @@ func TestWriteHistory_WithWorker_PersistsAllRapidWrites(t *testing.T) {
 		i := i
 		go func() {
 			defer wg.Done()
-			r.writeHistory("b1", "rapid/topic", []byte(fmt.Sprintf("payload-%d", i)))
+			r.writeHistory("b1", "rapid/topic", []byte(fmt.Sprintf("payload-%d", i)), 0, false)
 		}()
 	}
 	wg.Wait()
@@ -390,7 +390,7 @@ func TestStopHistoryWriter_DrainsPendingMessages(t *testing.T) {
 
 	const total = 150
 	for i := 0; i < total; i++ {
-		r.writeHistory("b1", "drain/topic", []byte(fmt.Sprintf("msg-%d", i)))
+		r.writeHistory("b1", "drain/topic", []byte(fmt.Sprintf("msg-%d", i)), 0, false)
 	}
 
 	// Stop should block until queued writes have been persisted.
@@ -402,5 +402,30 @@ func TestStopHistoryWriter_DrainsPendingMessages(t *testing.T) {
 	}
 	if count != total {
 		t.Fatalf("expected %d drained records, got %d", total, count)
+	}
+}
+
+func TestRetainedTracking(t *testing.T) {
+	r := NewRegistry(nil)
+
+	if r.IsRetained("b1", "a/b") {
+		t.Fatal("topic should not be retained initially")
+	}
+
+	// Retained message with payload marks the topic.
+	r.markRetained("b1", "a/b", true)
+	if !r.IsRetained("b1", "a/b") {
+		t.Fatal("topic should be retained after markRetained(true)")
+	}
+
+	// Scoped per broker.
+	if r.IsRetained("b2", "a/b") {
+		t.Fatal("retained state must be scoped per broker")
+	}
+
+	// Empty-payload retained publish clears the stored message (MQTT convention).
+	r.markRetained("b1", "a/b", false)
+	if r.IsRetained("b1", "a/b") {
+		t.Fatal("topic should be cleared after markRetained(false)")
 	}
 }

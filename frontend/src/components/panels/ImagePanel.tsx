@@ -86,9 +86,7 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
                 Uploading…
               </span>
             )}
-            {error && (
-              <span className="text-xs text-error mt-1">{error}</span>
-            )}
+            {error && <span className="text-xs text-error mt-1">{error}</span>}
           </fieldset>
 
           {presets.length > 0 && (

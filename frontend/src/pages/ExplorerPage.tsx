@@ -352,6 +352,8 @@ export default function ExplorerPage() {
                     topics: selectedTopic,
                     maxMessages: 500,
                     dateFormat: "full",
+                    showQos: true,
+                    showRetained: true,
                   }}
                 />
               </div>

@@ -72,6 +72,8 @@ type MQTTHistoryRecord struct {
 	Topic     string `json:"topic"`
 	Payload   string `json:"payload"`
 	Timestamp string `json:"timestamp"`
+	QoS       int    `json:"qos"`
+	Retained  bool   `json:"retained"`
 }
 
 type BrokerStats struct {

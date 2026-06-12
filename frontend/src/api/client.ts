@@ -35,6 +35,8 @@ export const api = {
         topic: string;
         payload: string;
         timestamp: string;
+        qos?: number;
+        retained?: boolean;
       }>
     >(
       `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,
@@ -54,10 +56,8 @@ export const api = {
     }>(
       `/api/explorer/activity?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}&range_seconds=${rangeSeconds}&buckets=${buckets}`,
     ),
-  getHistorySize: () =>
-    request<{ size_bytes: number }>("/api/history/size"),
-  clearHistory: () =>
-    request<void>("/api/history", { method: "DELETE" }),
+  getHistorySize: () => request<{ size_bytes: number }>("/api/history/size"),
+  clearHistory: () => request<void>("/api/history", { method: "DELETE" }),
   getBrokerInfo: (brokerId: string) =>
     request<{
       version: string;

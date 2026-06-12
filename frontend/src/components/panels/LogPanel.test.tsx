@@ -69,19 +69,21 @@ describe("LogPanel", () => {
 
     const expected = formatNumeric(new Date(liveTs));
     expect(screen.getByText("live-payload")).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`\\[${expected}\\]`))).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(`\\[${expected}\\]`)),
+    ).toBeInTheDocument();
   });
 
   it("reformats existing rows when dateFormat changes", async () => {
     getExplorerHistoryMock.mockImplementation(() =>
       resolveAsync([
-      {
-        id: 1,
-        broker_id: "b1",
-        topic: "a/b",
-        payload: "history-payload",
-        timestamp: "2026-05-21T12:13:14.000Z",
-      },
+        {
+          id: 1,
+          broker_id: "b1",
+          topic: "a/b",
+          payload: "history-payload",
+          timestamp: "2026-05-21T12:13:14.000Z",
+        },
       ]),
     );
 
@@ -104,19 +106,21 @@ describe("LogPanel", () => {
     );
 
     const expected = formatNumeric(new Date("2026-05-21T12:13:14.000Z"));
-    expect(screen.getByText(new RegExp(`\\[${expected}\\]`))).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(`\\[${expected}\\]`)),
+    ).toBeInTheDocument();
   });
 
   it("loads wildcard history including parent topic record", async () => {
     getExplorerHistoryMock.mockImplementation(() =>
       resolveAsync([
-      {
-        id: 1,
-        broker_id: "b1",
-        topic: "test/tetsgisf",
-        payload: "parent-message",
-        timestamp: "2026-05-21T12:13:14.000Z",
-      },
+        {
+          id: 1,
+          broker_id: "b1",
+          topic: "test/tetsgisf",
+          payload: "parent-message",
+          timestamp: "2026-05-21T12:13:14.000Z",
+        },
       ]),
     );
 
@@ -124,13 +128,20 @@ describe("LogPanel", () => {
       <LogPanel
         panelId="panel-1"
         brokerId="b1"
-        config={{ topics: "test/tetsgisf/#", maxMessages: 100, dateFormat: "full" }}
+        config={{
+          topics: "test/tetsgisf/#",
+          maxMessages: 100,
+          dateFormat: "full",
+        }}
       />,
     );
 
     await waitFor(() => {
       expect(screen.getByText("parent-message")).toBeInTheDocument();
     });
-    expect(getExplorerHistoryMock).toHaveBeenCalledWith("b1", "test/tetsgisf/#");
+    expect(getExplorerHistoryMock).toHaveBeenCalledWith(
+      "b1",
+      "test/tetsgisf/#",
+    );
   });
 });

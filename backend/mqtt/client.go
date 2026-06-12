@@ -14,7 +14,7 @@ import (
 	"mqtt-dashboard/models"
 )
 
-type MessageHandler func(topic string, payload []byte)
+type MessageHandler func(topic string, payload []byte, qos byte, retained bool)
 
 type MQTTManager struct {
 	mu         sync.RWMutex
@@ -73,7 +73,7 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 			// '#' does NOT match '$SYS/*' topics by MQTT spec. '$SYS/#'
 			// covers all specific $SYS topics. Avoid overlapping subs.
 			if len(m.subs["#"]) > 0 {
-				m.client.Subscribe("#", 0, m.buildHandler("#")) //nolint
+				m.client.Subscribe("#", 2, m.buildHandler("#")) //nolint
 			}
 			if len(m.subs["$SYS/#"]) > 0 {
 				m.client.Subscribe("$SYS/#", 0, m.buildHandler("$SYS/#")) //nolint
@@ -89,7 +89,7 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 				if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
 					continue
 				}
-				m.client.Subscribe(topic, 0, m.buildHandler(topic)) //nolint
+				m.client.Subscribe(topic, 2, m.buildHandler(topic)) //nolint
 			}
 			m.mu.Unlock()
 		})
@@ -205,7 +205,7 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 				m.client.Unsubscribe(t) //nolint
 			}
 		}
-		token := m.client.Subscribe("#", 0, m.buildHandler("#"))
+		token := m.client.Subscribe("#", 2, m.buildHandler("#"))
 		token.Wait()
 		return token.Error()
 	}
@@ -228,7 +228,7 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 	if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
 		return nil
 	}
-	token := m.client.Subscribe(topic, 0, m.buildHandler(topic))
+	token := m.client.Subscribe(topic, 2, m.buildHandler(topic))
 	token.Wait()
 	return token.Error()
 }
@@ -260,7 +260,11 @@ func (m *MQTTManager) Unsubscribe(topic string, _ MessageHandler) {
 				if isSysFilter(t) && t != "$SYS/#" && len(m.subs["$SYS/#"]) > 0 {
 					continue
 				}
-				m.client.Subscribe(t, 0, m.buildHandler(t)) //nolint
+				qos := byte(2)
+				if isSysFilter(t) {
+					qos = 0
+				}
+				m.client.Subscribe(t, qos, m.buildHandler(t)) //nolint
 			}
 		}
 		return
@@ -329,11 +333,13 @@ func (m *MQTTManager) buildHandler(topic string) paho.MessageHandler {
 			}
 		}
 		m.mu.RUnlock()
+		qos := msg.Qos()
+		retained := msg.Retained()
 		for _, h := range handlers {
-			h(msgTopic, msg.Payload())
+			h(msgTopic, msg.Payload(), qos, retained)
 		}
 		for _, h := range specificHandlers {
-			h(msgTopic, msg.Payload())
+			h(msgTopic, msg.Payload(), qos, retained)
 		}
 	}
 }

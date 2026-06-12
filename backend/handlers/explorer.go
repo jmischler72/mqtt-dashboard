@@ -74,14 +74,14 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 			prefixTopic = ""
 		}
 		rows, err = h.db.Query(
-			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp FROM mqtt_history
+			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp, qos, retained FROM mqtt_history
 			 WHERE broker_id = ? AND (topic = ? OR topic LIKE ?) AND timestamp > DATETIME('now', '-' || ? || ' hours')
 			 ORDER BY timestamp ASC`,
 			brokerID, prefixTopic, likePattern, retentionHours,
 		)
 	} else {
 		rows, err = h.db.Query(
-			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp FROM mqtt_history
+			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp, qos, retained FROM mqtt_history
 			 WHERE broker_id = ? AND topic = ? AND timestamp > DATETIME('now', '-' || ? || ' hours')
 			 ORDER BY timestamp ASC`,
 			brokerID, topic, retentionHours,
@@ -96,7 +96,7 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	records := []models.MQTTHistoryRecord{}
 	for rows.Next() {
 		var rec models.MQTTHistoryRecord
-		if err := rows.Scan(&rec.ID, &rec.BrokerID, &rec.Topic, &rec.Payload, &rec.Timestamp); err != nil {
+		if err := rows.Scan(&rec.ID, &rec.BrokerID, &rec.Topic, &rec.Payload, &rec.Timestamp, &rec.QoS, &rec.Retained); err != nil {
 			continue
 		}
 		if mqttutil.HasWildcard(topic) && !mqttutil.TopicMatches(topic, rec.Topic) {

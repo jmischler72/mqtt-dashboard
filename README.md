@@ -88,13 +88,37 @@ go build -o mqtt-dashboard .
 
 ---
 
-## 💡 Motivation
+## 🖼️ Panel Types
 
-Existing MQTT tools are either purely client-side, lack persistence, or don't support building custom control interfaces. MQTT Dashboard combines the best of monitoring tools like MQTT Explorer with the flexibility of a customizable panel-based dashboard — all self-hosted in a single binary.
+### Functional panels
 
-And here is the link to MQTT-Explorer that inspired a lot this project: https://github.com/thomasnordquist/MQTT-Explorer
+| Panel      | Description                                                           |
+| ---------- | --------------------------------------------------------------------- |
+| **Button** | One-click publish a preset payload to a topic                         |
+| **Input**  | Type and send ad-hoc messages to any topic                            |
+| **Log**    | Real-time message stream with history, wildcards, and date formatting |
+| **Cron**   | Scheduled automatic publishing with visual cron builder and countdown |
+| **Stats**  | Live topic activity charts with configurable time windows             |
 
-If you find this project useful, please consider giving it a ⭐!
+### Visual panels
+
+| Panel         | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
+| **Image**     | Provide an image from url/file to show in the dashboard     |
+| **Separator** | Vertical/horizontal to visually separate parts of dashboard |
+| **Text**      | Markdown text to document your dashboard                    |
+
+---
+
+## MQTT Implementation
+
+MQTT Dashboard supports a lot of features from MQTT:
+
+- **TLS/SSL** encryption for broker communication
+- **Username & Password** authentication
+- **Client Certificate** authentication (mTLS)
+- **QoS** Quality of service flags from mqtt specs
+- **Retain** flags that sends back retained message to new subscribers
 
 ---
 
@@ -121,26 +145,13 @@ In production, the Go binary serves the embedded React build directly (so no nee
 
 ---
 
-## 🖼️ Panel Types
+## 💡 Motivation
 
-| Panel      | Description                                                           |
-| ---------- | --------------------------------------------------------------------- |
-| **Button** | One-click publish a preset payload to a topic                         |
-| **Input**  | Type and send ad-hoc messages to any topic                            |
-| **Log**    | Real-time message stream with history, wildcards, and date formatting |
-| **Cron**   | Scheduled automatic publishing with visual cron builder and countdown |
-| **Stats**  | Live topic activity charts with configurable time windows             |
+Existing MQTT tools are either purely client-side, lack persistence, or don't support building custom control interfaces. MQTT Dashboard combines the best of monitoring tools like MQTT Explorer with the flexibility of a customizable panel-based dashboard — all self-hosted in a single binary.
 
----
+And here is the link to MQTT-Explorer that inspired a lot this project: https://github.com/thomasnordquist/MQTT-Explorer
 
-## 🛡️ Security
-
-MQTT Dashboard supports secure broker connections out of the box:
-
-- **TLS/SSL** encryption for broker communication
-- **Username & Password** authentication
-- **Client Certificate** authentication (mTLS)
-- CA certificate, client cert, and client key upload via the UI
+If you find this project useful, please consider giving it a ⭐!
 
 ---
 
@@ -160,6 +171,7 @@ See [TODO.md](TODO.md) and [docs/PRD/](docs/PRD/) for full details.
 | Frontend    | React, Vite, TypeScript, Tailwind CSS, DaisyUI |
 | Grid Engine | react-grid-layout                              |
 | Backend     | Go (Golang)                                    |
+| MQTT lib    | Eclipse paho.mqtt.golang                       |
 | Database    | SQLite (embedded)                              |
 | Scheduling  | gocron                                         |
 | Realtime    | WebSocket                                      |
