@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.5.0...v1.6.0) (2026-06-12)
+
+
+### Features
+
+* **explorer:** expand/collapse all, wildcard root node, default collapsed tree ([#66](https://github.com/jmischler72/mqtt-dashboard/issues/66)) ([2109beb](https://github.com/jmischler72/mqtt-dashboard/commit/2109bebc74e0b7e1fa068dc11aa68125b72c55d8))
+
+
+### Bug Fixes
+
+* **panel:** align payload popover position to the right of the label ([#65](https://github.com/jmischler72/mqtt-dashboard/issues/65)) ([6a7fa98](https://github.com/jmischler72/mqtt-dashboard/commit/6a7fa98f7be4db8de6a64b72a389170848c9ce9a))
+
 ## [1.5.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.4.0...v1.5.0) (2026-06-12)
 
 
