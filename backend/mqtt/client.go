@@ -33,7 +33,6 @@ func NewManager() *MQTTManager {
 
 func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if m.client != nil && m.client.IsConnected() {
 		m.client.Disconnect(500)
@@ -104,6 +103,7 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 			if !pool.AppendCertsFromPEM([]byte(broker.CACert)) {
 				m.setStatus("ERROR")
 				m.connectErr = "failed to parse CA certificate"
+				m.mu.Unlock()
 				return fmt.Errorf("failed to parse CA certificate")
 			}
 			tlsCfg.RootCAs = pool
@@ -114,6 +114,7 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 				connErr := fmt.Errorf("failed to parse client certificate: %w", err)
 				m.setStatus("ERROR")
 				m.connectErr = connErr.Error()
+				m.mu.Unlock()
 				return connErr
 			}
 			tlsCfg.Certificates = []tls.Certificate{cert}
@@ -134,24 +135,29 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	client := paho.NewClient(opts)
 	m.client = client
-
-	// slog.Debug("mqtt connecting to broker", "name", broker.Name, "addr", brokerAddr, "opts", opts)
+	m.mu.Unlock()
 
 	token := client.Connect()
 	if token.WaitTimeout(10*time.Second) && token.Error() != nil {
 		slog.Error("mqtt connect failed", "err", token.Error())
+		m.mu.Lock()
 		m.setStatus("ERROR")
 		m.connectErr = token.Error().Error()
+		m.mu.Unlock()
 		return fmt.Errorf("connect: %w", token.Error())
 	}
 	if !client.IsConnected() {
 		slog.Error("mqtt connection failed")
+		m.mu.Lock()
 		m.setStatus("ERROR")
 		m.connectErr = "connection failed"
+		m.mu.Unlock()
 		return fmt.Errorf("connection failed")
 	}
 
+	m.mu.Lock()
 	m.connectErr = ""
+	m.mu.Unlock()
 	return nil
 }
 
@@ -190,13 +196,14 @@ func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byt
 
 func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	wasEmpty := len(m.subs[topic]) == 0
 	m.subs[topic] = append(m.subs[topic], handler)
 	if !wasEmpty || m.client == nil || !m.client.IsConnected() {
+		m.mu.Unlock()
 		return nil
 	}
 	slog.Debug("mqtt subscribe", "topic", topic)
+	var token paho.Token
 	if topic == "#" {
 		// '#' now covers non-$SYS topics. Keep $SYS subscriptions because '#'
 		// does not match reserved '$' topics.
@@ -205,11 +212,8 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 				m.client.Unsubscribe(t) //nolint
 			}
 		}
-		token := m.client.Subscribe("#", 2, m.buildHandler("#"))
-		token.Wait()
-		return token.Error()
-	}
-	if topic == "$SYS/#" {
+		token = m.client.Subscribe("#", 2, m.buildHandler("#"))
+	} else if topic == "$SYS/#" {
 		// '$SYS/#' covers all $SYS topics. Unsubscribe specific $SYS MQTT
 		// subscriptions to avoid overlapping deliveries.
 		for t := range m.subs {
@@ -217,18 +221,20 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 				m.client.Unsubscribe(t) //nolint
 			}
 		}
-		token := m.client.Subscribe("$SYS/#", 0, m.buildHandler("$SYS/#"))
-		token.Wait()
-		return token.Error()
+		token = m.client.Subscribe("$SYS/#", 0, m.buildHandler("$SYS/#"))
+	} else {
+		// Specific topic: skip MQTT subscribe only if '#' or '$SYS/#' can cover it.
+		if len(m.subs["#"]) > 0 && !isSysFilter(topic) {
+			m.mu.Unlock()
+			return nil
+		}
+		if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
+			m.mu.Unlock()
+			return nil
+		}
+		token = m.client.Subscribe(topic, 2, m.buildHandler(topic))
 	}
-	// Specific topic: skip MQTT subscribe only if '#' or '$SYS/#' can cover it.
-	if len(m.subs["#"]) > 0 && !isSysFilter(topic) {
-		return nil
-	}
-	if len(m.subs["$SYS/#"]) > 0 && isSysFilter(topic) {
-		return nil
-	}
-	token := m.client.Subscribe(topic, 2, m.buildHandler(topic))
+	m.mu.Unlock()
 	token.Wait()
 	return token.Error()
 }
