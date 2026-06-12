@@ -22,13 +22,21 @@ updates:
     labels:
       - "frontend"
       - "dependencies"
-    # Grouping React updates prevents PR fatigue
     groups:
       react-ecosystem:
         patterns:
           - "react*"
           - "eslint*"
           - "typescript*"
+      types:
+        patterns:
+          - "@types/*"
+      vitest:
+        patterns:
+          - "vitest*"
+          - "@vitest/*"
+      dev-deps:
+        dependency-type: "development"
 
 # Docker things
   - package-ecosystem: "docker"
