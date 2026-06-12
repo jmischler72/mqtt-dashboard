@@ -129,7 +129,7 @@ func TestPublish_BrokerNotFound(t *testing.T) {
 
 func TestSubscribe_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
-	err := r.Subscribe("missing", "test/topic", func(string, []byte) {})
+	err := r.Subscribe("missing", "test/topic", func(string, []byte, byte, bool) {})
 	if err == nil {
 		t.Error("expected error for missing broker")
 	}
@@ -138,7 +138,7 @@ func TestSubscribe_BrokerNotFound(t *testing.T) {
 func TestUnsubscribe_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
 	// Should not panic
-	r.Unsubscribe("missing", "test/topic", func(string, []byte) {})
+	r.Unsubscribe("missing", "test/topic", func(string, []byte, byte, bool) {})
 }
 
 func TestWriteHistory_PersistsRecord(t *testing.T) {
@@ -182,7 +182,7 @@ func TestSubscribe_CallsManagerSubscribe(t *testing.T) {
 	r.mu.Unlock()
 
 	called := false
-	if err := r.Subscribe("b1", "my/topic", func(string, []byte) { called = true }); err != nil {
+	if err := r.Subscribe("b1", "my/topic", func(string, []byte, byte, bool) { called = true }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestUnsubscribe_CallsManagerUnsubscribe(t *testing.T) {
 	r.clients["b1"] = mgr
 	r.mu.Unlock()
 
-	h := func(string, []byte) {}
+	h := func(string, []byte, byte, bool) {}
 	mgr.subs["my/topic"] = []MessageHandler{h}
 
 	// Should not panic and should remove the handler
@@ -402,5 +402,30 @@ func TestStopHistoryWriter_DrainsPendingMessages(t *testing.T) {
 	}
 	if count != total {
 		t.Fatalf("expected %d drained records, got %d", total, count)
+	}
+}
+
+func TestRetainedTracking(t *testing.T) {
+	r := NewRegistry(nil)
+
+	if r.IsRetained("b1", "a/b") {
+		t.Fatal("topic should not be retained initially")
+	}
+
+	// Retained message with payload marks the topic.
+	r.markRetained("b1", "a/b", true)
+	if !r.IsRetained("b1", "a/b") {
+		t.Fatal("topic should be retained after markRetained(true)")
+	}
+
+	// Scoped per broker.
+	if r.IsRetained("b2", "a/b") {
+		t.Fatal("retained state must be scoped per broker")
+	}
+
+	// Empty-payload retained publish clears the stored message (MQTT convention).
+	r.markRetained("b1", "a/b", false)
+	if r.IsRetained("b1", "a/b") {
+		t.Fatal("topic should be cleared after markRetained(false)")
 	}
 }

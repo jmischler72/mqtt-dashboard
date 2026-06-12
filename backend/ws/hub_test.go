@@ -37,12 +37,20 @@ type mockBrokerSub struct {
 	unsubscribed []string
 	defaultID    string
 	subscribeErr error
+	retained     map[string]bool // "broker:topic" → retained
 }
 
 func newMockBrokerSub() *mockBrokerSub {
 	return &mockBrokerSub{
 		subscribed: make(map[string]mqttclient.MessageHandler),
+		retained:   make(map[string]bool),
 	}
+}
+
+func (m *mockBrokerSub) IsRetained(brokerID, topic string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.retained[brokerID+":"+topic]
 }
 
 func (m *mockBrokerSub) Subscribe(brokerID, topic string, handler mqttclient.MessageHandler) error {
@@ -69,7 +77,7 @@ func (m *mockBrokerSub) trigger(brokerID, topic string, payload []byte) {
 	h, ok := m.subscribed[brokerID+":"+topic]
 	m.mu.Unlock()
 	if ok {
-		h(topic, payload)
+		h(topic, payload, 0, false)
 	}
 }
 
@@ -156,6 +164,32 @@ func TestSubscribe_FanOutMessage(t *testing.T) {
 		}
 		if msg.Timestamp == "" {
 			t.Errorf("msg.Timestamp should be set")
+		}
+	default:
+		t.Fatal("expected message in client send channel")
+	}
+}
+
+func TestSubscribe_StampsRetainedFromRegistry(t *testing.T) {
+	reg := newMockBrokerSub()
+	hub := NewHub(reg)
+
+	c := newTestClient(hub)
+	hub.Register(c)
+	hub.Subscribe(c, "broker1", []string{"sensor/temp"})
+
+	// The broker delivers live messages with retained=false even for topics that
+	// hold a retained value; the hub must stamp retained from the registry set.
+	reg.mu.Lock()
+	reg.retained["broker1:sensor/temp"] = true
+	reg.mu.Unlock()
+
+	reg.trigger("broker1", "sensor/temp", []byte("42"))
+
+	select {
+	case msg := <-c.send:
+		if !msg.Retained {
+			t.Error("msg.Retained = false, want true (stamped from registry)")
 		}
 	default:
 		t.Fatal("expected message in client send channel")

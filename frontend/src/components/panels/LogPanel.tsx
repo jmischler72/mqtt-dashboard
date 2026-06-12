@@ -8,6 +8,8 @@ interface LogMessage {
   receivedAt: string;
   topic: string;
   payload: string;
+  qos?: number;
+  retained?: boolean;
   historical?: boolean;
 }
 
@@ -15,6 +17,8 @@ export interface LogConfig {
   topics?: string;
   maxMessages?: number;
   dateFormat?: "time" | "full";
+  showQos?: boolean;
+  showRetained?: boolean;
 }
 
 interface ModalProps {
@@ -49,6 +53,8 @@ export function LogConfigModal({
   const [dateFormat, setDateFormat] = useState<"time" | "full">(
     config.dateFormat ?? "time",
   );
+  const [showQos, setShowQos] = useState(config.showQos ?? false);
+  const [showRetained, setShowRetained] = useState(config.showRetained ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
@@ -103,7 +109,7 @@ export function LogConfigModal({
                   onPickTopic({
                     currentTopic: "",
                     selectedBrokerId,
-                    draftConfig: { topics, maxMessages, dateFormat },
+                    draftConfig: { topics, maxMessages, dateFormat, showQos, showRetained },
                   })
                 }
               >
@@ -133,6 +139,27 @@ export function LogConfigModal({
               <option value="full">Full date and time</option>
             </select>
           </fieldset>
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">Display</legend>
+            <div className="flex flex-col gap-2">
+              {(
+                [
+                  [showQos, setShowQos, "Show QoS level"],
+                  [showRetained, setShowRetained, "Show retain flag"],
+                ] as [boolean, (v: boolean) => void, string][]
+              ).map(([value, setter, label]) => (
+                <label key={label} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-sm toggle-primary"
+                    checked={value}
+                    onChange={(e) => setter(e.target.checked)}
+                  />
+                  <span className="label-text">{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </div>
         <div className="modal-action">
           <button className="btn" onClick={onClose}>
@@ -143,7 +170,7 @@ export function LogConfigModal({
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { topics, maxMessages, dateFormat },
+                { topics, maxMessages, dateFormat, showQos, showRetained },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -190,6 +217,8 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   const shouldAutoScrollRef = useRef(true);
   const maxMessages = config.maxMessages ?? 200;
   const dateFormat = config.dateFormat ?? "time";
+  const showQos = config.showQos ?? false;
+  const showRetained = config.showRetained ?? false;
   const pausedRef = useRef(paused);
 
   useEffect(() => {
@@ -212,13 +241,34 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           topic: string;
           payload: string;
           timestamp?: string;
+          qos?: number;
+          retained?: boolean;
         };
         const entry: LogMessage = {
           receivedAt: normalizeTimestamp(msg.timestamp),
           topic: msg.topic,
           payload: msg.payload,
+          qos: msg.qos,
+          retained: msg.retained,
         };
         setMessages((prev) => {
+          // Overlapping subscription filters (e.g. "foo/bar" and "foo/#") can
+          // deliver the same physical message twice. Drop a live message when an
+          // identical topic+payload arrived within a short window. Each backend
+          // delivery is timestamped separately, so compare by window, not equality.
+          const DEDUPE_WINDOW_MS = 75;
+          const entryTime = new Date(entry.receivedAt).getTime();
+          const isDuplicate = prev
+            .slice(-10)
+            .some(
+              (m) =>
+                !m.historical &&
+                m.topic === entry.topic &&
+                m.payload === entry.payload &&
+                Math.abs(new Date(m.receivedAt).getTime() - entryTime) <=
+                  DEDUPE_WINDOW_MS,
+            );
+          if (isDuplicate) return prev;
           const next = [...prev, entry];
           return next.length > maxMessages
             ? next.slice(next.length - maxMessages)
@@ -330,7 +380,13 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
             <span className="text-neutral-content/70">
               [{formatTimestamp(new Date(m.receivedAt), dateFormat)}]
             </span>{" "}
-            <span className="text-accent">{m.topic}</span>{" "}
+            <span className="text-accent">{m.topic}</span>
+            {showQos && m.qos !== undefined && (
+              <span className="badge badge-xs badge-ghost ml-1">Q{m.qos}</span>
+            )}
+            {showRetained && m.retained && (
+              <span className="badge badge-xs badge-warning ml-1">R</span>
+            )}{" "}
             <span>{m.payload}</span>
           </div>
         ))}

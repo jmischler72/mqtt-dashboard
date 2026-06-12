@@ -4,6 +4,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
+- [ ] (log-panel) show qos and retian flag in the panel with config in modal to toggle it, in explorer-page it should be enabled
 - [ ] (dashboard) make the separator really half the size and divide by 2 the resolution of the grid so other panels can take more space
 - [ ] (broker) init a broker from env_var and add a full docker-compose with mosquitto broker
 - [x] (sub-header) when topic is truncated, we should be able to see it on hover

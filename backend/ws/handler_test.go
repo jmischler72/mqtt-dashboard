@@ -30,6 +30,10 @@ func (m *externalMockBrokerSub) DefaultBrokerID() string {
 	return m.defaultID
 }
 
+func (m *externalMockBrokerSub) IsRetained(brokerID, topic string) bool {
+	return false
+}
+
 func dialWS(t *testing.T, srv *httptest.Server) *websocket.Conn {
 	t.Helper()
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")

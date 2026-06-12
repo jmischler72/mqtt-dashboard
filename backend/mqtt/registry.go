@@ -25,11 +25,47 @@ type BrokerRegistry struct {
 	historyStopCh        chan struct{}
 	historyWorkerStarted bool
 	historyWorkerWG      sync.WaitGroup
+
+	// retainedMu guards retained, which tracks (brokerID, topic) pairs the broker
+	// currently holds a retained message for. The broker only sets the retained
+	// flag when replaying to a NEW subscriber, so live deliveries to existing
+	// subscribers arrive with retained=false; this set lets the WS hub stamp the
+	// retained flag regardless of subscription timing.
+	retainedMu sync.RWMutex
+	retained   map[retainedKey]struct{}
+}
+
+type retainedKey struct {
+	brokerID string
+	topic    string
 }
 
 // SetSaveSysTopics controls whether $SYS/* messages are persisted to history.
 func (r *BrokerRegistry) SetSaveSysTopics(v bool) {
 	r.saveSysTopics.Store(v)
+}
+
+// markRetained records or clears whether the broker holds a retained message for
+// a topic. Per the MQTT spec, publishing a retained message with an empty payload
+// deletes the stored retained message, so callers pass hasPayload=false to clear.
+func (r *BrokerRegistry) markRetained(brokerID, topic string, hasPayload bool) {
+	key := retainedKey{brokerID: brokerID, topic: topic}
+	r.retainedMu.Lock()
+	defer r.retainedMu.Unlock()
+	if hasPayload {
+		r.retained[key] = struct{}{}
+	} else {
+		delete(r.retained, key)
+	}
+}
+
+// IsRetained reports whether the broker currently holds a retained message for
+// the given concrete topic.
+func (r *BrokerRegistry) IsRetained(brokerID, topic string) bool {
+	r.retainedMu.RLock()
+	defer r.retainedMu.RUnlock()
+	_, ok := r.retained[retainedKey{brokerID: brokerID, topic: topic}]
+	return ok
 }
 
 type historyRecord struct {
@@ -47,6 +83,7 @@ func NewRegistry(db *sql.DB) *BrokerRegistry {
 		statsCache:    NewStatsCache(),
 		historyQueue:  make(chan historyRecord, historyQueueSize),
 		historyStopCh: make(chan struct{}),
+		retained:      make(map[retainedKey]struct{}),
 	}
 }
 
@@ -117,12 +154,15 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	// Subscribe '#' for history capture. MQTTManager prevents overlapping MQTT
 	// subscriptions, so this is safe alongside specific panel topic subscriptions.
 	brokerID := broker.ID
-	mgr.Subscribe("#", func(topic string, payload []byte) { //nolint
+	mgr.Subscribe("#", func(topic string, payload []byte, _ byte, retained bool) { //nolint
+		if retained {
+			r.markRetained(brokerID, topic, len(payload) > 0)
+		}
 		r.writeHistory(brokerID, topic, payload)
 	})
 	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats
 	// and history capture.
-	mgr.Subscribe("$SYS/#", func(topic string, payload []byte) { //nolint
+	mgr.Subscribe("$SYS/#", func(topic string, payload []byte, _ byte, _ bool) { //nolint
 		r.parseSysStats(brokerID, topic, payload)
 		r.writeHistory(brokerID, topic, payload)
 	})
@@ -237,7 +277,16 @@ func (r *BrokerRegistry) Publish(brokerID, topic string, qos byte, retain bool, 
 	if !ok {
 		return fmt.Errorf("broker %q not found", brokerID)
 	}
-	return mgr.Publish(topic, qos, retain, payload)
+	if err := mgr.Publish(topic, qos, retain, payload); err != nil {
+		return err
+	}
+	// Track retained state for our own publishes so the WS hub can stamp the
+	// retained flag immediately, without waiting for a broker replay on the next
+	// fresh subscribe. An empty-payload retained publish clears the stored message.
+	if retain {
+		r.markRetained(brokerID, topic, len(payload) > 0)
+	}
+	return nil
 }
 
 // Subscribe registers a handler for a topic on the specified broker.

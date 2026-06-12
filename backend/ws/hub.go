@@ -11,11 +11,13 @@ import (
 
 // WSMessage is sent over WebSocket to clients.
 type WSMessage struct {
-	PanelID  string `json:"panel_id"`
-	BrokerID string `json:"broker_id"`
-	Topic    string `json:"topic"`
-	Payload  string `json:"payload"`
+	PanelID   string `json:"panel_id"`
+	BrokerID  string `json:"broker_id"`
+	Topic     string `json:"topic"`
+	Payload   string `json:"payload"`
 	Timestamp string `json:"timestamp"`
+	QoS       int    `json:"qos"`
+	Retained  bool   `json:"retained"`
 }
 
 // SubscribeRequest is the message a client sends to subscribe to topics on a broker.
@@ -109,7 +111,7 @@ func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
 }
 
 func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler {
-	return func(msgTopic string, payload []byte) {
+	return func(msgTopic string, payload []byte, qos byte, retained bool) {
 		key := brokerTopic{brokerID, topic}
 		h.mu.RLock()
 		clientIDs := make([]string, 0, len(h.topicClients[key]))
@@ -124,11 +126,17 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 		}
 		h.mu.RUnlock()
 
+		// The broker only sets the retained flag when replaying to a NEW subscriber,
+		// so live deliveries arrive with retained=false even for topics that hold a
+		// retained value. Consult the registry's tracked set so the flag is accurate
+		// regardless of when this client subscribed.
 		msg := WSMessage{
-			BrokerID: brokerID,
-			Topic:    msgTopic,
-			Payload:  string(payload),
+			BrokerID:  brokerID,
+			Topic:     msgTopic,
+			Payload:   string(payload),
 			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+			QoS:       int(qos),
+			Retained:  retained || h.registry.IsRetained(brokerID, msgTopic),
 		}
 		for _, c := range clients {
 			msg.PanelID = c.panelID
