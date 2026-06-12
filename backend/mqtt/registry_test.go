@@ -145,7 +145,7 @@ func TestWriteHistory_PersistsRecord(t *testing.T) {
 	database := testutil.SetupTestDB(t)
 	r := NewRegistry(database)
 
-	r.writeHistory("b1", "sensor/temp", []byte("25"))
+	r.writeHistory("b1", "sensor/temp", []byte("25"), 0, false)
 
 	var count int
 	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1' AND topic='sensor/temp'`).Scan(&count)
@@ -159,7 +159,7 @@ func TestWriteHistory_StoresSysTopic(t *testing.T) {
 	r := NewRegistry(database)
 	r.SetSaveSysTopics(true)
 
-	r.writeHistory("b1", "$SYS/broker/clients/connected", []byte("5"))
+	r.writeHistory("b1", "$SYS/broker/clients/connected", []byte("5"), 0, false)
 
 	var count int
 	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1'`).Scan(&count)
@@ -171,7 +171,7 @@ func TestWriteHistory_StoresSysTopic(t *testing.T) {
 func TestWriteHistory_NilDB(t *testing.T) {
 	r := NewRegistry(nil)
 	// Should not panic with nil db
-	r.writeHistory("b1", "test/topic", []byte("data"))
+	r.writeHistory("b1", "test/topic", []byte("data"), 0, false)
 }
 
 func TestSubscribe_CallsManagerSubscribe(t *testing.T) {
@@ -368,7 +368,7 @@ func TestWriteHistory_WithWorker_PersistsAllRapidWrites(t *testing.T) {
 		i := i
 		go func() {
 			defer wg.Done()
-			r.writeHistory("b1", "rapid/topic", []byte(fmt.Sprintf("payload-%d", i)))
+			r.writeHistory("b1", "rapid/topic", []byte(fmt.Sprintf("payload-%d", i)), 0, false)
 		}()
 	}
 	wg.Wait()
@@ -390,7 +390,7 @@ func TestStopHistoryWriter_DrainsPendingMessages(t *testing.T) {
 
 	const total = 150
 	for i := 0; i < total; i++ {
-		r.writeHistory("b1", "drain/topic", []byte(fmt.Sprintf("msg-%d", i)))
+		r.writeHistory("b1", "drain/topic", []byte(fmt.Sprintf("msg-%d", i)), 0, false)
 	}
 
 	// Stop should block until queued writes have been persisted.
