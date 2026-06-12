@@ -44,6 +44,7 @@ interface NodeProps {
   onSelect: (topic: string) => void;
   onDoubleClickTopic?: (topic: string) => void;
   depth: number;
+  defaultExpanded: boolean;
 }
 
 function TreeNodeItem({
@@ -53,8 +54,9 @@ function TreeNodeItem({
   onSelect,
   onDoubleClickTopic,
   depth,
+  defaultExpanded,
 }: NodeProps) {
-  const [open, setOpen] = useState(depth < 1); // Auto-open top-level nodes
+  const [open, setOpen] = useState(defaultExpanded);
   const hasChildren = node.children.size > 0;
   const isSelected = node.fullPath === selectedTopic;
   const isFlashing = flashTopics.has(node.fullPath);
@@ -101,6 +103,7 @@ function TreeNodeItem({
               onSelect={onSelect}
               onDoubleClickTopic={onDoubleClickTopic}
               depth={depth + 1}
+              defaultExpanded={defaultExpanded}
             />
           ))}
         </div>
@@ -116,6 +119,8 @@ interface TopicTreeProps {
   onSelectTopic: (topic: string) => void;
   onDoubleClickTopic?: (topic: string) => void;
   showSysTopic?: boolean;
+  defaultExpanded?: boolean;
+  expandCollapseVersion?: number;
 }
 
 export default function TopicTree({
@@ -125,6 +130,8 @@ export default function TopicTree({
   onSelectTopic,
   onDoubleClickTopic,
   showSysTopic = false,
+  defaultExpanded = false,
+  expandCollapseVersion = 0,
 }: TopicTreeProps) {
   // Filter out $SYS topics if showSysTopic is false
   const filteredTopics = showSysTopic
@@ -167,15 +174,26 @@ export default function TopicTree({
 
   return (
     <div className="overflow-y-auto h-full py-1">
+      {/* Synthetic wildcard row: select all topics at once */}
+      <div
+        className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer select-none text-sm transition-colors duration-300
+                    ${selectedTopic === "#" ? "bg-primary text-primary-content" : "hover:bg-base-200"}`}
+        style={{ paddingLeft: "8px" }}
+        onClick={() => onSelectTopic("#")}
+      >
+        <span className="w-3 shrink-0" />
+        <span className="font-mono truncate"># (all topics)</span>
+      </div>
       {Array.from(tree.values()).map((node) => (
         <TreeNodeItem
-          key={node.fullPath}
+          key={`${node.fullPath}:${expandCollapseVersion}`}
           node={node}
           selectedTopic={selectedTopic}
           flashTopics={flashTopics}
           onSelect={onSelectTopic}
           onDoubleClickTopic={onDoubleClickTopic}
           depth={0}
+          defaultExpanded={defaultExpanded}
         />
       ))}
     </div>
