@@ -16,7 +16,7 @@ COPY --from=frontend-builder /frontend/dist ./dist
 RUN go build -o mqtt-dashboard .
 
 # Stage 3: Minimal production image
-FROM alpine:3.23
+FROM alpine:3.24
 LABEL org.opencontainers.image.source="https://github.com/jmischler72/mqtt-dashboard"
 
 RUN apk add --no-cache ca-certificates
