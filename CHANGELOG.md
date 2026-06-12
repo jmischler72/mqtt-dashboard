@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.4.0...v1.5.0) (2026-06-12)
+
+
+### Features
+
+* **dependabot:** enhance React update grouping with additional patterns for types and dev-deps ([#60](https://github.com/jmischler72/mqtt-dashboard/issues/60)) ([46b2718](https://github.com/jmischler72/mqtt-dashboard/commit/46b2718a6456a0c5be719202a3deaf202103f0e0))
+* **mqtt:** store qos/retain flags in db + show badges in log panels ([#58](https://github.com/jmischler72/mqtt-dashboard/issues/58)) ([5e419b7](https://github.com/jmischler72/mqtt-dashboard/commit/5e419b7eb86b2995386f2c4116797c38aa272978))
+
+
+### Bug Fixes
+
+* **mqtt:** improve mutex handling in Connect and Subscribe methods ([#64](https://github.com/jmischler72/mqtt-dashboard/issues/64)) ([6f5c3de](https://github.com/jmischler72/mqtt-dashboard/commit/6f5c3defcf12423026d6d71394a5a9e64caf3d1e))
+
 ## [1.4.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.3.0...v1.4.0) (2026-06-11)
 
 
