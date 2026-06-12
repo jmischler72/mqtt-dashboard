@@ -111,7 +111,7 @@ export default function PanelWrapper({
   } | null>(null);
   const [payloadPopoverPos, setPayloadPopoverPos] = useState<{
     top: number;
-    left: number;
+    right: number;
   } | null>(null);
   const [optimisticPinned, setOptimisticPinned] = useState<boolean | null>(
     null,
@@ -669,11 +669,21 @@ export default function PanelWrapper({
                   if (payloadAnchorRef.current) {
                     const rect =
                       payloadAnchorRef.current.getBoundingClientRect();
-                    const POPOVER_WIDTH = 240;
                     const top = rect.bottom + 4;
-                    let left = rect.right - POPOVER_WIDTH;
-                    if (left < 8) left = 8;
-                    setPayloadPopoverPos({ top, left });
+                    // Anchor by the right edge so the popover stays aligned
+                    // with the "Payload" label regardless of its content width.
+                    // Clamp so neither edge escapes the viewport: the popover
+                    // can grow up to POPOVER_MAX_WIDTH (max-w-60 = 240px).
+                    const POPOVER_MAX_WIDTH = 240;
+                    const maxRight = Math.max(
+                      8,
+                      window.innerWidth - POPOVER_MAX_WIDTH - 20, // 20 = some extra margin
+                    );
+                    const right = Math.min(
+                      maxRight,
+                      Math.max(8, window.innerWidth - rect.right),
+                    );
+                    setPayloadPopoverPos({ top, right });
                   }
                 }}
                 onMouseLeave={() => {
@@ -746,7 +756,10 @@ export default function PanelWrapper({
         createPortal(
           <div
             className="fixed z-50 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
-            style={{ top: payloadPopoverPos.top, left: payloadPopoverPos.left }}
+            style={{
+              top: payloadPopoverPos.top,
+              right: payloadPopoverPos.right,
+            }}
             onMouseEnter={() => {
               if (payloadLeaveTimerRef.current) {
                 clearTimeout(payloadLeaveTimerRef.current);
