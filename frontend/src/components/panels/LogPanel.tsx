@@ -51,12 +51,10 @@ export function LogConfigModal({
   const [topics, setTopics] = useState(initialTopic ?? config.topics ?? "");
   const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200);
   const [dateFormat, setDateFormat] = useState<"time" | "full">(
-    config.dateFormat ?? "time",
+    config.dateFormat ?? "full",
   );
-  const [showQos, setShowQos] = useState(config.showQos ?? false);
-  const [showRetained, setShowRetained] = useState(
-    config.showRetained ?? false,
-  );
+  const [showQos, setShowQos] = useState(config.showQos ?? true);
+  const [showRetained, setShowRetained] = useState(config.showRetained ?? true);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
