@@ -58,10 +58,14 @@ export default function ExplorerPage() {
     pickerCtx?.currentTopic ?? "",
   );
   const [topics, setTopics] = useState<string[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(
+    pickerCtx ? null : "#",
+  );
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
   const [cumulativeShow, setCumulativeShow] = useState(true);
+  const [defaultExpanded, setDefaultExpanded] = useState(false);
+  const [expandCollapseVersion, setExpandCollapseVersion] = useState(0);
   const pickerInitializedRef = useRef(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
@@ -253,7 +257,7 @@ export default function ExplorerPage() {
           onChange={(e) => {
             setSelectedBrokerId(e.target.value);
             setTopics([]);
-            setSelectedTopic(null);
+            setSelectedTopic(pickerCtx ? null : "#");
             setLiveMessages([]);
           }}
         >
@@ -305,8 +309,30 @@ export default function ExplorerPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Topic tree */}
         <aside className="w-72 shrink-0 border-r border-base-300 bg-base-100 overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b border-base-300 text-xs font-semibold text-base-content/50 uppercase tracking-wider">
-            Topics
+          <div className="px-3 py-2 border-b border-base-300 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+              Topics
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                className="btn btn-xs btn-ghost"
+                onClick={() => {
+                  setDefaultExpanded(true);
+                  setExpandCollapseVersion((v) => v + 1);
+                }}
+              >
+                Expand all
+              </button>
+              <button
+                className="btn btn-xs btn-ghost"
+                onClick={() => {
+                  setDefaultExpanded(false);
+                  setExpandCollapseVersion((v) => v + 1);
+                }}
+              >
+                Collapse all
+              </button>
+            </div>
           </div>
           <TopicTree
             topics={displayedTopics}
@@ -315,6 +341,8 @@ export default function ExplorerPage() {
             onSelectTopic={handleTopicSelect}
             onDoubleClickTopic={handlePickerDoubleClick}
             showSysTopic={showSysTopic}
+            defaultExpanded={defaultExpanded}
+            expandCollapseVersion={expandCollapseVersion}
           />
         </aside>
 
