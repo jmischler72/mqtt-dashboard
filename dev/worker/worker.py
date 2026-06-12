@@ -224,17 +224,21 @@ def main():
 
             # IoT payload
             topic, payload = publish_iot(client, broker["name"])
-            result = client.publish(topic, payload, qos=0)
+            qos = random.choice([0, 1, 2])
+            retain = random.random() < 0.2  # 20% chance of retain
+            result = client.publish(topic, payload, qos=qos, retain=retain)
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.debug("[%s] IoT → %s: %s", broker["name"], topic, payload)
+                logger.debug("[%s] IoT → %s (qos=%d retain=%s): %s", broker["name"], topic, qos, retain, payload)
             else:
                 logger.warning("[%s] Publish failed on %s: rc=%d", broker["name"], topic, result.rc)
 
             # Simple payload
             topic, payload = publish_simple(client, broker["name"])
-            result = client.publish(topic, payload, qos=0)
+            qos = random.choice([0, 1, 2])
+            retain = random.random() < 0.2
+            result = client.publish(topic, payload, qos=qos, retain=retain)
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.debug("[%s] Simple → %s: %s", broker["name"], topic, payload)
+                logger.debug("[%s] Simple → %s (qos=%d retain=%s): %s", broker["name"], topic, qos, retain, payload)
             else:
                 logger.warning("[%s] Publish failed on %s: rc=%d", broker["name"], topic, result.rc)
 

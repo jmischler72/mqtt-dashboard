@@ -982,8 +982,8 @@ export default function ConfigPage() {
                   </label>
                   <p className="text-xs text-base-content/50">
                     When enabled, $SYS broker system topics are persisted to
-                    history. They publish frequently and may use significant disk
-                    space over time.
+                    history. They publish frequently and may use significant
+                    disk space over time.
                   </p>
                   <div>
                     <button

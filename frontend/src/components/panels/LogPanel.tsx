@@ -54,7 +54,9 @@ export function LogConfigModal({
     config.dateFormat ?? "time",
   );
   const [showQos, setShowQos] = useState(config.showQos ?? false);
-  const [showRetained, setShowRetained] = useState(config.showRetained ?? false);
+  const [showRetained, setShowRetained] = useState(
+    config.showRetained ?? false,
+  );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
@@ -109,7 +111,13 @@ export function LogConfigModal({
                   onPickTopic({
                     currentTopic: "",
                     selectedBrokerId,
-                    draftConfig: { topics, maxMessages, dateFormat, showQos, showRetained },
+                    draftConfig: {
+                      topics,
+                      maxMessages,
+                      dateFormat,
+                      showQos,
+                      showRetained,
+                    },
                   })
                 }
               >
@@ -148,7 +156,10 @@ export function LogConfigModal({
                   [showRetained, setShowRetained, "Show retain flag"],
                 ] as [boolean, (v: boolean) => void, string][]
               ).map(([value, setter, label]) => (
-                <label key={label} className="flex items-center gap-3 cursor-pointer">
+                <label
+                  key={label}
+                  className="flex items-center gap-3 cursor-pointer"
+                >
                   <input
                     type="checkbox"
                     className="toggle toggle-sm toggle-primary"
@@ -308,6 +319,8 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           receivedAt: normalizeTimestamp(r.timestamp),
           topic: r.topic,
           payload: r.payload,
+          qos: r.qos,
+          retained: r.retained,
           historical: true,
         }));
       // Merge history with already-received live messages to prevent flicker.

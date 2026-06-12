@@ -523,72 +523,74 @@ export default function PanelWrapper({
       >
         {/* Header — hidden for visual panels in view mode */}
         {(!isVisual || editMode) && (
-        <div
-          className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
-        >
-          {!isVisual && (
           <div
-            data-testid="panel-meta-anchor"
-            className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
-            onMouseEnter={handleMetaRegionEnter}
-            onMouseLeave={handleMetaRegionLeave}
+            className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
           >
-            <button
-              type="button"
-              aria-label="Broker status details"
-              className={`w-2 h-2 rounded-full ${dotColor} ${brokerStatus?.status === "CONNECTED" ? "status-dot-hover-hint" : ""}`}
-              onClick={(e) => e.stopPropagation()}
-            />
-            <div
-              className="transition-transform"
-              style={{
-                transform: showMetaPopover ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              {!isPinned && <IoIosArrowDown />}
-            </div>
-          </div>
-          )}
+            {!isVisual && (
+              <div
+                data-testid="panel-meta-anchor"
+                className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
+                onMouseEnter={handleMetaRegionEnter}
+                onMouseLeave={handleMetaRegionLeave}
+              >
+                <button
+                  type="button"
+                  aria-label="Broker status details"
+                  className={`w-2 h-2 rounded-full ${dotColor} ${brokerStatus?.status === "CONNECTED" ? "status-dot-hover-hint" : ""}`}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div
+                  className="transition-transform"
+                  style={{
+                    transform: showMetaPopover
+                      ? "rotate(180deg)"
+                      : "rotate(0deg)",
+                  }}
+                >
+                  {!isPinned && <IoIosArrowDown />}
+                </div>
+              </div>
+            )}
 
-          {editingTitle ? (
-            <input
-              autoFocus
-              className="input input-xs flex-1 font-semibold no-drag"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={saveTitle}
-              onKeyDown={(e) => e.key === "Enter" && saveTitle()}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <div className="flex-1 min-w-0">
-              <span
-                className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? "cursor-text" : ""}`}
-                onDoubleClick={() => editMode && setEditingTitle(true)}
-              >
-                {title}
-              </span>
-            </div>
-          )}
-          {editMode && (
-            <div className="flex gap-1 shrink-0 no-drag">
-              <button
-                className="btn btn-ghost btn-xs no-drag"
-                title="Configure"
-                onClick={handleOpenConfig}
-              >
-                <RiSettings3Line className="text-base" />
-              </button>
-              <button
-                className="btn btn-ghost btn-xs text-error no-drag"
-                title="Delete"
-                onClick={handleDelete}
-              >
-                <RiCloseLine className="text-base" />
-              </button>
-            </div>
-          )}
-        </div>
+            {editingTitle ? (
+              <input
+                autoFocus
+                className="input input-xs flex-1 font-semibold no-drag"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={saveTitle}
+                onKeyDown={(e) => e.key === "Enter" && saveTitle()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <div className="flex-1 min-w-0">
+                <span
+                  className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? "cursor-text" : ""}`}
+                  onDoubleClick={() => editMode && setEditingTitle(true)}
+                >
+                  {title}
+                </span>
+              </div>
+            )}
+            {editMode && (
+              <div className="flex gap-1 shrink-0 no-drag">
+                <button
+                  className="btn btn-ghost btn-xs no-drag"
+                  title="Configure"
+                  onClick={handleOpenConfig}
+                >
+                  <RiSettings3Line className="text-base" />
+                </button>
+                <button
+                  className="btn btn-ghost btn-xs text-error no-drag"
+                  title="Delete"
+                  onClick={handleDelete}
+                >
+                  <RiCloseLine className="text-base" />
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {showMetaPopover && (
@@ -599,7 +601,10 @@ export default function PanelWrapper({
           >
             <span className="inline-flex items-center gap-1 min-w-0">
               <RiServerLine className="shrink-0 text-base-content/65" />
-              <span className="truncate" title={brokerStatus?.name ?? "No broker"}>
+              <span
+                className="truncate"
+                title={brokerStatus?.name ?? "No broker"}
+              >
                 {brokerStatus?.name ?? "No broker"}
               </span>
             </span>
@@ -642,7 +647,12 @@ export default function PanelWrapper({
                   </span>
                 </div>
               ) : (
-                <span className="block truncate" title={headerMeta.topicSummary}>{headerMeta.topicSummary}</span>
+                <span
+                  className="block truncate"
+                  title={headerMeta.topicSummary}
+                >
+                  {headerMeta.topicSummary}
+                </span>
               )}
             </span>
 

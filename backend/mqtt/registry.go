@@ -72,6 +72,8 @@ type historyRecord struct {
 	brokerID string
 	topic    string
 	payload  string
+	qos      byte
+	retained bool
 }
 
 const historyQueueSize = 1024
@@ -154,23 +156,23 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	// Subscribe '#' for history capture. MQTTManager prevents overlapping MQTT
 	// subscriptions, so this is safe alongside specific panel topic subscriptions.
 	brokerID := broker.ID
-	mgr.Subscribe("#", func(topic string, payload []byte, _ byte, retained bool) { //nolint
+	mgr.Subscribe("#", func(topic string, payload []byte, qos byte, retained bool) { //nolint
 		if retained {
 			r.markRetained(brokerID, topic, len(payload) > 0)
 		}
-		r.writeHistory(brokerID, topic, payload)
+		r.writeHistory(brokerID, topic, payload, qos, retained)
 	})
 	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats
 	// and history capture.
-	mgr.Subscribe("$SYS/#", func(topic string, payload []byte, _ byte, _ bool) { //nolint
+	mgr.Subscribe("$SYS/#", func(topic string, payload []byte, qos byte, _ bool) { //nolint
 		r.parseSysStats(brokerID, topic, payload)
-		r.writeHistory(brokerID, topic, payload)
+		r.writeHistory(brokerID, topic, payload, qos, false)
 	})
 	return err
 }
 
 // writeHistory persists an incoming MQTT message to mqtt_history.
-func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
+func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte, qos byte, retained bool) {
 	if r.db == nil {
 		return
 	}
@@ -178,7 +180,7 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
 		return
 	}
 
-	rec := historyRecord{brokerID: brokerID, topic: topic, payload: string(payload)}
+	rec := historyRecord{brokerID: brokerID, topic: topic, payload: string(payload), qos: qos, retained: retained}
 
 	r.historyMu.RLock()
 	started := r.historyWorkerStarted
@@ -201,8 +203,9 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte) {
 }
 
 func (r *BrokerRegistry) insertHistoryRecord(rec historyRecord) {
-	if _, err := r.db.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES (?, ?, ?)`,
-		rec.brokerID, rec.topic, rec.payload); err != nil {
+	if _, err := r.db.Exec(
+		`INSERT INTO mqtt_history (broker_id, topic, payload, qos, retained) VALUES (?, ?, ?, ?, ?)`,
+		rec.brokerID, rec.topic, rec.payload, rec.qos, rec.retained); err != nil {
 		slog.Error("write history failed", "broker_id", rec.brokerID, "topic", rec.topic, "err", err)
 	}
 }

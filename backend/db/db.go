@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -96,7 +97,9 @@ func migrate(db *sql.DB) error {
 			broker_id TEXT NOT NULL,
 			topic TEXT NOT NULL,
 			payload TEXT,
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+			qos INTEGER NOT NULL DEFAULT 0,
+			retained BOOLEAN NOT NULL DEFAULT 0
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_mqtt_history_broker_topic_time ON mqtt_history(broker_id, topic, timestamp);
@@ -104,6 +107,29 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
-	_, err := db.Exec(`INSERT OR IGNORE INTO app_settings (id) VALUES (1)`)
-	return err
+	if _, err := db.Exec(`INSERT OR IGNORE INTO app_settings (id) VALUES (1)`); err != nil {
+		return err
+	}
+
+	// Add qos/retained columns to mqtt_history for existing databases.
+	// ALTER TABLE fails with "duplicate column" if the column already exists; that
+	// error is safe to ignore. Any other error is propagated.
+	for _, col := range []struct {
+		stmt string
+		name string
+	}{
+		{`ALTER TABLE mqtt_history ADD COLUMN qos INTEGER NOT NULL DEFAULT 0`, "qos"},
+		{`ALTER TABLE mqtt_history ADD COLUMN retained BOOLEAN NOT NULL DEFAULT 0`, "retained"},
+	} {
+		if _, err := db.Exec(col.stmt); err != nil && !isDuplicateColumnErr(err) {
+			return fmt.Errorf("migrate mqtt_history add %s: %w", col.name, err)
+		}
+	}
+	return nil
+}
+
+// isDuplicateColumnErr reports whether err is a SQLite "duplicate column name" error,
+// which is returned when ALTER TABLE ADD COLUMN is called for a column that already exists.
+func isDuplicateColumnErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "duplicate column name")
 }
