@@ -58,7 +58,9 @@ export default function ExplorerPage() {
     pickerCtx?.currentTopic ?? "",
   );
   const [topics, setTopics] = useState<string[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(
+    pickerCtx ? null : "#",
+  );
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
   const [cumulativeShow, setCumulativeShow] = useState(true);
@@ -255,7 +257,7 @@ export default function ExplorerPage() {
           onChange={(e) => {
             setSelectedBrokerId(e.target.value);
             setTopics([]);
-            setSelectedTopic(null);
+            setSelectedTopic(pickerCtx ? null : "#");
             setLiveMessages([]);
           }}
         >
