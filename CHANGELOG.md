@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.7.0...v1.7.1) (2026-07-16)
+
+
+### Bug Fixes
+
+* **tabs:** use correctly daisyui tabs + fix deps ([#85](https://github.com/jmischler72/mqtt-dashboard/issues/85)) ([0c5914f](https://github.com/jmischler72/mqtt-dashboard/commit/0c5914f7ee3c20a3ebaef6eeed8d00094cacce91))
+
 ## [1.7.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.6.0...v1.7.0) (2026-07-16)
 
 
