@@ -31,20 +31,17 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
           </button>
         </div>
 
-        <div
-          role="tablist"
-          className="tabs tabs-boxed bg-base-200 mb-3 p-1 gap-1"
-        >
+""        <div role="tablist" className="tabs tabs-box mb-3">
           <button
             role="tab"
-            className={`tab flex-1 ${tab === "edit" ? "tab-active bg-primary text-primary-content" : ""}`}
+            className={`tab flex-1 ${tab === "edit" ? "tab-active" : ""}`}
             onClick={() => setTab("edit")}
           >
             Edit
           </button>
           <button
             role="tab"
-            className={`tab flex-1 ${tab === "preview" ? "tab-active bg-primary text-primary-content" : ""}`}
+            className={`tab flex-1 ${tab === "preview" ? "tab-active" : ""}`}
             onClick={() => setTab("preview")}
           >
             Preview

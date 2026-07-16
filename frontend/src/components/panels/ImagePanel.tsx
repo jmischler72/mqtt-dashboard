@@ -63,27 +63,24 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
       <div className="modal-box max-h-[85vh] overflow-y-auto">
         <h3 className="font-bold text-lg mb-4">Image Configuration</h3>
 
-        <div
-          role="tablist"
-          className="tabs tabs-boxed bg-base-200 mb-4 p-1 gap-1"
-        >
+        <div role="tablist" className="tabs tabs-box mb-4">
           <a
             role="tab"
-            className={`tab flex-1 ${tab === "url" ? "tab-active bg-primary text-primary-content" : ""}`}
+            className={`tab flex-1 ${tab === "url" ? "tab-active" : ""}`}
             onClick={() => setTab("url")}
           >
             URL
           </a>
           <a
             role="tab"
-            className={`tab flex-1 ${tab === "upload" ? "tab-active bg-primary text-primary-content" : ""}`}
+            className={`tab flex-1 ${tab === "upload" ? "tab-active" : ""}`}
             onClick={() => setTab("upload")}
           >
             Upload
           </a>
           <a
             role="tab"
-            className={`tab flex-1 ${tab === "presets" ? "tab-active bg-primary text-primary-content" : ""}`}
+            className={`tab flex-1 ${tab === "presets" ? "tab-active" : ""}`}
             onClick={() => setTab("presets")}
           >
             Presets
