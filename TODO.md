@@ -5,7 +5,7 @@ This page describes small tasks that needs to be done, bigger features are descr
 Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
 
 - [x] (sub-header) the payload popover sometimes doesnt align with the text payload correctly and is shown too far left
-- [ ] (mobile) make the dash responsive so it looks good on smartphone
+- [x] (mobile) make the dash responsive so it looks good on smartphone
 - [ ] (dash) import/export as json + add starter templates
 - [ ] (image) make the edit modal more comprehensive
 - [x] (separator) fix size when creating it

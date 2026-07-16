@@ -17,6 +17,7 @@ const RGL = ReactGridLayout as any;
 import { api } from "../api/client";
 import PanelWrapper from "../components/PanelWrapper";
 import type { BrokerStatus } from "../hooks/useBrokers";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 type GridLayout = {
   i: string;
@@ -207,6 +208,9 @@ const GRID_ROW_HEIGHT = 60;
 const GRID_ROW_GAP = 10;
 const NEW_PANEL_W = 4;
 const NEW_PANEL_H = 4;
+// Uniform height for every non-separator panel in the mobile stacked layout.
+const MOBILE_PANEL_HEIGHT =
+  NEW_PANEL_H * GRID_ROW_HEIGHT + (NEW_PANEL_H - 1) * GRID_ROW_GAP;
 
 type LayoutContext = {
   editMode: boolean;
@@ -268,6 +272,7 @@ export default function DashboardPage() {
   const addVisualMenuRef = useRef<HTMLDivElement>(null);
   const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } =
     useOutletContext<LayoutContext>();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -519,6 +524,35 @@ export default function DashboardPage() {
     setPendingPickerReturn(null);
   }, []);
 
+  const renderPanelWrapper = (panel: Panel) => (
+    <PanelWrapper
+      panel={panel}
+      editMode={editMode}
+      brokerStatuses={brokerStatuses}
+      activeDashboardId={activeDashboardId}
+      highlight={panel.id === newPanelId}
+      pickerReturnTopic={
+        pendingPickerReturn?.panelId === panel.id
+          ? pendingPickerReturn.topic
+          : undefined
+      }
+      pickerReturnBrokerId={
+        pendingPickerReturn?.panelId === panel.id
+          ? pendingPickerReturn.brokerId
+          : undefined
+      }
+      pickerReturnDraftConfig={
+        pendingPickerReturn?.panelId === panel.id
+          ? pendingPickerReturn.draftConfig
+          : undefined
+      }
+      onDelete={() => removePanel(panel.id)}
+      onUpdate={updatePanel}
+      onConfigModalChange={handleConfigModalChange}
+      onPickerConsumed={handlePickerConsumed}
+    />
+  );
+
   useEffect(() => {
     if (!newPanelId) return;
     // Defer scroll to let ReactGridLayout finish positioning the new item
@@ -603,6 +637,37 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
+          ) : isMobile ? (
+            // Mobile: stacked single column, ordered by saved (y, x) position.
+            <div className="flex flex-col gap-3">
+              {[...panels]
+                .sort((a, b) => a.y - b.y || a.x - b.x)
+                .map((panel) => {
+                  if (panel.panel_type === "separator") {
+                    // A separator is a slim full-width divider on mobile. In
+                    // edit mode it needs room to show its header (delete/config).
+                    return (
+                      <div
+                        key={panel.id}
+                        id={`panel-${panel.id}`}
+                        className={`flex items-center justify-center ${editMode ? "h-16" : "h-6"}`}
+                      >
+                        {renderPanelWrapper(panel)}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      key={panel.id}
+                      id={`panel-${panel.id}`}
+                      style={{ height: MOBILE_PANEL_HEIGHT }}
+                      className="w-full"
+                    >
+                      {renderPanelWrapper(panel)}
+                    </div>
+                  );
+                })}
+            </div>
           ) : (
             <div className={hasAnyModalOpen ? "pointer-events-none" : ""}>
               <RGL
@@ -626,32 +691,7 @@ export default function DashboardPage() {
                         : ""
                     }
                   >
-                    <PanelWrapper
-                      panel={panel}
-                      editMode={editMode}
-                      brokerStatuses={brokerStatuses}
-                      activeDashboardId={activeDashboardId}
-                      highlight={panel.id === newPanelId}
-                      pickerReturnTopic={
-                        pendingPickerReturn?.panelId === panel.id
-                          ? pendingPickerReturn.topic
-                          : undefined
-                      }
-                      pickerReturnBrokerId={
-                        pendingPickerReturn?.panelId === panel.id
-                          ? pendingPickerReturn.brokerId
-                          : undefined
-                      }
-                      pickerReturnDraftConfig={
-                        pendingPickerReturn?.panelId === panel.id
-                          ? pendingPickerReturn.draftConfig
-                          : undefined
-                      }
-                      onDelete={() => removePanel(panel.id)}
-                      onUpdate={updatePanel}
-                      onConfigModalChange={handleConfigModalChange}
-                      onPickerConsumed={handlePickerConsumed}
-                    />
+                    {renderPanelWrapper(panel)}
                   </div>
                 ))}
               </RGL>

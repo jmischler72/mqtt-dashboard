@@ -510,10 +510,10 @@ export default function ConfigPage() {
       </div>
 
       {/* ── Content row ─────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
         {/* ── Sidebar ──────────────────────────────────────────── */}
         {activeTab === "brokers" && (
-          <aside className="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
+          <aside className="w-full sm:w-64 shrink-0 max-h-56 sm:max-h-none border-b sm:border-b-0 sm:border-r border-base-300 flex flex-col bg-base-100">
             <div className="p-3 border-b border-base-300">
               <button
                 className="btn btn-sm btn-primary w-full"
