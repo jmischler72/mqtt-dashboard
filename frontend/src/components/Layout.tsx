@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { MdMenu } from "react-icons/md";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
 
@@ -16,6 +17,12 @@ function computeAggregated(statuses: BrokerStatus[]): AggregatedStatus {
   if (connected > 0) return "PARTIALLY CONNECTED";
   return "DISCONNECTED";
 }
+
+const NAV_LINKS = [
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/explorer", label: "Explorer" },
+  { to: "/config", label: "Configuration" },
+];
 
 const aggDotColor: Record<AggregatedStatus, string> = {
   CONNECTED: "bg-success",
@@ -168,31 +175,46 @@ export default function Layout() {
             />
           </div>
         )}
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `btn btn-sm btn-ghost ${isActive ? "btn-active" : ""}`
-          }
-        >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/explorer"
-          className={({ isActive }) =>
-            `btn btn-sm btn-ghost ${isActive ? "btn-active" : ""}`
-          }
-        >
-          Explorer
-        </NavLink>
-        <NavLink
-          to="/config"
-          className={({ isActive }) =>
-            `btn btn-sm btn-ghost ${isActive ? "btn-active" : ""}`
-          }
-        >
-          Configuration
-        </NavLink>
-        <div className="ml-auto flex items-center gap-2">
+        {/* Mobile: nav links collapse into a hamburger dropdown */}
+        <div className="dropdown sm:hidden">
+          <button
+            tabIndex={0}
+            className="btn btn-sm btn-ghost"
+            aria-label="Open navigation menu"
+          >
+            <MdMenu className="text-xl" />
+          </button>
+          <ul
+            tabIndex={0}
+            className="dropdown-content menu bg-base-100 border border-base-300 rounded-box z-50 mt-1 w-44 p-2 shadow"
+          >
+            {NAV_LINKS.map((link) => (
+              <li key={link.to}>
+                <NavLink
+                  to={link.to}
+                  className={({ isActive }) => (isActive ? "active" : "")}
+                >
+                  {link.label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {/* Desktop: inline nav links */}
+        <div className="hidden sm:flex items-center gap-2">
+          {NAV_LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              className={({ isActive }) =>
+                `btn btn-sm btn-ghost ${isActive ? "btn-active" : ""}`
+              }
+            >
+              {link.label}
+            </NavLink>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2 min-w-0">
           {showDashboardControls && dashboards.length > 0 && (
             <DashboardSelector
               dashboards={dashboards}
