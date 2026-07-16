@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.6.0...v1.7.0) (2026-07-16)
+
+
+### Features
+
+* **responsive:** implement mobile navigation and layout adjustments ([#84](https://github.com/jmischler72/mqtt-dashboard/issues/84)) ([0936ab8](https://github.com/jmischler72/mqtt-dashboard/commit/0936ab8b4529f1da5398c6415b91074e2944c635))
+
+
+### Bug Fixes
+
+* **layout:** adjust panel dimensions for separator type in CreatePanel method ([#79](https://github.com/jmischler72/mqtt-dashboard/issues/79)) ([755f76d](https://github.com/jmischler72/mqtt-dashboard/commit/755f76d1ab49b480d08b8d4af0a3031e4c9a12a0))
+* **panel:** better style for image and text panels edit modal ([#83](https://github.com/jmischler72/mqtt-dashboard/issues/83)) ([fc6da5b](https://github.com/jmischler72/mqtt-dashboard/commit/fc6da5bde3bb48eb3277235fe05fef8d3adf4e41))
+
 ## [1.6.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.5.0...v1.6.0) (2026-06-12)
 
 
