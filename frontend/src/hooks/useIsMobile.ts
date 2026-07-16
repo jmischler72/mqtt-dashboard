@@ -17,8 +17,6 @@ export function useIsMobile(): boolean {
     const mql = window.matchMedia(MOBILE_QUERY);
     const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mql.addEventListener("change", onChange);
-    // Sync in case the query changed between initial state and subscription.
-    setIsMobile(mql.matches);
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
