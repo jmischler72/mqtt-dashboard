@@ -97,6 +97,54 @@ func TestAddJob_InvalidCronExpression(t *testing.T) {
 	}
 }
 
+// A disabled job with an out-of-range field (e.g. day-of-month 0) must be
+// rejected up front, not silently stored and left to fail on later toggle.
+func TestAddJob_InvalidCronExpressionDisabled(t *testing.T) {
+	pub := &mockPublisher{}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	err := sc.AddJob("panel1", "b1", "0 0 0 * 0", "t", "p", 0, false, false)
+	if err == nil {
+		t.Fatal("expected error for invalid cron expression when disabled")
+	}
+	if _, ok := sc.GetJob("panel1"); ok {
+		t.Error("invalid job should not be stored")
+	}
+}
+
+// A failed AddJob must not delete the previously registered valid job.
+func TestAddJob_InvalidDoesNotClobberExisting(t *testing.T) {
+	pub := &mockPublisher{}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	if err := sc.AddJob("panel1", "b1", "*/5 * * * *", "t", "p", 0, false, true); err != nil {
+		t.Fatalf("initial AddJob: %v", err)
+	}
+	if err := sc.AddJob("panel1", "b1", "0 0 0 * 0", "t", "p", 0, false, true); err == nil {
+		t.Fatal("expected error for invalid cron expression")
+	}
+	info, ok := sc.GetJob("panel1")
+	if !ok {
+		t.Fatal("existing valid job should survive a failed re-add")
+	}
+	if info.CronExpr != "*/5 * * * *" {
+		t.Errorf("cron_expr = %q, want original '*/5 * * * *'", info.CronExpr)
+	}
+}
+
+func TestValidateCronExpr(t *testing.T) {
+	if err := cron.ValidateCronExpr("0 0 * * 0"); err != nil {
+		t.Errorf("valid weekly expr rejected: %v", err)
+	}
+	if err := cron.ValidateCronExpr("0 0 0 * 0"); err == nil {
+		t.Error("expected error for day-of-month 0")
+	}
+}
+
 func TestAddJob_ReplacesExisting(t *testing.T) {
 	pub := &mockPublisher{}
 	sc, _ := cron.NewScheduler(pub)

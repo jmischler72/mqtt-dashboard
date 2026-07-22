@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import cronstrue from "cronstrue";
 import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
@@ -25,6 +26,54 @@ const PRESETS: { label: string; value: string }[] = [
   { label: "Weekly (Sunday midnight)", value: "0 0 * * 0" },
   { label: "Custom", value: "custom" },
 ];
+
+// Validate a standard 5-field cron expression (min hour day month weekday).
+// Returns an error message, or null when valid.
+const CRON_FIELDS: { name: string; min: number; max: number }[] = [
+  { name: "minute", min: 0, max: 59 },
+  { name: "hour", min: 0, max: 23 },
+  { name: "day of month", min: 1, max: 31 },
+  { name: "month", min: 1, max: 12 },
+  { name: "weekday", min: 0, max: 6 },
+];
+
+function validateCron(expr: string): string | null {
+  const trimmed = expr.trim();
+  if (!trimmed) return "Expression is required";
+  const fields = trimmed.split(/\s+/);
+  if (fields.length !== 5) {
+    return `Expected 5 fields, got ${fields.length}`;
+  }
+  for (let i = 0; i < 5; i++) {
+    const { name, min, max } = CRON_FIELDS[i];
+    for (const part of fields[i].split(",")) {
+      // Strip step (e.g. */5 or 1-10/2)
+      const [range, stepStr] = part.split("/");
+      if (stepStr !== undefined && !/^\d+$/.test(stepStr)) {
+        return `Invalid step in ${name} field`;
+      }
+      if (range === "*") continue;
+      for (const n of range.split("-")) {
+        if (!/^\d+$/.test(n)) return `Invalid ${name} value "${n}"`;
+        const v = Number(n);
+        if (v < min || v > max) {
+          return `${name} must be ${min}-${max} (got ${v})`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Human-readable description of a cron expression, e.g.
+// "0 0 * * 0" -> "At 12:00 AM, only on Sunday". Returns null if undescribable.
+function describeCron(expr: string): string | null {
+  try {
+    return cronstrue.toString(expr, { throwExceptionOnParseError: true });
+  } catch {
+    return null;
+  }
+}
 
 interface Props {
   config: CronConfig;
@@ -74,6 +123,9 @@ export function CronConfigModal({
   );
   const isCustom = preset === "custom";
   const cronExpr = isCustom ? customExpr : preset;
+  const cronError = isCustom ? validateCron(customExpr) : null;
+  const cronDescription =
+    isCustom && !cronError ? describeCron(customExpr) : null;
 
   return (
     <dialog className="modal modal-open">
@@ -125,12 +177,23 @@ export function CronConfigModal({
                 Cron Expression (5 fields)
               </legend>
               <input
-                className="input input-bordered w-full font-mono"
+                className={`input input-bordered w-full font-mono ${
+                  cronError ? "input-error" : ""
+                }`}
                 placeholder="* * * * *"
                 value={customExpr}
                 onChange={(e) => setCustomExpr(e.target.value)}
               />
-              <p className="fieldset-label">min hour day month weekday</p>
+              {cronError ? (
+                <p className="fieldset-label text-error">{cronError}</p>
+              ) : (
+                <p className="fieldset-label">min hour day month weekday</p>
+              )}
+              {cronDescription && (
+                <div className="text-xs bg-base-200 rounded px-3 py-2 mt-1">
+                  {cronDescription}
+                </div>
+              )}
             </fieldset>
           )}
           {!isCustom && (
@@ -216,7 +279,12 @@ export function CronConfigModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={!topic || !cronExpr || brokerStatuses.length === 0}
+            disabled={
+              !topic ||
+              !cronExpr ||
+              !!cronError ||
+              brokerStatuses.length === 0
+            }
             onClick={() =>
               onSave(
                 { cron_expr: cronExpr, topic, payload, qos, retain, enabled },
@@ -278,9 +346,16 @@ export default function CronPanel({
         fetchStatus();
         return;
       }
-      const m = Math.floor(diff / 60000);
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
-      setCountdown(`${m}m ${s}s`);
+      const parts = [];
+      if (d) parts.push(`${d}d`);
+      if (h || d) parts.push(`${h}h`);
+      if (m || h || d) parts.push(`${m}m`);
+      parts.push(`${s}s`);
+      setCountdown(parts.join(" "));
     }, 1000);
     return () => clearInterval(tick);
   }, [nextRun, fetchStatus]);
@@ -305,10 +380,17 @@ export default function CronPanel({
     setToggling(false);
   };
 
+  const matchedPreset = config.cron_expr
+    ? PRESETS.find((p) => p.value === config.cron_expr)?.label
+    : undefined;
   const prettyPreset = config.cron_expr
-    ? (PRESETS.find((p) => p.value === config.cron_expr)?.label ??
-      config.cron_expr)
+    ? (matchedPreset ?? config.cron_expr)
     : "Not configured";
+  // For raw custom expressions, surface a human description on hover.
+  const presetTitle =
+    config.cron_expr && !matchedPreset
+      ? (describeCron(config.cron_expr) ?? undefined)
+      : undefined;
 
   const progressPercent =
     cronStart && nextRun
@@ -323,7 +405,10 @@ export default function CronPanel({
   return (
     <div className="flex flex-col gap-3 p-2 h-full">
       <div className="flex items-center justify-between flex-none">
-        <span className="text-sm font-mono bg-base-200 rounded px-2 py-1">
+        <span
+          className="text-sm font-mono bg-base-200 rounded px-2 py-1"
+          title={presetTitle}
+        >
           {prettyPreset}
         </span>
         <input
@@ -344,6 +429,14 @@ export default function CronPanel({
               value={progressPercent}
               max="100"
             />
+          </div>
+        )}
+        {config.enabled && !countdown && (
+          <div className="flex flex-col items-center justify-center gap-2 w-full py-6">
+            <span className="loading loading-spinner loading-md text-primary" />
+            <div className="text-xs text-base-content/50">
+              Waiting for next run…
+            </div>
           </div>
         )}
         {!config.enabled && config.cron_expr && (

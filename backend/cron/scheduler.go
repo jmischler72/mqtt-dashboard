@@ -50,11 +50,32 @@ func (sc *Scheduler) Stop() {
 	sc.s.Shutdown() //nolint
 }
 
+// ValidateCronExpr reports whether expr is a schedulable 5-field cron
+// expression, without registering anything. It is exported so handlers can
+// reject bad input before any state is mutated.
+func ValidateCronExpr(cronExpr string) error {
+	s, err := gocron.NewScheduler()
+	if err != nil {
+		return err
+	}
+	defer s.Shutdown() //nolint
+	if _, err := s.NewJob(gocron.CronJob(cronExpr, false), gocron.NewTask(func() {})); err != nil {
+		return fmt.Errorf("invalid cron expression %q: %w", cronExpr, err)
+	}
+	return nil
+}
+
 func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, qos byte, retain bool, enabled bool) error {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
 	slog.Info("cron add job", "panel_id", panelID, "cron", cronExpr, "topic", topic, "enabled", enabled)
+
+	// Validate up front so an invalid expression never mutates state,
+	// regardless of whether the job is enabled.
+	if err := ValidateCronExpr(cronExpr); err != nil {
+		return err
+	}
 
 	// Remove existing job for this panel if any
 	if info, ok := sc.jobs[panelID]; ok {
