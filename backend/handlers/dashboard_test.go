@@ -16,6 +16,7 @@ func newDashboardRouter(h *handlers.DashboardHandler) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/api/dashboards", h.ListDashboards)
 	r.Post("/api/dashboards", h.CreateDashboard)
+	r.Post("/api/dashboards/import", h.ImportDashboard)
 	r.Put("/api/dashboards/{id}", h.RenameDashboard)
 	r.Delete("/api/dashboards/{id}", h.DeleteDashboard)
 	return r
@@ -209,6 +210,138 @@ func TestRenameDashboard_NotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestImportDashboard_Success(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"type":    "mqtt-dashboard-export",
+		"version": 1,
+		"name":    "Imported",
+		"panels": []map[string]any{
+			{"title": "Btn", "panel_type": "button", "x": 0, "y": 0, "w": 4, "h": 4, "config_json": map[string]any{"label": "Go"}},
+			{"title": "Log", "panel_type": "log", "x": 4, "y": 0, "w": 4, "h": 4},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	var d models.Dashboard
+	decodeJSON(t, rec.Body, &d)
+	if d.Name != "Imported" || d.ID == "" {
+		t.Fatalf("unexpected dashboard %+v", d)
+	}
+
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM dashboard_layouts WHERE dashboard_id = ?`, d.ID).Scan(&count)
+	if count != 2 {
+		t.Errorf("expected 2 imported panels, got %d", count)
+	}
+}
+
+func TestImportDashboard_UnknownBrokerFallsBackToDefault(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, '', '', 1, 0)`)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"type":    "mqtt-dashboard-export",
+		"version": 1,
+		"name":    "Imported",
+		"panels": []map[string]any{
+			{"title": "Btn", "panel_type": "button", "broker_id": "does-not-exist"},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	var d models.Dashboard
+	decodeJSON(t, rec.Body, &d)
+
+	var brokerID string
+	database.QueryRow(`SELECT broker_id FROM dashboard_layouts WHERE dashboard_id = ?`, d.ID).Scan(&brokerID)
+	if brokerID != "b1" {
+		t.Errorf("broker_id = %q, want fallback 'b1'", brokerID)
+	}
+}
+
+func TestImportDashboard_RegistersCronJob(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"type":    "mqtt-dashboard-export",
+		"version": 1,
+		"name":    "Imported",
+		"panels": []map[string]any{
+			{"title": "Cron", "panel_type": "cron", "config_json": map[string]any{
+				"cron_expr": "* * * * *", "topic": "t/1", "payload": "hi", "enabled": true,
+			}},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	if sched.addCalls != 1 {
+		t.Errorf("expected 1 cron AddJob call, got %d", sched.addCalls)
+	}
+}
+
+func TestImportDashboard_MissingName(t *testing.T) {
+	db := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(db, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{"type": "mqtt-dashboard-export", "version": 1, "panels": []any{}})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestImportDashboard_UnsupportedType(t *testing.T) {
+	db := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(db, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{"type": "something-else", "version": 1, "name": "X", "panels": []any{}})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 
