@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.7.1...v1.7.2) (2026-07-22)
+
+
+### Bug Fixes
+
+* **cron:** add expression validation and improve UI feedback ([#89](https://github.com/jmischler72/mqtt-dashboard/issues/89)) ([ae83d29](https://github.com/jmischler72/mqtt-dashboard/commit/ae83d29effbabf94cdd69c6d4e128cc476b3784e))
+
 ## [1.7.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.7.0...v1.7.1) (2026-07-16)
 
 
