@@ -111,6 +111,7 @@ func main() {
 	// Dashboards
 	r.Get("/api/dashboards", dashboardH.ListDashboards)
 	r.Post("/api/dashboards", dashboardH.CreateDashboard)
+	r.Post("/api/dashboards/import", dashboardH.ImportDashboard)
 	r.Put("/api/dashboards/{id}", dashboardH.RenameDashboard)
 	r.Delete("/api/dashboards/{id}", dashboardH.DeleteDashboard)
 
