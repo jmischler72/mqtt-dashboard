@@ -9,6 +9,7 @@ export interface ButtonConfig {
   payload?: string;
   qos?: number;
   retain?: boolean;
+  requireConfirm?: boolean;
 }
 
 interface ModalProps {
@@ -42,6 +43,9 @@ export function ButtonConfigModal({
   const [payload, setPayload] = useState(config.payload ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
+  const [requireConfirm, setRequireConfirm] = useState(
+    config.requireConfirm ?? false,
+  );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
@@ -118,6 +122,17 @@ export function ButtonConfigModal({
             />
           </fieldset>
           <fieldset className="fieldset">
+            <legend className="fieldset-legend">Require Confirmation</legend>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="toggle toggle-sm toggle-primary"
+                checked={requireConfirm}
+                onChange={(e) => setRequireConfirm(e.target.checked)}
+              />
+            </label>
+          </fieldset>
+          <fieldset className="fieldset">
             <legend className="fieldset-legend">MQTT Options</legend>
             <div className="flex gap-4 flex-wrap">
               <label className="flex items-center gap-2">
@@ -153,7 +168,7 @@ export function ButtonConfigModal({
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { label, topic, payload, qos, retain },
+                { label, topic, payload, qos, retain, requireConfirm },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -176,11 +191,12 @@ interface ButtonPanelProps {
 export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
 
-  const handleClick = async () => {
+  const publishMessage = async () => {
     if (!config.topic) return;
     setLoading(true);
     try {
@@ -200,6 +216,15 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
     }
   };
 
+  const handleClick = () => {
+    if (!config.topic) return;
+    if (config.requireConfirm) {
+      setShowConfirmModal(true);
+    } else {
+      publishMessage();
+    }
+  };
+
   return (
     <div className="flex items-center justify-center h-full">
       <button
@@ -213,6 +238,42 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
           (config.label ?? "Click")
         )}
       </button>
+
+      {showConfirmModal && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-sm">
+            <h3 className="font-bold text-lg mb-2">Confirm Action</h3>
+            <p className="text-sm text-base-content/80">
+              Are you sure you want to send this message to{" "}
+              <code className="font-mono bg-base-200 px-1 rounded">
+                {config.topic}
+              </code>
+              ?
+            </p>
+            <div className="modal-action">
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  publishMessage();
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+          <div
+            className="modal-backdrop"
+            onClick={() => setShowConfirmModal(false)}
+          />
+        </dialog>
+      )}
     </div>
   );
 }
