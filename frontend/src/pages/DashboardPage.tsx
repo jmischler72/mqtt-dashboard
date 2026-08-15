@@ -305,7 +305,6 @@ export default function DashboardPage() {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["class"],
     });
 
     return () => observer.disconnect();
@@ -372,7 +371,6 @@ export default function DashboardPage() {
       minH,
       maxW,
       maxH,
-      static: !gridInteractionsEnabled,
     };
   });
 

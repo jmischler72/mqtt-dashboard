@@ -34,3 +34,29 @@
 .status-dot-hover-hint {
   animation: status-dot-hover-hint 2.2s ease-out infinite;
 }
+
+.react-resizable-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  bottom: 2px;
+  right: 2px;
+  cursor: se-resize;
+  z-index: 10;
+}
+
+.react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.4;
+}
+
+.react-resizable-handle:hover::after {
+  opacity: 0.9;
+}
