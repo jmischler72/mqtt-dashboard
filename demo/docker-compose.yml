@@ -1,0 +1,43 @@
+services:
+  mqtt-dashboard:
+    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    restart: unless-stopped
+    volumes:
+      - data_volume:/app/data
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  mqtt-worker:
+    build:
+      context: ../dev/worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      - PUBLISH_INTERVAL=5
+      - BROKER_PLAIN_HOST=mosquitto
+      - BROKER_PLAIN_PORT=1883
+
+  db-reset:
+    image: nouchka/sqlite3:latest
+    restart: unless-stopped
+    depends_on:
+      - mqtt-dashboard
+    volumes:
+      - data_volume:/app/data
+      - ./reset-db.sh:/reset-db.sh:ro
+    # runs reset-db.sh every 5 hours via crond
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "0 */5 * * * /reset-db.sh >> /proc/1/fd/1 2>&1" | crontab -
+        crond -f -l 8
+
+volumes:
+  data_volume:
