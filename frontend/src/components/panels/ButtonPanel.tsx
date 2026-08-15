@@ -122,6 +122,17 @@ export function ButtonConfigModal({
             />
           </fieldset>
           <fieldset className="fieldset">
+            <legend className="fieldset-legend">Require Confirmation</legend>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="toggle toggle-sm toggle-primary"
+                checked={requireConfirm}
+                onChange={(e) => setRequireConfirm(e.target.checked)}
+              />
+            </label>
+          </fieldset>
+          <fieldset className="fieldset">
             <legend className="fieldset-legend">MQTT Options</legend>
             <div className="flex gap-4 flex-wrap">
               <label className="flex items-center gap-2">
@@ -143,15 +154,6 @@ export function ButtonConfigModal({
                   className="toggle toggle-sm toggle-primary"
                   checked={retain}
                   onChange={(e) => setRetain(e.target.checked)}
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-sm">Require Confirmation</span>
-                <input
-                  type="checkbox"
-                  className="toggle toggle-sm toggle-primary"
-                  checked={requireConfirm}
-                  onChange={(e) => setRequireConfirm(e.target.checked)}
                 />
               </label>
             </div>
