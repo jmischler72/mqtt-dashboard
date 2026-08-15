@@ -1,6 +1,8 @@
 services:
   mqtt-dashboard:
-    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    build:
+      context: ..
+      dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
       - data_volume:/app/data
@@ -18,6 +20,8 @@ services:
     restart: unless-stopped
     depends_on:
       - mosquitto
+    volumes:
+      - data_volume:/app/data
     environment:
       - PUBLISH_INTERVAL=5
       - BROKER_PLAIN_HOST=mosquitto
