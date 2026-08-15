@@ -37,6 +37,10 @@ services:
       - -c
       - |
         apk add --no-cache sqlite > /dev/null 2>&1
+        # seed on first start if broker table is empty
+        until [ -f /app/data/mqtt-dashboard.db ]; do sleep 1; done
+        COUNT=$(sqlite3 /app/data/mqtt-dashboard.db "SELECT COUNT(*) FROM mqtt_brokers;" 2>/dev/null || echo 0)
+        [ "$COUNT" = "0" ] && /reset-db.sh
         echo "0 */5 * * * /reset-db.sh >> /proc/1/fd/1 2>&1" | crontab -
         crond -f -l 8
 
