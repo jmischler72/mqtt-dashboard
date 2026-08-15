@@ -371,28 +371,33 @@ export default function DashboardPage() {
       minH,
       maxW,
       maxH,
+      static: !gridInteractionsEnabled,
     };
   });
 
-  const handleLayoutChange = useCallback((newLayout: GridLayout[]) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const patches = newLayout.map((l) => ({
-        id: l.i,
-        x: l.x,
-        y: l.y,
-        w: l.w,
-        h: l.h,
-      }));
-      api.put("/api/layouts/batch", { panels: patches }).catch(() => {});
-      setPanels((prev) =>
-        prev.map((p) => {
-          const l = newLayout.find((n) => n.i === p.id);
-          return l ? { ...p, x: l.x, y: l.y, w: l.w, h: l.h } : p;
-        }),
-      );
-    }, 300);
-  }, []);
+  const handleLayoutChange = useCallback(
+    (newLayout: GridLayout[]) => {
+      if (!gridInteractionsEnabled) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const patches = newLayout.map((l) => ({
+          id: l.i,
+          x: l.x,
+          y: l.y,
+          w: l.w,
+          h: l.h,
+        }));
+        api.put("/api/layouts/batch", { panels: patches }).catch(() => {});
+        setPanels((prev) =>
+          prev.map((p) => {
+            const l = newLayout.find((n) => n.i === p.id);
+            return l ? { ...p, x: l.x, y: l.y, w: l.w, h: l.h } : p;
+          }),
+        );
+      }, 300);
+    },
+    [gridInteractionsEnabled],
+  );
 
   const getClosestInsertPosition = useCallback(() => {
     const containerTop =
