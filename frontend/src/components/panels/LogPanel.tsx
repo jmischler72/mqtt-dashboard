@@ -70,6 +70,7 @@ export function LogConfigModal({
             brokerStatuses={brokerStatuses}
             topic={topics}
             onTopicChange={setTopics}
+            allowWildcards={true}
             placeholder="e.g. sensors/#, home/+/status"
             onPickTopic={
               onPickTopic

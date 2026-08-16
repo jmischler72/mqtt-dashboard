@@ -94,6 +94,7 @@ export function BrokerStatsConfigModal({
             brokerStatuses={brokerStatuses}
             topic={topic}
             onTopicChange={setTopic}
+            allowWildcards={true}
             onPickTopic={
               onPickTopic
                 ? () =>

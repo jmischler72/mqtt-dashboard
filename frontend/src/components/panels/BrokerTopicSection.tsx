@@ -16,6 +16,7 @@ export interface BrokerTopicSectionProps {
   onPickTopic?: () => void;
   topicLabel?: string;
   placeholder?: string;
+  allowWildcards?: boolean;
   helpText?: string;
   hideTopic?: boolean;
 }
@@ -28,10 +29,23 @@ export default function BrokerTopicSection({
   onTopicChange,
   onPickTopic,
   topicLabel = "Topic",
-  placeholder = "e.g. sensors/+, home/#",
-  helpText = "Separate multiple topics with commas. Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp, home/#.",
+  placeholder,
+  allowWildcards = false,
+  helpText,
   hideTopic = false,
 }: BrokerTopicSectionProps) {
+  const effectivePlaceholder =
+    placeholder ??
+    (allowWildcards
+      ? "e.g. sensors/+, home/#"
+      : "e.g. home/living/light, home/kitchen/light");
+
+  const effectiveHelpText =
+    helpText ??
+    (allowWildcards
+      ? "Separate multiple topics with commas. Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp, home/#."
+      : "Separate multiple topics with commas.");
+
   // Parse comma-separated topics for visual badge preview
   const parsedTopics = useMemo(() => {
     if (!topic) return [];
@@ -98,7 +112,7 @@ export default function BrokerTopicSection({
             <div className="flex-1 min-w-0">
               <input
                 className="input input-bordered input-sm w-full font-mono text-xs"
-                placeholder={placeholder}
+                placeholder={effectivePlaceholder}
                 value={topic}
                 onChange={(e) => onTopicChange(e.target.value)}
               />
@@ -140,7 +154,7 @@ export default function BrokerTopicSection({
 
           {/* Helper hint text */}
           <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-            {helpText}
+            {effectiveHelpText}
           </p>
         </fieldset>
       )}
