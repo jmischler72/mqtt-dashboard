@@ -1,0 +1,33 @@
+services:
+  mqtt-dashboard:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - data_volume:/app/data
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  mqtt-worker:
+    build:
+      context: ../dev/worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    volumes:
+      - data_volume:/app/data
+      - ./reset-db.py:/app/reset-db.py:ro
+    environment:
+      - PUBLISH_INTERVAL=5
+      - BROKER_PLAIN_HOST=mosquitto
+      - BROKER_PLAIN_PORT=1883
+
+
+volumes:
+  data_volume:
