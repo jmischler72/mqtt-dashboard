@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   RiErrorWarningLine as WarningIcon,
   RiCloseLine as CloseIcon,
@@ -17,16 +17,13 @@ export default function ExplorerPublishPanel({
 }: Props) {
   const [qos, setQos] = useState(0);
   const [retain, setRetain] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    setDismissed(false);
-  }, [selectedTopic]);
+  const [dismissedTopic, setDismissedTopic] = useState<string | null>(null);
 
   const isWildcard = selectedTopic.includes("+") || selectedTopic.includes("#");
+  const isDismissed = dismissedTopic === selectedTopic;
 
   if (isWildcard) {
-    if (dismissed) return null;
+    if (isDismissed) return null;
     return (
       <div className="border border-base-300 bg-base-200/40 rounded-xl p-3 text-xs flex flex-col gap-1 relative">
         <div className="flex items-center justify-between font-semibold text-base-content">
@@ -38,7 +35,7 @@ export default function ExplorerPublishPanel({
             type="button"
             className="btn btn-xs btn-ghost btn-square text-base-content/60 hover:text-base-content shrink-0"
             title="Dismiss warning"
-            onClick={() => setDismissed(true)}
+            onClick={() => setDismissedTopic(selectedTopic)}
           >
             <CloseIcon className="text-sm" />
           </button>
