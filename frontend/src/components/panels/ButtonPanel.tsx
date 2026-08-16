@@ -187,8 +187,10 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
     }
   };
 
+  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+
   const handleClick = () => {
-    if (parsedTopics.length === 0) return;
+    if (parsedTopics.length === 0 || hasWildcard) return;
     if (config.requireConfirm) {
       setShowConfirmModal(true);
     } else {
@@ -199,14 +201,16 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   return (
     <div className="flex items-center justify-center h-full">
       <button
-        className={`btn btn-lg ${flash === "success"
+        className={`btn btn-lg ${
+          flash === "success"
             ? "btn-success"
             : flash === "error"
               ? "btn-error"
               : "btn-primary"
-          }`}
+        }`}
         onClick={handleClick}
-        disabled={loading || parsedTopics.length === 0}
+        disabled={loading || parsedTopics.length === 0 || hasWildcard}
+        title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
       >
         {loading ? (
           <span className="loading loading-spinner" />

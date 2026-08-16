@@ -4,6 +4,7 @@ import {
   RiServerLine as ServerIcon,
   RiHashtag as TopicIcon,
   RiCloseLine as CloseIcon,
+  RiErrorWarningLine as WarningIcon,
 } from "react-icons/ri";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 
@@ -60,14 +61,40 @@ export default function BrokerTopicSection({
     onTopicChange(next);
   };
 
+  const hasWildcardWarning = useMemo(() => {
+    if (allowWildcards || !topic) return false;
+    return parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+  }, [allowWildcards, topic, parsedTopics]);
+
+  const selectedBroker = brokerStatuses.find((b) => b.id === selectedBrokerId);
+  const isBrokerConnected = selectedBroker?.status === "CONNECTED";
+
   return (
     <div className="border border-base-300 bg-base-200/40 rounded-xl p-3.5 flex flex-col gap-3.5">
       {/* Broker Selector */}
       <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend flex items-center gap-1.5 font-medium text-xs text-base-content/80 mb-1.5">
-          <ServerIcon className="text-primary text-sm" />
-          <span>Broker</span>
-        </legend>
+        <div className="flex items-center justify-between mb-1.5">
+          <legend className="fieldset-legend flex items-center gap-1.5 font-medium text-xs text-base-content/80">
+            <ServerIcon className="text-primary text-sm" />
+            <span>Broker</span>
+          </legend>
+          {selectedBroker && (
+            <span
+              className={`badge badge-xs gap-1 font-mono text-[10px] ${
+                isBrokerConnected
+                  ? "badge-success badge-outline"
+                  : "badge-ghost opacity-60"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isBrokerConnected ? "bg-success" : "bg-base-content/40"
+                }`}
+              />
+              {selectedBroker.status || "DISCONNECTED"}
+            </span>
+          )}
+        </div>
 
         {brokerStatuses.length === 0 ? (
           <div role="alert" className="alert alert-warning py-2 text-xs">
@@ -111,7 +138,9 @@ export default function BrokerTopicSection({
           <div className="flex gap-1.5 w-full items-start">
             <div className="flex-1 min-w-0">
               <input
-                className="input input-bordered input-sm w-full font-mono text-xs"
+                className={`input input-bordered input-sm w-full font-mono text-xs ${
+                  hasWildcardWarning ? "input-warning" : ""
+                }`}
                 placeholder={effectivePlaceholder}
                 value={topic}
                 onChange={(e) => onTopicChange(e.target.value)}
@@ -132,23 +161,49 @@ export default function BrokerTopicSection({
           {/* Parsed Topic Badges */}
           {parsedTopics.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {parsedTopics.map((t, idx) => (
-                <span
-                  key={`${t}-${idx}`}
-                  className="badge badge-sm bg-base-100 border border-base-300 text-base-content font-mono text-[11px] gap-1 py-2 px-2 shadow-xs group"
-                >
-                  <span className="text-secondary opacity-70">#</span>
-                  <span className="truncate max-w-48">{t}</span>
-                  <button
-                    type="button"
-                    className="hover:text-error transition-colors ml-0.5"
-                    title="Remove topic"
-                    onClick={() => removeTopicBadge(t)}
+              {parsedTopics.map((t, idx) => {
+                const isInvalidWildcard =
+                  !allowWildcards && (t.includes("+") || t.includes("#"));
+
+                return (
+                  <span
+                    key={`${t}-${idx}`}
+                    className={`badge badge-sm font-mono text-[11px] gap-1 py-2 px-2 shadow-xs group ${
+                      isInvalidWildcard
+                        ? "bg-warning/15 border border-warning/50 text-warning-content font-semibold"
+                        : "bg-base-100 border border-base-300 text-base-content"
+                    }`}
                   >
-                    <CloseIcon className="text-xs" />
-                  </button>
-                </span>
-              ))}
+                    {isInvalidWildcard ? (
+                      <WarningIcon className="text-warning text-xs shrink-0" />
+                    ) : (
+                      <span className="text-secondary opacity-70">#</span>
+                    )}
+                    <span className="truncate max-w-48">{t}</span>
+                    <button
+                      type="button"
+                      className="hover:text-error transition-colors ml-0.5"
+                      title="Remove topic"
+                      onClick={() => removeTopicBadge(t)}
+                    >
+                      <CloseIcon className="text-xs" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Wildcard Warning Alert */}
+          {hasWildcardWarning && (
+            <div
+              role="alert"
+              className="alert alert-warning py-1.5 px-3 text-xs mt-2 font-medium flex items-center gap-2"
+            >
+              <WarningIcon className="text-sm shrink-0" />
+              <span>
+                Wildcards (<strong>+</strong> or <strong>#</strong>) are not supported when publishing. Please use exact topic names.
+              </span>
             </div>
           )}
 

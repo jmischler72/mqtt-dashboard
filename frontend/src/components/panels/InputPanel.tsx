@@ -121,8 +121,10 @@ export default function InputPanel({
         .filter(Boolean)
     : [];
 
+  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+
   const handlePublish = async () => {
-    if (parsedTopics.length === 0) return;
+    if (parsedTopics.length === 0 || hasWildcard) return;
     setLoading(true);
     try {
       await Promise.all(
@@ -163,7 +165,8 @@ export default function InputPanel({
               : "btn-primary"
         }`}
         onClick={handlePublish}
-        disabled={loading || parsedTopics.length === 0 || !value}
+        disabled={loading || parsedTopics.length === 0 || !value || hasWildcard}
+        title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
       >
         {loading ? (
           <span className="loading loading-spinner loading-xs" />
