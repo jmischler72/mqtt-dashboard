@@ -103,7 +103,12 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 				if bID == "" {
 					bID = sc.registry.DefaultBrokerID()
 				}
-				sc.registry.Publish(bID, topic, qos, retain, []byte(payload)) //nolint
+				for _, t := range strings.Split(topic, ",") {
+					t = strings.TrimSpace(t)
+					if t != "" {
+						sc.registry.Publish(bID, t, qos, retain, []byte(payload)) //nolint
+					}
+				}
 			}),
 			gocron.WithTags(panelID),
 		)

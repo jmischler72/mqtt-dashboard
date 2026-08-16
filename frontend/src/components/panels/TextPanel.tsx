@@ -31,7 +31,7 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
           </button>
         </div>
 
-""        <div role="tablist" className="tabs tabs-box mb-3">
+        <div role="tablist" className="tabs tabs-box mb-3">
           <button
             role="tab"
             className={`tab flex-1 ${tab === "edit" ? "tab-active" : ""}`}
