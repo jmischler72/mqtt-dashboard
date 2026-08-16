@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.7.2...v1.8.0) (2026-08-16)
+
+
+### Features
+
+* **button-panel:** add option to add confirm dialog before sending message ([#92](https://github.com/jmischler72/mqtt-dashboard/issues/92)) ([#106](https://github.com/jmischler72/mqtt-dashboard/issues/106)) ([04a91d3](https://github.com/jmischler72/mqtt-dashboard/commit/04a91d3bd835be9495bcc248dade6c87c0afd2ab))
+* **dashboard:** add import/export of dashboards with json files ([#91](https://github.com/jmischler72/mqtt-dashboard/issues/91)) ([12b326f](https://github.com/jmischler72/mqtt-dashboard/commit/12b326fb12b7d40b0453962305fd5d7d41d10d9b))
+
 ## [1.7.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.7.1...v1.7.2) (2026-07-22)
 
 
