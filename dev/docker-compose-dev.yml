@@ -13,8 +13,15 @@ services:
     environment:
       - APP_ENV=development
       - LOG_LEVEL=debug
+      - CONFIG_FILE=/app/dev/config.json
+
+
+
     depends_on:
       - mosquitto
+      - mosquitto-password
+      - mosquitto-tls
+
 
   mosquitto:
     image: eclipse-mosquitto:2

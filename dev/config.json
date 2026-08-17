@@ -1,0 +1,27 @@
+{
+  "brokers": [
+    {
+      "name": "Mosquitto Plain",
+      "host": "mosquitto",
+      "port": 1883,
+      "is_enabled": true
+    },
+    {
+      "name": "Mosquitto Password",
+      "host": "mosquitto-password",
+      "port": 1883,
+      "auth_mode": "password",
+      "username": "testuser",
+      "password": "testpass",
+      "is_enabled": true
+    },
+    {
+      "name": "Mosquitto TLS",
+      "host": "mosquitto-tls",
+      "port": 8883,
+      "tls_enabled": true,
+      "tls_skip_verify": true,
+      "is_enabled": true
+    }
+  ]
+}

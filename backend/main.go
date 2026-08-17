@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"mqtt-dashboard/cron"
@@ -15,8 +16,10 @@ import (
 	"os"
 	"strings"
 
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 
 	mqttclient "mqtt-dashboard/mqtt"
 )
@@ -47,12 +50,17 @@ func main() {
 	}
 	defer database.Close()
 
+	// --- Seed Brokers from Config File (if configured) ---
+	seedBrokersFromConfig(database)
+
+
 	// --- Init broker registry ---
 	registry := mqttclient.NewRegistry(database)
 	registry.StartHistoryWriter()
 	defer registry.StopHistoryWriter()
 	initRegistrySettings(database, registry)
 	autoConnectFromDB(database, registry)
+
 
 	// --- Init Cron scheduler ---
 	scheduler, err := cron.NewScheduler(registry)
@@ -277,3 +285,91 @@ func skipLoggerForPaths(loggerMw func(http.Handler) http.Handler, paths ...strin
 		})
 	}
 }
+
+type AppConfigFile struct {
+	Brokers  []models.MQTTBroker `json:"brokers"`
+	Settings *models.AppSettings `json:"settings,omitempty"`
+}
+
+// seedBrokersFromConfig reads initial broker configurations from a JSON file (CONFIG_FILE or default paths)
+// and seeds them into the database if they do not already exist.
+func seedBrokersFromConfig(database *sql.DB) {
+	if database == nil {
+		return
+	}
+
+	configFile := os.Getenv("CONFIG_FILE")
+	if configFile == "" {
+		candidates := []string{"./data/config.json", "./config/config.json", "./dev/config.json"}
+		for _, c := range candidates {
+			if _, err := os.Stat(c); err == nil {
+				configFile = c
+				break
+			}
+		}
+	}
+
+	if configFile == "" {
+		return
+	}
+
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		slog.Error("failed to read config file", "file", configFile, "err", err)
+		return
+	}
+
+	var configBrokers []models.MQTTBroker
+	var configObj AppConfigFile
+
+	if err := json.Unmarshal(data, &configObj); err == nil && len(configObj.Brokers) > 0 {
+		configBrokers = configObj.Brokers
+		slog.Info("loaded initial brokers from config file object", "file", configFile, "count", len(configBrokers))
+	} else if err := json.Unmarshal(data, &configBrokers); err == nil && len(configBrokers) > 0 {
+		configBrokers = configBrokers
+		slog.Info("loaded initial brokers from config file array", "file", configFile, "count", len(configBrokers))
+	} else {
+		slog.Error("failed to parse config file", "file", configFile, "err", err)
+		return
+	}
+
+	for i, b := range configBrokers {
+		if b.Name == "" {
+			b.Name = fmt.Sprintf("Broker %d", i+1)
+		}
+		if b.Port <= 0 {
+			b.Port = 1883
+		}
+		if b.ID == "" {
+			b.ID = uuid.New().String()
+		}
+		if b.AuthMode == "" {
+			if b.Username != "" || b.Password != "" {
+				b.AuthMode = "password"
+			} else {
+				b.AuthMode = "none"
+			}
+		}
+
+		// Check if a broker with this name or host+port already exists
+		var exists int
+		err := database.QueryRow(`SELECT COUNT(*) FROM mqtt_brokers WHERE name = ? OR (host = ? AND port = ?)`, b.Name, b.Host, b.Port).Scan(&exists)
+		if err == nil && exists > 0 {
+			continue
+		}
+
+		slog.Info("seeding initial broker from config file", "name", b.Name, "host", b.Host, "port", b.Port)
+		_, err = database.Exec(
+			`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, password, is_enabled, sort_order, auth_mode, tls_enabled, tls_skip_verify, ca_cert, client_cert, client_key)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			b.ID, b.Name, b.Host, b.Port, b.ClientID, b.Username, b.Password, b.IsEnabled, i, b.AuthMode, b.TLSEnabled, b.TLSSkipVerify, b.CACert, b.ClientCert, b.ClientKey,
+		)
+		if err != nil {
+			slog.Error("failed to insert initial broker from config file", "broker", b.Name, "err", err)
+		}
+	}
+}
+
+
+
+

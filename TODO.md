@@ -12,7 +12,8 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (separator) fix size when creating it
 - [x] (log-panel) show qos and retian flag in the panel with config in modal to toggle it, in explorer-page it should be enabled
 - [ ] (dashboard) make the separator really half the size and divide by 2 the resolution of the grid so other panels can take more space
-- [ ] (broker) init a broker from env_var and add a full docker-compose with mosquitto broker
+- [x] (broker) init a broker from env_var and add a full docker-compose with mosquitto broker
+
 - [x] (sub-header) when topic is truncated, we should be able to see it on hover
 - [x] (separator-panel) make it take half the space it does without grid changes
 - [x] (dashboard) show preview of panel on hover
