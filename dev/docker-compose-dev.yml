@@ -79,6 +79,8 @@ services:
       - BROKER_TLS_HOST=mosquitto-tls
       - BROKER_TLS_PORT=8883
       - TLS_CA_CERT=/certs/ca.crt
+      - TLS_CLIENT_CERT=/certs/client.crt
+      - TLS_CLIENT_KEY=/certs/client.key
 
 volumes:
   frontend_node_modules:

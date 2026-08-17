@@ -19,9 +19,15 @@
       "name": "Mosquitto TLS",
       "host": "mosquitto-tls",
       "port": 8883,
+      "auth_mode": "certificate",
       "tls_enabled": true,
-      "tls_skip_verify": true,
+      "tls_skip_verify": false,
+      "ca_cert_file": "./mosquitto/certs/ca.crt",
+      "client_cert_file": "./mosquitto/certs/client.crt",
+      "client_key_file": "./mosquitto/certs/client.key",
       "is_enabled": true
     }
   ]
 }
+
+

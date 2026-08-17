@@ -11,8 +11,8 @@ if [ -d "$SCRIPT_DIR/mosquitto/passwd/passwd" ]; then
     rm -rf "$SCRIPT_DIR/mosquitto/passwd/passwd"
 fi
 
-# 2. Setup password file if missing
-if [ ! -f "$SCRIPT_DIR/mosquitto/passwd/passwd" ]; then
+# 2. Setup password file if missing or empty
+if [ ! -s "$SCRIPT_DIR/mosquitto/passwd/passwd" ]; then
     echo "==> Generating Mosquitto password file (testuser / testpass)..."
     chmod +x "$SCRIPT_DIR/mosquitto/passwd/setup-passwd.sh"
     "$SCRIPT_DIR/mosquitto/passwd/setup-passwd.sh"

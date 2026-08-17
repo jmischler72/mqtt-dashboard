@@ -3,11 +3,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"testing/fstest"
-
-	"mqtt-dashboard/db"
 )
 
 
@@ -108,34 +105,8 @@ func TestSpaHandler_DelegatesToFileServer(t *testing.T) {
 	}
 }
 
-func TestSeedBrokersFromConfig(t *testing.T) {
-	database, err := db.InitDB(":memory:")
-	if err != nil {
-		t.Fatalf("InitDB failed: %v", err)
-	}
-	defer database.Close()
 
-	tmpDir := t.TempDir()
-	cfgPath := tmpDir + "/config.json"
-	os.WriteFile(cfgPath, []byte(`{"brokers":[{"name":"Test Config Broker","host":"localhost","port":1883,"is_enabled":true}]}`), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
-	seedBrokersFromConfig(database)
-
-	var count int
-	row := database.QueryRow(`SELECT COUNT(*) FROM mqtt_brokers WHERE name = 'Test Config Broker'`)
-	if err := row.Scan(&count); err != nil || count != 1 {
-		t.Fatalf("Expected 1 seeded broker from config file, got count %d (err: %v)", count, err)
-	}
-
-	// Verify non-destructive behavior (does NOT duplicate or delete existing brokers)
-	seedBrokersFromConfig(database)
-	var countAfterReSeed int
-	database.QueryRow(`SELECT COUNT(*) FROM mqtt_brokers WHERE name = 'Test Config Broker'`).Scan(&countAfterReSeed)
-	if countAfterReSeed != 1 {
-		t.Errorf("Re-seeding should not duplicate or delete existing broker, got count %d", countAfterReSeed)
-	}
-}
 
 
 

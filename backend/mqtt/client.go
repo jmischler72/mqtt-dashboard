@@ -108,7 +108,7 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 			}
 			tlsCfg.RootCAs = pool
 		}
-		if broker.ClientCert != "" && broker.ClientKey != "" {
+		if broker.AuthMode == "certificate" && broker.ClientCert != "" && broker.ClientKey != "" {
 			cert, err := tls.X509KeyPair([]byte(broker.ClientCert), []byte(broker.ClientKey))
 			if err != nil {
 				connErr := fmt.Errorf("failed to parse client certificate: %w", err)

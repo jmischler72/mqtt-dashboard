@@ -6,6 +6,6 @@
 
 ## Task Tracking
 
-- **Always check TODO.md** before starting work
-- **Update TODO.md** as tasks are completed (`[x]`), started (`[~]`), or skipped (`[-]`)
-- Keep TODO.md as the single source of truth for project status
+- Task tracking has transitioned to **GitHub Issues**.
+- Legacy tasks are archived in [`docs/TODO.old.md`](file:///Users/utilisateur/.gemini/antigravity/worktrees/mqtt-dashboard/test_config_file_handling/docs/TODO.old.md).
+
