@@ -10,24 +10,9 @@ export function parseGaugePayload(payload: string, valueKey?: string): ParsedRes
 
   try {
     const json = JSON.parse(payload);
-    if (typeof json === "object" && json !== null) {
+    if (typeof json === "object" && json !== null && !Array.isArray(json)) {
       if (valueKey && valueKey in json) {
         target = (json as Record<string, unknown>)[valueKey];
-      } else if (!valueKey) {
-        const commonKeys = [
-          "val",
-          "value",
-          "temp",
-          "temperature",
-          "reading",
-          "status",
-          "state",
-          "data",
-        ];
-        const found = commonKeys.find((k) => k in json);
-        if (found) {
-          target = (json as Record<string, unknown>)[found];
-        }
       }
     } else {
       target = json;

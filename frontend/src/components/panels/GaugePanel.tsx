@@ -14,14 +14,14 @@ export interface GaugeConfig {
   min?: number;
   max?: number;
   colorScheme?:
-    | "auto"
-    | "primary"
-    | "secondary"
-    | "accent"
-    | "success"
-    | "warning"
-    | "error"
-    | "info";
+  | "auto"
+  | "primary"
+  | "secondary"
+  | "accent"
+  | "success"
+  | "warning"
+  | "error"
+  | "info";
   gaugeType?: "radial" | "bar" | "value";
 }
 
@@ -66,6 +66,7 @@ export function GaugeConfigModal({
 
   const [detectedType, setDetectedType] = useState<"number" | "boolean" | "string" | null>(null);
   const [sampleValue, setSampleValue] = useState<string | number | boolean | null>(null);
+  const [detectedKey, setDetectedKey] = useState<string | null>(null);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export function GaugeConfigModal({
       const id = setTimeout(() => {
         setDetectedType(null);
         setSampleValue(null);
+        setDetectedKey(null);
         setIsLoadingSample(false);
       }, 0);
       return () => clearTimeout(id);
@@ -94,6 +96,33 @@ export function GaugeConfigModal({
           );
           const latest = sorted[0];
           if (latest?.payload) {
+            let keyCandidate: string | null = null;
+            try {
+              const json = JSON.parse(latest.payload);
+              if (typeof json === "object" && json !== null && !Array.isArray(json)) {
+                const commonKeys = [
+                  "val",
+                  "value",
+                  "temp",
+                  "temperature",
+                  "reading",
+                  "status",
+                  "state",
+                  "data",
+                ];
+                const found = commonKeys.find((k) => k in json);
+                if (found) {
+                  keyCandidate = found;
+                } else {
+                  const keys = Object.keys(json);
+                  if (keys.length > 0) keyCandidate = keys[0];
+                }
+              }
+            } catch {
+              // Ignore non-JSON payload
+            }
+            setDetectedKey(keyCandidate);
+
             const parsed = parseGaugePayload(latest.payload, valueKey);
             setDetectedType(parsed.dataType);
             setSampleValue(parsed.parsedValue);
@@ -107,12 +136,14 @@ export function GaugeConfigModal({
         }
         setDetectedType(null);
         setSampleValue(null);
+        setDetectedKey(null);
         setIsLoadingSample(false);
       })
       .catch(() => {
         if (!cancelled) {
           setDetectedType(null);
           setSampleValue(null);
+          setDetectedKey(null);
           setIsLoadingSample(false);
         }
       });
@@ -151,18 +182,18 @@ export function GaugeConfigModal({
             onPickTopic={
               onPickTopic
                 ? () =>
-                    onPickTopic({
-                      currentTopic: topic,
-                      selectedBrokerId,
-                      draftConfig: {
-                        topic,
-                        valueKey,
-                        unit,
-                        min,
-                        max,
-                        gaugeType,
-                      },
-                    })
+                  onPickTopic({
+                    currentTopic: topic,
+                    selectedBrokerId,
+                    draftConfig: {
+                      topic,
+                      valueKey,
+                      unit,
+                      min,
+                      max,
+                      gaugeType,
+                    },
+                  })
                 : undefined
             }
           />
@@ -170,7 +201,7 @@ export function GaugeConfigModal({
           {/* Payload Detection Banner */}
           <div className="flex items-center justify-between gap-2 px-3 py-2 bg-base-200/60 rounded-lg text-xs border border-base-300">
             <span className="font-medium text-base-content/70 shrink-0">
-              Detected Type:
+              Detected Payload Type:
             </span>
 
             <div className="flex items-center gap-2 min-w-0">
@@ -272,33 +303,47 @@ export function GaugeConfigModal({
             </fieldset>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">Unit / Suffix</legend>
-              <input
-                className="input input-bordered input-sm w-full text-xs"
-                placeholder="e.g. °C, %, V, kW"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-              />
-              <p className="text-[11px] text-base-content/60 mt-1">
-                Displayed next to the value.
-              </p>
-            </fieldset>
+          <fieldset className="fieldset w-full">
+            <legend className="fieldset-legend font-semibold">Unit / Suffix</legend>
+            <input
+              className="input input-bordered input-sm w-full text-xs"
+              placeholder="e.g. °C, %, V, kW"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            />
+            <p className="text-[11px] text-base-content/60 mt-1">
+              Displayed next to the value.
+            </p>
+          </fieldset>
 
-            <fieldset className="fieldset">
+          <fieldset className="fieldset w-full">
+            <div className="flex items-center justify-between">
               <legend className="fieldset-legend font-semibold">JSON Key (Optional)</legend>
-              <input
-                className="input input-bordered input-sm w-full font-mono text-xs"
-                placeholder="e.g. temp or data.value"
-                value={valueKey}
-                onChange={(e) => setValueKey(e.target.value)}
-              />
-              <p className="text-[11px] text-base-content/60 mt-1">
-                Field name if payload is JSON. Leave blank for auto-detect/raw.
-              </p>
-            </fieldset>
-          </div>
+              {detectedKey && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-base-content/70">Detected:</span>
+                  <button
+                    type="button"
+                    className="font-mono text-[11px] text-primary hover:text-primary-focus bg-base-100 hover:bg-base-200/80 px-2 py-0.5 rounded border border-base-300 transition-colors gap-1 inline-flex items-center cursor-pointer"
+                    title={`Click to use detected key "${detectedKey}"`}
+                    onClick={() => setValueKey(detectedKey)}
+                  >
+                    <span>"{detectedKey}"</span>
+                    <span className="badge badge-primary badge-xs ml-0.5 font-sans font-normal text-[10px]">Use</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            <input
+              className="input input-bordered input-sm w-full font-mono text-xs"
+              placeholder="e.g. temp or data.value"
+              value={valueKey}
+              onChange={(e) => setValueKey(e.target.value)}
+            />
+            <p className="text-[11px] text-base-content/60 mt-1">
+              Field name to extract if payload is JSON. Leave blank to display the raw payload.
+            </p>
+          </fieldset>
         </div>
 
         <div className="modal-action">
@@ -380,6 +425,14 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
     measure();
     const timer = setTimeout(measure, 100);
 
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("resize", measure);
+      };
+    }
+
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
@@ -436,7 +489,7 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
           isHistorical: true,
         });
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => {
       cancelled = true;
@@ -473,34 +526,13 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
     subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList });
   }, [panelId, brokerId, topic, subscribe]);
 
-  if (!topic) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-2 text-base-content/40 p-4 text-center">
-        <MdSpeed className="text-4xl opacity-50" />
-        <span className="text-sm font-medium">No Topic Configured</span>
-        <span className="text-xs text-base-content/50">
-          Configure a topic to display live gauge data.
-        </span>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-center">
-        <div className="loading loading-spinner loading-md text-primary" />
-        <span className="text-xs text-base-content/60 font-mono animate-pulse">
-          Waiting for data on <span className="font-semibold text-accent">{topic}</span>…
-        </span>
-      </div>
-    );
-  }
-
-  // Calculate numeric percentage for gauge meter
   let numericVal = 0;
-  if (data.dataType === "number") {
-    numericVal = typeof data.parsedValue === "number" ? data.parsedValue : Number(data.parsedValue);
-  } else if (data.dataType === "boolean") {
+  if (data?.dataType === "number") {
+    numericVal =
+      typeof data.parsedValue === "number"
+        ? data.parsedValue
+        : Number(data.parsedValue);
+  } else if (data?.dataType === "boolean") {
     numericVal = data.parsedValue ? max : min;
   }
 
@@ -508,57 +540,49 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   const pct = Math.min(Math.max(((numericVal - min) / range) * 100, 0), 100);
 
   // Dynamic Color Mapping based on limits
-  let colorClass: string;
-  let badgeClass: string;
-  let progressClass: string;
+  let colorClass = "text-primary";
+  let progressClass = "progress-primary";
 
-  if (data.dataType === "boolean") {
+  if (data?.dataType === "boolean") {
     if (data.parsedValue) {
       colorClass = "text-success";
-      badgeClass = "badge-success";
       progressClass = "progress-success";
     } else {
       colorClass = "text-error";
-      badgeClass = "badge-error";
       progressClass = "progress-error";
     }
-  } else if (data.dataType === "number") {
+  } else if (data?.dataType === "number") {
     if (pct < 35) {
       colorClass = "text-info";
-      badgeClass = "badge-info";
       progressClass = "progress-info";
     } else if (pct < 75) {
       colorClass = "text-success";
-      badgeClass = "badge-success";
       progressClass = "progress-success";
     } else if (pct < 90) {
       colorClass = "text-warning";
-      badgeClass = "badge-warning";
       progressClass = "progress-warning";
     } else {
       colorClass = "text-error";
-      badgeClass = "badge-error";
       progressClass = "progress-error";
     }
-  } else {
+  } else if (data) {
     colorClass = "text-accent";
-    badgeClass = "badge-accent";
     progressClass = "progress-accent";
   }
 
   // Format value text
-  let formattedValue = String(data.parsedValue);
-  if (typeof data.parsedValue === "number") {
+  let formattedValue = data ? String(data.parsedValue) : "";
+  if (data && typeof data.parsedValue === "number") {
     formattedValue = Number.isInteger(data.parsedValue)
       ? data.parsedValue.toString()
       : data.parsedValue.toFixed(1);
-  } else if (typeof data.parsedValue === "boolean") {
+  } else if (data && typeof data.parsedValue === "boolean") {
     formattedValue = data.parsedValue ? "ON" : "OFF";
   }
 
   // Dynamic Sizing derived from container dimensions
-  const availW = dimensions.width || 240;
-  const availH = dimensions.height || 200;
+  const availW = Math.max(80, (dimensions.width || 240) - 16);
+  const availH = Math.max(80, (dimensions.height || 200) - 40);
 
   // Radial Dial Sizing: fills up to 80% of the available container bounds
   const dialSize = Math.max(65, Math.floor(Math.min(availW, availH) * 0.8));
@@ -589,12 +613,26 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   );
 
   return (
-    <div className="flex flex-col h-full justify-between p-2">
-      {/* Visual Display Container */}
-      <div
-        ref={containerRef}
-        className="flex-1 flex items-center justify-center min-h-0 w-full overflow-hidden p-1"
-      >
+    <div ref={containerRef} className="flex flex-col h-full justify-between p-2">
+      {!topic ? (
+        <div className="flex flex-col items-center justify-center flex-1 gap-2 text-base-content/40 p-4 text-center">
+          <MdSpeed className="text-4xl opacity-50" />
+          <span className="text-sm font-medium">No Topic Configured</span>
+          <span className="text-xs text-base-content/50">
+            Configure a topic to display live gauge data.
+          </span>
+        </div>
+      ) : !data ? (
+        <div className="flex flex-col items-center justify-center flex-1 gap-2 p-4 text-center">
+          <div className="loading loading-spinner loading-md text-primary" />
+          <span className="text-xs text-base-content/60 font-mono animate-pulse">
+            Waiting for data on <span className="font-semibold text-accent">{topic}</span>…
+          </span>
+        </div>
+      ) : (
+        <>
+          {/* Visual Display Container */}
+          <div className="flex-1 flex items-center justify-center min-h-0 w-full overflow-hidden p-1">
         {data.dataType === "number" && gaugeType === "radial" && (
           <div
             className="relative flex items-center justify-center shrink-0"
@@ -695,15 +733,25 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
         {(gaugeType === "value" || data.dataType !== "number") && (
           <div className="flex flex-col items-center justify-center gap-1.5 p-1 text-center w-full h-full overflow-hidden">
             {data.dataType === "boolean" ? (
-              <span
-                className={`badge ${badgeClass} font-bold font-mono shadow-xs uppercase tracking-wider rounded-xl transition-all duration-300`}
+              <div
+                className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl font-mono font-bold tracking-wider uppercase border shadow-sm transition-all duration-300 ${
+                  data.parsedValue
+                    ? "bg-success/15 text-success border-success/40 shadow-success/10"
+                    : "bg-error/15 text-error border-error/40 shadow-error/10"
+                }`}
                 style={{
                   fontSize: `${cardBadgeFontSize}px`,
-                  padding: `${cardBadgeFontSize * 0.35}px ${cardBadgeFontSize * 0.7}px`,
                 }}
               >
-                {formattedValue}
-              </span>
+                <span
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${
+                    data.parsedValue
+                      ? "bg-success shadow-[0_0_8px_#22c55e]"
+                      : "bg-error shadow-[0_0_8px_#ef4444]"
+                  }`}
+                />
+                <span>{formattedValue}</span>
+              </div>
             ) : (
               <div className="flex items-baseline gap-1.5 justify-center flex-wrap max-w-full px-2">
                 <span
@@ -722,16 +770,6 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
                 )}
               </div>
             )}
-            {data.dataType !== "string" &&
-              data.raw &&
-              data.raw !== formattedValue && (
-                <span
-                  className="font-mono text-base-content/60 truncate max-w-full"
-                  style={{ fontSize: `${Math.max(10, cardValFontSize * 0.3)}px` }}
-                >
-                  {data.raw}
-                </span>
-              )}
           </div>
         )}
       </div>
@@ -748,6 +786,8 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
           )}
         </div>
       </div>
+    </>
+      )}
     </div>
   );
 }

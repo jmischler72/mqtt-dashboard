@@ -55,14 +55,14 @@ describe("parseGaugePayload", () => {
     });
   });
 
-  it("extracts values from JSON objects using valueKey or auto-detect", () => {
+  it("extracts values from JSON objects when valueKey is specified", () => {
     expect(parseGaugePayload('{"temp": 28.4, "unit": "C"}', "temp")).toEqual({
       parsedValue: 28.4,
       dataType: "number",
       raw: '{"temp": 28.4, "unit": "C"}',
     });
 
-    expect(parseGaugePayload('{"val": true}')).toEqual({
+    expect(parseGaugePayload('{"val": true}', "val")).toEqual({
       parsedValue: true,
       dataType: "boolean",
       raw: '{"val": true}',
