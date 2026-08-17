@@ -754,17 +754,19 @@ export default function ConfigPage() {
                       <span className="font-medium text-sm">
                         Authentication
                       </span>
-                      <div role="tablist" className="tabs tabs-box tabs-sm">
+                      <div role="tablist" className="tabs tabs-box tabs-sm grid grid-cols-3 w-full">
                         {(["none", "password", "certificate"] as const).map(
                           (mode) => {
                             const isCert = mode === "certificate";
                             const disabled = isCert && !form.tls_enabled;
-                            const btn = (
+                            return (
                               <button
+                                key={mode}
                                 role="tab"
                                 type="button"
-                                className={`tab ${form.auth_mode === mode ? "tab-active" : ""} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-                                disabled={disabled}
+                                aria-disabled={disabled}
+                                className={`tab w-full truncate ${form.auth_mode === mode ? "tab-active" : ""} ${disabled ? "opacity-40 cursor-not-allowed tooltip tooltip-bottom" : ""}`}
+                                data-tip={disabled ? "Requires TLS to be enabled" : undefined}
                                 onClick={() =>
                                   !disabled &&
                                   setForm((prev) => ({
@@ -779,17 +781,6 @@ export default function ConfigPage() {
                                     ? "Username / Password"
                                     : "Client Certificate"}
                               </button>
-                            );
-                            return disabled ? (
-                              <span
-                                key={mode}
-                                className="tooltip tooltip-bottom"
-                                data-tip="Requires TLS to be enabled"
-                              >
-                                {btn}
-                              </span>
-                            ) : (
-                              <React.Fragment key={mode}>{btn}</React.Fragment>
                             );
                           },
                         )}

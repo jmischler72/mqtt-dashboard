@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import cronstrue from "cronstrue";
-import { RiSearchLine } from "react-icons/ri";
+import { CiPause1 } from "react-icons/ci";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import { CiPause1 } from "react-icons/ci";
+import BrokerTopicSection from "./BrokerTopicSection";
+import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface CronConfig {
   cron_expr?: string;
@@ -128,39 +129,29 @@ export function CronConfigModal({
     isCustom && !cronError ? describeCron(customExpr) : null;
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
+    <dialog className="modal modal-open backdrop-blur-xs">
+      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
         <h3 className="font-bold text-lg mb-4">Cron Configuration</h3>
-        <div className="flex flex-col gap-3">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Broker</legend>
-            {brokerStatuses.length === 0 ? (
-              <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">
-                  No brokers configured.{" "}
-                  <a href="/config" className="underline">
-                    Add one in the Config page.
-                  </a>
-                </span>
-              </div>
-            ) : (
-              <select
-                className="select select-bordered w-full"
-                value={selectedBrokerId}
-                onChange={(e) => setSelectedBrokerId(e.target.value)}
-              >
-                {brokerStatuses.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Schedule</legend>
+        <div className="flex flex-col gap-4">
+          <BrokerTopicSection
+            selectedBrokerId={selectedBrokerId}
+            onBrokerChange={setSelectedBrokerId}
+            brokerStatuses={brokerStatuses}
+            topic={topic}
+            onTopicChange={setTopic}
+            onPickTopic={
+              onPickTopic
+                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+                : undefined
+            }
+          />
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+              Schedule Presets
+            </legend>
             <select
-              className="select select-bordered w-full"
+              className="select select-bordered select-sm w-full font-medium"
               value={preset}
               onChange={(e) => setPreset(e.target.value)}
             >
@@ -171,13 +162,14 @@ export function CronConfigModal({
               ))}
             </select>
           </fieldset>
+
           {isCustom && (
-            <fieldset className="fieldset">
-              <legend className="fieldset-legend">
+            <fieldset className="fieldset p-0 border-0">
+              <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
                 Cron Expression (5 fields)
               </legend>
               <input
-                className={`input input-bordered w-full font-mono ${
+                className={`input input-bordered input-sm w-full font-mono text-xs ${
                   cronError ? "input-error" : ""
                 }`}
                 placeholder="* * * * *"
@@ -185,109 +177,76 @@ export function CronConfigModal({
                 onChange={(e) => setCustomExpr(e.target.value)}
               />
               {cronError ? (
-                <p className="fieldset-label text-error">{cronError}</p>
+                <p className="text-xs text-error mt-1">{cronError}</p>
               ) : (
-                <p className="fieldset-label">min hour day month weekday</p>
+                <p className="text-[11px] text-base-content/50 mt-1">min hour day month weekday</p>
               )}
               {cronDescription && (
-                <div className="text-xs bg-base-200 rounded px-3 py-2 mt-1">
+                <div className="text-xs bg-base-200/70 border border-base-300 rounded-lg px-3 py-2 mt-2 font-mono">
                   {cronDescription}
                 </div>
               )}
             </fieldset>
           )}
+
           {!isCustom && (
-            <div className="text-xs font-mono bg-base-200 rounded px-3 py-2">
-              Expression: <strong>{cronExpr}</strong>
+            <div className="text-xs font-mono bg-base-200/70 border border-base-300 rounded-lg px-3 py-2">
+              Expression: <strong className="text-primary">{cronExpr}</strong>
             </div>
           )}
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Topic</legend>
-            <div className="flex gap-1 w-full">
-              <input
-                className="input input-bordered flex-1"
-                placeholder="home/trigger"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-              />
-              {onPickTopic && (
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  title="Browse topics in Explorer"
-                  onClick={() =>
-                    onPickTopic({ currentTopic: topic, selectedBrokerId })
-                  }
-                >
-                  <RiSearchLine />
-                </button>
-              )}
-            </div>
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Payload</legend>
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+              Payload
+            </legend>
             <textarea
-              className="textarea textarea-bordered w-full font-mono"
+              className="textarea textarea-bordered textarea-sm w-full font-mono text-xs"
               rows={2}
               placeholder='{"ping": true}'
               value={payload}
               onChange={(e) => setPayload(e.target.value)}
             />
           </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Enabled</legend>
-            <label className="label cursor-pointer justify-start gap-3 px-0">
+
+          <fieldset className="fieldset p-0 border-0">
+            <label className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40">
+              <span className="text-xs font-medium text-base-content/80">
+                Enable Schedule Execution
+              </span>
               <input
                 type="checkbox"
-                className="toggle toggle-primary"
+                className="toggle toggle-xs toggle-primary"
                 checked={enabled}
                 onChange={(e) => setEnabled(e.target.checked)}
               />
-              <span className="label-text">Run this schedule</span>
             </label>
           </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">MQTT Options</legend>
-            <div className="flex gap-4 flex-wrap">
-              <label className="flex items-center gap-2">
-                <span className="text-sm">QoS</span>
-                <select
-                  className="select select-sm select-bordered"
-                  value={qos}
-                  onChange={(e) => setQos(Number(e.target.value))}
-                >
-                  <option value={0}>0 – At most once</option>
-                  <option value={1}>1 – At least once</option>
-                  <option value={2}>2 – Exactly once</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-sm">Retain</span>
-                <input
-                  type="checkbox"
-                  className="toggle toggle-sm toggle-primary"
-                  checked={retain}
-                  onChange={(e) => setRetain(e.target.checked)}
-                />
-              </label>
-            </div>
-          </fieldset>
+
+          <MqttOptionsSection
+            qos={qos}
+            retain={retain}
+            onQosChange={setQos}
+            onRetainChange={setRetain}
+          />
         </div>
-        <div className="modal-action">
-          <button className="btn" onClick={onClose}>
+
+        <div className="modal-action mt-6 pt-3 border-t border-base-300">
+          <button className="btn btn-sm" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="btn btn-primary"
-            disabled={
-              !topic ||
-              !cronExpr ||
-              !!cronError ||
-              brokerStatuses.length === 0
-            }
+            className="btn btn-sm btn-primary"
+            disabled={brokerStatuses.length === 0 || (isCustom && !!cronError)}
             onClick={() =>
               onSave(
-                { cron_expr: cronExpr, topic, payload, qos, retain, enabled },
+                {
+                  cron_expr: cronExpr,
+                  topic,
+                  payload,
+                  qos,
+                  retain,
+                  enabled,
+                },
                 selectedBrokerId || defaultBrokerId,
               )
             }
