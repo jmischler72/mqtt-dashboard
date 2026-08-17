@@ -79,6 +79,7 @@ func main() {
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
 	imageH := handlers.NewImageHandler("./data")
+	fleetH := handlers.NewFleetHandler(database, registry)
 
 	// --- Router ---
 	r := chi.NewRouter()
@@ -144,8 +145,14 @@ func main() {
 	r.Get("/api/explorer/history", explorerH.GetHistory)
 	r.Get("/api/explorer/activity", explorerH.GetActivity)
 
+	// Fleet Management
+	r.Get("/api/fleet/devices", fleetH.GetDevices)
+	r.Get("/api/fleet/topology", fleetH.GetTopology)
+	r.Post("/api/fleet/devices/command", fleetH.SendCommand)
+
 	// WebSocket
 	r.Get("/ws", wsHub.ServeWS)
+
 
 	// Static frontend (production only)
 	if os.Getenv("APP_ENV") != "development" {

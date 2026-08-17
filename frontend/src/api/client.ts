@@ -71,4 +71,67 @@ export const api = {
       memory_max: number;
       updated_at: string;
     }>(`/api/brokers/${encodeURIComponent(brokerId)}/info`),
+  getFleetDevices: (brokerId: string) =>
+    request<FleetDevice[]>(
+      `/api/fleet/devices?broker_id=${encodeURIComponent(brokerId)}`,
+    ),
+  getFleetTopology: (brokerId: string) =>
+    request<FleetTopology>(
+      `/api/fleet/topology?broker_id=${encodeURIComponent(brokerId)}`,
+    ),
+  sendFleetCommand: (
+    brokerId: string,
+    topic: string,
+    payload: string,
+    qos = 0,
+    retain = false,
+  ) =>
+    request<{ status: string }>("/api/fleet/devices/command", {
+      method: "POST",
+      body: JSON.stringify({
+        broker_id: brokerId,
+        topic,
+        payload,
+        qos,
+        retain,
+      }),
+    }),
 };
+
+export interface FleetDevice {
+  id: string;
+  name: string;
+  broker_id: string;
+  status: "online" | "offline" | "unknown";
+  mac?: string;
+  ip?: string;
+  firmware?: string;
+  hardware?: string;
+  device_type: "esphome" | "homeassistant" | "tasmota" | "homie" | "generic";
+  rssi?: number;
+  uptime?: number;
+  base_topic: string;
+  topics: string[];
+  last_seen: string;
+}
+
+export interface TopologyNode {
+  id: string;
+  label: string;
+  type: "broker" | "gateway" | "device";
+  status: string;
+  mac?: string;
+  ip?: string;
+}
+
+export interface TopologyLink {
+  source: string;
+  target: string;
+  status?: string;
+}
+
+export interface FleetTopology {
+  nodes: TopologyNode[];
+  links: TopologyLink[];
+}
+
