@@ -779,11 +779,6 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
         <div className="flex items-center gap-1">
           <RiTimeLine className="text-xs" />
           <span>{formatTime(data.receivedAt)}</span>
-          {data.isHistorical && (
-            <span className="badge badge-ghost badge-xs text-[9px] py-0 px-1 font-mono">
-              history
-            </span>
-          )}
         </div>
       </div>
     </>

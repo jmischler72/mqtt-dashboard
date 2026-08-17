@@ -109,7 +109,6 @@ describe("GaugePanel", () => {
 
     expect(await screen.findByText("24.5")).toBeInTheDocument();
     expect(screen.getByText("°C")).toBeInTheDocument();
-    expect(screen.getByText("history")).toBeInTheDocument();
   });
 
   it("updates live value from websocket for boolean state", async () => {
