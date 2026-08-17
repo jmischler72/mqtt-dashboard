@@ -1,8 +1,10 @@
-# TODO
+# TODO (Archived)
 
-This page describes small tasks that needs to be done, bigger features are described in docs/PRD/\*.md
+This file contains the historical list of small tasks and sub-tasks for the project.
 
-Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore future improvements it is to be defined further by human
+>This file is **ARCHIVED**. It previously served as the single source of truth for tracking project tasks and feature checklists. Task management has now transitioned to **GitHub Issues**. Refer to GitHub Issues for current task tracking and do not update this file.
+
+---
 
 - [x] (cron) fix the text for weeks cron
 - [x] (sub-header) the payload popover sometimes doesnt align with the text payload correctly and is shown too far left
@@ -13,7 +15,8 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (separator) fix size when creating it
 - [x] (log-panel) show qos and retian flag in the panel with config in modal to toggle it, in explorer-page it should be enabled
 - [ ] (dashboard) make the separator really half the size and divide by 2 the resolution of the grid so other panels can take more space
-- [ ] (broker) init a broker from env_var and add a full docker-compose with mosquitto broker
+- [x] (broker) init a broker from env_var and add a full docker-compose with mosquitto broker
+
 - [x] (sub-header) when topic is truncated, we should be able to see it on hover
 - [x] (separator-panel) make it take half the space it does without grid changes
 - [x] (dashboard) show preview of panel on hover
@@ -85,3 +88,4 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (mqtt-stats)the log panel show duplicates messages only for the $sys topics
 - [x] (mqtt-stats)i need to add tests to fix code coverage (still at 66.2%)
 - [x] (mqtt-stats)now the issue is that when i click a topic i dont see anything on some topics and sometimes i see messages but they are still duplicated
+- [x] (config-file) test and improve config file handling (broker seeding, app settings, default fallbacks, and comprehensive unit tests)
