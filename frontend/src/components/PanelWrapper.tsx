@@ -6,6 +6,7 @@ import {
   RiPushpinFill,
   RiServerLine,
   RiHashtag,
+  RiErrorWarningLine,
 } from "react-icons/ri";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -79,6 +80,25 @@ type PanelConfig =
 
 const VISUAL_PANEL_TYPES = ["image", "separator", "text"];
 
+function getPanelWarning(panelType: string, configJson: unknown): string | null {
+  if (["separator", "text", "image"].includes(panelType)) return null;
+  const cfg = (configJson ?? {}) as Record<string, unknown>;
+  const topic = String(cfg.topic ?? cfg.topics ?? "").trim();
+
+  if (!topic) {
+    return "No topic configured";
+  }
+
+  if (["button", "input", "cron"].includes(panelType)) {
+    const topicsList = topic.split(",").map((t) => t.trim()).filter(Boolean);
+    if (topicsList.some((t) => t.includes("+") || t.includes("#"))) {
+      return "Cannot publish to wildcard topics (+ or #)";
+    }
+  }
+
+  return null;
+}
+
 export default function PanelWrapper({
   panel,
   editMode,
@@ -94,6 +114,7 @@ export default function PanelWrapper({
   onPickerConsumed,
 }: Props) {
   const navigate = useNavigate();
+  const panelWarning = getPanelWarning(panel.panel_type, panel.config_json);
   const [showConfig, setShowConfig] = useState(false);
   const [capturedPicker, setCapturedPicker] = useState<{
     topic?: string;
@@ -394,49 +415,83 @@ export default function PanelWrapper({
 
   const renderConfigModal = () => {
     if (!showConfig) return null;
-
     const cfg = panel.config_json ?? {};
     const brokerId = panel.broker_id ?? "";
+
+    const resolvePickedTopic = (
+      existingTopic: string | undefined,
+      pickedTopic: string | undefined,
+    ): string | undefined => {
+      if (!pickedTopic) return undefined;
+      if (!existingTopic || !existingTopic.trim()) return pickedTopic;
+      const existingList = existingTopic
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const pickedList = pickedTopic
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const merged = Array.from(new Set([...existingList, ...pickedList]));
+      return merged.join(", ");
+    };
+
     switch (panel.panel_type) {
-      case "button":
+      case "button": {
+        const buttonConfig = {
+          ...(cfg as ButtonConfig),
+          ...(capturedPicker.draftConfig as Partial<ButtonConfig> | undefined),
+        };
+        const buttonInitialTopic = resolvePickedTopic(
+          buttonConfig.topic,
+          capturedPicker.topic,
+        );
         return createPortal(
           <ButtonConfigModal
-            config={cfg as ButtonConfig}
+            config={buttonConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPicker.topic}
+            initialTopic={buttonInitialTopic}
             initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
-      case "input":
+      }
+      case "input": {
+        const inputConfig = {
+          ...(cfg as InputConfig),
+          ...(capturedPicker.draftConfig as Partial<InputConfig> | undefined),
+        };
+        const inputInitialTopic = resolvePickedTopic(
+          inputConfig.topic,
+          capturedPicker.topic,
+        );
         return createPortal(
           <InputConfigModal
-            config={cfg as InputConfig}
+            config={inputConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPicker.topic}
+            initialTopic={inputInitialTopic}
             initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
+      }
       case "log": {
         const logConfig = {
           ...(cfg as LogConfig),
           ...(capturedPicker.draftConfig as Partial<LogConfig> | undefined),
         };
-        const existingTopics = logConfig.topics ?? "";
-        const logInitialTopic = capturedPicker.topic
-          ? existingTopics
-            ? `${existingTopics}, ${capturedPicker.topic}`
-            : capturedPicker.topic
-          : undefined;
+        const logInitialTopic = resolvePickedTopic(
+          logConfig.topics,
+          capturedPicker.topic,
+        );
         return createPortal(
           <LogConfigModal
             config={logConfig}
@@ -451,34 +506,54 @@ export default function PanelWrapper({
           document.body,
         );
       }
-      case "cron":
+      case "cron": {
+        const cronConfig = {
+          ...(cfg as CronConfig),
+          ...(capturedPicker.draftConfig as Partial<CronConfig> | undefined),
+        };
+        const cronInitialTopic = resolvePickedTopic(
+          cronConfig.topic,
+          capturedPicker.topic,
+        );
         return createPortal(
           <CronConfigModal
-            config={cfg as CronConfig}
+            config={cronConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPicker.topic}
+            initialTopic={cronInitialTopic}
             initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
-      case "stats":
+      }
+      case "stats": {
+        const statsConfig = {
+          ...(cfg as BrokerStatsConfig),
+          ...(capturedPicker.draftConfig as
+            | Partial<BrokerStatsConfig>
+            | undefined),
+        };
+        const statsInitialTopic = resolvePickedTopic(
+          statsConfig.topic,
+          capturedPicker.topic,
+        );
         return createPortal(
           <BrokerStatsConfigModal
-            config={cfg as BrokerStatsConfig}
+            config={statsConfig}
             brokerId={brokerId}
             brokerStatuses={brokerStatuses}
             onSave={(c, bid) => saveConfig(c, bid)}
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
-            initialTopic={capturedPicker.topic}
+            initialTopic={statsInitialTopic}
             initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,
         );
+      }
       case "separator":
         return createPortal(
           <SeparatorConfigModal
@@ -572,8 +647,16 @@ export default function PanelWrapper({
                 </span>
               </div>
             )}
-            {editMode && (
-              <div className="flex gap-1 shrink-0 no-drag">
+            {editMode ? (
+              <div className="flex items-center gap-1 shrink-0 no-drag">
+                {panelWarning && (
+                  <span
+                    className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
+                    title="Configuration warning — check panel parameters"
+                  >
+                    <RiErrorWarningLine className="text-warning text-sm shrink-0" />
+                  </span>
+                )}
                 <button
                   className="btn btn-ghost btn-xs no-drag"
                   title="Configure"
@@ -589,6 +672,17 @@ export default function PanelWrapper({
                   <RiCloseLine className="text-base" />
                 </button>
               </div>
+            ) : (
+              panelWarning && (
+                <div className="flex items-center gap-1 shrink-0 no-drag">
+                  <span
+                    className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
+                    title="Configuration warning — check panel parameters"
+                  >
+                    <RiErrorWarningLine className="text-warning text-sm shrink-0" />
+                  </span>
+                </div>
+              )
             )}
           </div>
         )}

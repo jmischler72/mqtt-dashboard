@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { RiSearchLine } from "react-icons/ri";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
+import BrokerTopicSection from "./BrokerTopicSection";
 
 type TimeRange = 60 | 300 | 900 | 3600;
 
@@ -84,69 +84,35 @@ export function BrokerStatsConfigModal({
   );
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
+    <dialog className="modal modal-open backdrop-blur-xs">
+      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
         <h3 className="font-bold text-lg mb-4">Stats Configuration</h3>
-        <div className="flex flex-col gap-3">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Broker</legend>
-            {brokerStatuses.length === 0 ? (
-              <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">
-                  No brokers configured.{" "}
-                  <a href="/config" className="underline">
-                    Add one in the Config page.
-                  </a>
-                </span>
-              </div>
-            ) : (
-              <select
-                className="select select-bordered w-full"
-                value={selectedBrokerId}
-                onChange={(e) => setSelectedBrokerId(e.target.value)}
-              >
-                {brokerStatuses.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">
-              Topic Filter (wildcards OK, empty = all topics)
-            </legend>
-            <div className="join w-full">
-              <input
-                className="input input-bordered join-item flex-1 font-mono"
-                type="text"
-                placeholder="# (all topics)"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-              />
-              {onPickTopic && (
-                <button
-                  type="button"
-                  className="btn btn-outline join-item"
-                  title="Browse topics in Explorer"
-                  onClick={() =>
+        <div className="flex flex-col gap-4">
+          <BrokerTopicSection
+            selectedBrokerId={selectedBrokerId}
+            onBrokerChange={setSelectedBrokerId}
+            brokerStatuses={brokerStatuses}
+            topic={topic}
+            onTopicChange={setTopic}
+            allowWildcards={true}
+            onPickTopic={
+              onPickTopic
+                ? () =>
                     onPickTopic({
                       currentTopic: "",
                       selectedBrokerId,
                       draftConfig: { topic, defaultRange },
                     })
-                  }
-                >
-                  <RiSearchLine />
-                </button>
-              )}
-            </div>
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Default Time Range</legend>
+                : undefined
+            }
+          />
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+              Default Time Range
+            </legend>
             <select
-              className="select select-bordered w-full"
+              className="select select-bordered select-sm w-full font-medium"
               value={defaultRange}
               onChange={(e) =>
                 setDefaultRange(Number(e.target.value) as TimeRange)
@@ -158,8 +124,11 @@ export function BrokerStatsConfigModal({
               <option value={3600}>1 hour</option>
             </select>
           </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Visible Sections</legend>
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
+              Visible Sections
+            </legend>
             <div className="flex flex-col gap-2">
               {(
                 [
@@ -174,26 +143,27 @@ export function BrokerStatsConfigModal({
               ).map(([value, setter, label]) => (
                 <label
                   key={label}
-                  className="flex items-center gap-3 cursor-pointer"
+                  className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
                 >
+                  <span className="text-xs font-medium text-base-content/80">{label}</span>
                   <input
                     type="checkbox"
-                    className="toggle toggle-sm toggle-primary"
+                    className="toggle toggle-xs toggle-primary"
                     checked={value}
                     onChange={(e) => setter(e.target.checked)}
                   />
-                  <span className="label-text">{label}</span>
                 </label>
               ))}
             </div>
           </fieldset>
         </div>
-        <div className="modal-action">
-          <button className="btn" onClick={onClose}>
+
+        <div className="modal-action mt-6 pt-3 border-t border-base-300">
+          <button className="btn btn-sm" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-sm btn-primary"
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
@@ -273,7 +243,7 @@ export default function BrokerStatsPanel({
   brokerId,
   config,
 }: BrokerStatsPanelProps) {
-  const topicFilter = config.topic?.trim() || "#";
+  const topicFilter = config.topic?.trim() ?? "";
   const showStatTiles = config.showStatTiles !== false;
   const showChart = config.showChart !== false;
   const showTopicBreakdown = config.showTopicBreakdown !== false;
@@ -296,7 +266,7 @@ export default function BrokerStatsPanel({
 
   // History-backed series: fetch on change, then refresh on an interval.
   useEffect(() => {
-    if (!brokerId) return;
+    if (!brokerId || !topicFilter) return;
     let cancelled = false;
     const load = () => {
       api
@@ -333,7 +303,7 @@ export default function BrokerStatsPanel({
   });
 
   useEffect(() => {
-    if (!brokerId) return;
+    if (!brokerId || !topicFilter) return;
     subscribe({
       panel_id: panelId,
       broker_id: brokerId,
@@ -549,6 +519,14 @@ export default function BrokerStatsPanel({
   const total = activity?.total ?? 0;
   const totalKb = (activity?.totalBytes ?? 0) / 1024;
   const topics = activity?.topics ?? [];
+  if (!topicFilter) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
+
   const maxCount = Math.max(1, ...topics.map((t) => t.count));
 
   return (
