@@ -7,6 +7,7 @@ Note to AI: When you finish a sub-task, mark it with a checkmark, and ignore fut
 - [x] (cron) fix the text for weeks cron
 - [x] (sub-header) the payload popover sometimes doesnt align with the text payload correctly and is shown too far left
 - [x] (mobile) make the dash responsive so it looks good on smartphone
+- [x] (gauge-panel) implement gauge panel type to display last known topic data (numeric, boolean, string)
 - [x] (dash) import/export as json + add starter templates
 - [x] (image) make the edit modal more comprehensive
 - [x] (separator) fix size when creating it
