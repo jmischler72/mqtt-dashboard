@@ -7,8 +7,6 @@ import (
 	"testing/fstest"
 )
 
-
-
 func TestCorsMiddleware_SetsHeaders(t *testing.T) {
 	handler := corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -104,9 +102,3 @@ func TestSpaHandler_DelegatesToFileServer(t *testing.T) {
 		t.Error("spaHandler should delegate to inner file server")
 	}
 }
-
-
-
-
-
-
