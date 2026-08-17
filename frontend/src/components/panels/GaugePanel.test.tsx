@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import GaugePanel, { parseGaugePayload } from "./GaugePanel";
+import GaugePanel from "./GaugePanel";
+import { parseGaugePayload } from "./gaugeUtils";
 
 const subscribeMock = vi.fn();
 const getExplorerHistoryMock = vi.fn();

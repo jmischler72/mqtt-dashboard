@@ -5,6 +5,7 @@ import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import { MdSpeed } from "react-icons/md";
 import { RiTimeLine } from "react-icons/ri";
+import { parseGaugePayload } from "./gaugeUtils";
 
 export interface GaugeConfig {
   topic?: string;
@@ -70,13 +71,18 @@ export function GaugeConfigModal({
   useEffect(() => {
     const singleTopic = topic.split(",")[0]?.trim();
     if (!selectedBrokerId || !singleTopic) {
-      setDetectedType(null);
-      setSampleValue(null);
-      return;
+      const id = setTimeout(() => {
+        setDetectedType(null);
+        setSampleValue(null);
+        setIsLoadingSample(false);
+      }, 0);
+      return () => clearTimeout(id);
     }
 
     let cancelled = false;
-    setIsLoadingSample(true);
+    const startTimer = setTimeout(() => {
+      if (!cancelled) setIsLoadingSample(true);
+    }, 0);
 
     api
       .getExplorerHistory(selectedBrokerId, singleTopic)
@@ -113,8 +119,9 @@ export function GaugeConfigModal({
 
     return () => {
       cancelled = true;
+      clearTimeout(startTimer);
     };
-  }, [selectedBrokerId, topic, valueKey]);
+  }, [selectedBrokerId, topic, valueKey, gaugeType]);
 
   return (
     <dialog className="modal modal-open">
@@ -335,71 +342,7 @@ function formatTime(isoStr: string): string {
   }
 }
 
-interface ParsedResult {
-  parsedValue: string | number | boolean;
-  dataType: "number" | "boolean" | "string";
-  raw: string;
-}
 
-export function parseGaugePayload(payload: string, valueKey?: string): ParsedResult {
-  const raw = payload;
-  let target: unknown = payload;
-
-  try {
-    const json = JSON.parse(payload);
-    if (typeof json === "object" && json !== null) {
-      if (valueKey && valueKey in json) {
-        target = (json as Record<string, unknown>)[valueKey];
-      } else if (!valueKey) {
-        const commonKeys = [
-          "val",
-          "value",
-          "temp",
-          "temperature",
-          "reading",
-          "status",
-          "state",
-          "data",
-        ];
-        const found = commonKeys.find((k) => k in json);
-        if (found) {
-          target = (json as Record<string, unknown>)[found];
-        }
-      }
-    } else {
-      target = json;
-    }
-  } catch {
-    target = payload;
-  }
-
-  if (typeof target === "number") {
-    return { parsedValue: target, dataType: "number", raw };
-  }
-
-  if (typeof target === "boolean") {
-    return { parsedValue: target, dataType: "boolean", raw };
-  }
-
-  if (typeof target === "string") {
-    const trimmed = target.trim();
-
-    const lower = trimmed.toLowerCase();
-    if (["true", "false", "on", "off", "yes", "no", "online", "offline"].includes(lower)) {
-      const isTrue = ["true", "on", "yes", "online"].includes(lower);
-      return { parsedValue: isTrue, dataType: "boolean", raw };
-    }
-
-    const num = Number(trimmed);
-    if (!isNaN(num) && trimmed !== "") {
-      return { parsedValue: num, dataType: "number", raw };
-    }
-
-    return { parsedValue: trimmed, dataType: "string", raw };
-  }
-
-  return { parsedValue: String(target), dataType: "string", raw };
-}
 
 interface GaugePanelProps {
   panelId: string;
@@ -515,7 +458,9 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
           receivedAt: normalizeTimestamp(msg.timestamp),
           isHistorical: false,
         });
-      } catch {}
+      } catch {
+        // Ignore invalid message JSON frame
+      }
     },
   });
 
@@ -563,9 +508,9 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   const pct = Math.min(Math.max(((numericVal - min) / range) * 100, 0), 100);
 
   // Dynamic Color Mapping based on limits
-  let colorClass = "text-primary";
-  let badgeClass = "badge-primary";
-  let progressClass = "progress-primary";
+  let colorClass: string;
+  let badgeClass: string;
+  let progressClass: string;
 
   if (data.dataType === "boolean") {
     if (data.parsedValue) {
@@ -612,11 +557,8 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   }
 
   // Dynamic Sizing derived from container dimensions
-  const el = containerRef.current;
-  const availW =
-    dimensions.width || el?.offsetWidth || el?.getBoundingClientRect().width || 240;
-  const availH =
-    dimensions.height || el?.offsetHeight || el?.getBoundingClientRect().height || 200;
+  const availW = dimensions.width || 240;
+  const availH = dimensions.height || 200;
 
   // Radial Dial Sizing: fills up to 80% of the available container bounds
   const dialSize = Math.max(65, Math.floor(Math.min(availW, availH) * 0.8));
