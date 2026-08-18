@@ -82,30 +82,6 @@ func TestPublish_WildcardRejected(t *testing.T) {
 	}
 }
 
-func TestPublish_WithTopicsField(t *testing.T) {
-	db := setupTestDB(t)
-	reg := newMockRegistry()
-	reg.defaultID = "broker1"
-	h := handlers.NewPublishHandler(db, reg)
-	r := newPublishRouter(h)
-
-	body := jsonBody(t, map[string]string{
-		"topics":  "sensors/livingroom/temp",
-		"payload": "22.5",
-	})
-	req := httptest.NewRequest(http.MethodPost, "/api/publish", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	if reg.publishCalls[0].topic != "sensors/livingroom/temp" {
-		t.Errorf("published topic = %q, want 'sensors/livingroom/temp'", reg.publishCalls[0].topic)
-	}
-}
-
 func TestPublish_NoBroker(t *testing.T) {
 	db := setupTestDB(t)
 	reg := newMockRegistry()

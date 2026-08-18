@@ -8,7 +8,6 @@ import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface CronConfig {
   cron_expr?: string;
-  topics?: string;
   topic?: string;
   payload?: string;
   qos?: number;
@@ -113,9 +112,7 @@ export function CronConfigModal({
     }
     return { preset: "custom", customExpr: config.cron_expr };
   }, [config.cron_expr]);
-  const [topics, setTopics] = useState(
-    initialTopic ?? config.topics ?? config.topic ?? "",
-  );
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
   const [qos, setQos] = useState(config.qos ?? 0);
@@ -131,7 +128,7 @@ export function CronConfigModal({
   const cronDescription =
     isCustom && !cronError ? describeCron(customExpr) : null;
 
-  const hasWildcardWarning = topics.includes("+") || topics.includes("#");
+  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
 
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
@@ -142,11 +139,11 @@ export function CronConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topics}
-            onTopicChange={setTopics}
+            topic={topic}
+            onTopicChange={setTopic}
             onPickTopic={
               onPickTopic
-                ? () => onPickTopic({ currentTopic: topics, selectedBrokerId })
+                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
                 : undefined
             }
           />
@@ -244,14 +241,14 @@ export function CronConfigModal({
             disabled={
               brokerStatuses.length === 0 ||
               (isCustom && !!cronError) ||
-              !topics.trim() ||
+              !topic.trim() ||
               hasWildcardWarning
             }
             onClick={() =>
               onSave(
                 {
                   cron_expr: cronExpr,
-                  topics,
+                  topic,
                   payload,
                   qos,
                   retain,
@@ -361,7 +358,7 @@ export default function CronPanel({
       ? (describeCron(config.cron_expr) ?? undefined)
       : undefined;
 
-  const topic = (config.topics ?? config.topic ?? "").trim();
+  const topic = (config.topic ?? "").trim();
   const hasWildcard = topic.includes("+") || topic.includes("#");
 
   const progressPercent =

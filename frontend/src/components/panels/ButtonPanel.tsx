@@ -6,7 +6,6 @@ import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface ButtonConfig {
   label?: string;
-  topics?: string;
   topic?: string;
   payload?: string;
   qos?: number;
@@ -41,9 +40,7 @@ export function ButtonConfigModal({
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
   const [label, setLabel] = useState(config.label ?? "Click");
-  const [topics, setTopics] = useState(
-    initialTopic ?? config.topics ?? config.topic ?? "",
-  );
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
@@ -55,7 +52,7 @@ export function ButtonConfigModal({
   );
 
   const hasWildcardWarning =
-    topics.includes("+") || topics.includes("#");
+    topic.includes("+") || topic.includes("#");
 
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
@@ -70,11 +67,11 @@ export function ButtonConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topics}
-            onTopicChange={setTopics}
+            topic={topic}
+            onTopicChange={setTopic}
             onPickTopic={
               onPickTopic
-                ? () => onPickTopic({ currentTopic: topics, selectedBrokerId })
+                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
                 : undefined
             }
           />
@@ -134,12 +131,12 @@ export function ButtonConfigModal({
             className="btn btn-sm btn-primary"
             disabled={
               brokerStatuses.length === 0 ||
-              !topics.trim() ||
+              !topic.trim() ||
               hasWildcardWarning
             }
             onClick={() =>
               onSave(
-                { label, topics, payload, qos, retain, requireConfirm },
+                { label, topic, payload, qos, retain, requireConfirm },
                 selectedBrokerId,
               )
             }
@@ -167,7 +164,7 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
 
-  const rawTopic = config.topics ?? config.topic ?? "";
+  const rawTopic = config.topic ?? "";
   const parsedTopics = rawTopic
     ? rawTopic
       .split(",")

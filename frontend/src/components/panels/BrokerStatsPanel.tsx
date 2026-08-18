@@ -34,7 +34,6 @@ const GRID_C = "#2a2b2e";
 const TEXT_C = "#6b7280";
 
 export interface BrokerStatsConfig {
-  topics?: string;
   topic?: string;
   defaultRange?: TimeRange;
   showStatTiles?: boolean;
@@ -69,9 +68,7 @@ export function BrokerStatsConfigModal({
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topics, setTopics] = useState(
-    initialTopic ?? config.topics ?? config.topic ?? "",
-  );
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [defaultRange, setDefaultRange] = useState<TimeRange>(
     config.defaultRange ?? 60,
   );
@@ -95,8 +92,8 @@ export function BrokerStatsConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topics}
-            onTopicChange={setTopics}
+            topic={topic}
+            onTopicChange={setTopic}
             allowWildcards={true}
             onPickTopic={
               onPickTopic
@@ -104,7 +101,7 @@ export function BrokerStatsConfigModal({
                     onPickTopic({
                       currentTopic: "",
                       selectedBrokerId,
-                      draftConfig: { topics, defaultRange },
+                      draftConfig: { topic, defaultRange },
                     })
                 : undefined
             }
@@ -171,7 +168,7 @@ export function BrokerStatsConfigModal({
             onClick={() =>
               onSave(
                 {
-                  topics: topics.trim(),
+                  topic: topic.trim(),
                   defaultRange,
                   showStatTiles,
                   showChart,
@@ -246,7 +243,7 @@ export default function BrokerStatsPanel({
   brokerId,
   config,
 }: BrokerStatsPanelProps) {
-  const topicFilter = (config.topics ?? config.topic ?? "").trim();
+  const topicFilter = (config.topic ?? "").trim();
   const parsedTopics = topicFilter
     ? topicFilter
         .split(",")

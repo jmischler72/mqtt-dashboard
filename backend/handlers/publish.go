@@ -21,7 +21,6 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		BrokerID string `json:"broker_id"`
 		Topic    string `json:"topic"`
-		Topics   string `json:"topics"`
 		Payload  string `json:"payload"`
 		QoS      *int   `json:"qos"`
 		Retain   *bool  `json:"retain"`
@@ -30,15 +29,11 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	topic := req.Topics
-	if topic == "" {
-		topic = req.Topic
-	}
-	if topic == "" {
+	if req.Topic == "" {
 		http.Error(w, "topic is required", http.StatusBadRequest)
 		return
 	}
-	if strings.Contains(topic, "+") || strings.Contains(topic, "#") {
+	if strings.Contains(req.Topic, "+") || strings.Contains(req.Topic, "#") {
 		http.Error(w, "cannot publish to wildcard topics (+ or #)", http.StatusBadRequest)
 		return
 	}
@@ -62,8 +57,8 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.registry.Publish(brokerID, topic, qos, retain, []byte(req.Payload)); err != nil {
-		slog.Error("publish failed", "broker_id", brokerID, "topic", topic, "err", err)
+	if err := h.registry.Publish(brokerID, req.Topic, qos, retain, []byte(req.Payload)); err != nil {
+		slog.Error("publish failed", "broker_id", brokerID, "topic", req.Topic, "err", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}

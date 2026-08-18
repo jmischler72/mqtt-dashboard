@@ -57,7 +57,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 3,
         config_json: {
           label: "Toggle Light",
-          topics: "home/livingroom/light/set",
+          topic: "home/livingroom/light/set",
           payload: "TOGGLE",
           qos: 0,
           retain: false,
@@ -72,7 +72,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 3,
         config_json: {
           label: "All Off",
-          topics: "home/lights/set",
+          topic: "home/lights/set",
           payload: "OFF",
           qos: 0,
           retain: false,
@@ -85,7 +85,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         y: 2,
         w: 6,
         h: 3,
-        config_json: { topics: "home/command", qos: 0, retain: false },
+        config_json: { topic: "home/command", qos: 0, retain: false },
       },
       {
         title: "Activity",
@@ -110,7 +110,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         w: 4,
         h: 5,
         config_json: {
-          topics: "#",
+          topic: "#",
           showStatTiles: true,
           showChart: true,
           showTopicBreakdown: false,
@@ -132,7 +132,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         w: 8,
         h: 6,
         config_json: {
-          topics: "#",
+          topic: "#",
           showStatTiles: true,
           showChart: true,
           showTopicBreakdown: true,
@@ -170,7 +170,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 3,
         config_json: {
           label: "Start",
-          topics: "device/1/cmd",
+          topic: "device/1/cmd",
           payload: "START",
           qos: 1,
           retain: false,
@@ -185,7 +185,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 3,
         config_json: {
           label: "Stop",
-          topics: "device/1/cmd",
+          topic: "device/1/cmd",
           payload: "STOP",
           qos: 1,
           retain: false,
@@ -200,7 +200,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 3,
         config_json: {
           label: "Reset",
-          topics: "device/1/cmd",
+          topic: "device/1/cmd",
           payload: "RESET",
           qos: 1,
           retain: false,
@@ -213,7 +213,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         y: 0,
         w: 3,
         h: 3,
-        config_json: { topics: "device/1/value", qos: 1, retain: false },
+        config_json: { topic: "device/1/value", qos: 1, retain: false },
       },
       {
         title: "Heartbeat",
@@ -224,7 +224,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 4,
         config_json: {
           cron_expr: "*/5 * * * *",
-          topics: "device/1/ping",
+          topic: "device/1/ping",
           payload: "PING",
           qos: 0,
           retain: false,
@@ -288,7 +288,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         h: 3,
         config_json: {
           label: "Send",
-          topics: "test/topic",
+          topic: "test/topic",
           payload: "hello",
           qos: 0,
           retain: false,

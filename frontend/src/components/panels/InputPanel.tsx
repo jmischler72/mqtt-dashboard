@@ -5,7 +5,6 @@ import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface InputConfig {
-  topics?: string;
   topic?: string;
   qos?: number;
   retain?: boolean;
@@ -37,16 +36,14 @@ export function InputConfigModal({
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topics, setTopics] = useState(
-    initialTopic ?? config.topics ?? config.topic ?? "",
-  );
+  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
 
-  const hasWildcardWarning = topics.includes("+") || topics.includes("#");
+  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
 
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
@@ -57,11 +54,11 @@ export function InputConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topics}
-            onTopicChange={setTopics}
+            topic={topic}
+            onTopicChange={setTopic}
             onPickTopic={
               onPickTopic
-                ? () => onPickTopic({ currentTopic: topics, selectedBrokerId })
+                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
                 : undefined
             }
           />
@@ -82,12 +79,12 @@ export function InputConfigModal({
             className="btn btn-sm btn-primary"
             disabled={
               brokerStatuses.length === 0 ||
-              !topics.trim() ||
+              !topic.trim() ||
               hasWildcardWarning
             }
             onClick={() =>
               onSave(
-                { topics, qos, retain },
+                { topic, qos, retain },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -118,7 +115,7 @@ export default function InputPanel({
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
 
-  const effectiveTopic = overrideTopic ?? config.topics ?? config.topic;
+  const effectiveTopic = overrideTopic ?? config.topic;
   const effectiveBrokerId = overrideBrokerId ?? brokerId;
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;

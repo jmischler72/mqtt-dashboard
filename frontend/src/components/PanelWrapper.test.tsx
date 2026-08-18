@@ -191,7 +191,7 @@ describe("PanelWrapper header metadata", () => {
     renderWithPanel({
       ...basePanel,
       panel_type: "stats",
-      config_json: { topics: "#" },
+      config_json: { topic: "#" },
     } as Panel);
 
     const statusDots = screen.getAllByRole("button", {
@@ -206,7 +206,7 @@ describe("PanelWrapper header metadata", () => {
     renderWithPanel({
       ...basePanel,
       panel_type: "stats",
-      config_json: { topics: "sensors/#" },
+      config_json: { topic: "sensors/#" },
     } as Panel);
 
     const statusDots = screen.getAllByRole("button", {
