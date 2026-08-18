@@ -3,6 +3,9 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MdMenu } from "react-icons/md";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
+import worktreeInfo from "../worktreeInfo.json";
+
+import packageJson from "../../package.json";
 
 const ACTIVE_DASHBOARD_KEY = "mqtt_active_dashboard_id";
 import { api } from "../api/client";
@@ -131,20 +134,36 @@ export default function Layout() {
         <img
           src="/logo.svg"
           alt="mqtt-dashboard"
-          className="h-8 w-auto mx-2"
+          className="h-8 w-auto mx-2 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => setShowCredits(!showCredits)}
         />
         {showCredits && (
           <div className="modal modal-open">
             <div className="modal-box max-w-sm">
-              <h3 className="font-bold text-lg mb-4">Credits</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <img
+                  src="/logo.svg"
+                  alt="mqtt-dashboard"
+                  className="h-8 w-auto"
+                />
+                <div>
+                  <h3 className="font-bold text-lg leading-tight">
+                    MQTT Dashboard
+                  </h3>
+                  <p className="text-xs text-base-content/60">
+                    Version {packageJson.version}
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <p className="mb-2">
                   This project was made by{" "}
                   <a
                     href="https://github.com/jmischler72"
                     target="_blank"
-                    className="link"
+                    rel="noreferrer"
+                    className="link font-semibold"
                   >
                     @jmischler72
                   </a>{" "}
@@ -152,14 +171,66 @@ export default function Layout() {
                   <a
                     href="https://github.com/jmischler72/mqtt-dashboard"
                     target="_blank"
+                    rel="noreferrer"
                     className="link"
                   >
                     GitHub
                   </a>
                   .
                 </p>
-                <p className="mb-2">Thanks for checking it out!</p>
+                <p className="mb-2 text-base-content/70">
+                  Thanks for checking it out!
+                </p>
               </div>
+
+              {/* Worktree info in dev environment */}
+              {import.meta.env.DEV && (
+                <div className="mt-4 pt-3 border-t border-base-300">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-2">
+                    Development Worktree
+                  </div>
+                  <div className="bg-base-200 rounded-lg p-2.5 space-y-1.5 text-xs font-mono">
+                    <div className="flex justify-between items-center">
+                      <span className="text-base-content/60 font-sans">
+                        Worktree:
+                      </span>
+                      <span className="badge badge-sm badge-primary font-mono">
+                        {worktreeInfo.worktree}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-base-content/60 font-sans">
+                        Branch:
+                      </span>
+                      <span className="text-base-content/90">
+                        {worktreeInfo.branch}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-base-content/60 font-sans">
+                        Commit:
+                      </span>
+                      <span className="bg-base-300 px-1.5 py-0.5 rounded text-base-content/90">
+                        {worktreeInfo.commit}
+                      </span>
+                    </div>
+                    {worktreeInfo.message && (
+                      <div className="flex flex-col gap-0.5 pt-1.5 border-t border-base-300">
+                        <span className="text-base-content/60 font-sans">
+                          Last Commit:
+                        </span>
+                        <span
+                          className="text-[11px] text-base-content/80 truncate font-sans"
+                          title={worktreeInfo.message}
+                        >
+                          {worktreeInfo.message}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="modal-action">
                 <button
                   className="btn btn-sm btn-ghost"
