@@ -209,8 +209,12 @@ export default function DashboardSelector({
               {d.name}
             </option>
           ))}
-          <option value={CREATE_NEW}>＋ Create New Dashboard</option>
-          <option value={IMPORT}>↑ Import from JSON</option>
+          {editMode && (
+            <>
+              <option value={CREATE_NEW}>＋ Create New Dashboard</option>
+              <option value={IMPORT}>↑ Import from JSON</option>
+            </>
+          )}
         </select>
         <input
           ref={importInputRef}

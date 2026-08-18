@@ -8,6 +8,7 @@ import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface CronConfig {
   cron_expr?: string;
+  topics?: string;
   topic?: string;
   payload?: string;
   qos?: number;
@@ -112,7 +113,9 @@ export function CronConfigModal({
     }
     return { preset: "custom", customExpr: config.cron_expr };
   }, [config.cron_expr]);
-  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
+  const [topics, setTopics] = useState(
+    initialTopic ?? config.topics ?? config.topic ?? "",
+  );
   const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
   const [qos, setQos] = useState(config.qos ?? 0);
@@ -128,6 +131,8 @@ export function CronConfigModal({
   const cronDescription =
     isCustom && !cronError ? describeCron(customExpr) : null;
 
+  const hasWildcardWarning = topics.includes("+") || topics.includes("#");
+
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
       <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
@@ -137,11 +142,11 @@ export function CronConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
+            topic={topics}
+            onTopicChange={setTopics}
             onPickTopic={
               onPickTopic
-                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+                ? () => onPickTopic({ currentTopic: topics, selectedBrokerId })
                 : undefined
             }
           />
@@ -236,12 +241,17 @@ export function CronConfigModal({
           </button>
           <button
             className="btn btn-sm btn-primary"
-            disabled={brokerStatuses.length === 0 || (isCustom && !!cronError)}
+            disabled={
+              brokerStatuses.length === 0 ||
+              (isCustom && !!cronError) ||
+              !topics.trim() ||
+              hasWildcardWarning
+            }
             onClick={() =>
               onSave(
                 {
                   cron_expr: cronExpr,
-                  topic,
+                  topics,
                   payload,
                   qos,
                   retain,
@@ -351,6 +361,9 @@ export default function CronPanel({
       ? (describeCron(config.cron_expr) ?? undefined)
       : undefined;
 
+  const topic = (config.topics ?? config.topic ?? "").trim();
+  const hasWildcard = topic.includes("+") || topic.includes("#");
+
   const progressPercent =
     cronStart && nextRun
       ? Math.min(
@@ -360,6 +373,14 @@ export default function CronPanel({
             100,
         )
       : 0;
+
+  if (!topic) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 p-2 h-full">
@@ -374,7 +395,8 @@ export default function CronPanel({
           type="checkbox"
           className="toggle toggle-primary"
           checked={config.enabled ?? false}
-          disabled={toggling || !config.cron_expr}
+          disabled={toggling || !config.cron_expr || hasWildcard}
+          title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>

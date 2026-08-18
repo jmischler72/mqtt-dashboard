@@ -34,6 +34,7 @@ const GRID_C = "#2a2b2e";
 const TEXT_C = "#6b7280";
 
 export interface BrokerStatsConfig {
+  topics?: string;
   topic?: string;
   defaultRange?: TimeRange;
   showStatTiles?: boolean;
@@ -68,7 +69,9 @@ export function BrokerStatsConfigModal({
 }: ModalProps) {
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
+  const [topics, setTopics] = useState(
+    initialTopic ?? config.topics ?? config.topic ?? "",
+  );
   const [defaultRange, setDefaultRange] = useState<TimeRange>(
     config.defaultRange ?? 60,
   );
@@ -92,8 +95,8 @@ export function BrokerStatsConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
+            topic={topics}
+            onTopicChange={setTopics}
             allowWildcards={true}
             onPickTopic={
               onPickTopic
@@ -101,7 +104,7 @@ export function BrokerStatsConfigModal({
                     onPickTopic({
                       currentTopic: "",
                       selectedBrokerId,
-                      draftConfig: { topic, defaultRange },
+                      draftConfig: { topics, defaultRange },
                     })
                 : undefined
             }
@@ -168,7 +171,7 @@ export function BrokerStatsConfigModal({
             onClick={() =>
               onSave(
                 {
-                  topic: topic.trim(),
+                  topics: topics.trim(),
                   defaultRange,
                   showStatTiles,
                   showChart,
@@ -243,7 +246,13 @@ export default function BrokerStatsPanel({
   brokerId,
   config,
 }: BrokerStatsPanelProps) {
-  const topicFilter = config.topic?.trim() ?? "";
+  const topicFilter = (config.topics ?? config.topic ?? "").trim();
+  const parsedTopics = topicFilter
+    ? topicFilter
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
   const showStatTiles = config.showStatTiles !== false;
   const showChart = config.showChart !== false;
   const showTopicBreakdown = config.showTopicBreakdown !== false;
@@ -304,10 +313,15 @@ export default function BrokerStatsPanel({
 
   useEffect(() => {
     if (!brokerId || !topicFilter) return;
+    const topicList = topicFilter
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (topicList.length === 0) return;
     subscribe({
       panel_id: panelId,
       broker_id: brokerId,
-      topics: [topicFilter],
+      topics: topicList,
     });
   }, [panelId, brokerId, topicFilter, subscribe]);
 
@@ -509,7 +523,7 @@ export default function BrokerStatsPanel({
   // Redraw whenever the panel itself resizes (covers both window resize and panel drag).
   useEffect(() => {
     const el = panelRootRef.current;
-    if (!el) return;
+    if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => drawRef.current());
     observer.observe(el);
     return () => observer.disconnect();
@@ -519,7 +533,7 @@ export default function BrokerStatsPanel({
   const total = activity?.total ?? 0;
   const totalKb = (activity?.totalBytes ?? 0) / 1024;
   const topics = activity?.topics ?? [];
-  if (!topicFilter) {
+  if (parsedTopics.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
         No topic configured — open settings to add topic

@@ -20,6 +20,13 @@ vi.mock("../api/client", () => ({
     post: vi.fn(),
     get: vi.fn(),
     getExplorerHistory: vi.fn().mockResolvedValue([]),
+    getActivity: vi.fn().mockResolvedValue({
+      bucket_seconds: 1,
+      buckets: [],
+      total: 0,
+      total_bytes: 0,
+      topics: [],
+    }),
   },
 }));
 
@@ -146,5 +153,67 @@ describe("PanelWrapper header metadata", () => {
         "sensors/temp, sensors/humidity, sensors/pressure, alerts/system",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows 'all topics' for log panel when topic is '#'", async () => {
+    renderWithPanel({
+      ...basePanel,
+      panel_type: "log",
+      config_json: {
+        topics: "#",
+      },
+    } as Panel);
+
+    const statusDots = screen.getAllByRole("button", {
+      name: /broker status details/i,
+    });
+    fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
+
+    expect(await screen.findByText("all topics")).toBeInTheDocument();
+  });
+
+  it("shows 'not configured' for stats panel when no topic is specified", async () => {
+    renderWithPanel({
+      ...basePanel,
+      panel_type: "stats",
+      config_json: {},
+    } as Panel);
+
+    const statusDots = screen.getAllByRole("button", {
+      name: /broker status details/i,
+    });
+    fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
+
+    expect(await screen.findByText("not configured")).toBeInTheDocument();
+  });
+
+  it("shows 'all topics' for stats panel when topic is '#'", async () => {
+    renderWithPanel({
+      ...basePanel,
+      panel_type: "stats",
+      config_json: { topics: "#" },
+    } as Panel);
+
+    const statusDots = screen.getAllByRole("button", {
+      name: /broker status details/i,
+    });
+    fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
+
+    expect(await screen.findByText("all topics")).toBeInTheDocument();
+  });
+
+  it("shows specific topic for stats panel when topic is configured", async () => {
+    renderWithPanel({
+      ...basePanel,
+      panel_type: "stats",
+      config_json: { topics: "sensors/#" },
+    } as Panel);
+
+    const statusDots = screen.getAllByRole("button", {
+      name: /broker status details/i,
+    });
+    fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
+
+    expect(await screen.findByText("sensors/#")).toBeInTheDocument();
   });
 });

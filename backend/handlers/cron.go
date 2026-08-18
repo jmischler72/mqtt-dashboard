@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -21,6 +22,7 @@ type cronConfigJSON struct {
 	BrokerID string `json:"broker_id"`
 	CronExpr string `json:"cron_expr"`
 	Topic    string `json:"topic"`
+	Topics   string `json:"topics"`
 	Payload  string `json:"payload"`
 	QoS      int    `json:"qos"`
 	Retain   bool   `json:"retain"`
@@ -35,12 +37,22 @@ func (h *CronHandler) UpsertCron(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.Topic == "" || req.CronExpr == "" {
-		http.Error(w, "topic and cron_expr are required", http.StatusBadRequest)
+	topic := req.Topics
+	if topic == "" {
+		topic = req.Topic
+	}
+	if topic == "" || req.CronExpr == "" {
+		http.Error(w, "topics and cron_expr are required", http.StatusBadRequest)
 		return
 	}
+	if strings.Contains(topic, "+") || strings.Contains(topic, "#") {
+		http.Error(w, "wildcards (+ or #) are not supported for cron publishing", http.StatusBadRequest)
+		return
+	}
+	req.Topic = topic
+	req.Topics = topic
 
-	if err := h.scheduler.AddJob(panelID, req.BrokerID, req.CronExpr, req.Topic, req.Payload, byte(req.QoS), req.Retain, req.Enabled); err != nil {
+	if err := h.scheduler.AddJob(panelID, req.BrokerID, req.CronExpr, topic, req.Payload, byte(req.QoS), req.Retain, req.Enabled); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

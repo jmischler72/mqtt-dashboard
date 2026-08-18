@@ -139,7 +139,7 @@ export default function BrokerTopicSection({
             <div className="flex-1 min-w-0">
               <input
                 className={`input input-bordered input-sm w-full font-mono text-xs ${
-                  hasWildcardWarning ? "input-warning" : ""
+                  hasWildcardWarning || !topic?.trim() ? "input-warning" : ""
                 }`}
                 placeholder={effectivePlaceholder}
                 value={topic}
@@ -157,6 +157,19 @@ export default function BrokerTopicSection({
               </button>
             )}
           </div>
+
+          {/* Missing Topic Warning Alert */}
+          {!topic?.trim() && (
+            <div
+              role="alert"
+              className="alert alert-warning py-1.5 px-3 text-xs mt-2 font-medium flex items-center gap-2"
+            >
+              <WarningIcon className="text-sm shrink-0" />
+              <span>
+                No topic configured. Panel will not receive or publish messages until a topic is set.
+              </span>
+            </div>
+          )}
 
           {/* Parsed Topic Badges */}
           {parsedTopics.length > 0 && (

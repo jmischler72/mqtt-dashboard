@@ -6,6 +6,7 @@ import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface ButtonConfig {
   label?: string;
+  topics?: string;
   topic?: string;
   payload?: string;
   qos?: number;
@@ -40,7 +41,9 @@ export function ButtonConfigModal({
   const defaultBrokerId =
     brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
   const [label, setLabel] = useState(config.label ?? "Click");
-  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
+  const [topics, setTopics] = useState(
+    initialTopic ?? config.topics ?? config.topic ?? "",
+  );
   const [payload, setPayload] = useState(config.payload ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
@@ -50,6 +53,9 @@ export function ButtonConfigModal({
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || defaultBrokerId,
   );
+
+  const hasWildcardWarning =
+    topics.includes("+") || topics.includes("#");
 
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
@@ -64,11 +70,11 @@ export function ButtonConfigModal({
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
             brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
+            topic={topics}
+            onTopicChange={setTopics}
             onPickTopic={
               onPickTopic
-                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+                ? () => onPickTopic({ currentTopic: topics, selectedBrokerId })
                 : undefined
             }
           />
@@ -126,9 +132,14 @@ export function ButtonConfigModal({
           </button>
           <button
             className="btn btn-sm btn-primary"
+            disabled={
+              brokerStatuses.length === 0 ||
+              !topics.trim() ||
+              hasWildcardWarning
+            }
             onClick={() =>
               onSave(
-                { label, topic, payload, qos, retain, requireConfirm },
+                { label, topics, payload, qos, retain, requireConfirm },
                 selectedBrokerId,
               )
             }
@@ -156,15 +167,18 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
 
-  const parsedTopics = config.topic
-    ? config.topic
+  const rawTopic = config.topics ?? config.topic ?? "";
+  const parsedTopics = rawTopic
+    ? rawTopic
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean)
     : [];
 
+  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+
   const publishMessage = async () => {
-    if (parsedTopics.length === 0) return;
+    if (parsedTopics.length === 0 || hasWildcard) return;
     setLoading(true);
     try {
       await Promise.all(
@@ -187,8 +201,6 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
     }
   };
 
-  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
-
   const handleClick = () => {
     if (parsedTopics.length === 0 || hasWildcard) return;
     if (config.requireConfirm) {
@@ -210,7 +222,13 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
         }`}
         onClick={handleClick}
         disabled={loading || parsedTopics.length === 0 || hasWildcard}
-        title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
+        title={
+          hasWildcard
+            ? "Cannot publish to wildcard topics (+ or #)"
+            : parsedTopics.length === 0
+              ? "No topic configured"
+              : undefined
+        }
       >
         {loading ? (
           <span className="loading loading-spinner" />

@@ -443,7 +443,7 @@ export default function PanelWrapper({
           ...(capturedPicker.draftConfig as Partial<ButtonConfig> | undefined),
         };
         const buttonInitialTopic = resolvePickedTopic(
-          buttonConfig.topic,
+          buttonConfig.topics ?? buttonConfig.topic,
           capturedPicker.topic,
         );
         return createPortal(
@@ -466,7 +466,7 @@ export default function PanelWrapper({
           ...(capturedPicker.draftConfig as Partial<InputConfig> | undefined),
         };
         const inputInitialTopic = resolvePickedTopic(
-          inputConfig.topic,
+          inputConfig.topics ?? inputConfig.topic,
           capturedPicker.topic,
         );
         return createPortal(
@@ -512,7 +512,7 @@ export default function PanelWrapper({
           ...(capturedPicker.draftConfig as Partial<CronConfig> | undefined),
         };
         const cronInitialTopic = resolvePickedTopic(
-          cronConfig.topic,
+          cronConfig.topics ?? cronConfig.topic,
           capturedPicker.topic,
         );
         return createPortal(
@@ -537,7 +537,7 @@ export default function PanelWrapper({
             | undefined),
         };
         const statsInitialTopic = resolvePickedTopic(
-          statsConfig.topic,
+          statsConfig.topics ?? statsConfig.topic,
           capturedPicker.topic,
         );
         return createPortal(

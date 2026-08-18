@@ -71,6 +71,58 @@ func TestUpsertCron_MissingFields(t *testing.T) {
 	}
 }
 
+func TestUpsertCron_WildcardRejected(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	for _, wildcardTopic := range []string{"sensors/#", "home/+/temp", "#", "+"} {
+		body := jsonBody(t, map[string]any{
+			"cron_expr": "*/5 * * * *",
+			"topic":     wildcardTopic,
+		})
+		req := httptest.NewRequest(http.MethodPut, "/api/cron/panel1", body)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("topic %q: status = %d, want 400", wildcardTopic, rec.Code)
+		}
+	}
+}
+
+func TestUpsertCron_WithTopicsField(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('panel1', 'default', 'P', 'cron', 0, 0, 4, 4)`)
+	sched := newMockScheduler()
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"cron_expr": "*/5 * * * *",
+		"topics":    "sensors/livingroom/temp",
+		"payload":   "ping",
+		"enabled":   true,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/cron/panel1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	info, ok := sched.GetJob("panel1")
+	if !ok {
+		t.Fatal("expected job in scheduler")
+	}
+	if info.Topic != "sensors/livingroom/temp" {
+		t.Errorf("topic = %q, want 'sensors/livingroom/temp'", info.Topic)
+	}
+}
+
 func TestUpsertCron_SchedulerError(t *testing.T) {
 	database := setupTestDB(t)
 	sched := newMockScheduler()

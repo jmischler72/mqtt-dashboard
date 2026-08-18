@@ -354,3 +354,22 @@ func TestGetActivity_EmptyMatch(t *testing.T) {
 		t.Errorf("expected dense buckets even when empty, got %d", len(resp.Buckets))
 	}
 }
+
+func TestGetActivity_MultipleTopics(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'sensors/temp', '25')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'home/living/light', 'on')`)
+	database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload) VALUES ('b1', 'other/topic', 'skip')`)
+
+	resp := getActivity(t, r, "broker_id=b1&topic=sensors%2Ftemp%2C%20home%2Fliving%2Flight&range_seconds=60")
+
+	if resp.Total != 2 {
+		t.Errorf("expected total=2 for multi-topic query, got %d", resp.Total)
+	}
+	if len(resp.Topics) != 2 {
+		t.Errorf("expected 2 topics for multi-topic query, got %d", len(resp.Topics))
+	}
+}
