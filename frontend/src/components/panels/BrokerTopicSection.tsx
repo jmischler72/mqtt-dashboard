@@ -18,6 +18,7 @@ export interface BrokerTopicSectionProps {
   topicLabel?: string;
   placeholder?: string;
   allowWildcards?: boolean;
+  allowMultiple?: boolean;
   helpText?: string;
   hideTopic?: boolean;
 }
@@ -32,20 +33,29 @@ export default function BrokerTopicSection({
   topicLabel = "Topic",
   placeholder,
   allowWildcards = false,
+  allowMultiple = true,
   helpText,
   hideTopic = false,
 }: BrokerTopicSectionProps) {
   const effectivePlaceholder =
     placeholder ??
-    (allowWildcards
-      ? "e.g. sensors/+, home/#"
-      : "e.g. home/living/light, home/kitchen/light");
+    (allowMultiple
+      ? allowWildcards
+        ? "e.g. sensors/+, home/#"
+        : "e.g. home/living/light, home/kitchen/light"
+      : allowWildcards
+      ? "e.g. sensor/temperature, sensor/+"
+      : "e.g. sensor/temperature");
 
   const effectiveHelpText =
     helpText ??
-    (allowWildcards
-      ? "Separate multiple topics with commas. Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp, home/#."
-      : "Separate multiple topics with commas.");
+    (allowMultiple
+      ? allowWildcards
+        ? "Separate multiple topics with commas. Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp, home/#."
+        : "Separate multiple topics with commas."
+      : allowWildcards
+      ? "Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp."
+      : "Specify a single topic.");
 
   // Parse comma-separated topics for visual badge preview
   const parsedTopics = useMemo(() => {
@@ -65,6 +75,11 @@ export default function BrokerTopicSection({
     if (allowWildcards || !topic) return false;
     return parsedTopics.some((t) => t.includes("+") || t.includes("#"));
   }, [allowWildcards, topic, parsedTopics]);
+
+  const hasMultipleTopicsWarning = useMemo(() => {
+    if (allowMultiple || !topic) return false;
+    return parsedTopics.length > 1;
+  }, [allowMultiple, topic, parsedTopics]);
 
   const selectedBroker = brokerStatuses.find((b) => b.id === selectedBrokerId);
   const isBrokerConnected = selectedBroker?.status === "CONNECTED";
@@ -139,7 +154,7 @@ export default function BrokerTopicSection({
             <div className="flex-1 min-w-0">
               <input
                 className={`input input-bordered input-sm w-full font-mono text-xs ${
-                  hasWildcardWarning ? "input-warning" : ""
+                  hasWildcardWarning || hasMultipleTopicsWarning ? "input-warning" : ""
                 }`}
                 placeholder={effectivePlaceholder}
                 value={topic}
@@ -169,12 +184,12 @@ export default function BrokerTopicSection({
                   <span
                     key={`${t}-${idx}`}
                     className={`badge badge-sm font-mono text-[11px] gap-1 py-2 px-2 shadow-xs group ${
-                      isInvalidWildcard
+                      isInvalidWildcard || (hasMultipleTopicsWarning && idx > 0)
                         ? "bg-warning/15 border border-warning/50 text-warning-content font-semibold"
                         : "bg-base-100 border border-base-300 text-base-content"
                     }`}
                   >
-                    {isInvalidWildcard ? (
+                    {isInvalidWildcard || (hasMultipleTopicsWarning && idx > 0) ? (
                       <WarningIcon className="text-warning text-xs shrink-0" />
                     ) : (
                       <span className="text-secondary opacity-70">#</span>
@@ -191,6 +206,19 @@ export default function BrokerTopicSection({
                   </span>
                 );
               })}
+            </div>
+          )}
+
+          {/* Multiple Topics Warning Alert */}
+          {hasMultipleTopicsWarning && (
+            <div
+              role="alert"
+              className="alert alert-warning py-1.5 px-3 text-xs mt-2 font-medium flex items-center gap-2"
+            >
+              <WarningIcon className="text-sm shrink-0" />
+              <span>
+                Multiple topics (comma-separated) are not supported for this panel. Please specify a single topic.
+              </span>
             </div>
           )}
 

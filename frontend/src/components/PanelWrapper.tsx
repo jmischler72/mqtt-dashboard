@@ -39,6 +39,10 @@ import ImagePanel, {
   ImageConfigModal,
   type ImageConfig,
 } from "./panels/ImagePanel";
+import GaugePanel, {
+  GaugeConfigModal,
+  type GaugeConfig,
+} from "./panels/GaugePanel";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
@@ -76,7 +80,8 @@ type PanelConfig =
   | BrokerStatsConfig
   | SeparatorConfig
   | TextConfig
-  | ImageConfig;
+  | ImageConfig
+  | GaugeConfig;
 
 const VISUAL_PANEL_TYPES = ["image", "separator", "text"];
 
@@ -398,6 +403,14 @@ export default function PanelWrapper({
             config={cfg as BrokerStatsConfig}
           />
         );
+      case "gauge":
+        return (
+          <GaugePanel
+            panelId={panel.id}
+            brokerId={brokerId}
+            config={cfg as GaugeConfig}
+          />
+        );
       case "separator":
         return <SeparatorPanel config={cfg as SeparatorConfig} />;
       case "text":
@@ -549,6 +562,27 @@ export default function PanelWrapper({
             onClose={closeConfigModal}
             onPickTopic={handlePickTopic}
             initialTopic={statsInitialTopic}
+            initialBrokerId={capturedPicker.brokerId}
+          />,
+          document.body,
+        );
+      }
+      case "gauge": {
+        const gaugeConfig = {
+          ...(cfg as GaugeConfig),
+          ...(capturedPicker.draftConfig as Partial<GaugeConfig> | undefined),
+        };
+        const gaugeInitialTopic =
+          capturedPicker.topic || gaugeConfig.topic;
+        return createPortal(
+          <GaugeConfigModal
+            config={gaugeConfig}
+            brokerId={brokerId}
+            brokerStatuses={brokerStatuses}
+            onSave={(c, bid) => saveConfig(c, bid)}
+            onClose={closeConfigModal}
+            onPickTopic={handlePickTopic}
+            initialTopic={gaugeInitialTopic}
             initialBrokerId={capturedPicker.brokerId}
           />,
           document.body,

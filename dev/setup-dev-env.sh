@@ -34,10 +34,12 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 MESSAGE=$(git log -1 --pretty=%s 2>/dev/null || echo "")
 WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+TARGET_FILE="$(cd "$SCRIPT_DIR/.." && pwd)/frontend/src/worktreeInfo.json"
+
 node -e '
 const fs = require("fs");
-const [,, target, worktree, branch, commit, message] = process.argv;
+const [, target, worktree, branch, commit, message] = process.argv;
 fs.writeFileSync(target, JSON.stringify({ worktree, branch, commit, message }, null, 2) + "\n");
-' "$SCRIPT_DIR/../frontend/src/worktreeInfo.json" "$WORKTREE" "$BRANCH" "$COMMIT" "$MESSAGE" 2>/dev/null || true
+' "$TARGET_FILE" "$WORKTREE" "$BRANCH" "$COMMIT" "$MESSAGE" 2>/dev/null || true
 
 echo "==> Dev environment setup complete!"
