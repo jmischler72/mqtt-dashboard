@@ -3,7 +3,10 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MdMenu } from "react-icons/md";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
-import worktreeInfo from "../worktreeInfo.json";
+const worktreeModules = import.meta.glob<{
+  default: { worktree?: string; branch?: string; commit?: string; message?: string };
+}>("../worktreeInfo.json", { eager: true });
+const worktreeInfo = worktreeModules["../worktreeInfo.json"]?.default ?? null;
 
 import packageJson from "../../package.json";
 
@@ -184,7 +187,7 @@ export default function Layout() {
               </div>
 
               {/* Worktree info in dev environment */}
-              {import.meta.env.DEV && (
+              {import.meta.env.DEV && worktreeInfo && (
                 <div className="mt-4 pt-3 border-t border-base-300">
                   <div className="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-2">
                     Development Worktree
