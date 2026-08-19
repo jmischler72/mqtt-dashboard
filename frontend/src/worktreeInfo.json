@@ -1,6 +1,0 @@
-{
-  "worktree": "refactor_dashboard_panel_size",
-  "branch": "refactor_dashboard_panel_size",
-  "commit": "fdea283",
-  "message": "feat(config): add initial brokers seeding from config file and dev environment setup (#116)"
-}

@@ -123,7 +123,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
       {
         title: "Living Room Temperature",
         panel_type: "gauge",
-        x: 6,
+        x: 5,
         y: 2,
         w: 3,
         h: 3,
@@ -139,10 +139,10 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
       {
         title: "Custom Command",
         panel_type: "input",
-        x: 5,
+        x: 8,
         y: 2,
-        w: 7,
-        h: 4,
+        w: 4,
+        h: 3,
         config_json: { topic: "home/command", qos: 0, retain: false },
       },
       {

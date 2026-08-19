@@ -242,6 +242,48 @@ export function GaugeConfigModal({
             </div>
           </div>
 
+          {/* JSON Key Section */}
+          <fieldset className="fieldset w-full">
+            <div className="flex items-center justify-between">
+              <legend className="fieldset-legend font-semibold">JSON Key (Optional)</legend>
+              {detectedKey && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-base-content/70">Detected:</span>
+                  <button
+                    type="button"
+                    className="font-mono text-[11px] text-primary hover:text-primary-focus bg-base-100 hover:bg-base-200/80 px-2 py-0.5 rounded border border-base-300 transition-colors gap-1 inline-flex items-center cursor-pointer"
+                    title={`Click to use detected key "${detectedKey}"`}
+                    onClick={() => setValueKey(detectedKey)}
+                  >
+                    <span>"{detectedKey}"</span>
+                    <span className="badge badge-primary badge-xs ml-0.5 font-sans font-normal text-[10px]">Use</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="relative w-full">
+              <input
+                className="input input-bordered input-sm w-full font-mono text-xs pr-8"
+                placeholder="e.g. temp or data.value"
+                value={valueKey}
+                onChange={(e) => setValueKey(e.target.value)}
+              />
+              {valueKey && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-xs btn-ghost btn-circle text-base-content/50 hover:text-base-content"
+                  title="Clear JSON Key"
+                  onClick={() => setValueKey("")}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-base-content/60 mt-1">
+              Field name to extract if payload is JSON. Leave blank to display the raw payload.
+            </p>
+          </fieldset>
+
           {/* Full-width Gauge Style Selector */}
           <fieldset className="fieldset w-full">
             <legend className="fieldset-legend font-semibold">Gauge Style</legend>
@@ -313,35 +355,6 @@ export function GaugeConfigModal({
             />
             <p className="text-[11px] text-base-content/60 mt-1">
               Displayed next to the value.
-            </p>
-          </fieldset>
-
-          <fieldset className="fieldset w-full">
-            <div className="flex items-center justify-between">
-              <legend className="fieldset-legend font-semibold">JSON Key (Optional)</legend>
-              {detectedKey && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-base-content/70">Detected:</span>
-                  <button
-                    type="button"
-                    className="font-mono text-[11px] text-primary hover:text-primary-focus bg-base-100 hover:bg-base-200/80 px-2 py-0.5 rounded border border-base-300 transition-colors gap-1 inline-flex items-center cursor-pointer"
-                    title={`Click to use detected key "${detectedKey}"`}
-                    onClick={() => setValueKey(detectedKey)}
-                  >
-                    <span>"{detectedKey}"</span>
-                    <span className="badge badge-primary badge-xs ml-0.5 font-sans font-normal text-[10px]">Use</span>
-                  </button>
-                </div>
-              )}
-            </div>
-            <input
-              className="input input-bordered input-sm w-full font-mono text-xs"
-              placeholder="e.g. temp or data.value"
-              value={valueKey}
-              onChange={(e) => setValueKey(e.target.value)}
-            />
-            <p className="text-[11px] text-base-content/60 mt-1">
-              Field name to extract if payload is JSON. Leave blank to display the raw payload.
             </p>
           </fieldset>
         </div>
@@ -598,18 +611,16 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   const barSubFontSize = Math.max(10, Math.round(barValFontSize * 0.45));
 
   // Value Card / String / Boolean Sizing: hero text/badge
-  const strLen = Math.max(1, formattedValue.length);
+  const strLen = Math.max(1, formattedValue.length + (unit ? unit.length + 1 : 0));
+  const maxFontFromHeight = availH * 0.42;
+  const maxFontFromWidth = (availW * 0.95) / Math.max(1, strLen * 0.65);
   const cardValFontSize = Math.max(
     14,
-    Math.min(
-      availH * 0.36,
-      (availW * 1.5) / strLen,
-      64,
-    ),
+    Math.floor(Math.min(maxFontFromHeight, maxFontFromWidth)),
   );
   const cardBadgeFontSize = Math.max(
-    15,
-    Math.round(Math.min(availH * 0.24, availW * 0.15)),
+    14,
+    Math.floor(Math.min(availH * 0.32, availW * 0.18)),
   );
 
   return (
@@ -734,21 +745,26 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
           <div className="flex flex-col items-center justify-center gap-1.5 p-1 text-center w-full h-full overflow-hidden">
             {data.dataType === "boolean" ? (
               <div
-                className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl font-mono font-bold tracking-wider uppercase border shadow-sm transition-all duration-300 ${
+                className={`inline-flex items-center gap-2.5 rounded-2xl font-mono font-bold tracking-wider uppercase border shadow-sm transition-all duration-300 ${
                   data.parsedValue
                     ? "bg-success/15 text-success border-success/40 shadow-success/10"
                     : "bg-error/15 text-error border-error/40 shadow-error/10"
                 }`}
                 style={{
                   fontSize: `${cardBadgeFontSize}px`,
+                  padding: `${Math.max(4, Math.round(cardBadgeFontSize * 0.25))}px ${Math.max(12, Math.round(cardBadgeFontSize * 0.6))}px`,
                 }}
               >
                 <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${
+                  className={`rounded-full shrink-0 animate-pulse ${
                     data.parsedValue
                       ? "bg-success shadow-[0_0_8px_#22c55e]"
                       : "bg-error shadow-[0_0_8px_#ef4444]"
                   }`}
+                  style={{
+                    width: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,
+                    height: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,
+                  }}
                 />
                 <span>{formattedValue}</span>
               </div>

@@ -13,6 +13,7 @@ const VALID_PANEL_TYPES = new Set([
   "text",
   "separator",
   "image",
+  "gauge",
 ]);
 
 describe("dashboardTemplates", () => {
