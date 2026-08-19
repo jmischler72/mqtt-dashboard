@@ -4,7 +4,9 @@
   "version": "1.8.0",
   "type": "module",
   "scripts": {
+    "predev": "node -e 'const fs=require(\"fs\"); if(!fs.existsSync(\"src/worktreeInfo.json\")) fs.writeFileSync(\"src/worktreeInfo.json\", JSON.stringify({worktree:\"\",branch:\"\",commit:\"\",message:\"\"},null,2)+\"\\n\");'",
     "dev": "vite",
+    "prebuild": "node -e 'const fs=require(\"fs\"); if(!fs.existsSync(\"src/worktreeInfo.json\")) fs.writeFileSync(\"src/worktreeInfo.json\", JSON.stringify({worktree:\"\",branch:\"\",commit:\"\",message:\"\"},null,2)+\"\\n\");'",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
