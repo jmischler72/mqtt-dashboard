@@ -51,6 +51,9 @@ export function ButtonConfigModal({
     initialBrokerId || brokerId || defaultBrokerId,
   );
 
+  const hasWildcardWarning =
+    topic.includes("+") || topic.includes("#");
+
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
       <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
@@ -126,6 +129,11 @@ export function ButtonConfigModal({
           </button>
           <button
             className="btn btn-sm btn-primary"
+            disabled={
+              brokerStatuses.length === 0 ||
+              !topic.trim() ||
+              hasWildcardWarning
+            }
             onClick={() =>
               onSave(
                 { label, topic, payload, qos, retain, requireConfirm },
@@ -156,15 +164,18 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
 
-  const parsedTopics = config.topic
-    ? config.topic
+  const rawTopic = config.topic ?? "";
+  const parsedTopics = rawTopic
+    ? rawTopic
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean)
     : [];
 
+  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+
   const publishMessage = async () => {
-    if (parsedTopics.length === 0) return;
+    if (parsedTopics.length === 0 || hasWildcard) return;
     setLoading(true);
     try {
       await Promise.all(
@@ -187,8 +198,6 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
     }
   };
 
-  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
-
   const handleClick = () => {
     if (parsedTopics.length === 0 || hasWildcard) return;
     if (config.requireConfirm) {
@@ -210,7 +219,13 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
         }`}
         onClick={handleClick}
         disabled={loading || parsedTopics.length === 0 || hasWildcard}
-        title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
+        title={
+          hasWildcard
+            ? "Cannot publish to wildcard topics (+ or #)"
+            : parsedTopics.length === 0
+              ? "No topic configured"
+              : undefined
+        }
       >
         {loading ? (
           <span className="loading loading-spinner" />

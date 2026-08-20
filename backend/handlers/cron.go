@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -37,6 +38,10 @@ func (h *CronHandler) UpsertCron(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Topic == "" || req.CronExpr == "" {
 		http.Error(w, "topic and cron_expr are required", http.StatusBadRequest)
+		return
+	}
+	if strings.Contains(req.Topic, "+") || strings.Contains(req.Topic, "#") {
+		http.Error(w, "wildcards (+ or #) are not supported for cron publishing", http.StatusBadRequest)
 		return
 	}
 

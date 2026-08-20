@@ -21,31 +21,28 @@ export function buildPanelHeaderMeta(
   panelType: string,
   config: Record<string, unknown>,
 ): PanelHeaderMeta {
-  if (panelType === "log") {
-    const rawTopics = typeof config.topics === "string" ? config.topics : "";
-    const topics = parseTopics(rawTopics);
-    if (topics.length === 0) {
-      return { topicSummary: "not configured" };
-    }
-    if (rawTopics.includes(",") && topics.length > 1) {
-      return {
-        topicSummary: `${topics.length} configured`,
-        topicDetail: topics.join(", "),
-      };
-    }
-    return { topicSummary: `${topics[0]}` };
-  }
-
-  if (panelType === "stats") {
-    const topic = configuredTopic(config.topic);
-    return { topicSummary: topic ?? "all topics" };
-  }
-
-  const topic = configuredTopic(config.topic);
+  const rawTopics =
+    typeof config.topics === "string"
+      ? config.topics
+      : typeof config.topic === "string"
+        ? config.topic
+        : "";
+  const topics = parseTopics(rawTopics);
   const payload = configuredTopic(config.payload);
 
+  let topicSummary = "not configured";
+  let topicDetail: string | undefined;
+
+  if (topics.length > 1) {
+    topicSummary = `${topics.length} configured`;
+    topicDetail = topics.join(", ");
+  } else if (topics.length === 1) {
+    topicSummary = topics[0] === "#" ? "all topics" : topics[0];
+  }
+
   return {
-    topicSummary: topic ? `${topic}` : "not configured",
+    topicSummary,
+    topicDetail,
     payloadPreview:
       panelType === "button" || panelType === "cron"
         ? payload || undefined

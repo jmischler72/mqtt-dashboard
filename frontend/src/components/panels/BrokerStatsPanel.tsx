@@ -243,7 +243,13 @@ export default function BrokerStatsPanel({
   brokerId,
   config,
 }: BrokerStatsPanelProps) {
-  const topicFilter = config.topic?.trim() ?? "";
+  const topicFilter = (config.topic ?? "").trim();
+  const parsedTopics = topicFilter
+    ? topicFilter
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
   const showStatTiles = config.showStatTiles !== false;
   const showChart = config.showChart !== false;
   const showTopicBreakdown = config.showTopicBreakdown !== false;
@@ -304,10 +310,15 @@ export default function BrokerStatsPanel({
 
   useEffect(() => {
     if (!brokerId || !topicFilter) return;
+    const topicList = topicFilter
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (topicList.length === 0) return;
     subscribe({
       panel_id: panelId,
       broker_id: brokerId,
-      topics: [topicFilter],
+      topics: topicList,
     });
   }, [panelId, brokerId, topicFilter, subscribe]);
 
@@ -509,7 +520,7 @@ export default function BrokerStatsPanel({
   // Redraw whenever the panel itself resizes (covers both window resize and panel drag).
   useEffect(() => {
     const el = panelRootRef.current;
-    if (!el) return;
+    if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => drawRef.current());
     observer.observe(el);
     return () => observer.disconnect();
@@ -519,7 +530,7 @@ export default function BrokerStatsPanel({
   const total = activity?.total ?? 0;
   const totalKb = (activity?.totalBytes ?? 0) / 1024;
   const topics = activity?.topics ?? [];
-  if (!topicFilter) {
+  if (parsedTopics.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
         No topic configured — open settings to add topic
