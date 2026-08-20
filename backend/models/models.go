@@ -88,3 +88,41 @@ type BrokerStats struct {
 	MemoryMax          int64  `json:"memory_max"`  // bytes
 	UpdatedAt          string `json:"updated_at"`  // ISO 8601 timestamp
 }
+
+type FleetDevice struct {
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	BrokerID   string   `json:"broker_id"`
+	Status     string   `json:"status"` // "online" | "offline" | "unknown"
+	MAC        string   `json:"mac,omitempty"`
+	IP         string   `json:"ip,omitempty"`
+	Firmware   string   `json:"firmware,omitempty"`
+	Hardware   string   `json:"hardware,omitempty"`
+	DeviceType string   `json:"device_type"` // "esphome" | "homeassistant" | "tasmota" | "homie" | "generic"
+	RSSI       int      `json:"rssi,omitempty"`
+	Uptime     int64    `json:"uptime,omitempty"`
+	BaseTopic  string   `json:"base_topic"`
+	Topics     []string `json:"topics"`
+	LastSeen   string   `json:"last_seen"`
+}
+
+type TopologyNode struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Type   string `json:"type"` // "broker" | "gateway" | "device"
+	Status string `json:"status"`
+	MAC    string `json:"mac,omitempty"`
+	IP     string `json:"ip,omitempty"`
+}
+
+type TopologyLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Status string `json:"status,omitempty"`
+}
+
+type FleetTopology struct {
+	Nodes []TopologyNode `json:"nodes"`
+	Links []TopologyLink `json:"links"`
+}
+

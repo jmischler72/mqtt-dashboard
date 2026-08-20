@@ -88,4 +88,6 @@ This file contains the historical list of small tasks and sub-tasks for the proj
 - [x] (mqtt-stats)the log panel show duplicates messages only for the $sys topics
 - [x] (mqtt-stats)i need to add tests to fix code coverage (still at 66.2%)
 - [x] (mqtt-stats)now the issue is that when i click a topic i dont see anything on some topics and sometimes i see messages but they are still duplicated
+- [x] (fleet) Add Fleet management page with pluggable device discovery engine, device status, logs panel, and connection topology diagram
 - [x] (config-file) test and improve config file handling (broker seeding, app settings, default fallbacks, and comprehensive unit tests)
+
