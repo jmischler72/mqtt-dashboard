@@ -134,7 +134,7 @@ var allowedRanges = map[int]bool{60: true, 300: true, 900: true, 3600: true}
 // to the topics matching an MQTT filter. It avoids enumerating rows in the
 // common cases; only mid-level '+' wildcards require resolving the concrete
 // topic set first. ok=false means the filter matches nothing.
-func (h *ExplorerHandler) topicScope(brokerID, topic string) (clause string, args []any, ok bool) {
+func (h *ExplorerHandler) singleTopicScope(brokerID, topic string) (clause string, args []any, ok bool) {
 	if !mqttutil.HasWildcard(topic) {
 		return "topic = ?", []any{topic}, true
 	}
@@ -172,6 +172,32 @@ func (h *ExplorerHandler) topicScope(brokerID, topic string) (clause string, arg
 	}
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(matched)), ",")
 	return "topic IN (" + placeholders + ")", matched, true
+}
+
+func (h *ExplorerHandler) topicScope(brokerID, topicStr string) (clause string, args []any, ok bool) {
+	rawList := strings.Split(topicStr, ",")
+	var clauses []string
+	var allArgs []any
+
+	for _, raw := range rawList {
+		t := strings.TrimSpace(raw)
+		if t == "" {
+			continue
+		}
+		c, a, matches := h.singleTopicScope(brokerID, t)
+		if matches {
+			clauses = append(clauses, c)
+			allArgs = append(allArgs, a...)
+		}
+	}
+
+	if len(clauses) == 0 {
+		return "", nil, false
+	}
+	if len(clauses) == 1 {
+		return clauses[0], allArgs, true
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")", allArgs, true
 }
 
 // GetActivity returns time-bucketed message activity for a broker + topic filter

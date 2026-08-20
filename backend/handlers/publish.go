@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 type PublishHandler struct {
@@ -30,6 +31,10 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Topic == "" {
 		http.Error(w, "topic is required", http.StatusBadRequest)
+		return
+	}
+	if strings.Contains(req.Topic, "+") || strings.Contains(req.Topic, "#") {
+		http.Error(w, "cannot publish to wildcard topics (+ or #)", http.StatusBadRequest)
 		return
 	}
 

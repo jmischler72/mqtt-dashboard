@@ -43,6 +43,8 @@ export function InputConfigModal({
     initialBrokerId || brokerId || defaultBrokerId,
   );
 
+  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
+
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
       <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
@@ -75,7 +77,11 @@ export function InputConfigModal({
           </button>
           <button
             className="btn btn-sm btn-primary"
-            disabled={brokerStatuses.length === 0}
+            disabled={
+              brokerStatuses.length === 0 ||
+              !topic.trim() ||
+              hasWildcardWarning
+            }
             onClick={() =>
               onSave(
                 { topic, qos, retain },
@@ -147,6 +153,14 @@ export default function InputPanel({
       setTimeout(() => setFlash(null), 1500);
     }
   };
+
+  if (!effectiveTopic?.trim()) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full gap-2 p-1">

@@ -344,6 +344,14 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     shouldAutoScrollRef.current = distanceToBottom <= 24;
   };
 
+  if (!config.topics?.trim()) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex gap-2 px-1 pb-1">

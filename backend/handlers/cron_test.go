@@ -71,6 +71,28 @@ func TestUpsertCron_MissingFields(t *testing.T) {
 	}
 }
 
+func TestUpsertCron_WildcardRejected(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	for _, wildcardTopic := range []string{"sensors/#", "home/+/temp", "#", "+"} {
+		body := jsonBody(t, map[string]any{
+			"cron_expr": "*/5 * * * *",
+			"topic":     wildcardTopic,
+		})
+		req := httptest.NewRequest(http.MethodPut, "/api/cron/panel1", body)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("topic %q: status = %d, want 400", wildcardTopic, rec.Code)
+		}
+	}
+}
+
 func TestUpsertCron_SchedulerError(t *testing.T) {
 	database := setupTestDB(t)
 	sched := newMockScheduler()

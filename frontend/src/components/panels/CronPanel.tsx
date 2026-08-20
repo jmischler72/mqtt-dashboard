@@ -128,6 +128,8 @@ export function CronConfigModal({
   const cronDescription =
     isCustom && !cronError ? describeCron(customExpr) : null;
 
+  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
+
   return (
     <dialog className="modal modal-open backdrop-blur-xs">
       <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
@@ -236,7 +238,12 @@ export function CronConfigModal({
           </button>
           <button
             className="btn btn-sm btn-primary"
-            disabled={brokerStatuses.length === 0 || (isCustom && !!cronError)}
+            disabled={
+              brokerStatuses.length === 0 ||
+              (isCustom && !!cronError) ||
+              !topic.trim() ||
+              hasWildcardWarning
+            }
             onClick={() =>
               onSave(
                 {
@@ -351,6 +358,9 @@ export default function CronPanel({
       ? (describeCron(config.cron_expr) ?? undefined)
       : undefined;
 
+  const topic = (config.topic ?? "").trim();
+  const hasWildcard = topic.includes("+") || topic.includes("#");
+
   const progressPercent =
     cronStart && nextRun
       ? Math.min(
@@ -360,6 +370,14 @@ export default function CronPanel({
             100,
         )
       : 0;
+
+  if (!topic) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 p-2 h-full">
@@ -374,7 +392,8 @@ export default function CronPanel({
           type="checkbox"
           className="toggle toggle-primary"
           checked={config.enabled ?? false}
-          disabled={toggling || !config.cron_expr}
+          disabled={toggling || !config.cron_expr || hasWildcard}
+          title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>
