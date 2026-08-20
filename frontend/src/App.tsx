@@ -13,8 +13,10 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/explorer" element={<ExplorerPage />} />
-          <Route path="/fleet" element={<FleetPage />} />
+          <Route path="/devices" element={<FleetPage />} />
+          <Route path="/fleet" element={<Navigate to="/devices" replace />} />
           <Route path="/config" element={<ConfigPage />} />
+
         </Route>
       </Routes>
     </BrowserRouter>

@@ -96,7 +96,50 @@ func TestFleetHandler_GetDevicesAndTopology(t *testing.T) {
 	}
 }
 
+func TestFleetHandler_FiltersReservedAndPseudoDevices(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer database.Close()
+
+	registry := mqttclient.NewRegistry(database)
+	h := handlers.NewFleetHandler(database, registry)
+
+	brokerID := "broker-1"
+
+	// Seed test data with pseudo topics like test/status, sensors/temp, etc.
+	_, err = database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload, qos, retained) VALUES 
+		(?, 'test/status', 'online', 0, 0),
+		(?, 'sensors/temperature', '22.5', 0, 0),
+		(?, 'demo/status', 'active', 0, 0),
+		(?, 'mydevice/status', 'random_payload_no_device_specs', 0, 0)`,
+		brokerID, brokerID, brokerID, brokerID,
+	)
+	if err != nil {
+		t.Fatalf("Failed to seed mqtt_history: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/api/fleet/devices?broker_id="+brokerID, nil)
+	w := httptest.NewRecorder()
+	h.GetDevices(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GetDevices returned status %d", w.Code)
+	}
+
+	var devices []models.FleetDevice
+	if err := json.Unmarshal(w.Body.Bytes(), &devices); err != nil {
+		t.Fatalf("Failed to decode devices response: %v", err)
+	}
+
+	if len(devices) != 0 {
+		t.Errorf("Expected 0 devices for reserved/unidentified topics (test/status, sensors/temp), got %d devices: %+v", len(devices), devices)
+	}
+}
+
 func TestFleetHandler_SendCommand(t *testing.T) {
+
 	database, err := db.InitDB(":memory:")
 	if err != nil {
 		t.Fatalf("InitDB failed: %v", err)

@@ -167,12 +167,18 @@ func (h *FleetHandler) discoverFleetDevices(brokerID string) []models.FleetDevic
 		// Apply Discovery Adapters
 		h.parseHADiscovery(brokerID, hr, deviceMap, topicToDevice)
 		h.parseHomieDiscovery(brokerID, hr, deviceMap, topicToDevice)
-		h.parseESPHomeAndGeneric(brokerID, hr, deviceMap, topicToDevice)
+		h.parseTelemetryDiscovery(brokerID, hr, deviceMap, topicToDevice)
 	}
 
-	// Convert map to slice & sort by Name
+	// Convert map to slice & filter out pseudo "generic" devices without specs
 	result := make([]models.FleetDevice, 0, len(deviceMap))
 	for _, dev := range deviceMap {
+		if dev.DeviceType == "generic" {
+			if dev.MAC == "" && dev.IP == "" && dev.Firmware == "" && dev.Hardware == "" {
+				continue
+			}
+		}
+
 		// Clean up duplicate topics
 		topicSet := make(map[string]bool)
 		cleanTopics := []string{}
@@ -193,6 +199,8 @@ func (h *FleetHandler) discoverFleetDevices(brokerID string) []models.FleetDevic
 
 	return result
 }
+
+
 
 // 1. Home Assistant MQTT Discovery Adapter (homeassistant/+/+/config)
 func (h *FleetHandler) parseHADiscovery(brokerID string, hr historyRow, devMap map[string]*models.FleetDevice, tToDev map[string]string) {
@@ -321,81 +329,65 @@ func (h *FleetHandler) parseHomieDiscovery(brokerID string, hr historyRow, devMa
 	}
 }
 
-// 3. ESPHome & Generic LWT/Telemetry Adapter
-func (h *FleetHandler) parseESPHomeAndGeneric(brokerID string, hr historyRow, devMap map[string]*models.FleetDevice, tToDev map[string]string) {
+// 3. Telemetry & Device Specs Adapter
+func (h *FleetHandler) parseTelemetryDiscovery(brokerID string, hr historyRow, devMap map[string]*models.FleetDevice, tToDev map[string]string) {
 	parts := strings.Split(hr.Topic, "/")
 	if len(parts) < 2 {
 		return
 	}
 
 	base := parts[0]
-	subTopic := strings.Join(parts[1:], "/")
 
-	// ESPHome default conventions: <device_name>/status, <device_name>/debug, <device_name>/sensor/...
-	isStatusTopic := subTopic == "status" || subTopic == "availability" || subTopic == "tele/LWT" || subTopic == "state" || strings.HasSuffix(subTopic, "/status") || strings.HasSuffix(subTopic, "/availability")
-
-	if isStatusTopic || strings.Contains(hr.Topic, "esphome") || strings.Contains(hr.Topic, "tasmota") {
-		dev := getOrCreateDevice(devMap, base, brokerID)
-		dev.LastSeen = hr.Timestamp
-		dev.Topics = append(dev.Topics, hr.Topic)
-		if dev.BaseTopic == "" {
-			dev.BaseTopic = base
-		}
-
-		if isStatusTopic {
-			pLower := strings.ToLower(strings.TrimSpace(hr.Payload))
-			if pLower == "online" || pLower == "connected" || pLower == "true" || pLower == "1" {
-				dev.Status = "online"
-			} else if pLower == "offline" || pLower == "disconnected" || pLower == "false" || pLower == "0" {
-				dev.Status = "offline"
-			}
-		}
-
-		if strings.Contains(hr.Topic, "esphome") {
-			dev.DeviceType = "esphome"
-		} else if strings.Contains(hr.Topic, "tasmota") {
-			dev.DeviceType = "tasmota"
-		}
-
-		// Inspect JSON payloads for telemetry / network specs
+	// If the topic belongs to an already identified device, attach it and extract telemetry
+	if existingDev, ok := devMap[base]; ok {
+		existingDev.LastSeen = hr.Timestamp
+		existingDev.Topics = append(existingDev.Topics, hr.Topic)
 		if strings.HasPrefix(strings.TrimSpace(hr.Payload), "{") {
 			var jsonMap map[string]interface{}
 			if err := json.Unmarshal([]byte(hr.Payload), &jsonMap); err == nil {
-				extractTelemetryInfo(jsonMap, dev)
+				extractTelemetryInfo(jsonMap, existingDev)
 			}
 		}
+		return
+	}
 
-		// Regex extraction for MAC/IP
-		if dev.MAC == "" {
-			if mac := macRegex.FindString(hr.Payload); mac != "" {
-				dev.MAC = mac
-			}
-		}
-		if dev.IP == "" {
-			if ip := ipRegex.FindString(hr.Payload); ip != "" {
-				dev.IP = ip
-			}
-		}
-	} else if len(parts) >= 2 {
-		// Generic fallback node creation if topic has structured hierarchy
-		dev := getOrCreateDevice(devMap, base, brokerID)
-		dev.LastSeen = hr.Timestamp
-		dev.Topics = append(dev.Topics, hr.Topic)
-		if dev.BaseTopic == "" {
-			dev.BaseTopic = base
-		}
-		if dev.DeviceType == "" {
-			dev.DeviceType = "generic"
-		}
+	// For new devices, require a valid JSON payload containing explicit device identity attributes
+	payload := strings.TrimSpace(hr.Payload)
+	if !strings.HasPrefix(payload, "{") {
+		return
+	}
 
-		if strings.HasPrefix(strings.TrimSpace(hr.Payload), "{") {
-			var jsonMap map[string]interface{}
-			if err := json.Unmarshal([]byte(hr.Payload), &jsonMap); err == nil {
-				extractTelemetryInfo(jsonMap, dev)
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal([]byte(payload), &jsonMap); err != nil {
+		return
+	}
+
+	hasIdentity := false
+	for k, v := range jsonMap {
+		kLower := strings.ToLower(k)
+		switch kLower {
+		case "mac", "mac_address", "macaddress", "ip", "ip_address", "ipaddress", "hardware", "model", "board", "firmware", "sw_version", "device_id", "node_id":
+			if strVal, ok := v.(string); ok && strVal != "" {
+				hasIdentity = true
 			}
 		}
 	}
+
+	if !hasIdentity {
+		return
+	}
+
+	dev := getOrCreateDevice(devMap, base, brokerID)
+	dev.DeviceType = "generic"
+	dev.LastSeen = hr.Timestamp
+	dev.Topics = append(dev.Topics, hr.Topic)
+	if dev.BaseTopic == "" {
+		dev.BaseTopic = base
+	}
+	extractTelemetryInfo(jsonMap, dev)
 }
+
+
 
 func extractTelemetryInfo(m map[string]interface{}, dev *models.FleetDevice) {
 	for k, v := range m {

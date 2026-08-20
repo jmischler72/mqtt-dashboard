@@ -21,9 +21,10 @@ function computeAggregated(statuses: BrokerStatus[]): AggregatedStatus {
 const NAV_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/explorer", label: "Explorer" },
-  { to: "/fleet", label: "Fleet" },
+  { to: "/devices", label: "Devices" },
   { to: "/config", label: "Configuration" },
 ];
+
 
 
 const aggDotColor: Record<AggregatedStatus, string> = {

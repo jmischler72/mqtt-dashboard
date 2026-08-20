@@ -10,6 +10,9 @@ import {
   MdClose,
   MdSend,
   MdDevices,
+  MdHelpOutline,
+  MdCheckCircle,
+  MdInfo,
 } from "react-icons/md";
 import { api, type FleetDevice, type FleetTopology } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
@@ -27,12 +30,14 @@ export default function FleetPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
   const [viewMode, setViewMode] = useState<"grid" | "table" | "topology">("grid");
   const [selectedDevice, setSelectedDevice] = useState<FleetDevice | null>(null);
+  const [showDiscoveryGuide, setShowDiscoveryGuide] = useState(false);
 
   // Command drawer state
   const [cmdTopic] = useState("");
   const [cmdPayload, setCmdPayload] = useState("");
   const [sendingCmd, setSendingCmd] = useState(false);
   const [cmdStatus, setCmdStatus] = useState<string | null>(null);
+
 
 
   const autoSelectedBrokerId = useMemo(() => {
@@ -128,78 +133,70 @@ export default function FleetPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-base-100 overflow-hidden">
-      {/* ── Top Header Controls ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-base-300 bg-base-100 shrink-0">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <MdDevices className="text-xl text-primary" />
-            <h1 className="text-lg font-bold">Fleet Management</h1>
-          </div>
+      {/* ── Sub Navbar (Header Bar) ── */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-base-300 bg-base-100 shrink-0">
+        <span className="text-sm font-medium text-base-content/60">Broker</span>
+        <select
+          className="select select-bordered select-sm"
+          value={effectiveBrokerId}
+          onChange={(e) => {
+            setSelectedBrokerId(e.target.value);
+            setSelectedDevice(null);
+          }}
+        >
+          {brokerStatuses.length === 0 && (
+            <option value="">No brokers configured</option>
+          )}
+          {brokerStatuses.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-base-content/60">Broker</span>
-            <select
-              className="select select-bordered select-sm"
-              value={effectiveBrokerId}
-              onChange={(e) => {
-                setSelectedBrokerId(e.target.value);
-                setSelectedDevice(null);
-              }}
-            >
-              {brokerStatuses.length === 0 && (
-                <option value="">No brokers configured</option>
-              )}
-              {brokerStatuses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {/* Search Bar */}
-          <div className="relative">
-            <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 text-base" />
-            <input
-              type="text"
-              placeholder="Search name, MAC, IP, topic..."
-              className="input input-bordered input-sm pl-8 w-48 sm:w-64"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Status Filter Pills */}
-          <div className="join">
-            <button
-              className={`join-item btn btn-xs ${
-                statusFilter === "all" ? "btn-active" : "btn-ghost"
-              }`}
-              onClick={() => setStatusFilter("all")}
-            >
-              All ({devices.length})
-            </button>
-            <button
-              className={`join-item btn btn-xs ${
-                statusFilter === "online" ? "btn-success" : "btn-ghost"
-              }`}
-              onClick={() => setStatusFilter("online")}
-            >
-              Online ({devices.filter((d) => d.status === "online").length})
-            </button>
-            <button
-              className={`join-item btn btn-xs ${
-                statusFilter === "offline" ? "btn-error" : "btn-ghost"
-              }`}
-              onClick={() => setStatusFilter("offline")}
-            >
-              Offline ({devices.filter((d) => d.status === "offline").length})
-            </button>
-          </div>
+        {/* Search Bar */}
+        <div className="relative">
+          <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 text-base" />
+          <input
+            type="text"
+            placeholder="Search name, MAC, IP, topic..."
+            className="input input-bordered input-sm pl-8 w-44 sm:w-56"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
 
-        {/* View Mode & Actions */}
-        <div className="flex items-center gap-2">
+        {/* Status Filter Pills */}
+        <div className="join">
+          <button
+            className={`join-item btn btn-xs ${
+              statusFilter === "all" ? "btn-active" : "btn-ghost"
+            }`}
+            onClick={() => setStatusFilter("all")}
+          >
+            All ({devices.length})
+          </button>
+          <button
+            className={`join-item btn btn-xs ${
+              statusFilter === "online" ? "btn-success" : "btn-ghost"
+            }`}
+            onClick={() => setStatusFilter("online")}
+          >
+            Online ({devices.filter((d) => d.status === "online").length})
+          </button>
+          <button
+            className={`join-item btn btn-xs ${
+              statusFilter === "offline" ? "btn-error" : "btn-ghost"
+            }`}
+            onClick={() => setStatusFilter("offline")}
+          >
+            Offline ({devices.filter((d) => d.status === "offline").length})
+          </button>
+        </div>
+
+        {/* Right Action Group */}
+        <div className="ml-auto flex items-center gap-2">
           <div className="join">
             <button
               className={`join-item btn btn-sm ${
@@ -234,13 +231,15 @@ export default function FleetPage() {
           <button
             className="btn btn-sm btn-outline gap-1"
             onClick={loadData}
-            title="Refresh Fleet"
+            title="Refresh Devices"
           >
             <MdRefresh className={loading ? "animate-spin" : ""} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
+
         </div>
       </div>
+
 
       {/* ── Main Content Area ── */}
       <div className="flex-1 flex overflow-hidden">
@@ -251,13 +250,23 @@ export default function FleetPage() {
               <p>Discovering fleet devices...</p>
             </div>
           ) : filteredDevices.length === 0 && viewMode !== "topology" ? (
-            <div className="flex flex-col items-center justify-center h-64 text-base-content/40 border border-dashed border-base-300 rounded-box">
-              <MdDevices className="text-4xl mb-2 opacity-50" />
-              <p className="text-base font-semibold">No devices found</p>
-              <p className="text-xs text-base-content/50 mt-1">
-                Make sure your devices publish telemetry or status messages to your broker.
+            <div className="flex flex-col items-center justify-center p-8 border border-dashed border-base-300 rounded-box bg-base-200/40 text-center max-w-lg mx-auto my-12">
+              <div className="p-3 bg-primary/10 rounded-full text-primary mb-3">
+                <MdDevices className="text-3xl" />
+              </div>
+              <h3 className="text-base font-bold">No connected devices discovered</h3>
+              <p className="text-xs text-base-content/70 mt-1 max-w-sm">
+                To appear in Fleet Management, devices must use a recognized discovery protocol or send telemetry containing device specs.
               </p>
+              <button
+                onClick={() => setShowDiscoveryGuide(true)}
+                className="btn btn-sm btn-outline btn-primary mt-4 gap-1"
+              >
+                <MdHelpOutline className="text-base" />
+                How device discovery works
+              </button>
             </div>
+
           ) : (
             <>
               {/* 1. GRID VIEW */}
@@ -552,6 +561,77 @@ export default function FleetPage() {
           </aside>
         )}
       </div>
+      {/* ── Discovery Guide Modal ── */}
+      {showDiscoveryGuide && (
+        <div className="modal modal-open backdrop-blur-xs">
+          <div className="modal-box max-w-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-base-300">
+              <div className="flex items-center gap-2">
+                <MdInfo className="text-xl text-primary" />
+                <h3 className="font-bold text-base">How Device Discovery Works</h3>
+              </div>
+              <button
+                className="btn btn-sm btn-circle btn-ghost"
+                onClick={() => setShowDiscoveryGuide(false)}
+              >
+                <MdClose />
+              </button>
+            </div>
+
+            <div className="py-4 text-xs space-y-4 text-base-content/80 leading-relaxed">
+              <p>
+                Fleet Management automatically detects physical IoT devices connected to your broker. To ensure accuracy and prevent temporary test topics from cluttering your fleet, devices are recognized strictly through formal discovery protocols or explicit device identity telemetry.
+              </p>
+
+              <div className="space-y-3">
+                <div className="p-3 bg-base-200/60 rounded-lg border border-base-300">
+                  <div className="flex items-center gap-2 font-semibold text-base-content mb-1">
+                    <MdCheckCircle className="text-success text-sm" />
+                    <span>1. Home Assistant Discovery (ESPHome, Tasmota, Zigbee2MQTT)</span>
+                  </div>
+                  <p className="text-[11px] text-base-content/70">
+                    Devices publishing config schemas to <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono">homeassistant/+/+/config</code> (such as ESPHome, Tasmota, or Zigbee2MQTT) are instantly discovered with full hardware, model, MAC, and firmware specs.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-base-200/60 rounded-lg border border-base-300">
+                  <div className="flex items-center gap-2 font-semibold text-base-content mb-1">
+                    <MdCheckCircle className="text-secondary text-sm" />
+                    <span>2. Homie IoT Convention</span>
+                  </div>
+                  <p className="text-[11px] text-base-content/70">
+                    Standardized nodes following Homie convention publish device specs to <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono">homie/&lt;device_id&gt;/$name</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono">$mac</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono">$localip</code>, and <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono">$state</code>.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-base-200/60 rounded-lg border border-base-300">
+                  <div className="flex items-center gap-2 font-semibold text-base-content mb-1">
+                    <MdCheckCircle className="text-info text-sm" />
+                    <span>3. Structured Telemetry (JSON Device Specs)</span>
+                  </div>
+                  <p className="text-[11px] text-base-content/70">
+                    Any JSON message payload containing explicit device identity attributes (such as <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">mac</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">ip</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">hardware</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">model</code>, or <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">firmware</code>) will be recognized as a fleet device.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-warning/10 text-warning-content rounded-lg border border-warning/20">
+                <p className="font-semibold mb-1">Why random topics like <code className="font-mono">test/status</code> don't show up:</p>
+                <p className="text-[11px]">
+                  Generic topic strings or plain messages without discovery schemas or device identity attributes are treated as standard MQTT data streams (visible in the Explorer page) to prevent fake or temporary topics from cluttering your Fleet Manager.
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-action pt-2 border-t border-base-300">
+              <button className="btn btn-sm btn-primary" onClick={() => setShowDiscoveryGuide(false)}>
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

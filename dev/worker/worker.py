@@ -187,12 +187,68 @@ def _unit_for(template: str) -> str:
         return "hPa"
     if "light" in template:
         return "lux"
-    return ""
+# ── Mock ESPHome, Home Assistant & Homie Devices ────────────────────────────────
+
+def publish_mock_devices(client: mqtt.Client, broker_name: str):
+    # 1. Home Assistant / ESPHome Discovery Device
+    ha_config_topic = "homeassistant/sensor/livingroom_esp32/config"
+    ha_config_payload = json.dumps({
+        "name": "Living Room ESP32-S3",
+        "state_topic": "livingroom_esp32/status",
+        "device": {
+            "id": "livingroom-esp32",
+            "name": "Living Room ESP32-S3",
+            "model": "ESP32-S3-WROOM",
+            "manufacturer": "Espressif / ESPHome",
+            "sw_version": "v2024.6.0",
+            "connections": [["mac", "48:E7:29:A0:11:BC"]]
+        }
+    })
+    client.publish(ha_config_topic, ha_config_payload, qos=1, retain=True)
+
+    # 2. Homie Convention Device
+    homie_topics = [
+        ("homie/kitchen-plug/$name", "Kitchen Smart Plug"),
+        ("homie/kitchen-plug/$mac", "30:AE:A4:77:88:99"),
+        ("homie/kitchen-plug/$localip", "192.168.1.112"),
+        ("homie/kitchen-plug/$state", "ready"),
+        ("homie/kitchen-plug/$fw/version", "v1.5.0-homie"),
+        ("homie/kitchen-plug/$implementation", "ESP8266-Relay"),
+    ]
+    for topic, payload in homie_topics:
+        client.publish(topic, payload, qos=1, retain=True)
+
+    # ESPHome live status & telemetry
+    client.publish("livingroom_esp32/status", "online", qos=1, retain=True)
+    client.publish("livingroom_esp32/telemetry", json.dumps({
+        "ip": "192.168.1.105",
+        "mac": "48:E7:29:A0:11:BC",
+        "rssi": random.randint(-75, -50),
+        "firmware": "v2024.6.0",
+        "hardware": "ESP32-S3-WROOM",
+        "temperature": round(random.uniform(21.0, 25.0), 1),
+        "humidity": round(random.uniform(40.0, 60.0), 1),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }), qos=0, retain=False)
+
+    # Office Air Quality Monitor live telemetry
+    client.publish("office_air_monitor/telemetry", json.dumps({
+        "device_id": "office_air_monitor",
+        "mac": "24:62:AB:F1:C2:E0",
+        "ip": "192.168.1.120",
+        "firmware": "v3.1.2",
+        "hardware": "ESP32-C3 Air Quality",
+        "rssi": random.randint(-70, -45),
+        "co2_ppm": random.randint(400, 800),
+        "pm25": round(random.uniform(5.0, 25.0), 1),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }), qos=0, retain=False)
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 _running = True
+
 
 
 def _shutdown(sig, frame):
@@ -249,6 +305,10 @@ def main():
                 logger.debug("[%s] Simple → %s (qos=%d retain=%s): %s", broker["name"], topic, qos, retain, payload)
             else:
                 logger.warning("[%s] Publish failed on %s: rc=%d", broker["name"], topic, result.rc)
+
+            # Mock ESPHome & Home Assistant Devices
+            publish_mock_devices(client, broker["name"])
+
 
         logger.info("Round %d done — published to %d broker(s) — next in %.1fs",
                     round_num, len(clients), PUBLISH_INTERVAL)
