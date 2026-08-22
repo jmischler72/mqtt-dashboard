@@ -152,15 +152,15 @@ keyfile /mosquitto/certs/server.key
 
 ## Dev Docker Compose Brokers
 
-`docker-compose-dev.yml` provides three Mosquitto instances, one for each connection type:
+`docker/dev/docker-compose-dev.yml` provides three Mosquitto instances, one for each connection type:
 
-| Service      | Host (in-container) | Port   | Auth                | TLS |
-| ------------ | ------------------- | ------ | ------------------- | --- |
-| `mosquitto`  | `mosquitto`         | `1883` | None                | No  |
-| `mosquitto2` | `mosquitto2`        | `1884` | Username / Password | No  |
-| `mosquitto3` | `mosquitto3`        | `8883` | None or Client Cert | Yes |
+| Service | Host (in-container) | Port | Auth | TLS |
+| ------- | ------------------- | ---- | ---- | --- |
+| `mosquitto` | `mosquitto` | `1883` | None | No |
+| `mosquitto-password` | `mosquitto-password` | `1884` (in container: 1883) | Username / Password | No |
+| `mosquitto-tls` | `mosquitto-tls` | `8883` | None or Client Cert | Yes |
 
-From the **host machine**, replace the host with `localhost`.
+From the **host machine**, connect to `localhost`.
 
 ---
 
@@ -177,63 +177,63 @@ No setup required.
 
 ---
 
-### mosquitto2 — Password auth, plain TCP
+### mosquitto-password — Password auth, plain TCP
 
 **One-time setup:**
 
 ```bash
-chmod +x ignore/mosquitto2/setup-passwd.sh
-./ignore/mosquitto2/setup-passwd.sh
+chmod +x docker/dev/mosquitto/passwd/setup-passwd.sh
+./docker/dev/mosquitto/passwd/setup-passwd.sh
 ```
 
-This generates `ignore/mosquitto2/config/passwd` with credentials `testuser` / `testpass`.
+This generates `docker/dev/mosquitto/passwd/passwd` with credentials `testuser` / `testpass`.
 
 Connect with:
 
-- **Host:** `localhost`
+- **Host:** `localhost` (or `mosquitto-password` from inside container on port 1883)
 - **Port:** `1884`
 - **Auth:** Username / Password → `testuser` / `testpass`
 - **TLS:** Off
 
 ---
 
-### mosquitto3 — TLS (and optional mTLS)
+### mosquitto-tls — TLS (and optional mTLS)
 
 **One-time setup — generate certificates:**
 
 ```bash
-chmod +x ignore/mosquitto3/certs/generate.sh
-./ignore/mosquitto3/certs/generate.sh
+chmod +x docker/dev/mosquitto/certs/generate.sh
+./docker/dev/mosquitto/certs/generate.sh
 ```
 
-Files created in `ignore/mosquitto3/certs/`:
+Files created in `docker/dev/mosquitto/certs/`:
 
 - `ca.crt` — Root CA (used by both server and client)
-- `server.key` / `server.crt` — Server certificate (used by Mosquitto, SAN includes `mosquitto3` and `localhost`)
+- `server.key` / `server.crt` — Server certificate (used by Mosquitto, SAN includes `mosquitto-tls` and `localhost`)
 - `client.key` / `client.crt` — Client certificate for mTLS testing
 
 #### TLS with CA verification
 
 Connect with:
 
-- **Host:** `localhost`
+- **Host:** `localhost` (or `mosquitto-tls` inside container)
 - **Port:** `8883`
 - **Auth:** None
 - **TLS:** On
-- **CA Certificate:** paste the contents of `ignore/mosquitto3/certs/ca.crt`
+- **CA Certificate:** paste the contents of `docker/dev/mosquitto/certs/ca.crt`
 
 #### TLS — skip verification (quick test)
 
 Connect with:
 
-- **Host:** `localhost`
+- **Host:** `localhost` (or `mosquitto-tls` inside container)
 - **Port:** `8883`
 - **TLS:** On, **Skip TLS verification:** checked
 - **Auth:** None
 
 #### Mutual TLS (client certificate)
 
-Edit `ignore/mosquitto3/config/mosquitto.conf` and change:
+Edit `docker/dev/mosquitto/config/mosquitto-tls.conf` and change:
 
 ```
 require_certificate false
@@ -245,14 +245,19 @@ require_certificate false
 require_certificate true
 ```
 
-Then restart `mosquitto3`.
+Then restart `mosquitto-tls`:
+
+```bash
+docker compose -f docker/dev/docker-compose-dev.yml restart mosquitto-tls
+```
 
 Connect with:
 
-- **Host:** `localhost`
+- **Host:** `localhost` (or `mosquitto-tls` inside container)
 - **Port:** `8883`
 - **TLS:** On
-- **CA Certificate:** paste `ignore/mosquitto3/certs/ca.crt`
+- **CA Certificate:** paste `docker/dev/mosquitto/certs/ca.crt`
 - **Auth:** Client Certificate
-  - **Client Certificate:** paste `ignore/mosquitto3/certs/client.crt`
-  - **Client Key:** paste `ignore/mosquitto3/certs/client.key`
+  - **Client Certificate:** paste `docker/dev/mosquitto/certs/client.crt`
+  - **Client Key:** paste `docker/dev/mosquitto/certs/client.key`
+

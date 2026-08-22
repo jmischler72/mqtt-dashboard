@@ -1,19 +1,19 @@
 services:
   mqtt-dashboard-app:
     build:
-      dockerfile: ./dev/Dockerfile.dev
-      context: ..
+      dockerfile: ./docker/dev/Dockerfile.dev
+      context: ../..
     ports:
       - "8080:8080"
       - "5173:5173"
     volumes:
-      - ..:/app
+      - ../..:/app
       # Shadow host node_modules with container-built Linux binaries
       - frontend_node_modules:/app/frontend/node_modules
     environment:
       - APP_ENV=development
       - LOG_LEVEL=debug
-      - CONFIG_FILE=/app/dev/config.json
+      - CONFIG_FILE=/app/docker/dev/config.json
 
 
 

@@ -14,34 +14,84 @@
   <a href="https://github.com/jmischler72/mqtt-dashboard/blob/main/LICENSE.txt"><img src="https://img.shields.io/github/license/jmischler72/mqtt-dashboard?style=flat-square" alt="License"></a>
 </p>
 
-<img src="assets/dashboard-page.png" alt="MQTT Dashboard Screenshot" />
-<img src="assets/explorer-page.png" alt="MQTT Dashboard Screenshot" />
+<img src="assets/dashboard-page.png" alt="MQTT Dashboard Screenshot" width="49%" />
+<img src="assets/explorer-page.png" alt="MQTT Dashboard Screenshot" width="49%" />
 
 ---
 
 ## ⭐ Features
 
-- **Drag & Drop Dashboard** — Build your own control center with resizable, draggable panels using a grid layout engine
-- **Dashboard Panels** — Button, Input, Log, Cron, and Stats panels for publish, automation, and monitoring
-- **Topic Explorer + Wildcards** — Browse MQTT topic trees and subscribe with `+` and `#` patterns
-- **Message History** — Persistent history with retention settings and cleanup controls
-- **Multi-Broker Support** — Connect to multiple MQTT brokers simultaneously and manage them from a single interface
-- **TLS & Authentication** — Supports plain TCP, TLS/SSL, username/password, and certificate-based authentication
-- **Real-Time Updates** — WebSocket-powered live message streaming
-- **Single Binary** — Go backend with embedded React frontend, zero external dependencies
-- **Docker Ready** — One command to deploy with persistent data volume
+- **Drag & Drop Dashboard** — Build your own control center with resizable, draggable panels using a responsive grid layout engine
+- **Multi-Dashboard Support** — Create multiple dashboard tabs, rename, delete, and import/export dashboards as JSON files with starter templates
+- **Functional & Visual Panels** — Button (with confirmation option), Input, Log, Cron, Broker Stats, Image (URL or upload), Separator, and Markdown Text panels
+- **Topic Explorer + Wildcards** — Browse collapsible MQTT topic trees, inspect message history, navigate with breadcrumbs, and subscribe with `+` and `#` patterns
+- **Message History & Retention** — Persistent history in SQLite with configurable retention periods, manual cleanup controls, and automated background pruning
+- **Multi-Broker Management** — Connect to multiple MQTT brokers concurrently, reorder priority, and monitor live telemetry & `$SYS` metrics
+- **TLS & Authentication** — Supports plain TCP, TLS/SSL (with CA cert upload or skip-verify), username/password, and mutual TLS (client certificate & key)
+- **Real-Time Updates** — WebSocket-powered live streaming for message history, explorer updates, and dashboard panels
+- **Single Binary & Docker Ready** — Go backend with embedded React frontend, zero runtime external dependencies, and ready-to-use Docker images
 
 ---
 
 ## 🔧 How to Install
 
-### 🐳 Docker Compose (Recommended)
+### 🐳 Option 1: Docker Compose with Integrated Broker (All-in-One)
+
+If you need an MQTT broker, this all-in-one setup starts both **MQTT Dashboard** and an **Eclipse Mosquitto** broker together, automatically seeding the initial broker connection via the `CONFIG_FILE` environment variable:
 
 ```yaml
 services:
   mqtt-dashboard:
     image: ghcr.io/jmischler72/mqtt-dashboard:latest
     container_name: mqtt-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - CONFIG_FILE=/app/config.json
+    volumes:
+      - dashboard_data:/app/data
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+volumes:
+  dashboard_data:
+  mosquitto_data:
+  mosquitto_log:
+```
+
+```bash
+docker compose -f docker/doc/docker-compose.with-broker.yml up -d
+```
+
+- **MQTT Dashboard**: [http://localhost:8080](http://localhost:8080) (pre-configured with `Local Mosquitto`)
+- **MQTT Broker**: `localhost:1883` (from host) or `mosquitto:1883` (within Docker network)
+
+---
+
+### 🐳 Option 2: Docker Compose Standalone (Connect to Existing Broker)
+
+If you already have an MQTT broker running on your network:
+
+```yaml
+services:
+  mqtt-dashboard:
+    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    container_name: mqtt-dashboard
+    restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
@@ -52,7 +102,7 @@ volumes:
 ```
 
 ```bash
-docker compose up -d
+docker compose -f docker/doc/docker-compose.yml up -d
 ```
 
 MQTT Dashboard is now running at [http://localhost:8080](http://localhost:8080).
@@ -70,7 +120,7 @@ docker run -d \
 
 ### 💪 Build from Source
 
-Requirements: Go 1.22+, Node.js 20+
+Requirements: Go 1.26+, Node.js 22+
 
 ```bash
 git clone https://github.com/jmischler72/mqtt-dashboard.git
@@ -92,33 +142,38 @@ go build -o mqtt-dashboard .
 
 ### Functional panels
 
-| Panel      | Description                                                           |
-| ---------- | --------------------------------------------------------------------- |
-| **Button** | One-click publish a preset payload to a topic                         |
-| **Input**  | Type and send ad-hoc messages to any topic                            |
-| **Log**    | Real-time message stream with history, wildcards, and date formatting |
-| **Cron**   | Scheduled automatic publishing with visual cron builder and countdown |
-| **Stats**  | Live topic activity charts with configurable time windows             |
+| Panel | Description |
+| ----- | ----------- |
+| **Gauge** | Real-time telemetry gauge (radial, bar, value) for numeric, boolean, or string data, with nested JSON path extraction |
+| **Button** | One-click publish a preset payload to a topic with QoS, Retain, and optional confirmation modal |
+| **Input** | Type and send ad-hoc messages to any topic with configurable QoS and Retain flags |
+| **Log** | Real-time message stream with persistent history, wildcards, QoS/Retain badges, and date formatting |
+| **Cron** | Scheduled automatic publishing with visual cron builder helper, next-run countdown, and toggle switch |
+| **Stats** | Live broker statistics and message activity charts ($SYS telemetry, memory, client counts) |
 
 ### Visual panels
 
-| Panel         | Description                                                 |
-| ------------- | ----------------------------------------------------------- |
-| **Image**     | Provide an image from url/file to show in the dashboard     |
-| **Separator** | Vertical/horizontal to visually separate parts of dashboard |
-| **Text**      | Markdown text to document your dashboard                    |
+| Panel | Description |
+| ----- | ----------- |
+| **Image** | Display images from a URL or upload custom images/presets directly to the dashboard |
+| **Separator** | Horizontal or vertical separator to visually structure your dashboard grid |
+| **Text** | Rich Markdown text panel for documentation, notes, or section titles |
 
 ---
 
-## MQTT Implementation
+## 🔐 MQTT Security & Protocol Support
 
-MQTT Dashboard supports a lot of features from MQTT:
+MQTT Dashboard supports comprehensive MQTT protocol and security features:
 
 - **TLS/SSL** encryption for broker communication
 - **Username & Password** authentication
-- **Client Certificate** authentication (mTLS)
-- **QoS** Quality of service flags from mqtt specs
-- **Retain** flags that sends back retained message to new subscribers
+- **Client Certificate** authentication (mTLS) with custom CA, client cert, and private key
+- **QoS (0, 1, 2)** Quality of Service levels for publishing and subscriptions
+- **Retain flag** to ensure latest state is preserved for new subscribers
+- **$SYS Topics** monitoring and optional retention recording
+- **Initial Configuration Seeding** via `CONFIG_FILE` or `config.json`
+
+For detailed security setup and dev broker configurations, see [docs/auth-and-tls.md](docs/auth-and-tls.md).
 
 ---
 
@@ -128,7 +183,7 @@ MQTT Dashboard supports a lot of features from MQTT:
 ┌──────────────────────────┐         ┌──────────────────────┐
 │   React Frontend (SPA)   │◄──WS──► │    Go Backend        │
 │   Vite + Tailwind +      │◄──API─► │    Single Binary     │
-│   DaisyUI                │         │                      │
+│   DaisyUI                │         │    (Chi Router)      │
 └──────────────────────────┘         └──────────┬───────────┘
                                                 │
                                      ┌──────────┴───────────┐
@@ -141,7 +196,7 @@ MQTT Dashboard supports a lot of features from MQTT:
                               └─────────────┘
 ```
 
-In production, the Go binary serves the embedded React build directly (so no need for the vite server :) ), it also handles API routes, WebSocket connections, and MQTT client management — all from a single port (`:8080`).
+In production, the Go binary serves the embedded React build directly, routing API calls, WebSocket streams, and MQTT client connections from a single port (`:8080`).
 
 ---
 
@@ -149,7 +204,7 @@ In production, the Go binary serves the embedded React build directly (so no nee
 
 Existing MQTT tools are either purely client-side, lack persistence, or don't support building custom control interfaces. MQTT Dashboard combines the best of monitoring tools like MQTT Explorer with the flexibility of a customizable panel-based dashboard — all self-hosted in a single binary.
 
-And here is the link to MQTT-Explorer that inspired a lot this project: https://github.com/thomasnordquist/MQTT-Explorer
+Inspired by [MQTT-Explorer](https://github.com/thomasnordquist/MQTT-Explorer).
 
 If you find this project useful, please consider giving it a ⭐!
 
@@ -157,7 +212,7 @@ If you find this project useful, please consider giving it a ⭐!
 
 ## 🗺️ Roadmap
 
-- [ ] Allow users to create their custom panels and share them
+- [ ] Allow users to create custom panels and share them
 - [ ] More customisable options in base panels
 
 See [TODO.md](TODO.md) and [docs/PRD/](docs/PRD/) for full details.
@@ -166,23 +221,20 @@ See [TODO.md](TODO.md) and [docs/PRD/](docs/PRD/) for full details.
 
 ## 🛠️ Tech Stack
 
-| Layer       | Technology                                     |
-| ----------- | ---------------------------------------------- |
-| Frontend    | React, Vite, TypeScript, Tailwind CSS, DaisyUI |
-| Grid Engine | react-grid-layout                              |
-| Backend     | Go (Golang)                                    |
-| MQTT lib    | Eclipse paho.mqtt.golang                       |
-| Database    | SQLite (embedded)                              |
-| Scheduling  | gocron                                         |
-| Realtime    | WebSocket                                      |
-| Container   | Docker (Alpine)                                |
+| Layer | Technology |
+| ----- | ---------- |
+| Frontend | React 19, Vite, TypeScript, Tailwind CSS v4, DaisyUI v5 |
+| Grid Engine | react-grid-layout, @dnd-kit |
+| Backend | Go (Golang 1.26) |
+| Router | go-chi/chi v5 |
+| MQTT lib | Eclipse paho.mqtt.golang |
+| Database | SQLite (embedded via modernc.org/sqlite, pure Go) |
+| Scheduling | gocron v2 |
+| Realtime | Gorilla WebSocket |
+| Container | Docker (Alpine) |
 
 ---
 
 ## 📄 License
 
 [GPL-3.0](LICENSE.txt)
-
----
-
-Thank you for checking it out ! Hope you like it. And yes the readme looks like Uptime Kuma because i like it

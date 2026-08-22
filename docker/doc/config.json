@@ -1,0 +1,14 @@
+{
+  "brokers": [
+    {
+      "name": "Local Mosquitto",
+      "host": "mosquitto",
+      "port": 1883,
+      "is_enabled": true
+    }
+  ],
+  "settings": {
+    "retention_period_hours": 24,
+    "save_sys_topics": false
+  }
+}
