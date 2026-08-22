@@ -128,7 +128,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         w: 3,
         h: 3,
         config_json: {
-          topic: "home/livingroom/temperature",
+          topic: "sensors/living-room/temperature",
           unit: "°C",
           min: 0,
           max: 40,
