@@ -1,7 +1,7 @@
 services:
   mqtt-dashboard:
     build:
-      context: ..
+      context: ../..
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:

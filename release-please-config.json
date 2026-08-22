@@ -47,6 +47,16 @@
                     "type": "json",
                     "path": "frontend/package.json",
                     "jsonpath": "$.version"
+                },
+                {
+                    "type": "json",
+                    "path": "frontend/package-lock.json",
+                    "jsonpath": "$.version"
+                },
+                {
+                    "type": "json",
+                    "path": "frontend/package-lock.json",
+                    "jsonpath": "$.packages[''].version"
                 }
             ]
         }

@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
 	"mqtt-dashboard/models"
+
+	"github.com/google/uuid"
 )
 
 type ConfigBroker struct {
@@ -67,7 +68,7 @@ func SeedBrokersFromConfig(database *sql.DB) {
 
 	configFile := os.Getenv("CONFIG_FILE")
 	if configFile == "" {
-		candidates := []string{"./data/config.json", "./config/config.json", "./dev/config.json"}
+		candidates := []string{"./data/config.json", "./config/config.json"}
 		for _, c := range candidates {
 			if _, err := os.Stat(c); err == nil {
 				configFile = c

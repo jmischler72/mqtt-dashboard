@@ -1,0 +1,31 @@
+services:
+  mqtt-dashboard:
+    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    container_name: mqtt-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - CONFIG_FILE=/app/config.json
+    volumes:
+      - dashboard_data:/app/data
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+volumes:
+  dashboard_data:
+  mosquitto_data:
+  mosquitto_log:

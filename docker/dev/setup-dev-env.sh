@@ -7,7 +7,7 @@ echo "==> Preparing dev environment setup..."
 
 # 1. Clean up invalid directories created by docker-compose mounts if present
 if [ -d "$SCRIPT_DIR/mosquitto/passwd/passwd" ]; then
-    echo "Cleaning up directory created by Docker at dev/mosquitto/passwd/passwd..."
+    echo "Cleaning up directory created by Docker at docker/dev/mosquitto/passwd/passwd..."
     rm -rf "$SCRIPT_DIR/mosquitto/passwd/passwd"
 fi
 
@@ -34,7 +34,7 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 MESSAGE=$(git log -1 --pretty=%s 2>/dev/null || echo "")
 WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-TARGET_FILE="$(cd "$SCRIPT_DIR/.." && pwd)/frontend/src/worktreeInfo.json"
+TARGET_FILE="$(cd "$SCRIPT_DIR/../.." && pwd)/frontend/src/worktreeInfo.json"
 
 node -e '
 const fs = require("fs");
