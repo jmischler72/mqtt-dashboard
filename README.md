@@ -35,10 +35,56 @@
 
 ## 🔧 How to Install
 
-### 🐳 Option 1: Docker Compose with Integrated Broker (All-in-One)
+### 🐳 Option 1: Docker Compose Standalone (Recommended)
 
-If you need an MQTT broker, this all-in-one setup starts both **MQTT Dashboard** and an **Eclipse Mosquitto** broker together, automatically seeding the initial broker connection via the `CONFIG_FILE` environment variable:
+If you already have an MQTT broker running on your network (or want to configure brokers via the web UI), this requires **no extra configuration files**:
 
+```yaml
+services:
+  mqtt-dashboard:
+    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    container_name: mqtt-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - data_volume:/app/data
+
+volumes:
+  data_volume:
+```
+
+```bash
+docker compose -f docker/doc/docker-compose.yml up -d
+# or save as docker-compose.yml and run: docker compose up -d
+```
+
+MQTT Dashboard is now running at [http://localhost:8080](http://localhost:8080).
+
+---
+
+### 🐳 Option 2: Docker Compose with Integrated Broker (All-in-One)
+
+If you do not have an MQTT broker and want an all-in-one stack with a pre-configured **Eclipse Mosquitto** broker:
+
+#### ⚡ Quick Start (from cloned repository)
+
+The [`docker/doc/`](docker/doc/) directory contains all required files (`docker-compose.with-broker.yml`, `config.json`, `mosquitto.conf`):
+
+```bash
+git clone https://github.com/jmischler72/mqtt-dashboard.git
+cd mqtt-dashboard
+docker compose -f docker/doc/docker-compose.with-broker.yml up -d
+```
+
+- **MQTT Dashboard**: [http://localhost:8080](http://localhost:8080) (pre-configured with `Local Mosquitto`)
+- **MQTT Broker**: `localhost:1883` (from host) or `mosquitto:1883` (within Docker network)
+
+#### 📁 Manual Setup (without cloning)
+
+If you want to set up the files manually in a folder:
+
+1. **`docker-compose.yml`**:
 ```yaml
 services:
   mqtt-dashboard:
@@ -73,39 +119,34 @@ volumes:
   mosquitto_log:
 ```
 
+2. **`config.json`** (auto-seeds the broker connection):
+```json
+{
+  "brokers": [
+    {
+      "name": "Local Mosquitto",
+      "host": "mosquitto",
+      "port": 1883,
+      "is_enabled": true
+    }
+  ]
+}
+```
+
+3. **`mosquitto.conf`** (allows anonymous broker access):
+```ini
+listener 1883
+allow_anonymous true
+
+listener 9001
+protocol websockets
+allow_anonymous true
+```
+
+Run with:
 ```bash
-docker compose -f docker/doc/docker-compose.with-broker.yml up -d
+docker compose up -d
 ```
-
-- **MQTT Dashboard**: [http://localhost:8080](http://localhost:8080) (pre-configured with `Local Mosquitto`)
-- **MQTT Broker**: `localhost:1883` (from host) or `mosquitto:1883` (within Docker network)
-
----
-
-### 🐳 Option 2: Docker Compose Standalone (Connect to Existing Broker)
-
-If you already have an MQTT broker running on your network:
-
-```yaml
-services:
-  mqtt-dashboard:
-    image: ghcr.io/jmischler72/mqtt-dashboard:latest
-    container_name: mqtt-dashboard
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - data_volume:/app/data
-
-volumes:
-  data_volume:
-```
-
-```bash
-docker compose -f docker/doc/docker-compose.yml up -d
-```
-
-MQTT Dashboard is now running at [http://localhost:8080](http://localhost:8080).
 
 ### 🐳 Docker Command
 
