@@ -8,7 +8,6 @@ import {
   MdWifi,
   MdWifiOff,
   MdClose,
-  MdSend,
   MdDevices,
   MdHelpOutline,
   MdCheckCircle,
@@ -16,8 +15,9 @@ import {
 } from "react-icons/md";
 import { api, type FleetDevice, type FleetTopology } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
-import LogPanel from "../components/panels/LogPanel";
 import DeviceTopologyDiagram from "../components/fleet/DeviceTopologyDiagram";
+import DeviceInspectorDrawer from "../components/fleet/DeviceInspectorDrawer";
+
 
 export default function FleetPage() {
   const brokerStatuses = useBrokerStatuses();
@@ -28,19 +28,18 @@ export default function FleetPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "table" | "topology">("grid");
   const [selectedDevice, setSelectedDevice] = useState<FleetDevice | null>(null);
   const [showDiscoveryGuide, setShowDiscoveryGuide] = useState(false);
 
+
   // Command drawer state
-  const [cmdTopic] = useState("");
-  const [cmdPayload, setCmdPayload] = useState("");
   const [sendingCmd, setSendingCmd] = useState(false);
   const [cmdStatus, setCmdStatus] = useState<string | null>(null);
 
-
-
   const autoSelectedBrokerId = useMemo(() => {
+
     const firstConnected = brokerStatuses.find(
       (b) => b.is_enabled && b.status === "CONNECTED",
     );
@@ -63,7 +62,7 @@ export default function FleetPage() {
         setDevices(devList);
         setTopology(topoData);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
 
@@ -83,6 +82,8 @@ export default function FleetPage() {
     return devices.filter((d) => {
       const matchesStatus =
         statusFilter === "all" || d.status === statusFilter;
+      const matchesType =
+        typeFilter === "all" || d.device_type === typeFilter;
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         !q ||
@@ -93,28 +94,12 @@ export default function FleetPage() {
         (d.hardware && d.hardware.toLowerCase().includes(q)) ||
         (d.firmware && d.firmware.toLowerCase().includes(q)) ||
         d.base_topic.toLowerCase().includes(q);
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesType && matchesSearch;
     });
-  }, [devices, searchQuery, statusFilter]);
+  }, [devices, searchQuery, statusFilter, typeFilter]);
 
-  const handleSendCommand = (topicOverride?: string, payloadOverride?: string) => {
-    if (!selectedDevice || !effectiveBrokerId) return;
-    const topic = topicOverride || cmdTopic || `${selectedDevice.base_topic}/command`;
-    const payload = payloadOverride || cmdPayload || "ping";
 
-    setSendingCmd(true);
-    setCmdStatus(null);
-    api
-      .sendFleetCommand(effectiveBrokerId, topic, payload)
-      .then(() => {
-        setCmdStatus("Command sent successfully!");
-        setCmdPayload("");
-      })
-      .catch((err) => {
-        setCmdStatus(`Failed: ${err.message}`);
-      })
-      .finally(() => setSendingCmd(false));
-  };
+
 
   const getDeviceBadge = (type: string) => {
     switch (type) {
@@ -170,38 +155,49 @@ export default function FleetPage() {
         {/* Status Filter Pills */}
         <div className="join">
           <button
-            className={`join-item btn btn-xs ${
-              statusFilter === "all" ? "btn-active" : "btn-ghost"
-            }`}
+            className={`join-item btn btn-xs ${statusFilter === "all" ? "btn-active" : "btn-ghost"
+              }`}
             onClick={() => setStatusFilter("all")}
           >
             All ({devices.length})
           </button>
           <button
-            className={`join-item btn btn-xs ${
-              statusFilter === "online" ? "btn-success" : "btn-ghost"
-            }`}
+            className={`join-item btn btn-xs ${statusFilter === "online" ? "btn-success" : "btn-ghost"
+              }`}
             onClick={() => setStatusFilter("online")}
           >
             Online ({devices.filter((d) => d.status === "online").length})
           </button>
           <button
-            className={`join-item btn btn-xs ${
-              statusFilter === "offline" ? "btn-error" : "btn-ghost"
-            }`}
+            className={`join-item btn btn-xs ${statusFilter === "offline" ? "btn-error" : "btn-ghost"
+              }`}
             onClick={() => setStatusFilter("offline")}
           >
             Offline ({devices.filter((d) => d.status === "offline").length})
           </button>
         </div>
 
+        {/* Protocol Filter Selector */}
+        <select
+          className="select select-bordered select-xs text-xs font-medium"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+        >
+          <option value="all">All Protocols</option>
+          <option value="homeassistant">Home Assistant</option>
+          <option value="homie">Homie IoT</option>
+          <option value="esphome">ESPHome</option>
+          <option value="tasmota">Tasmota</option>
+          <option value="generic">Generic Telemetry</option>
+        </select>
+
+
         {/* Right Action Group */}
         <div className="ml-auto flex items-center gap-2">
           <div className="join">
             <button
-              className={`join-item btn btn-sm ${
-                viewMode === "grid" ? "btn-primary" : "btn-ghost"
-              }`}
+              className={`join-item btn btn-sm ${viewMode === "grid" ? "btn-primary" : "btn-ghost"
+                }`}
               title="Grid View"
               onClick={() => setViewMode("grid")}
             >
@@ -209,18 +205,16 @@ export default function FleetPage() {
             </button>
 
             <button
-              className={`join-item btn btn-sm ${
-                viewMode === "table" ? "btn-primary" : "btn-ghost"
-              }`}
+              className={`join-item btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-ghost"
+                }`}
               title="Table View"
               onClick={() => setViewMode("table")}
             >
               <MdTableRows />
             </button>
             <button
-              className={`join-item btn btn-sm ${
-                viewMode === "topology" ? "btn-primary" : "btn-ghost"
-              }`}
+              className={`join-item btn btn-sm ${viewMode === "topology" ? "btn-primary" : "btn-ghost"
+                }`}
               title="Topology Diagram View"
               onClick={() => setViewMode("topology")}
             >
@@ -280,22 +274,20 @@ export default function FleetPage() {
                       <div
                         key={dev.id}
                         onClick={() => setSelectedDevice(dev)}
-                        className={`card bg-base-100 border transition-all duration-150 cursor-pointer hover:shadow-md ${
-                          isSelected
+                        className={`card bg-base-100 border transition-all duration-150 cursor-pointer hover:shadow-md ${isSelected
                             ? "border-primary ring-2 ring-primary/30"
                             : "border-base-300 hover:border-base-400"
-                        }`}
+                          }`}
                       >
                         <div className="card-body p-4 flex flex-col justify-between">
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span
-                                  className={`w-3 h-3 rounded-full shrink-0 ${
-                                    isOnline
+                                  className={`w-3 h-3 rounded-full shrink-0 ${isOnline
                                       ? "bg-success shadow-[0_0_8px_rgba(34,197,94,0.6)]"
                                       : "bg-error"
-                                  }`}
+                                    }`}
                                 />
                                 <h3 className="font-bold text-sm truncate" title={dev.name}>
                                   {dev.name}
@@ -374,15 +366,13 @@ export default function FleetPage() {
                           <tr
                             key={dev.id}
                             onClick={() => setSelectedDevice(dev)}
-                            className={`cursor-pointer hover:bg-base-200 ${
-                              isSelected ? "bg-base-200 font-medium" : ""
-                            }`}
+                            className={`cursor-pointer hover:bg-base-200 ${isSelected ? "bg-base-200 font-medium" : ""
+                              }`}
                           >
                             <td>
                               <span
-                                className={`inline-block w-2.5 h-2.5 rounded-full ${
-                                  isOnline ? "bg-success" : "bg-error"
-                                }`}
+                                className={`inline-block w-2.5 h-2.5 rounded-full ${isOnline ? "bg-success" : "bg-error"
+                                  }`}
                               />
                             </td>
                             <td className="font-semibold">{dev.name}</td>
@@ -422,144 +412,31 @@ export default function FleetPage() {
           )}
         </div>
 
-        {/* ── Slide-over Device Details & ESPHome Log Drawer ── */}
-        {selectedDevice && (
-          <aside className="w-full sm:w-96 md:w-[480px] border-l border-base-300 bg-base-100 flex flex-col shrink-0 overflow-hidden shadow-xl z-20">
-            {/* Drawer Header */}
-            <div className="p-4 border-b border-base-300 flex items-center justify-between bg-base-200/50">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className={`w-3 h-3 rounded-full shrink-0 ${
-                    selectedDevice.status === "online" ? "bg-success" : "bg-error"
-                  }`}
-                />
-                <div>
-                  <h2 className="font-bold text-base truncate">{selectedDevice.name}</h2>
-                  <p className="text-xs text-base-content/50 font-mono">
-                    ID: {selectedDevice.id}
-                  </p>
-                </div>
-              </div>
-              <button
-                className="btn btn-sm btn-ghost btn-circle"
-                onClick={() => setSelectedDevice(null)}
-              >
-                <MdClose className="text-lg" />
-              </button>
-            </div>
+      {/* ── Slide-over Device Inspector Drawer ── */}
+      {selectedDevice && (
+        <DeviceInspectorDrawer
+          device={selectedDevice}
+          brokerId={effectiveBrokerId}
+          onClose={() => setSelectedDevice(null)}
+          onSendCommand={(topic, payload) => {
+            setSendingCmd(true);
+            setCmdStatus(null);
+            return api
+              .sendFleetCommand(effectiveBrokerId, topic, payload)
+              .then(() => {
+                setCmdStatus("Command sent successfully!");
+              })
+              .catch((err) => {
+                setCmdStatus(`Failed: ${err.message}`);
+              })
+              .finally(() => setSendingCmd(false));
+          }}
+          sendingCommand={sendingCmd}
+          commandStatus={cmdStatus}
+        />
+      )}
 
-            {/* Device Info Summary Grid */}
-            <div className="p-4 border-b border-base-300 bg-base-100 text-xs space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-base-content/40 block">Type</span>
-                  <div className="mt-0.5">{getDeviceBadge(selectedDevice.device_type)}</div>
-                </div>
-                <div>
-                  <span className="text-base-content/40 block">Status</span>
-                  <span
-                    className={`font-semibold ${
-                      selectedDevice.status === "online"
-                        ? "text-success"
-                        : "text-error"
-                    }`}
-                  >
-                    {selectedDevice.status.toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-base-content/40 block">MAC Address</span>
-                  <span className="font-mono">{selectedDevice.mac || "N/A"}</span>
-                </div>
-                <div>
-                  <span className="text-base-content/40 block">IP Address</span>
-                  <span className="font-mono">{selectedDevice.ip || "N/A"}</span>
-                </div>
-                {selectedDevice.firmware && (
-                  <div>
-                    <span className="text-base-content/40 block">Firmware</span>
-                    <span>{selectedDevice.firmware}</span>
-                  </div>
-                )}
-                {selectedDevice.hardware && (
-                  <div>
-                    <span className="text-base-content/40 block">Hardware</span>
-                    <span>{selectedDevice.hardware}</span>
-                  </div>
-                )}
-              </div>
-            </div>
 
-            {/* ESPHome-Style Live & History Log Panel */}
-            <div className="flex-1 flex flex-col min-h-0 p-3 bg-base-200/30 overflow-hidden">
-              <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-xs font-semibold uppercase tracking-wider text-base-content/50">
-                  Device Logs & Status Messages
-                </span>
-                <span className="text-xs font-mono text-accent truncate max-w-[200px]">
-                  {selectedDevice.base_topic}/#
-                </span>
-              </div>
-              <div className="flex-1 overflow-hidden min-h-0 rounded-box border border-base-300">
-                <LogPanel
-                  key={`${effectiveBrokerId}:${selectedDevice.base_topic}`}
-                  panelId={`fleet-${selectedDevice.id}`}
-                  brokerId={effectiveBrokerId}
-                  config={{
-                    topics: `${selectedDevice.base_topic}/#`,
-                    maxMessages: 300,
-                    dateFormat: "full",
-                    showQos: true,
-                    showRetained: true,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Device Command Action Bar */}
-            <div className="p-3 border-t border-base-300 bg-base-100">
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  className="btn btn-xs btn-outline"
-                  onClick={() =>
-                    handleSendCommand(`${selectedDevice.base_topic}/command`, "restart")
-                  }
-                >
-                  Restart Node
-                </button>
-                <button
-                  className="btn btn-xs btn-outline"
-                  onClick={() =>
-                    handleSendCommand(`${selectedDevice.base_topic}/command`, "ping")
-                  }
-                >
-                  Ping Device
-                </button>
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Custom payload..."
-                  className="input input-bordered input-sm flex-1 font-mono text-xs"
-                  value={cmdPayload}
-                  onChange={(e) => setCmdPayload(e.target.value)}
-                />
-                <button
-                  className="btn btn-sm btn-primary gap-1"
-                  disabled={sendingCmd}
-                  onClick={() => handleSendCommand()}
-                >
-                  <MdSend />
-                  Send
-                </button>
-              </div>
-              {cmdStatus && (
-                <p className="text-[11px] mt-1 font-mono text-accent">{cmdStatus}</p>
-              )}
-            </div>
-          </aside>
-        )}
       </div>
       {/* ── Discovery Guide Modal ── */}
       {showDiscoveryGuide && (
@@ -613,13 +490,6 @@ export default function FleetPage() {
                     Any JSON message payload containing explicit device identity attributes (such as <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">mac</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">ip</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">hardware</code>, <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">model</code>, or <code className="bg-base-300 px-1 py-0.5 rounded text-accent font-mono font-bold">firmware</code>) will be recognized as a fleet device.
                   </p>
                 </div>
-              </div>
-
-              <div className="p-3 bg-warning/10 text-warning-content rounded-lg border border-warning/20">
-                <p className="font-semibold mb-1">Why random topics like <code className="font-mono">test/status</code> don't show up:</p>
-                <p className="text-[11px]">
-                  Generic topic strings or plain messages without discovery schemas or device identity attributes are treated as standard MQTT data streams (visible in the Explorer page) to prevent fake or temporary topics from cluttering your Fleet Manager.
-                </p>
               </div>
             </div>
 
