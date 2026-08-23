@@ -366,7 +366,20 @@ export default function PanelWrapper({
             panelId={panel.id}
             brokerId={brokerId}
             config={cfg as CronConfig}
-            onConfigChange={(cfg) => saveConfig(cfg, brokerId)}
+            onConfigChange={(newCfg) => {
+              const currentCfg = (panel.config_json ?? {}) as Record<
+                string,
+                unknown
+              >;
+              const nextCfg = {
+                ...currentCfg,
+                ...(newCfg as Record<string, unknown>),
+              };
+              onUpdate({
+                ...panel,
+                config_json: nextCfg,
+              });
+            }}
           />
         );
       case "stats":

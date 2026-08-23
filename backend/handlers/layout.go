@@ -12,11 +12,16 @@ import (
 )
 
 type LayoutHandler struct {
-	db *sql.DB
+	db        *sql.DB
+	scheduler CronScheduler
 }
 
-func NewLayoutHandler(db *sql.DB) *LayoutHandler {
-	return &LayoutHandler{db: db}
+func NewLayoutHandler(db *sql.DB, scheduler ...CronScheduler) *LayoutHandler {
+	var sched CronScheduler
+	if len(scheduler) > 0 {
+		sched = scheduler[0]
+	}
+	return &LayoutHandler{db: db, scheduler: sched}
 }
 
 func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +198,9 @@ func (h *LayoutHandler) UpdatePanel(w http.ResponseWriter, r *http.Request) {
 
 func (h *LayoutHandler) DeletePanel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	if h.scheduler != nil {
+		h.scheduler.RemoveJob(id)
+	}
 	res, err := h.db.Exec(`DELETE FROM dashboard_layouts WHERE id = ?`, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

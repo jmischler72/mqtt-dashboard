@@ -68,9 +68,31 @@ func (h *CronHandler) ToggleCron(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	// Try toggling in scheduler first if already registered
 	if err := h.scheduler.ToggleJob(panelID, req.Enabled); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
+		// Recover job from database layout if not currently in scheduler
+		row := h.db.QueryRow(`SELECT COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ?`, panelID)
+		var cfgStr, brokerID string
+		if dbErr := row.Scan(&cfgStr, &brokerID); dbErr != nil {
+			http.Error(w, "job not found", http.StatusNotFound)
+			return
+		}
+
+		var cfg cronConfigJSON
+		_ = json.Unmarshal([]byte(cfgStr), &cfg)
+		if cfg.CronExpr == "" {
+			http.Error(w, "cron expression is required", http.StatusBadRequest)
+			return
+		}
+		if cfg.BrokerID == "" {
+			cfg.BrokerID = brokerID
+		}
+
+		if addErr := h.scheduler.AddJob(panelID, cfg.BrokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, req.Enabled); addErr != nil {
+			http.Error(w, addErr.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Update enabled in config_json
@@ -90,6 +112,21 @@ func (h *CronHandler) ToggleCron(w http.ResponseWriter, r *http.Request) {
 func (h *CronHandler) GetCronStatus(w http.ResponseWriter, r *http.Request) {
 	panelID := chi.URLParam(r, "panelId")
 	info, ok := h.scheduler.GetJob(panelID)
+	if !ok {
+		// Attempt to recover job from database layout if not currently in scheduler
+		var cfgStr, brokerID string
+		if err := h.db.QueryRow(`SELECT COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ? AND panel_type = 'cron'`, panelID).Scan(&cfgStr, &brokerID); err == nil {
+			var cfg cronConfigJSON
+			if json.Unmarshal([]byte(cfgStr), &cfg) == nil && cfg.CronExpr != "" {
+				if cfg.BrokerID == "" {
+					cfg.BrokerID = brokerID
+				}
+				if err := h.scheduler.AddJob(panelID, cfg.BrokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err == nil {
+					info, ok = h.scheduler.GetJob(panelID)
+				}
+			}
+		}
+	}
 	if !ok {
 		http.Error(w, "not found", http.StatusNotFound)
 		return

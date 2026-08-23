@@ -320,32 +320,57 @@ export default function CronPanel({
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
 
   const fetchStatus = useCallback(() => {
+    if (!config.enabled || !config.cron_expr) return;
     api
       .get<{ next_run: string }>(`/api/cron/${panelId}`)
       .then((r) => {
-        setNextRun(new Date(r.next_run));
-        setCronStart(new Date());
+        if (!r.next_run) return;
+        const targetDate = new Date(r.next_run);
+        if (isNaN(targetDate.getTime()) || targetDate.getFullYear() < 2000) {
+          return;
+        }
+        setNextRun((prev) => {
+          if (!prev || prev.getTime() !== targetDate.getTime()) {
+            setCronStart(prev ? prev : new Date());
+            return targetDate;
+          }
+          return prev;
+        });
       })
       .catch((error) => {
         void error;
       });
-  }, [panelId]);
+  }, [panelId, config.enabled, config.cron_expr]);
 
   useEffect(() => {
-    if (config.cron_expr) fetchStatus();
+    if (!config.enabled || !config.cron_expr) {
+      setNextRun(null);
+      setCountdown("");
+      setCronStart(null);
+      return;
+    }
+    fetchStatus();
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
-  }, [config.cron_expr, fetchStatus]);
+  }, [config.enabled, config.cron_expr, fetchStatus]);
 
   useEffect(() => {
-    if (!nextRun) return;
-    const tick = setInterval(() => {
+    if (!config.enabled || !nextRun) {
+      setCountdown("");
+      return;
+    }
+    let fetchingDue = false;
+    const updateCountdown = () => {
       const diff = nextRun.getTime() - Date.now();
       if (diff <= 0) {
         setCountdown("now");
-        fetchStatus();
+        if (!fetchingDue) {
+          fetchingDue = true;
+          fetchStatus();
+        }
         return;
       }
+      fetchingDue = false;
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -356,9 +381,12 @@ export default function CronPanel({
       if (m || h || d) parts.push(`${m}m`);
       parts.push(`${s}s`);
       setCountdown(parts.join(" "));
-    }, 1000);
+    };
+
+    updateCountdown();
+    const tick = setInterval(updateCountdown, 1000);
     return () => clearInterval(tick);
-  }, [nextRun, fetchStatus]);
+  }, [config.enabled, nextRun, fetchStatus]);
 
   useEffect(() => {
     if (!config.enabled || !nextRun || !cronStart) return;
@@ -373,11 +401,11 @@ export default function CronPanel({
     try {
       await api.put(`/api/cron/${panelId}/toggle`, { enabled });
       onConfigChange({ ...config, enabled });
-      if (enabled) fetchStatus();
     } catch (error) {
       void error;
+    } finally {
+      setToggling(false);
     }
-    setToggling(false);
   };
 
   const matchedPreset = config.cron_expr
@@ -392,15 +420,13 @@ export default function CronPanel({
       ? (describeCron(config.cron_expr) ?? undefined)
       : undefined;
 
-  const progressPercent =
-    cronStart && nextRun
-      ? Math.min(
-          100,
-          ((currentTimeMs - cronStart.getTime()) /
-            (nextRun.getTime() - cronStart.getTime())) *
-            100,
-        )
-      : 0;
+  const progressPercent = useMemo(() => {
+    if (!cronStart || !nextRun) return 0;
+    const total = nextRun.getTime() - cronStart.getTime();
+    if (total <= 0) return 0;
+    const elapsed = currentTimeMs - cronStart.getTime();
+    return Math.max(0, Math.min(100, (elapsed / total) * 100));
+  }, [cronStart, nextRun, currentTimeMs]);
 
   return (
     <div className="flex flex-col gap-3 p-2 h-full">
