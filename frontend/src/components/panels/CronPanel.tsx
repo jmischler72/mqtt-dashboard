@@ -1,10 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import cronstrue from "cronstrue";
 import { CiPause1 } from "react-icons/ci";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
+import {
+  PRESETS,
+  validateCron,
+  describeCron,
+  getPreviousCronRun,
+} from "./cronUtils";
 
 export interface CronConfig {
   cron_expr?: string;
@@ -13,67 +18,6 @@ export interface CronConfig {
   qos?: number;
   retain?: boolean;
   enabled?: boolean;
-}
-
-// Visual Cron Builder maps friendly options to cron expressions
-const PRESETS: { label: string; value: string }[] = [
-  { label: "Every minute", value: "* * * * *" },
-  { label: "Every 5 minutes", value: "*/5 * * * *" },
-  { label: "Every 15 minutes", value: "*/15 * * * *" },
-  { label: "Every 30 minutes", value: "*/30 * * * *" },
-  { label: "Every hour", value: "0 * * * *" },
-  { label: "Daily at midnight", value: "0 0 * * *" },
-  { label: "Daily at noon", value: "0 12 * * *" },
-  { label: "Weekly (Sunday midnight)", value: "0 0 * * 0" },
-  { label: "Custom", value: "custom" },
-];
-
-// Validate a standard 5-field cron expression (min hour day month weekday).
-// Returns an error message, or null when valid.
-const CRON_FIELDS: { name: string; min: number; max: number }[] = [
-  { name: "minute", min: 0, max: 59 },
-  { name: "hour", min: 0, max: 23 },
-  { name: "day of month", min: 1, max: 31 },
-  { name: "month", min: 1, max: 12 },
-  { name: "weekday", min: 0, max: 6 },
-];
-
-function validateCron(expr: string): string | null {
-  const trimmed = expr.trim();
-  if (!trimmed) return "Expression is required";
-  const fields = trimmed.split(/\s+/);
-  if (fields.length !== 5) {
-    return `Expected 5 fields, got ${fields.length}`;
-  }
-  for (let i = 0; i < 5; i++) {
-    const { name, min, max } = CRON_FIELDS[i];
-    for (const part of fields[i].split(",")) {
-      // Strip step (e.g. */5 or 1-10/2)
-      const [range, stepStr] = part.split("/");
-      if (stepStr !== undefined && !/^\d+$/.test(stepStr)) {
-        return `Invalid step in ${name} field`;
-      }
-      if (range === "*") continue;
-      for (const n of range.split("-")) {
-        if (!/^\d+$/.test(n)) return `Invalid ${name} value "${n}"`;
-        const v = Number(n);
-        if (v < min || v > max) {
-          return `${name} must be ${min}-${max} (got ${v})`;
-        }
-      }
-    }
-  }
-  return null;
-}
-
-// Human-readable description of a cron expression, e.g.
-// "0 0 * * 0" -> "At 12:00 AM, only on Sunday". Returns null if undescribable.
-function describeCron(expr: string): string | null {
-  try {
-    return cronstrue.toString(expr, { throwExceptionOnParseError: true });
-  } catch {
-    return null;
-  }
 }
 
 interface Props {
@@ -280,70 +224,68 @@ export default function CronPanel({
   onConfigChange,
 }: CronPanelProps) {
   const [nextRun, setNextRun] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState("");
-  const [toggling, setToggling] = useState(false);
   const [cronStart, setCronStart] = useState<Date | null>(null);
+  const [toggling, setToggling] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
 
   const fetchStatus = useCallback(() => {
+    if (!config.enabled || !config.cron_expr) return;
     api
-      .get<{ next_run: string }>(`/api/cron/${panelId}`)
+      .get<{ next_run: string; prev_run?: string }>(`/api/cron/${panelId}`)
       .then((r) => {
-        setNextRun(new Date(r.next_run));
-        setCronStart(new Date());
+        if (!r.next_run) return;
+        const targetDate = new Date(r.next_run);
+        if (isNaN(targetDate.getTime()) || targetDate.getFullYear() < 2000) {
+          return;
+        }
+        const prev = config.cron_expr
+          ? getPreviousCronRun(config.cron_expr, targetDate)
+          : null;
+        const start = prev ?? (r.prev_run ? new Date(r.prev_run) : new Date());
+        setCronStart(start);
+        setNextRun(targetDate);
       })
       .catch((error) => {
         void error;
       });
-  }, [panelId]);
+  }, [panelId, config.enabled, config.cron_expr]);
 
+  // Periodic status poll while enabled
   useEffect(() => {
-    if (config.cron_expr) fetchStatus();
+    if (!config.enabled || !config.cron_expr) return;
+    fetchStatus();
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
-  }, [config.cron_expr, fetchStatus]);
+  }, [config.enabled, config.cron_expr, fetchStatus]);
 
+  // Refetch when reaching nextRun
   useEffect(() => {
-    if (!nextRun) return;
-    const tick = setInterval(() => {
-      const diff = nextRun.getTime() - Date.now();
-      if (diff <= 0) {
-        setCountdown("now");
-        fetchStatus();
-        return;
-      }
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      const parts = [];
-      if (d) parts.push(`${d}d`);
-      if (h || d) parts.push(`${h}h`);
-      if (m || h || d) parts.push(`${m}m`);
-      parts.push(`${s}s`);
-      setCountdown(parts.join(" "));
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [nextRun, fetchStatus]);
+    if (!config.enabled || !nextRun) return;
+    const diff = nextRun.getTime() - Date.now();
+    const delay = diff <= 0 ? 500 : diff + 200;
+    const timer = setTimeout(fetchStatus, delay);
+    return () => clearTimeout(timer);
+  }, [config.enabled, nextRun, fetchStatus]);
 
+  // Active second-level clock while enabled
   useEffect(() => {
-    if (!config.enabled || !nextRun || !cronStart) return;
+    if (!config.enabled || !config.cron_expr) return;
     const clock = setInterval(() => {
       setCurrentTimeMs(Date.now());
     }, 1000);
     return () => clearInterval(clock);
-  }, [config.enabled, nextRun, cronStart]);
+  }, [config.enabled, config.cron_expr]);
 
   const handleToggle = async (enabled: boolean) => {
     setToggling(true);
     try {
       await api.put(`/api/cron/${panelId}/toggle`, { enabled });
       onConfigChange({ ...config, enabled });
-      if (enabled) fetchStatus();
     } catch (error) {
       void error;
+    } finally {
+      setToggling(false);
     }
-    setToggling(false);
   };
 
   const matchedPreset = config.cron_expr
@@ -361,15 +303,29 @@ export default function CronPanel({
   const topic = (config.topic ?? "").trim();
   const hasWildcard = topic.includes("+") || topic.includes("#");
 
-  const progressPercent =
-    cronStart && nextRun
-      ? Math.min(
-          100,
-          ((currentTimeMs - cronStart.getTime()) /
-            (nextRun.getTime() - cronStart.getTime())) *
-            100,
-        )
-      : 0;
+  const countdown = useMemo(() => {
+    if (!config.enabled || !nextRun) return "";
+    const diff = nextRun.getTime() - currentTimeMs;
+    if (diff <= 0) return "now";
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const parts = [];
+    if (d) parts.push(`${d}d`);
+    if (h || d) parts.push(`${h}h`);
+    if (m || h || d) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(" ");
+  }, [config.enabled, nextRun, currentTimeMs]);
+
+  const progressPercent = useMemo(() => {
+    if (!config.enabled || !cronStart || !nextRun) return 0;
+    const total = nextRun.getTime() - cronStart.getTime();
+    if (total <= 0) return 0;
+    const elapsed = currentTimeMs - cronStart.getTime();
+    return Math.max(0, Math.min(100, (elapsed / total) * 100));
+  }, [config.enabled, cronStart, nextRun, currentTimeMs]);
 
   if (!topic) {
     return (

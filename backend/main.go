@@ -76,7 +76,7 @@ func main() {
 
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
-	layoutH := handlers.NewLayoutHandler(database)
+	layoutH := handlers.NewLayoutHandler(database, scheduler)
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)

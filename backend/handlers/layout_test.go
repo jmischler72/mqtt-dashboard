@@ -375,3 +375,24 @@ func TestUpdatePanel_ConfigJSON(t *testing.T) {
 		t.Errorf("config_json = %s, want %s", p.ConfigJSON, `{"color":"red"}`)
 	}
 }
+
+func TestDeletePanel_RemovesCronJob(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('cron1', 'default', 'Cron', 'cron', 0, 0, 4, 4)`)
+	sched := newMockScheduler()
+	sched.AddJob("cron1", "b1", "*/5 * * * *", "t", "p", 0, false, true) //nolint
+
+	h := handlers.NewLayoutHandler(database, sched)
+	r := newLayoutRouter(h)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/layouts/cron1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if _, ok := sched.GetJob("cron1"); ok {
+		t.Error("expected cron job to be removed from scheduler upon panel delete")
+	}
+}

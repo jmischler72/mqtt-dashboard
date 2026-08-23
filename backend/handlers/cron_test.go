@@ -224,6 +224,55 @@ func TestToggleCron_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestToggleCron_RecoverFromDB(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel1', 'default', 'P', 'cron', 0, 0, 4, 4, '{"cron_expr":"*/5 * * * *","topic":"recovered/topic","enabled":false}', 'b1')`)
+	sched := newMockScheduler() // Empty scheduler - not in memory!
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	body := jsonBody(t, map[string]bool{"enabled": true})
+	req := httptest.NewRequest(http.MethodPut, "/api/cron/panel1/toggle", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	info, ok := sched.GetJob("panel1")
+	if !ok {
+		t.Fatal("expected job to be registered into scheduler after toggle recovery")
+	}
+	if !info.Enabled {
+		t.Error("job should be enabled")
+	}
+	if info.Topic != "recovered/topic" {
+		t.Errorf("topic = %q, want 'recovered/topic'", info.Topic)
+	}
+}
+
+func TestGetCronStatus_RecoverFromDB(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel1', 'default', 'P', 'cron', 0, 0, 4, 4, '{"cron_expr":"*/10 * * * *","topic":"recovered/status","enabled":true}', 'b1')`)
+	sched := newMockScheduler() // Empty scheduler
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cron/panel1/status", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var result map[string]any
+	decodeJSON(t, rec.Body, &result)
+	if result["topic"] != "recovered/status" {
+		t.Errorf("topic = %v, want 'recovered/status'", result["topic"])
+	}
+}
+
 func TestToggleCron_SchedulerError(t *testing.T) {
 	database := setupTestDB(t)
 	sched := newMockScheduler()
