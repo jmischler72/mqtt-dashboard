@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.9.0...v1.9.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **cron:** fix panel switch toggle, stuck waiting state, and progress bar reset ([#113](https://github.com/jmischler72/mqtt-dashboard/issues/113)) ([#123](https://github.com/jmischler72/mqtt-dashboard/issues/123)) ([a1d02e4](https://github.com/jmischler72/mqtt-dashboard/commit/a1d02e429771668a00097e2a70a869a04f67bcea))
+
 ## [1.9.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.8.0...v1.9.0) (2026-08-20)
 
 
