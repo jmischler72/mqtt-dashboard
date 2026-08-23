@@ -76,6 +76,73 @@ function describeCron(expr: string): string | null {
   }
 }
 
+function matchCronPart(val: number, part: string): boolean {
+  if (part === "*") return true;
+  const [range, stepStr] = part.split("/");
+  const step = stepStr ? parseInt(stepStr, 10) : 1;
+  if (range === "*") {
+    return val % step === 0;
+  }
+  if (range.includes("-")) {
+    const [minStr, maxStr] = range.split("-");
+    const min = parseInt(minStr, 10);
+    const max = parseInt(maxStr, 10);
+    if (val < min || val > max) return false;
+    return (val - min) % step === 0;
+  }
+  return parseInt(range, 10) === val;
+}
+
+function matchCronField(val: number, fieldExpr: string): boolean {
+  return fieldExpr.split(",").some((part) => matchCronPart(val, part));
+}
+
+export function matchesCron(expr: string, date: Date): boolean {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+  const [minExpr, hourExpr, domExpr, monthExpr, dowExpr] = parts;
+
+  const min = date.getMinutes();
+  const hour = date.getHours();
+  const dom = date.getDate();
+  const month = date.getMonth() + 1;
+  const dow = date.getDay();
+
+  if (!matchCronField(min, minExpr)) return false;
+  if (!matchCronField(hour, hourExpr)) return false;
+  if (!matchCronField(month, monthExpr)) return false;
+
+  const domIsStar = domExpr === "*";
+  const dowIsStar = dowExpr === "*";
+  if (!domIsStar && !dowIsStar) {
+    if (!matchCronField(dom, domExpr) && !matchCronField(dow, dowExpr)) {
+      return false;
+    }
+  } else {
+    if (!matchCronField(dom, domExpr)) return false;
+    if (!matchCronField(dow, dowExpr)) return false;
+  }
+
+  return true;
+}
+
+export function getPreviousCronRun(expr: string, nextRun: Date): Date | null {
+  const target = new Date(nextRun.getTime());
+  target.setSeconds(0, 0);
+
+  // Look backwards up to 366 days (527040 minutes)
+  const maxMinutes = 527040;
+  let curr = new Date(target.getTime() - 60000);
+
+  for (let i = 0; i < maxMinutes; i++) {
+    if (matchesCron(expr, curr)) {
+      return curr;
+    }
+    curr = new Date(curr.getTime() - 60000);
+  }
+  return null;
+}
+
 interface Props {
   config: CronConfig;
   brokerId: string;
@@ -288,20 +355,19 @@ export default function CronPanel({
   const fetchStatus = useCallback(() => {
     if (!config.enabled || !config.cron_expr) return;
     api
-      .get<{ next_run: string }>(`/api/cron/${panelId}`)
+      .get<{ next_run: string; prev_run?: string }>(`/api/cron/${panelId}`)
       .then((r) => {
         if (!r.next_run) return;
         const targetDate = new Date(r.next_run);
         if (isNaN(targetDate.getTime()) || targetDate.getFullYear() < 2000) {
           return;
         }
-        setNextRun((prev) => {
-          if (!prev || prev.getTime() !== targetDate.getTime()) {
-            setCronStart(prev ? prev : new Date());
-            return targetDate;
-          }
-          return prev;
-        });
+        const prev = config.cron_expr
+          ? getPreviousCronRun(config.cron_expr, targetDate)
+          : null;
+        const start = prev ?? (r.prev_run ? new Date(r.prev_run) : new Date());
+        setCronStart(start);
+        setNextRun(targetDate);
       })
       .catch((error) => {
         void error;
@@ -356,6 +422,7 @@ export default function CronPanel({
 
   useEffect(() => {
     if (!config.enabled || !nextRun || !cronStart) return;
+    setCurrentTimeMs(Date.now());
     const clock = setInterval(() => {
       setCurrentTimeMs(Date.now());
     }, 1000);

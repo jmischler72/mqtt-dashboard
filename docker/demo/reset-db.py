@@ -129,6 +129,7 @@ panels = [
         3,
         json.dumps({
             "topic": "sensors/living-room/temperature",
+            "valueKey": "value",
             "unit": "°C",
             "min": 0,
             "max": 40,

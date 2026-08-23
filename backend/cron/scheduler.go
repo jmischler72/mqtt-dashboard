@@ -21,6 +21,7 @@ type JobInfo struct {
 	Retain     bool      `json:"retain"`
 	Enabled    bool      `json:"enabled"`
 	NextRun    time.Time `json:"next_run"`
+	PrevRun    time.Time `json:"prev_run,omitempty"`
 	gocronUUID string
 }
 
@@ -153,13 +154,15 @@ func (sc *Scheduler) GetJob(panelID string) (*JobInfo, bool) {
 	if !ok {
 		return nil, false
 	}
-	// Refresh next run
+	// Refresh next run and last run
 	jobs := sc.s.Jobs()
 	for _, j := range jobs {
 		for _, tag := range j.Tags() {
 			if tag == panelID {
 				nextRun, _ := j.NextRun()
 				info.NextRun = nextRun
+				lastRun, _ := j.LastRun()
+				info.PrevRun = lastRun
 			}
 		}
 	}
