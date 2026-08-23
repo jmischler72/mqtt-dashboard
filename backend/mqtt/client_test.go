@@ -6,6 +6,8 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
+
+	"mqtt-dashboard/models"
 )
 
 // mockMessage implements paho.Message for testing.
@@ -608,5 +610,73 @@ func TestUnsubscribe_WildcardRemoved_SkipsSysTopicsCoveredBySysWildcard(t *testi
 		if c == "$SYS/broker/uptime" {
 			t.Error("should not re-subscribe '$SYS/broker/uptime' since '$SYS/#' covers it")
 		}
+	}
+}
+
+func TestConnect_InvalidCACert(t *testing.T) {
+	m := NewManager()
+	broker := models.MQTTBroker{
+		Name:       "Test Broker",
+		Host:       "127.0.0.1",
+		Port:       1883,
+		TLSEnabled: true,
+		CACert:     "invalid cert content",
+	}
+
+	err := m.Connect(broker)
+	if err == nil {
+		t.Fatal("expected error with invalid CA cert")
+	}
+	if m.Status() != "ERROR" {
+		t.Errorf("status = %q, want ERROR", m.Status())
+	}
+	if m.ConnectError() != "failed to parse CA certificate" {
+		t.Errorf("connectErr = %q, want 'failed to parse CA certificate'", m.ConnectError())
+	}
+}
+
+func TestConnect_InvalidClientCert(t *testing.T) {
+	m := NewManager()
+	broker := models.MQTTBroker{
+		Name:       "Test Broker",
+		Host:       "127.0.0.1",
+		Port:       1883,
+		TLSEnabled: true,
+		AuthMode:   "certificate",
+		ClientCert: "invalid cert",
+		ClientKey:  "invalid key",
+	}
+
+	err := m.Connect(broker)
+	if err == nil {
+		t.Fatal("expected error with invalid client cert/key")
+	}
+	if m.Status() != "ERROR" {
+		t.Errorf("status = %q, want ERROR", m.Status())
+	}
+	if m.ConnectError() == "" {
+		t.Error("expected non-empty connectErr")
+	}
+}
+
+func TestConnect_DisconnectsPreviousClient(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		client: mock,
+		subs:   make(map[string][]MessageHandler),
+	}
+
+	broker := models.MQTTBroker{
+		Name:       "Test",
+		Host:       "127.0.0.1",
+		Port:       1883,
+		TLSEnabled: true,
+		CACert:     "invalid cert",
+	}
+
+	_ = m.Connect(broker)
+	if m.Status() != "ERROR" {
+		t.Errorf("status = %q, want ERROR", m.Status())
 	}
 }

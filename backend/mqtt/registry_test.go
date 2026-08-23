@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"mqtt-dashboard/models"
 	"mqtt-dashboard/testutil"
 )
 
@@ -428,4 +429,53 @@ func TestRetainedTracking(t *testing.T) {
 	if r.IsRetained("b1", "a/b") {
 		t.Fatal("topic should be cleared after markRetained(false)")
 	}
+}
+
+func TestAddBroker(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+
+	broker := models.MQTTBroker{
+		ID:         "b-test-1",
+		Name:       "Test Broker",
+		Host:       "127.0.0.1",
+		Port:       1883,
+		TLSEnabled: true,
+		CACert:     "invalid cert",
+	}
+
+	err := r.AddBroker(broker)
+	if err == nil {
+		t.Fatal("expected connection error for invalid cert broker")
+	}
+
+	client, ok := r.GetClient("b-test-1")
+	if !ok || client == nil {
+		t.Fatal("expected client to be registered even on connect error")
+	}
+	if client.Status() != "ERROR" {
+		t.Errorf("status = %q, want ERROR", client.Status())
+	}
+}
+
+func TestInsertHistoryRecord_ErrorDoesNotPanic(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+	database.Close()
+
+	// Should not panic when database is closed
+	r.insertHistoryRecord(historyRecord{brokerID: "b1", topic: "t", payload: "p"})
+}
+
+func TestWriteHistory_QueueFullDropsMessage(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+	r.historyWorkerStarted = true
+	r.historyQueue = make(chan historyRecord, 1)
+
+	// Fill queue with 1 item
+	r.historyQueue <- historyRecord{brokerID: "b1", topic: "t", payload: "p"}
+
+	// Next write hits default (drop message) without blocking
+	r.writeHistory("b1", "t", []byte("drop"), 0, false)
 }

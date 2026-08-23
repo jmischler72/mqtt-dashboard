@@ -252,3 +252,41 @@ func TestUpdateSettings_Persistence(t *testing.T) {
 		t.Errorf("after update: retention_period_hours = %d, want 72", s.RetentionPeriodHours)
 	}
 }
+
+func TestGetSettings_FallbackDefaults(t *testing.T) {
+	db := setupTestDB(t)
+	db.Exec(`DELETE FROM app_settings`) // empty table forces scan error fallback
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
+	r := newSettingsRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var s models.AppSettings
+	decodeJSON(t, rec.Body, &s)
+	if s.RetentionPeriodHours != 24 || s.SaveSysTopics {
+		t.Errorf("expected default settings {24 false}, got %+v", s)
+	}
+}
+
+func TestPatchSettings_FallbackDefaults(t *testing.T) {
+	db := setupTestDB(t)
+	db.Exec(`DELETE FROM app_settings`) // empty table
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
+	r := newSettingsRouter(h)
+
+	save := true
+	body := jsonBody(t, map[string]any{"save_sys_topics": save})
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}

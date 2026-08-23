@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -117,5 +118,98 @@ func TestImageServeRejectsTraversal(t *testing.T) {
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/images/passwd", nil))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for non-image name", rec.Code)
+	}
+}
+
+func TestImageUpload_InvalidMultipartForm(t *testing.T) {
+	dir := t.TempDir()
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/images", strings.NewReader("bad content"))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=invalid")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for bad multipart form", rec.Code)
+	}
+}
+
+func TestImageUpload_MissingFileField(t *testing.T) {
+	dir := t.TempDir()
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormField("other")
+	fw.Write([]byte("some-data"))
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/images", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 when file field is missing", rec.Code)
+	}
+}
+
+func TestImageDelete_NotFoundAndInvalid(t *testing.T) {
+	dir := t.TempDir()
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	// Non-existent image file
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/images/missing.png", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("delete missing image status = %d, want 404", rec.Code)
+	}
+
+	// Invalid image extension
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/images/badname", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("delete badname status = %d, want 404", rec.Code)
+	}
+}
+
+func TestImageServe_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/images/notfound.png", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("serve notfound status = %d, want 404", rec.Code)
+	}
+}
+
+func TestImageListPresets_IgnoresDirsAndNonImages(t *testing.T) {
+	dir := t.TempDir()
+	imagesDir := filepath.Join(dir, "images")
+	os.MkdirAll(filepath.Join(imagesDir, "subdir"), 0o750)
+	os.WriteFile(filepath.Join(imagesDir, "file.txt"), []byte("text"), 0o600)
+	os.WriteFile(filepath.Join(imagesDir, "valid.png"), []byte("png"), 0o600)
+
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/images/presets", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("presets status = %d, want 200", rec.Code)
+	}
+	var presets []struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	}
+	decodeJSON(t, rec.Body, &presets)
+	if len(presets) != 1 || presets[0].Name != "valid.png" {
+		t.Fatalf("expected only valid.png in presets, got %+v", presets)
 	}
 }

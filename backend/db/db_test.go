@@ -102,3 +102,10 @@ func TestMigrate_IdxOnMqttHistory(t *testing.T) {
 		t.Errorf("index idx_mqtt_history_broker_topic_time not found: %v", err)
 	}
 }
+
+func TestInitDB_InvalidPath(t *testing.T) {
+	_, err := db.InitDB("/nonexistent_directory_12345/database.db")
+	if err == nil {
+		t.Error("expected error opening db in non-existent directory")
+	}
+}
