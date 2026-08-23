@@ -360,3 +360,66 @@ func TestCreateDashboard_InvalidJSON(t *testing.T) {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
+
+func TestImportDashboard_UnsupportedVersion(t *testing.T) {
+	db := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(db, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{"type": "mqtt-dashboard-export", "version": 2, "name": "X", "panels": []any{}})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestImportDashboard_MissingPanelType(t *testing.T) {
+	db := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(db, sched)
+	r := newDashboardRouter(h)
+
+	body := jsonBody(t, map[string]any{
+		"type":    "mqtt-dashboard-export",
+		"version": 1,
+		"name":    "X",
+		"panels": []map[string]any{
+			{"title": "No Type", "panel_type": ""},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestDeleteDashboard_RemovesCronJobs(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	r := newDashboardRouter(h)
+
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('d2', 'Second')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('cron1', 'd2', 'Cron P', 'cron', 0, 0, 4, 4)`)
+	sched.AddJob("cron1", "b1", "* * * * *", "t", "p", 0, false, true)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/dashboards/d2", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if _, ok := sched.GetJob("cron1"); ok {
+		t.Error("expected cron job to be removed from scheduler when dashboard deleted")
+	}
+}

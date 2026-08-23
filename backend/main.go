@@ -74,6 +74,27 @@ func main() {
 	// --- Init WebSocket hub ---
 	wsHub := ws.NewHub(registry)
 
+	var frontendFS fs.FS
+	if os.Getenv("APP_ENV") != "development" {
+		var err error
+		frontendFS, err = fs.Sub(embeddedFiles, "dist")
+		if err != nil {
+			slog.Error("embed dist", "err", err)
+			os.Exit(1)
+		}
+	}
+
+	r := buildRouter(database, registry, scheduler, wsHub, "./data", frontendFS)
+
+	addr := ":8080"
+	slog.Info("server starting", "addr", addr)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		slog.Error("server", "err", err)
+		os.Exit(1)
+	}
+}
+
+func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS) http.Handler {
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
@@ -82,7 +103,7 @@ func main() {
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
-	imageH := handlers.NewImageHandler("./data")
+	imageH := handlers.NewImageHandler(dataDir)
 
 	// --- Router ---
 	r := chi.NewRouter()
@@ -152,21 +173,11 @@ func main() {
 	r.Get("/ws", wsHub.ServeWS)
 
 	// Static frontend (production only)
-	if os.Getenv("APP_ENV") != "development" {
-		distFS, err := fs.Sub(embeddedFiles, "dist")
-		if err != nil {
-			slog.Error("embed dist", "err", err)
-			os.Exit(1)
-		}
-		r.Handle("/*", spaHandler(distFS, http.FileServer(http.FS(distFS))))
+	if frontendFS != nil {
+		r.Handle("/*", spaHandler(frontendFS, http.FileServer(http.FS(frontendFS))))
 	}
 
-	addr := ":8080"
-	slog.Info("server starting", "addr", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		slog.Error("server", "err", err)
-		os.Exit(1)
-	}
+	return r
 }
 
 // initRegistrySettings reads app_settings from the DB and applies them to the registry.

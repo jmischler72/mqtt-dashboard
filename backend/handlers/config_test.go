@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -650,5 +651,186 @@ func TestListBrokers_HasCertFlags(t *testing.T) {
 	}
 	if !brokers[0].HasClientCert {
 		t.Error("expected has_client_cert=true")
+	}
+}
+
+func TestGetBrokersStatus_WithErrorStatus(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, 1, 0)`)
+	reg.statuses["b1"] = "ERROR"
+	reg.addBrokerErr = errors.New("network timeout")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/brokers/status", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var result []map[string]any
+	decodeJSON(t, rec.Body, &result)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result))
+	}
+	if result[0]["status"] != "ERROR" {
+		t.Errorf("status = %v, want ERROR", result[0]["status"])
+	}
+	if result[0]["status_error"] != "network timeout" {
+		t.Errorf("status_error = %v, want 'network timeout'", result[0]["status_error"])
+	}
+}
+
+func TestCreateBroker_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(db, reg)
+	r := newBrokerRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/brokers", strings.NewReader("{bad}"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestUpdateBroker_EnabledReconfigConnectError(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.addBrokerErr = errTest
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, 1, 0)`)
+
+	newHost := "badhost"
+	body := jsonBody(t, map[string]any{"host": &newHost})
+	req := httptest.NewRequest(http.MethodPut, "/api/brokers/b1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var b models.MQTTBroker
+	decodeJSON(t, rec.Body, &b)
+	if b.Status != "ERROR" {
+		t.Errorf("status = %q, want ERROR", b.Status)
+	}
+}
+
+func TestListBrokers_WithErrorStatus(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.statuses["b1"] = "ERROR"
+	reg.addBrokerErr = errors.New("conn failed")
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, '', '', 1, 0)`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/brokers", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var brokers []models.MQTTBroker
+	decodeJSON(t, rec.Body, &brokers)
+	if len(brokers) != 1 || brokers[0].Status != "ERROR" || brokers[0].StatusError != "conn failed" {
+		t.Fatalf("unexpected broker info: %+v", brokers)
+	}
+}
+
+func TestUpdateBroker_InvalidPort(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, 0, 0)`)
+
+	badPort := "99999"
+	body := jsonBody(t, map[string]any{"port": &badPort})
+	req := httptest.NewRequest(http.MethodPut, "/api/brokers/b1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for invalid port", rec.Code)
+	}
+}
+
+func TestUpdateBroker_EnableWithConnectError(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.addBrokerErr = errTest
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, 0, 0)`)
+
+	enabled := true
+	body := jsonBody(t, map[string]any{"is_enabled": &enabled})
+	req := httptest.NewRequest(http.MethodPut, "/api/brokers/b1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var b models.MQTTBroker
+	decodeJSON(t, rec.Body, &b)
+	if b.Status != "ERROR" {
+		t.Errorf("status = %q, want ERROR", b.Status)
+	}
+}
+
+func TestUpdateBroker_AllFields(t *testing.T) {
+	database := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(database, reg)
+	r := newBrokerRouter(h)
+
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test', 'localhost', 1883, 0, 0)`)
+
+	name := "Updated Name"
+	port := "1884"
+	clientID := "cid-1"
+	username := "u1"
+	password := "p1"
+	sortOrder := 10
+	tlsSkipVerify := true
+	body := jsonBody(t, map[string]any{
+		"name":            &name,
+		"port":            &port,
+		"client_id":       &clientID,
+		"username":        &username,
+		"password":        &password,
+		"sort_order":      &sortOrder,
+		"tls_skip_verify": &tlsSkipVerify,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/brokers/b1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var b models.MQTTBroker
+	decodeJSON(t, rec.Body, &b)
+	if b.Name != "Updated Name" || b.Port != 1884 || b.ClientID != "cid-1" || b.Username != "u1" || b.SortOrder != 10 || !b.TLSSkipVerify {
+		t.Fatalf("unexpected updated fields: %+v", b)
 	}
 }

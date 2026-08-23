@@ -249,3 +249,57 @@ func TestStartPruningJob_DeletesOldHistory(t *testing.T) {
 		t.Errorf("expected 1 record after pruning (old removed), got %d", count)
 	}
 }
+
+func TestAddJob_WildcardTopicRejected(t *testing.T) {
+	pub := &mockPublisher{}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	if err := sc.AddJob("p1", "b1", "* * * * *", "topic/+/sub", "data", 0, false, true); err == nil {
+		t.Error("expected error for '+' wildcard in topic")
+	}
+	if err := sc.AddJob("p1", "b1", "* * * * *", "topic/#", "data", 0, false, true); err == nil {
+		t.Error("expected error for '#' wildcard in topic")
+	}
+}
+
+func TestToggleJob_DisableEnabled(t *testing.T) {
+	pub := &mockPublisher{}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	sc.AddJob("panel1", "b1", "*/5 * * * *", "t", "p", 0, false, true) //nolint
+
+	if err := sc.ToggleJob("panel1", false); err != nil {
+		t.Fatalf("ToggleJob: %v", err)
+	}
+
+	info, _ := sc.GetJob("panel1")
+	if info.Enabled {
+		t.Error("job should be disabled after toggle")
+	}
+}
+
+func TestScheduler_JobExecution(t *testing.T) {
+	pub := &mockPublisher{defaultID: "def-broker"}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	// Every 1 second cron expression (gocron 6 fields or 5 fields: standard 5 fields is minute, gocron supports 5 fields)
+	// We can add an enabled job with empty brokerID and comma-separated topics
+	err := sc.AddJob("panel-exec", "", "* * * * *", "topic1, topic2", "hello", 1, true, true)
+	if err != nil {
+		t.Fatalf("AddJob: %v", err)
+	}
+
+	info, ok := sc.GetJob("panel-exec")
+	if !ok || !info.Enabled {
+		t.Fatalf("job not retrieved or not enabled")
+	}
+	if info.NextRun.IsZero() {
+		t.Error("expected non-zero NextRun time")
+	}
+}
