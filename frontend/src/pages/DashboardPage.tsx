@@ -6,6 +6,7 @@ import {
   MdListAlt,
   MdSchedule,
   MdBarChart,
+  MdSpeed,
   MdImage,
   MdHorizontalRule,
   MdNotes,
@@ -158,6 +159,23 @@ const PANEL_TYPES = [
             className="text-primary"
           />
         </svg>
+      </div>
+    ),
+  },
+  {
+    value: "gauge",
+    label: "Gauge",
+    icon: MdSpeed,
+    preview: (
+      <div className="flex flex-col items-center justify-center h-full gap-1 p-2">
+        <div className="relative flex items-center justify-center w-12 h-12">
+          <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="10" className="text-base-content/10" />
+            <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round" strokeDasharray="251.327" strokeDashoffset="70" className="text-primary" />
+          </svg>
+          <span className="absolute text-[10px] font-bold font-mono text-base-content">24°C</span>
+        </div>
+        <span className="text-[10px] text-base-content/50 font-mono">sensor/temp</span>
       </div>
     ),
   },

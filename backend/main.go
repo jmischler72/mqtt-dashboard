@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"log/slog"
+	"mqtt-dashboard/config"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
 	"mqtt-dashboard/handlers"
@@ -46,6 +47,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer database.Close()
+
+	// --- Seed Brokers from Config File (if configured) ---
+	config.SeedBrokersFromConfig(database)
 
 	// --- Init broker registry ---
 	registry := mqttclient.NewRegistry(database)
@@ -251,8 +255,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+
+		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -260,14 +265,14 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// skipLoggerForPaths wraps a chi middleware logger so it is bypassed for the given paths.
-func skipLoggerForPaths(loggerMw func(http.Handler) http.Handler, paths ...string) func(http.Handler) http.Handler {
-	skip := make(map[string]struct{}, len(paths))
-	for _, p := range paths {
+// skipLoggerForPaths wraps a middleware logger to skip logging requests matching specific path prefixes
+func skipLoggerForPaths(logger func(http.Handler) http.Handler, skipPrefixes ...string) func(http.Handler) http.Handler {
+	skip := make(map[string]struct{}, len(skipPrefixes))
+	for _, p := range skipPrefixes {
 		skip[p] = struct{}{}
 	}
 	return func(next http.Handler) http.Handler {
-		logged := loggerMw(next)
+		logged := logger(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := skip[r.URL.Path]; ok {
 				next.ServeHTTP(w, r)

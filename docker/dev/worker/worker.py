@@ -65,6 +65,8 @@ BROKERS = [
         "port": int(os.environ.get("BROKER_TLS_PORT", "8883")),
         "tls": True,
         "ca_cert": os.environ.get("TLS_CA_CERT", "/certs/ca.crt"),
+        "client_cert": os.environ.get("TLS_CLIENT_CERT", "/certs/client.crt"),
+        "client_key": os.environ.get("TLS_CLIENT_KEY", "/certs/client.key"),
         "username": None,
         "password": None,
     },
@@ -113,10 +115,16 @@ def make_client(broker: dict) -> mqtt.Client:
 
     if broker.get("tls"):
         ca_cert = broker.get("ca_cert", "/certs/ca.crt")
+        client_cert = broker.get("client_cert", "/certs/client.crt")
+        client_key = broker.get("client_key", "/certs/client.key")
         if not os.path.exists(ca_cert):
             logger.warning("TLS broker %s: CA cert not found at %s — skipping TLS setup", broker["name"], ca_cert)
         else:
-            client.tls_set(ca_certs=ca_cert, tls_version=ssl.PROTOCOL_TLS_CLIENT)
+            tls_kwargs = {"ca_certs": ca_cert, "tls_version": ssl.PROTOCOL_TLS_CLIENT}
+            if os.path.exists(client_cert) and os.path.exists(client_key):
+                tls_kwargs["certfile"] = client_cert
+                tls_kwargs["keyfile"] = client_key
+            client.tls_set(**tls_kwargs)
             client.tls_insecure_set(False)
 
     def on_connect(c, userdata, flags, reason_code, properties):

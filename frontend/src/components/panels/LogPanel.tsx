@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { RiSearchLine } from "react-icons/ri";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
+import BrokerTopicSection from "./BrokerTopicSection";
 
 interface LogMessage {
   receivedAt: string;
@@ -60,73 +60,42 @@ export function LogConfigModal({
   );
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
+    <dialog className="modal modal-open backdrop-blur-xs">
+      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
         <h3 className="font-bold text-lg mb-4">Log Configuration</h3>
-        <div className="flex flex-col gap-3">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Broker</legend>
-            {brokerStatuses.length === 0 ? (
-              <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">
-                  No brokers configured.{" "}
-                  <a href="/config" className="underline">
-                    Add one in the Config page.
-                  </a>
-                </span>
-              </div>
-            ) : (
-              <select
-                className="select select-bordered w-full"
-                value={selectedBrokerId}
-                onChange={(e) => setSelectedBrokerId(e.target.value)}
-              >
-                {brokerStatuses.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">
-              Subscription Topics (comma-separated, wildcards OK)
+        <div className="flex flex-col gap-4">
+          <BrokerTopicSection
+            selectedBrokerId={selectedBrokerId}
+            onBrokerChange={setSelectedBrokerId}
+            brokerStatuses={brokerStatuses}
+            topic={topics}
+            onTopicChange={setTopics}
+            allowWildcards={true}
+            placeholder="e.g. sensors/#, home/+/status"
+            onPickTopic={
+              onPickTopic
+                ? () =>
+                    onPickTopic({
+                      currentTopic: "",
+                      selectedBrokerId,
+                      draftConfig: {
+                        topics,
+                        maxMessages,
+                        dateFormat,
+                        showQos,
+                        showRetained,
+                      },
+                    })
+                : undefined
+            }
+          />
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+              Max Messages Buffer
             </legend>
-            <textarea
-              className="textarea textarea-bordered w-full font-mono"
-              rows={3}
-              placeholder="sensors/#, home/+/status"
-              value={topics}
-              onChange={(e) => setTopics(e.target.value)}
-            />
-            {onPickTopic && (
-              <button
-                type="button"
-                className="btn btn-outline mt-1 self-end aspect-square"
-                title="Browse topics in Explorer"
-                onClick={() =>
-                  onPickTopic({
-                    currentTopic: "",
-                    selectedBrokerId,
-                    draftConfig: {
-                      topics,
-                      maxMessages,
-                      dateFormat,
-                      showQos,
-                      showRetained,
-                    },
-                  })
-                }
-              >
-                <RiSearchLine />
-              </button>
-            )}
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Max Messages</legend>
             <input
-              className="input input-bordered w-full"
+              className="input input-bordered input-sm w-full font-mono text-xs"
               type="number"
               min={1}
               max={1000}
@@ -134,52 +103,65 @@ export function LogConfigModal({
               onChange={(e) => setMaxMessages(Number(e.target.value))}
             />
           </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Timestamp Format</legend>
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+              Timestamp Format
+            </legend>
             <select
-              className="select select-bordered w-full"
+              className="select select-bordered select-sm w-full font-medium"
               value={dateFormat}
               onChange={(e) => setDateFormat(e.target.value as "time" | "full")}
             >
-              <option value="time">Time only (current)</option>
+              <option value="time font-medium">Time only (HH:MM:SS)</option>
               <option value="full">Full date and time</option>
             </select>
           </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Display</legend>
+
+          <fieldset className="fieldset p-0 border-0">
+            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
+              Display Badges
+            </legend>
             <div className="flex flex-col gap-2">
               {(
                 [
-                  [showQos, setShowQos, "Show QoS level"],
-                  [showRetained, setShowRetained, "Show retain flag"],
+                  [showQos, setShowQos, "Show QoS level badge"],
+                  [showRetained, setShowRetained, "Show retain flag badge"],
                 ] as [boolean, (v: boolean) => void, string][]
               ).map(([value, setter, label]) => (
                 <label
                   key={label}
-                  className="flex items-center gap-3 cursor-pointer"
+                  className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
                 >
+                  <span className="text-xs font-medium text-base-content/80">{label}</span>
                   <input
                     type="checkbox"
-                    className="toggle toggle-sm toggle-primary"
+                    className="toggle toggle-xs toggle-primary"
                     checked={value}
                     onChange={(e) => setter(e.target.checked)}
                   />
-                  <span className="label-text">{label}</span>
                 </label>
               ))}
             </div>
           </fieldset>
         </div>
-        <div className="modal-action">
-          <button className="btn" onClick={onClose}>
+
+        <div className="modal-action mt-6 pt-3 border-t border-base-300">
+          <button className="btn btn-sm" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-sm btn-primary"
             disabled={brokerStatuses.length === 0}
             onClick={() =>
               onSave(
-                { topics, maxMessages, dateFormat, showQos, showRetained },
+                {
+                  topics,
+                  maxMessages,
+                  dateFormat,
+                  showQos,
+                  showRetained,
+                },
                 selectedBrokerId || defaultBrokerId,
               )
             }
@@ -361,6 +343,14 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     shouldAutoScrollRef.current = distanceToBottom <= 24;
   };
+
+  if (!config.topics?.trim()) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

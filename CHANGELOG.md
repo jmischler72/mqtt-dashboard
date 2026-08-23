@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.9.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.8.0...v1.9.0) (2026-08-20)
+
+
+### Features
+
+* **config:** add initial brokers seeding from config file and dev environment setup ([#116](https://github.com/jmischler72/mqtt-dashboard/issues/116)) ([fdea283](https://github.com/jmischler72/mqtt-dashboard/commit/fdea2837b7b209d51d5f12a1a32264ff6fef81bc))
+* **config:** fix client cert layout, unify topic selector & handle wildcard warnings ([#109](https://github.com/jmischler72/mqtt-dashboard/issues/109)) ([f22186f](https://github.com/jmischler72/mqtt-dashboard/commit/f22186f76c66da928433cd4f49ddffaf05a1ddad))
+* **gauge:** implement gauge panel type for numbers, booleans, and strings ([#114](https://github.com/jmischler72/mqtt-dashboard/issues/114)) ([2858763](https://github.com/jmischler72/mqtt-dashboard/commit/2858763dddbe867f0dda25bce4b1e7d1eea1a9ed))
+
+
+### Bug Fixes
+
+* **dashboard:** better starter templates and dev worktree info in credits ([#118](https://github.com/jmischler72/mqtt-dashboard/issues/118)) ([6ce4978](https://github.com/jmischler72/mqtt-dashboard/commit/6ce49788e2145c591f187cb00784b69f943f9502))
+* **dashboard:** refine dashboard panel UI logic and wildcard validation ([#117](https://github.com/jmischler72/mqtt-dashboard/issues/117)) ([ba22479](https://github.com/jmischler72/mqtt-dashboard/commit/ba22479ec8d365afafb77c7c101afe3293433e33))
+
 ## [1.8.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.7.2...v1.8.0) (2026-08-16)
 
 

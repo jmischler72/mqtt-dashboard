@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,6 +77,9 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 	if err := ValidateCronExpr(cronExpr); err != nil {
 		return err
 	}
+	if strings.Contains(topic, "+") || strings.Contains(topic, "#") {
+		return fmt.Errorf("wildcards (+ or #) are not supported for cron publishing")
+	}
 
 	// Remove existing job for this panel if any
 	if info, ok := sc.jobs[panelID]; ok {
@@ -103,7 +107,12 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 				if bID == "" {
 					bID = sc.registry.DefaultBrokerID()
 				}
-				sc.registry.Publish(bID, topic, qos, retain, []byte(payload)) //nolint
+				for _, t := range strings.Split(topic, ",") {
+					t = strings.TrimSpace(t)
+					if t != "" {
+						sc.registry.Publish(bID, t, qos, retain, []byte(payload)) //nolint
+					}
+				}
 			}),
 			gocron.WithTags(panelID),
 		)

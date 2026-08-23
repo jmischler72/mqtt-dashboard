@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { RiSearchLine } from "react-icons/ri";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
+import BrokerTopicSection from "./BrokerTopicSection";
+import MqttOptionsSection from "./MqttOptionsSection";
 
 export interface InputConfig {
   topic?: string;
@@ -42,93 +43,45 @@ export function InputConfigModal({
     initialBrokerId || brokerId || defaultBrokerId,
   );
 
+  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
+
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
+    <dialog className="modal modal-open backdrop-blur-xs">
+      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
         <h3 className="font-bold text-lg mb-4">Input Configuration</h3>
-        <div className="flex flex-col gap-3">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Broker</legend>
-            {brokerStatuses.length === 0 ? (
-              <div role="alert" className="alert alert-warning py-2">
-                <span className="text-sm">
-                  No brokers configured.{" "}
-                  <a href="/config" className="underline">
-                    Add one in the Config page.
-                  </a>
-                </span>
-              </div>
-            ) : (
-              <select
-                className="select select-bordered w-full"
-                value={selectedBrokerId}
-                onChange={(e) => setSelectedBrokerId(e.target.value)}
-              >
-                {brokerStatuses.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Topic</legend>
-            <div className="flex gap-1 w-full">
-              <input
-                className="input input-bordered flex-1"
-                placeholder="home/sensor/cmd"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-              />
-              {onPickTopic && (
-                <button
-                  type="button"
-                  className="btn btn-neutral"
-                  title="Browse topics in Explorer"
-                  onClick={() =>
-                    onPickTopic({ currentTopic: topic, selectedBrokerId })
-                  }
-                >
-                  <RiSearchLine />
-                </button>
-              )}
-            </div>
-          </fieldset>
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">MQTT Options</legend>
-            <div className="flex gap-4 flex-wrap">
-              <label className="flex items-center gap-2">
-                <span className="text-sm">QoS</span>
-                <select
-                  className="select select-sm select-bordered"
-                  value={qos}
-                  onChange={(e) => setQos(Number(e.target.value))}
-                >
-                  <option value={0}>0 – At most once</option>
-                  <option value={1}>1 – At least once</option>
-                  <option value={2}>2 – Exactly once</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-sm">Retain</span>
-                <input
-                  type="checkbox"
-                  className="toggle toggle-sm toggle-primary"
-                  checked={retain}
-                  onChange={(e) => setRetain(e.target.checked)}
-                />
-              </label>
-            </div>
-          </fieldset>
+        <div className="flex flex-col gap-4">
+          <BrokerTopicSection
+            selectedBrokerId={selectedBrokerId}
+            onBrokerChange={setSelectedBrokerId}
+            brokerStatuses={brokerStatuses}
+            topic={topic}
+            onTopicChange={setTopic}
+            onPickTopic={
+              onPickTopic
+                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+                : undefined
+            }
+          />
+
+          <MqttOptionsSection
+            qos={qos}
+            retain={retain}
+            onQosChange={setQos}
+            onRetainChange={setRetain}
+          />
         </div>
-        <div className="modal-action">
-          <button className="btn" onClick={onClose}>
+
+        <div className="modal-action mt-6 pt-3 border-t border-base-300">
+          <button className="btn btn-sm" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="btn btn-primary"
-            disabled={brokerStatuses.length === 0}
+            className="btn btn-sm btn-primary"
+            disabled={
+              brokerStatuses.length === 0 ||
+              !topic.trim() ||
+              hasWildcardWarning
+            }
             onClick={() =>
               onSave(
                 { topic, qos, retain },
@@ -167,17 +120,30 @@ export default function InputPanel({
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
 
+  const parsedTopics = effectiveTopic
+    ? effectiveTopic
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
+
+  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+
   const handlePublish = async () => {
-    if (!effectiveTopic) return;
+    if (parsedTopics.length === 0 || hasWildcard) return;
     setLoading(true);
     try {
-      await api.post("/api/publish", {
-        broker_id: effectiveBrokerId,
-        topic: effectiveTopic,
-        payload: value,
-        qos,
-        retain,
-      });
+      await Promise.all(
+        parsedTopics.map((t) =>
+          api.post("/api/publish", {
+            broker_id: effectiveBrokerId,
+            topic: t,
+            payload: value,
+            qos,
+            retain,
+          }),
+        ),
+      );
       setValue("");
       setFlash("success");
     } catch {
@@ -188,6 +154,14 @@ export default function InputPanel({
     }
   };
 
+  if (!effectiveTopic?.trim()) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
+        No topic configured — open settings to add topic
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full gap-2 p-1">
       <textarea
@@ -197,14 +171,21 @@ export default function InputPanel({
         onChange={(e) => setValue(e.target.value)}
       />
       <button
-        className={`btn btn-sm ${flash === "success" ? "btn-success" : flash === "error" ? "btn-error" : "btn-primary"}`}
+        className={`btn btn-sm ${
+          flash === "success"
+            ? "btn-success"
+            : flash === "error"
+              ? "btn-error"
+              : "btn-primary"
+        }`}
         onClick={handlePublish}
-        disabled={loading || !effectiveTopic || !value}
+        disabled={loading || parsedTopics.length === 0 || !value || hasWildcard}
+        title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
       >
         {loading ? (
           <span className="loading loading-spinner loading-xs" />
         ) : (
-          "Publish"
+          `Publish${parsedTopics.length > 1 ? ` (${parsedTopics.length} topics)` : ""}`
         )}
       </button>
     </div>

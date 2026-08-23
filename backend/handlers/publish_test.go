@@ -62,6 +62,26 @@ func TestPublish_MissingTopic(t *testing.T) {
 	}
 }
 
+func TestPublish_WildcardRejected(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	reg.defaultID = "broker1"
+	h := handlers.NewPublishHandler(db, reg)
+	r := newPublishRouter(h)
+
+	for _, wildcardTopic := range []string{"sensors/#", "home/+/temp", "#", "+"} {
+		body := jsonBody(t, map[string]string{"topic": wildcardTopic, "payload": "hello"})
+		req := httptest.NewRequest(http.MethodPost, "/api/publish", body)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("topic %q: status = %d, want 400", wildcardTopic, rec.Code)
+		}
+	}
+}
+
 func TestPublish_NoBroker(t *testing.T) {
 	db := setupTestDB(t)
 	reg := newMockRegistry()
