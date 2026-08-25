@@ -36,6 +36,25 @@ type Dashboard struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type ImportPanel struct {
+	Title      string          `json:"title"`
+	PanelType  string          `json:"panel_type"`
+	X          int             `json:"x"`
+	Y          int             `json:"y"`
+	W          int             `json:"w"`
+	H          int             `json:"h"`
+	ConfigJSON json.RawMessage `json:"config_json"`
+	BrokerID   string          `json:"broker_id,omitempty"`
+	BrokerName string          `json:"broker_name,omitempty"`
+}
+
+type DashboardImportPayload struct {
+	Type    string        `json:"type,omitempty"`
+	Version int           `json:"version,omitempty"`
+	Name    string        `json:"name"`
+	Panels  []ImportPanel `json:"panels"`
+}
+
 type DashboardPanel struct {
 	ID          string          `json:"id"`
 	DashboardID string          `json:"dashboard_id"`

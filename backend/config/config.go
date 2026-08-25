@@ -36,8 +36,9 @@ type ConfigBroker struct {
 }
 
 type AppConfigFile struct {
-	Brokers  []ConfigBroker      `json:"brokers"`
-	Settings *models.AppSettings `json:"settings,omitempty"`
+	Brokers    []ConfigBroker                  `json:"brokers"`
+	Settings   *models.AppSettings             `json:"settings,omitempty"`
+	Dashboards []models.DashboardImportPayload `json:"dashboards,omitempty"`
 }
 
 func ResolveCertContent(val string, baseDir string) string {
@@ -59,8 +60,8 @@ func ResolveCertContent(val string, baseDir string) string {
 	return string(data)
 }
 
-// SeedBrokersFromConfig reads initial broker configurations from a JSON file (CONFIG_FILE or default paths)
-// and seeds them into the database if they do not already exist.
+// SeedBrokersFromConfig reads initial broker configurations, settings, and dashboards
+// from a JSON file (CONFIG_FILE or default paths) and seeds them into the database.
 func SeedBrokersFromConfig(database *sql.DB) {
 	if database == nil {
 		return
@@ -90,11 +91,13 @@ func SeedBrokersFromConfig(database *sql.DB) {
 	baseDir := filepath.Dir(configFile)
 
 	var configBrokers []ConfigBroker
+	var configDashboards []models.DashboardImportPayload
 	var configObj AppConfigFile
 
-	if err := json.Unmarshal(data, &configObj); err == nil && (len(configObj.Brokers) > 0 || configObj.Settings != nil) {
+	if err := json.Unmarshal(data, &configObj); err == nil && (len(configObj.Brokers) > 0 || configObj.Settings != nil || len(configObj.Dashboards) > 0) {
 		configBrokers = configObj.Brokers
-		slog.Info("loaded initial config file object", "file", configFile, "brokers_count", len(configBrokers), "has_settings", configObj.Settings != nil)
+		configDashboards = configObj.Dashboards
+		slog.Info("loaded initial config file object", "file", configFile, "brokers_count", len(configBrokers), "dashboards_count", len(configDashboards), "has_settings", configObj.Settings != nil)
 		if configObj.Settings != nil {
 			retention := configObj.Settings.RetentionPeriodHours
 			if retention <= 0 {
@@ -173,4 +176,99 @@ func SeedBrokersFromConfig(database *sql.DB) {
 			slog.Error("failed to insert initial broker from config file", "broker", b.Name, "err", err)
 		}
 	}
+
+	// Seed Dashboards and Panels (if specified)
+	if len(configDashboards) > 0 {
+		brokerMap := make(map[string]string)
+		var defaultBrokerID string
+
+		rows, err := database.Query(`SELECT id, name, is_enabled FROM mqtt_brokers ORDER BY sort_order ASC, is_enabled DESC`)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var id, name string
+				var enabled bool
+				if err := rows.Scan(&id, &name, &enabled); err == nil {
+					brokerMap[name] = id
+					brokerMap[id] = id
+					if defaultBrokerID == "" && enabled {
+						defaultBrokerID = id
+					}
+				}
+			}
+		}
+		if defaultBrokerID == "" && len(brokerMap) > 0 {
+			for _, id := range brokerMap {
+				defaultBrokerID = id
+				break
+			}
+		}
+
+		for _, d := range configDashboards {
+			if d.Name == "" {
+				d.Name = "Custom Dashboard"
+			}
+			dashID := uuid.New().String()
+			if strings.EqualFold(d.Name, "Default") {
+				dashID = "default"
+			}
+
+			var existingDashID string
+			err := database.QueryRow(`SELECT id FROM dashboards WHERE name = ? LIMIT 1`, d.Name).Scan(&existingDashID)
+			if err != nil {
+				_, err = database.Exec(`INSERT INTO dashboards (id, name) VALUES (?, ?)`, dashID, d.Name)
+				if err != nil {
+					slog.Error("failed to create dashboard from config file", "dashboard", d.Name, "err", err)
+					continue
+				}
+				existingDashID = dashID
+				slog.Info("seeded dashboard from config file", "id", dashID, "name", d.Name)
+			}
+
+			var panelCount int
+			err = database.QueryRow(`SELECT COUNT(*) FROM dashboard_layouts WHERE dashboard_id = ?`, existingDashID).Scan(&panelCount)
+			if err == nil && panelCount == 0 && len(d.Panels) > 0 {
+				for _, p := range d.Panels {
+					panelID := uuid.New().String()
+					w := p.W
+					if w <= 0 {
+						w = 4
+					}
+					h := p.H
+					if h <= 0 {
+						h = 4
+					}
+					panelBrokerID := p.BrokerID
+					if panelBrokerID != "" {
+						if id, ok := brokerMap[panelBrokerID]; ok {
+							panelBrokerID = id
+						}
+					} else if p.BrokerName != "" {
+						if id, ok := brokerMap[p.BrokerName]; ok {
+							panelBrokerID = id
+						}
+					}
+					if panelBrokerID == "" {
+						panelBrokerID = defaultBrokerID
+					}
+
+					cfgJSON := string(p.ConfigJSON)
+					if strings.TrimSpace(cfgJSON) == "" || cfgJSON == "null" {
+						cfgJSON = "{}"
+					}
+
+					_, err = database.Exec(
+						`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id)
+						 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+						panelID, existingDashID, p.Title, p.PanelType, p.X, p.Y, w, h, cfgJSON, panelBrokerID,
+					)
+					if err != nil {
+						slog.Error("failed to insert seeded panel", "dashboard", d.Name, "panel", p.Title, "err", err)
+					}
+				}
+				slog.Info("seeded panels for dashboard", "dashboard", d.Name, "count", len(d.Panels))
+			}
+		}
+	}
 }
+

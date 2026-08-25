@@ -297,3 +297,97 @@ func TestSeedBrokersFromConfig_CertFilePaths(t *testing.T) {
 		t.Errorf("Expected client_key to contain CLIENT_KEY_CONTENT, got %q", clientKey)
 	}
 }
+
+func TestSeedDashboardsAndPanelsFromConfig(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer database.Close()
+
+	tmpDir := t.TempDir()
+	cfgPath := tmpDir + "/dash_config.json"
+	jsonContent := `{
+		"brokers": [
+			{
+				"name": "Main Broker",
+				"host": "localhost",
+				"port": 1883,
+				"is_enabled": true
+			}
+		],
+		"dashboards": [
+			{
+				"name": "Dev Showcase",
+				"panels": [
+					{
+						"title": "Living Room Temp",
+						"panel_type": "gauge",
+						"x": 0,
+						"y": 0,
+						"w": 3,
+						"h": 3,
+						"config_json": {"topic": "sensors/temp", "unit": "°C"},
+						"broker_name": "Main Broker"
+					},
+					{
+						"title": "Boost Fan Button",
+						"panel_type": "button",
+						"x": 3,
+						"y": 0,
+						"w": 3,
+						"h": 3,
+						"config_json": {"topic": "home/fan", "payload": "boost"}
+					}
+				]
+			}
+		]
+	}`
+	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
+
+	t.Setenv("CONFIG_FILE", cfgPath)
+	SeedBrokersFromConfig(database)
+
+	var dashID, dashName string
+	err = database.QueryRow(`SELECT id, name FROM dashboards WHERE name = 'Dev Showcase'`).Scan(&dashID, &dashName)
+	if err != nil {
+		t.Fatalf("Failed to query seeded dashboard: %v", err)
+	}
+	if dashName != "Dev Showcase" {
+		t.Errorf("Expected dashboard name 'Dev Showcase', got %q", dashName)
+	}
+
+	var panelCount int
+	err = database.QueryRow(`SELECT COUNT(*) FROM dashboard_layouts WHERE dashboard_id = ?`, dashID).Scan(&panelCount)
+	if err != nil || panelCount != 2 {
+		t.Fatalf("Expected 2 panels in seeded dashboard, got %d (err: %v)", panelCount, err)
+	}
+
+	// Verify broker resolution by name
+	var brokerID string
+	err = database.QueryRow(`SELECT id FROM mqtt_brokers WHERE name = 'Main Broker'`).Scan(&brokerID)
+	if err != nil {
+		t.Fatalf("Failed to query Main Broker ID: %v", err)
+	}
+
+	var panelBrokerID, panelType string
+	err = database.QueryRow(`SELECT broker_id, panel_type FROM dashboard_layouts WHERE dashboard_id = ? AND title = 'Living Room Temp'`, dashID).Scan(&panelBrokerID, &panelType)
+	if err != nil {
+		t.Fatalf("Failed to query panel: %v", err)
+	}
+	if panelBrokerID != brokerID {
+		t.Errorf("Expected panel broker_id = %q (resolved from 'Main Broker'), got %q", brokerID, panelBrokerID)
+	}
+	if panelType != "gauge" {
+		t.Errorf("Expected panel_type = 'gauge', got %q", panelType)
+	}
+
+	// Verify re-seeding is non-destructive
+	SeedBrokersFromConfig(database)
+	var panelCountAfter int
+	database.QueryRow(`SELECT COUNT(*) FROM dashboard_layouts WHERE dashboard_id = ?`, dashID).Scan(&panelCountAfter)
+	if panelCountAfter != 2 {
+		t.Errorf("Re-seeding should not duplicate panels, got %d", panelCountAfter)
+	}
+}
+
