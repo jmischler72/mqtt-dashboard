@@ -3,6 +3,7 @@ import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
+import PanelModalFrame from "./PanelModalFrame";
 
 interface LogMessage {
   receivedAt: string;
@@ -60,118 +61,105 @@ export function LogConfigModal({
   );
 
   return (
-    <dialog className="modal modal-open backdrop-blur-xs">
-      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
-        <h3 className="font-bold text-lg mb-4">Log Configuration</h3>
-        <div className="flex flex-col gap-4">
-          <BrokerTopicSection
-            selectedBrokerId={selectedBrokerId}
-            onBrokerChange={setSelectedBrokerId}
-            brokerStatuses={brokerStatuses}
-            topic={topics}
-            onTopicChange={setTopics}
-            allowWildcards={true}
-            placeholder="e.g. sensors/#, home/+/status"
-            onPickTopic={
-              onPickTopic
-                ? () =>
-                    onPickTopic({
-                      currentTopic: "",
-                      selectedBrokerId,
-                      draftConfig: {
-                        topics,
-                        maxMessages,
-                        dateFormat,
-                        showQos,
-                        showRetained,
-                      },
-                    })
-                : undefined
-            }
-          />
+    <PanelModalFrame
+      title="Log Configuration"
+      onClose={onClose}
+      onSave={() =>
+        onSave(
+          {
+            topics,
+            maxMessages,
+            dateFormat,
+            showQos,
+            showRetained,
+          },
+          selectedBrokerId || defaultBrokerId,
+        )
+      }
+      saveDisabled={brokerStatuses.length === 0}
+      maxWidthClass="max-w-lg"
+    >
+      <BrokerTopicSection
+        selectedBrokerId={selectedBrokerId}
+        onBrokerChange={setSelectedBrokerId}
+        brokerStatuses={brokerStatuses}
+        topic={topics}
+        onTopicChange={setTopics}
+        allowWildcards={true}
+        placeholder="e.g. sensors/#, home/+/status"
+        onPickTopic={
+          onPickTopic
+            ? () =>
+                onPickTopic({
+                  currentTopic: "",
+                  selectedBrokerId,
+                  draftConfig: {
+                    topics,
+                    maxMessages,
+                    dateFormat,
+                    showQos,
+                    showRetained,
+                  },
+                })
+            : undefined
+        }
+      />
 
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Max Messages Buffer
-            </legend>
-            <input
-              className="input input-bordered input-sm w-full font-mono text-xs"
-              type="number"
-              min={1}
-              max={1000}
-              value={maxMessages}
-              onChange={(e) => setMaxMessages(Number(e.target.value))}
-            />
-          </fieldset>
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Max Messages Buffer
+        </legend>
+        <input
+          className="input input-bordered input-sm w-full font-mono text-xs"
+          type="number"
+          min={1}
+          max={1000}
+          value={maxMessages}
+          onChange={(e) => setMaxMessages(Number(e.target.value))}
+        />
+      </fieldset>
 
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Timestamp Format
-            </legend>
-            <select
-              className="select select-bordered select-sm w-full font-medium"
-              value={dateFormat}
-              onChange={(e) => setDateFormat(e.target.value as "time" | "full")}
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Timestamp Format
+        </legend>
+        <select
+          className="select select-bordered select-sm w-full font-medium"
+          value={dateFormat}
+          onChange={(e) => setDateFormat(e.target.value as "time" | "full")}
+        >
+          <option value="time font-medium">Time only (HH:MM:SS)</option>
+          <option value="full">Full date and time</option>
+        </select>
+      </fieldset>
+
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
+          Display Badges
+        </legend>
+        <div className="flex flex-col gap-2">
+          {(
+            [
+              [showQos, setShowQos, "Show QoS level badge"],
+              [showRetained, setShowRetained, "Show retain flag badge"],
+            ] as [boolean, (v: boolean) => void, string][]
+          ).map(([value, setter, label]) => (
+            <label
+              key={label}
+              className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
             >
-              <option value="time font-medium">Time only (HH:MM:SS)</option>
-              <option value="full">Full date and time</option>
-            </select>
-          </fieldset>
-
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
-              Display Badges
-            </legend>
-            <div className="flex flex-col gap-2">
-              {(
-                [
-                  [showQos, setShowQos, "Show QoS level badge"],
-                  [showRetained, setShowRetained, "Show retain flag badge"],
-                ] as [boolean, (v: boolean) => void, string][]
-              ).map(([value, setter, label]) => (
-                <label
-                  key={label}
-                  className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
-                >
-                  <span className="text-xs font-medium text-base-content/80">{label}</span>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-xs toggle-primary"
-                    checked={value}
-                    onChange={(e) => setter(e.target.checked)}
-                  />
-                </label>
-              ))}
-            </div>
-          </fieldset>
+              <span className="text-xs font-medium text-base-content/80">{label}</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-xs toggle-primary"
+                checked={value}
+                onChange={(e) => setter(e.target.checked)}
+              />
+            </label>
+          ))}
         </div>
-
-        <div className="modal-action mt-6 pt-3 border-t border-base-300">
-          <button className="btn btn-sm" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={brokerStatuses.length === 0}
-            onClick={() =>
-              onSave(
-                {
-                  topics,
-                  maxMessages,
-                  dateFormat,
-                  showQos,
-                  showRetained,
-                },
-                selectedBrokerId || defaultBrokerId,
-              )
-            }
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      </fieldset>
+    </PanelModalFrame>
   );
 }
 

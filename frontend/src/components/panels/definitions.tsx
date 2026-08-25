@@ -190,6 +190,13 @@ export const inputPanelDefinition: PanelDefinition<InputConfig> = {
   icon: MdInput,
   description:
     "Text area input to dynamically author and publish payload messages to MQTT topics.",
+  isEmpty: (config) =>
+    !config?.topic?.trim()
+      ? {
+          message: "No topic configured — open settings to add topic",
+          actionLabel: "Configure Topic",
+        }
+      : null,
   preview: (
     <div className="flex flex-col gap-2 p-1 h-full">
       <textarea
@@ -215,6 +222,13 @@ export const cronPanelDefinition: PanelDefinition<CronConfig> = {
   icon: MdSchedule,
   description:
     "Scheduled automated MQTT publisher with cron expressions, countdown progress bar, and pause/resume switch.",
+  isEmpty: (config) =>
+    !config?.cron_expr?.trim()
+      ? {
+          message: "No schedule configured — open settings to set schedule",
+          actionLabel: "Configure Schedule",
+        }
+      : null,
   onSaveConfig: async (panelId, config, brokerId) => {
     await api.post(`/api/cron/${panelId}`, {
       ...config,
@@ -258,6 +272,13 @@ export const textPanelDefinition: PanelDefinition<TextConfig> = {
   isVisual: true,
   description:
     "Rich formatted text, notes, headings, and instructions rendered with Markdown.",
+  isEmpty: (config) =>
+    !config?.markdown?.trim()
+      ? {
+          message: "Empty text panel — open settings to add content",
+          actionLabel: "Edit Text",
+        }
+      : null,
   preview: (
     <div className="flex flex-col gap-1 p-2 h-full justify-center">
       <div className="h-2 w-2/3 bg-base-content/30 rounded" />
@@ -304,6 +325,13 @@ export const imagePanelDefinition: PanelDefinition<ImageConfig> = {
   isVisual: true,
   description:
     "Static or web-hosted image, photo, or logo with built-in upload and preset gallery support.",
+  isEmpty: (config) =>
+    !config?.src?.trim()
+      ? {
+          message: "No image — open settings to choose one",
+          actionLabel: "Choose Image",
+        }
+      : null,
   preview: (
     <div className="flex items-center justify-center h-full p-2">
       <div className="flex items-center justify-center w-full h-full bg-base-200 rounded">

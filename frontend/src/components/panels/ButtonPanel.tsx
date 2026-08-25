@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
+import PanelModalFrame from "./PanelModalFrame";
 
 export interface ButtonConfig {
   label?: string;
@@ -55,98 +56,79 @@ export function ButtonConfigModal({
     topic.includes("+") || topic.includes("#");
 
   return (
-    <dialog className="modal modal-open backdrop-blur-xs">
-      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span>Button Configuration</span>
-        </h3>
-        <div className="flex flex-col gap-4">
+    <PanelModalFrame
+      title="Button Configuration"
+      onClose={onClose}
+      onSave={() =>
+        onSave(
+          { label, topic, payload, qos, retain, requireConfirm },
+          selectedBrokerId,
+        )
+      }
+      saveDisabled={
+        brokerStatuses.length === 0 || !topic.trim() || hasWildcardWarning
+      }
+      maxWidthClass="max-w-lg"
+    >
+      <BrokerTopicSection
+        selectedBrokerId={selectedBrokerId}
+        onBrokerChange={setSelectedBrokerId}
+        brokerStatuses={brokerStatuses}
+        topic={topic}
+        onTopicChange={setTopic}
+        onPickTopic={
+          onPickTopic
+            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+            : undefined
+        }
+      />
 
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Button Label
+        </legend>
+        <input
+          className="input input-bordered input-sm w-full font-medium"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Button text"
+        />
+      </fieldset>
 
-          <BrokerTopicSection
-            selectedBrokerId={selectedBrokerId}
-            onBrokerChange={setSelectedBrokerId}
-            brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
-            onPickTopic={
-              onPickTopic
-                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-                : undefined
-            }
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Payload
+        </legend>
+        <textarea
+          className="textarea textarea-bordered textarea-sm w-full font-mono"
+          rows={3}
+          placeholder='{"action": "on"}'
+          value={payload}
+          onChange={(e) => setPayload(e.target.value)}
+        />
+      </fieldset>
+
+      <fieldset className="fieldset p-0 border-0">
+        <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg border border-base-300 bg-base-200/40">
+          <span className="text-xs font-medium text-base-content/80">
+            Require Confirmation before publishing
+          </span>
+          <input
+            type="checkbox"
+            className="toggle toggle-xs toggle-primary"
+            checked={requireConfirm}
+            onChange={(e) => setRequireConfirm(e.target.checked)}
           />
+        </label>
+      </fieldset>
 
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Button Label
-            </legend>
-            <input
-              className="input input-bordered input-sm w-full font-medium"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Button text"
-            />
-          </fieldset>
-
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Payload
-            </legend>
-            <textarea
-              className="textarea textarea-bordered textarea-sm w-full font-mono"
-              rows={3}
-              placeholder='{"action": "on"}'
-              value={payload}
-              onChange={(e) => setPayload(e.target.value)}
-            />
-          </fieldset>
-
-          <fieldset className="fieldset p-0 border-0">
-            <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg border border-base-300 bg-base-200/40">
-              <span className="text-xs font-medium text-base-content/80">
-                Require Confirmation before publishing
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-xs toggle-primary"
-                checked={requireConfirm}
-                onChange={(e) => setRequireConfirm(e.target.checked)}
-              />
-            </label>
-          </fieldset>
-
-          <MqttOptionsSection
-            qos={qos}
-            retain={retain}
-            onQosChange={setQos}
-            onRetainChange={setRetain}
-          />
-        </div>
-
-        <div className="modal-action mt-6 pt-3 border-t border-base-300">
-          <button className="btn btn-sm" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={
-              brokerStatuses.length === 0 ||
-              !topic.trim() ||
-              hasWildcardWarning
-            }
-            onClick={() =>
-              onSave(
-                { label, topic, payload, qos, retain, requireConfirm },
-                selectedBrokerId,
-              )
-            }
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      <MqttOptionsSection
+        qos={qos}
+        retain={retain}
+        onQosChange={setQos}
+        onRetainChange={setRetain}
+      />
+    </PanelModalFrame>
   );
 }
 

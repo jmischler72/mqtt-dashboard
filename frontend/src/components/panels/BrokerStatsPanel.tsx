@@ -3,6 +3,7 @@ import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
+import PanelModalFrame from "./PanelModalFrame";
 
 type TimeRange = 60 | 300 | 900 | 3600;
 
@@ -84,106 +85,93 @@ export function BrokerStatsConfigModal({
   );
 
   return (
-    <dialog className="modal modal-open backdrop-blur-xs">
-      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
-        <h3 className="font-bold text-lg mb-4">Stats Configuration</h3>
-        <div className="flex flex-col gap-4">
-          <BrokerTopicSection
-            selectedBrokerId={selectedBrokerId}
-            onBrokerChange={setSelectedBrokerId}
-            brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
-            allowWildcards={true}
-            onPickTopic={
-              onPickTopic
-                ? () =>
-                    onPickTopic({
-                      currentTopic: "",
-                      selectedBrokerId,
-                      draftConfig: { topic, defaultRange },
-                    })
-                : undefined
-            }
-          />
+    <PanelModalFrame
+      title="Stats Configuration"
+      onClose={onClose}
+      onSave={() =>
+        onSave(
+          {
+            topic: topic.trim(),
+            defaultRange,
+            showStatTiles,
+            showChart,
+            showTopicBreakdown,
+          },
+          selectedBrokerId || defaultBrokerId,
+        )
+      }
+      saveDisabled={brokerStatuses.length === 0}
+      maxWidthClass="max-w-lg"
+    >
+      <BrokerTopicSection
+        selectedBrokerId={selectedBrokerId}
+        onBrokerChange={setSelectedBrokerId}
+        brokerStatuses={brokerStatuses}
+        topic={topic}
+        onTopicChange={setTopic}
+        allowWildcards={true}
+        onPickTopic={
+          onPickTopic
+            ? () =>
+                onPickTopic({
+                  currentTopic: "",
+                  selectedBrokerId,
+                  draftConfig: { topic, defaultRange },
+                })
+            : undefined
+        }
+      />
 
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Default Time Range
-            </legend>
-            <select
-              className="select select-bordered select-sm w-full font-medium"
-              value={defaultRange}
-              onChange={(e) =>
-                setDefaultRange(Number(e.target.value) as TimeRange)
-              }
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Default Time Range
+        </legend>
+        <select
+          className="select select-bordered select-sm w-full font-medium"
+          value={defaultRange}
+          onChange={(e) =>
+            setDefaultRange(Number(e.target.value) as TimeRange)
+          }
+        >
+          <option value={60}>1 minute</option>
+          <option value={300}>5 minutes</option>
+          <option value={900}>15 minutes</option>
+          <option value={3600}>1 hour</option>
+        </select>
+      </fieldset>
+
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
+          Visible Sections
+        </legend>
+        <div className="flex flex-col gap-2">
+          {(
+            [
+              [showStatTiles, setShowStatTiles, "Stat tiles"],
+              [showChart, setShowChart, "Chart"],
+              [
+                showTopicBreakdown,
+                setShowTopicBreakdown,
+                "Topic breakdown",
+              ],
+            ] as [boolean, (v: boolean) => void, string][]
+          ).map(([value, setter, label]) => (
+            <label
+              key={label}
+              className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
             >
-              <option value={60}>1 minute</option>
-              <option value={300}>5 minutes</option>
-              <option value={900}>15 minutes</option>
-              <option value={3600}>1 hour</option>
-            </select>
-          </fieldset>
-
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
-              Visible Sections
-            </legend>
-            <div className="flex flex-col gap-2">
-              {(
-                [
-                  [showStatTiles, setShowStatTiles, "Stat tiles"],
-                  [showChart, setShowChart, "Chart"],
-                  [
-                    showTopicBreakdown,
-                    setShowTopicBreakdown,
-                    "Topic breakdown",
-                  ],
-                ] as [boolean, (v: boolean) => void, string][]
-              ).map(([value, setter, label]) => (
-                <label
-                  key={label}
-                  className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
-                >
-                  <span className="text-xs font-medium text-base-content/80">{label}</span>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-xs toggle-primary"
-                    checked={value}
-                    onChange={(e) => setter(e.target.checked)}
-                  />
-                </label>
-              ))}
-            </div>
-          </fieldset>
+              <span className="text-xs font-medium text-base-content/80">{label}</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-xs toggle-primary"
+                checked={value}
+                onChange={(e) => setter(e.target.checked)}
+              />
+            </label>
+          ))}
         </div>
-
-        <div className="modal-action mt-6 pt-3 border-t border-base-300">
-          <button className="btn btn-sm" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={brokerStatuses.length === 0}
-            onClick={() =>
-              onSave(
-                {
-                  topic: topic.trim(),
-                  defaultRange,
-                  showStatTiles,
-                  showChart,
-                  showTopicBreakdown,
-                },
-                selectedBrokerId || defaultBrokerId,
-              )
-            }
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      </fieldset>
+    </PanelModalFrame>
   );
 }
 

@@ -1,7 +1,9 @@
 import type {
+  EmptyStateInfo,
   PanelCategory,
   PanelDefinition,
   PanelHeaderMeta,
+  ValidationResult,
 } from "./types";
 
 const registry = new Map<string, PanelDefinition>();
@@ -42,27 +44,85 @@ export function defaultResolvePickedTopic(
   return merged.join(", ");
 }
 
-export function defaultValidateWarning(
+export function defaultValidateConfig(
   def: PanelDefinition | undefined,
   configJson: unknown,
-): string | null {
-  if (!def || def.isVisual) return null;
+): ValidationResult {
+  if (!def || def.isVisual) {
+    return { isValid: true };
+  }
+
+  if (def.validateConfig) {
+    return def.validateConfig(configJson as Record<string, unknown>);
+  }
 
   if (def.validateWarning) {
-    return def.validateWarning(configJson as Record<string, unknown>);
+    const warning = def.validateWarning(configJson as Record<string, unknown>);
+    return {
+      isValid: !warning,
+      warning,
+      errors: warning ? { general: warning } : undefined,
+    };
   }
 
   const cfg = (configJson ?? {}) as Record<string, unknown>;
   const topic = String(cfg.topic ?? cfg.topics ?? "").trim();
 
   if (!topic) {
-    return "No topic configured";
+    return {
+      isValid: false,
+      warning: "No topic configured",
+      errors: { topic: "Topic is required" },
+    };
   }
 
   if (def.category === "control") {
     const topicsList = topic.split(",").map((t) => t.trim()).filter(Boolean);
     if (topicsList.some((t) => t.includes("+") || t.includes("#"))) {
-      return "Cannot publish to wildcard topics (+ or #)";
+      return {
+        isValid: false,
+        warning: "Cannot publish to wildcard topics (+ or #)",
+        errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
+      };
+    }
+  }
+
+  return { isValid: true };
+}
+
+export function defaultValidateWarning(
+  def: PanelDefinition | undefined,
+  configJson: unknown,
+): string | null {
+  return defaultValidateConfig(def, configJson).warning ?? null;
+}
+
+export function defaultCheckEmpty(
+  def: PanelDefinition | undefined,
+  configJson: unknown,
+): EmptyStateInfo | null {
+  if (!def) return null;
+
+  if (def.isEmpty) {
+    const res = def.isEmpty(configJson as Record<string, unknown>);
+    if (!res) return null;
+    if (typeof res === "string") {
+      return { message: res };
+    }
+    if (typeof res === "object") {
+      return res;
+    }
+    return { message: "Panel is not configured" };
+  }
+
+  if (!def.isVisual) {
+    const cfg = (configJson ?? {}) as Record<string, unknown>;
+    const topic = String(cfg.topic ?? cfg.topics ?? "").trim();
+    if (!topic) {
+      return {
+        message: "No topic configured — open settings to add topic",
+        actionLabel: "Configure Topic",
+      };
     }
   }
 

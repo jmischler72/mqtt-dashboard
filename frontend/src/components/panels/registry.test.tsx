@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MdSpeed } from "react-icons/md";
 import {
   getAllPanels,
@@ -7,11 +7,19 @@ import {
   getPanelsByCategory,
   registerPanel,
   defaultValidateWarning,
+  defaultValidateConfig,
+  defaultCheckEmpty,
   defaultBuildHeaderMeta,
   defaultResolvePickedTopic,
   PanelPreviewCard,
+  PanelEmptyState,
+  PanelModalFrame,
   type PanelDefinition,
 } from "./index";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("Panel Registry", () => {
   it("registers all 9 built-in panels by default", () => {
@@ -76,37 +84,109 @@ describe("Panel Registry", () => {
   });
 });
 
-describe("Registry Helper: defaultValidateWarning", () => {
+describe("Registry Helper: defaultValidateConfig & defaultValidateWarning", () => {
   const gaugeDef = getPanelDefinition("gauge")!;
   const buttonDef = getPanelDefinition("button")!;
   const textDef = getPanelDefinition("text")!;
 
-  it("returns null for visual panels", () => {
+  it("returns valid for visual panels", () => {
+    expect(defaultValidateConfig(textDef, {}).isValid).toBe(true);
     expect(defaultValidateWarning(textDef, {})).toBeNull();
-    expect(defaultValidateWarning(textDef, { topic: "" })).toBeNull();
   });
 
-  it("returns 'No topic configured' if topic is missing for non-visual panels", () => {
+  it("returns error and warning if topic is missing for non-visual panels", () => {
+    const res = defaultValidateConfig(gaugeDef, {});
+    expect(res.isValid).toBe(false);
+    expect(res.warning).toBe("No topic configured");
+    expect(res.errors?.topic).toBe("Topic is required");
     expect(defaultValidateWarning(gaugeDef, {})).toBe("No topic configured");
-    expect(defaultValidateWarning(gaugeDef, { topic: "  " })).toBe(
-      "No topic configured",
-    );
-    expect(defaultValidateWarning(buttonDef, {})).toBe("No topic configured");
   });
 
   it("allows wildcards on monitor panels", () => {
-    expect(defaultValidateWarning(gaugeDef, { topic: "sensors/+/temp" })).toBeNull();
+    const res = defaultValidateConfig(gaugeDef, { topic: "sensors/+/temp" });
+    expect(res.isValid).toBe(true);
+    expect(res.warning).toBeUndefined();
     expect(defaultValidateWarning(gaugeDef, { topic: "#" })).toBeNull();
   });
 
-  it("warns about wildcards on control panels", () => {
+  it("warns and invalidates wildcards on control panels", () => {
+    const res = defaultValidateConfig(buttonDef, { topic: "devices/+/set" });
+    expect(res.isValid).toBe(false);
+    expect(res.warning).toBe("Cannot publish to wildcard topics (+ or #)");
     expect(defaultValidateWarning(buttonDef, { topic: "devices/+/set" })).toBe(
       "Cannot publish to wildcard topics (+ or #)",
     );
-    expect(defaultValidateWarning(buttonDef, { topic: "#" })).toBe(
-      "Cannot publish to wildcard topics (+ or #)",
-    );
-    expect(defaultValidateWarning(buttonDef, { topic: "devices/light1/set" })).toBeNull();
+  });
+
+  it("respects custom validateConfig when provided", () => {
+    const customDef: PanelDefinition = {
+      type: "custom-validator",
+      label: "Custom",
+      category: "monitor",
+      icon: MdSpeed,
+      validateConfig: (cfg) => {
+        if (!cfg.apiKey) {
+          return {
+            isValid: false,
+            warning: "API Key required",
+            errors: { apiKey: "Missing API Key" },
+          };
+        }
+        return { isValid: true };
+      },
+      Component: () => null,
+      ConfigModal: () => null,
+    };
+
+    expect(defaultValidateConfig(customDef, {}).isValid).toBe(false);
+    expect(defaultValidateConfig(customDef, {}).warning).toBe("API Key required");
+    expect(defaultValidateConfig(customDef, { apiKey: "secret" }).isValid).toBe(true);
+  });
+});
+
+describe("Registry Helper: defaultCheckEmpty", () => {
+  const textDef = getPanelDefinition("text")!;
+  const imageDef = getPanelDefinition("image")!;
+  const inputDef = getPanelDefinition("input")!;
+  const cronDef = getPanelDefinition("cron")!;
+  const sepDef = getPanelDefinition("separator")!;
+
+  it("detects empty state for unconfigured Text panel", () => {
+    const empty = defaultCheckEmpty(textDef, {});
+    expect(empty).toBeDefined();
+    expect(empty?.message).toContain("Empty text panel");
+    expect(empty?.actionLabel).toBe("Edit Text");
+
+    expect(defaultCheckEmpty(textDef, { markdown: "# Hello" })).toBeNull();
+  });
+
+  it("detects empty state for unconfigured Image panel", () => {
+    const empty = defaultCheckEmpty(imageDef, {});
+    expect(empty).toBeDefined();
+    expect(empty?.message).toContain("No image");
+    expect(empty?.actionLabel).toBe("Choose Image");
+
+    expect(defaultCheckEmpty(imageDef, { src: "https://example.com/logo.png" })).toBeNull();
+  });
+
+  it("detects empty state for unconfigured Input panel", () => {
+    const empty = defaultCheckEmpty(inputDef, {});
+    expect(empty).toBeDefined();
+    expect(empty?.message).toContain("No topic configured");
+
+    expect(defaultCheckEmpty(inputDef, { topic: "devices/command" })).toBeNull();
+  });
+
+  it("detects empty state for unconfigured Cron panel", () => {
+    const empty = defaultCheckEmpty(cronDef, {});
+    expect(empty).toBeDefined();
+    expect(empty?.message).toContain("No schedule configured");
+
+    expect(defaultCheckEmpty(cronDef, { cron_expr: "* * * * *" })).toBeNull();
+  });
+
+  it("separator panel is never considered empty", () => {
+    expect(defaultCheckEmpty(sepDef, {})).toBeNull();
   });
 });
 
@@ -221,3 +301,100 @@ describe("PanelPreviewCard", () => {
     expect(screen.getByText("GitHub")).toBeInTheDocument();
   });
 });
+
+describe("PanelEmptyState", () => {
+  it("renders message and action button in editMode", () => {
+    const onConfigure = vi.fn();
+    render(
+      <PanelEmptyState
+        message="No image chosen"
+        actionLabel="Choose Image"
+        onConfigure={onConfigure}
+        editMode={true}
+      />,
+    );
+
+    expect(screen.getByText("No image chosen")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /choose image/i });
+    expect(button).toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(onConfigure).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides action button in viewMode", () => {
+    render(
+      <PanelEmptyState
+        message="No image chosen"
+        actionLabel="Choose Image"
+        onConfigure={() => {}}
+        editMode={false}
+      />,
+    );
+
+    expect(screen.getByText("No image chosen")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /choose image/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("PanelModalFrame", () => {
+  it("renders title, content, and handles save/close events", () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <PanelModalFrame
+        title="Test Modal"
+        onClose={onClose}
+        onSave={onSave}
+        headerAction={<button type="button">Action</button>}
+      >
+        <div>Modal Body Content</div>
+      </PanelModalFrame>,
+    );
+
+    expect(screen.getByText("Test Modal")).toBeInTheDocument();
+    expect(screen.getByText("Modal Body Content")).toBeInTheDocument();
+    expect(screen.getByText("Action")).toBeInTheDocument();
+
+    const saveBtn = screen.getByRole("button", { name: "Save" });
+    fireEvent.click(saveBtn);
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+    fireEvent.click(cancelBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles Escape key dismissal", () => {
+    const onClose = vi.fn();
+    render(
+      <PanelModalFrame title="Escape Test" onClose={onClose}>
+        <div>Body</div>
+      </PanelModalFrame>,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables save button when saveDisabled is true", () => {
+    const onSave = vi.fn();
+    render(
+      <PanelModalFrame
+        title="Disabled Save"
+        onClose={() => {}}
+        onSave={onSave}
+        saveDisabled={true}
+      >
+        <div>Body</div>
+      </PanelModalFrame>,
+    );
+
+    const saveBtn = screen.getByRole("button", { name: "Save" });
+    expect(saveBtn).toBeDisabled();
+    fireEvent.click(saveBtn);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
+

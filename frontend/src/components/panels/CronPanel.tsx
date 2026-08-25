@@ -4,6 +4,7 @@ import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
+import PanelModalFrame from "./PanelModalFrame";
 import {
   PRESETS,
   validateCron,
@@ -75,139 +76,118 @@ export function CronConfigModal({
   const hasWildcardWarning = topic.includes("+") || topic.includes("#");
 
   return (
-    <dialog className="modal modal-open backdrop-blur-xs">
-      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
-        <h3 className="font-bold text-lg mb-4">Cron Configuration</h3>
-        <div className="flex flex-col gap-4">
-          <BrokerTopicSection
-            selectedBrokerId={selectedBrokerId}
-            onBrokerChange={setSelectedBrokerId}
-            brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
-            onPickTopic={
-              onPickTopic
-                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-                : undefined
-            }
+    <PanelModalFrame
+      title="Cron Configuration"
+      onClose={onClose}
+      onSave={() =>
+        onSave(
+          {
+            cron_expr: cronExpr,
+            topic,
+            payload,
+            qos,
+            retain,
+            enabled,
+          },
+          selectedBrokerId || defaultBrokerId,
+        )
+      }
+      saveDisabled={
+        brokerStatuses.length === 0 ||
+        (isCustom && !!cronError) ||
+        !topic.trim() ||
+        hasWildcardWarning
+      }
+      maxWidthClass="max-w-lg"
+    >
+      <BrokerTopicSection
+        selectedBrokerId={selectedBrokerId}
+        onBrokerChange={setSelectedBrokerId}
+        brokerStatuses={brokerStatuses}
+        topic={topic}
+        onTopicChange={setTopic}
+        onPickTopic={
+          onPickTopic
+            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+            : undefined
+        }
+      />
+
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Schedule Presets
+        </legend>
+        <select
+          className="select select-bordered select-sm w-full font-medium"
+          value={preset}
+          onChange={(e) => setPreset(e.target.value)}
+        >
+          {PRESETS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </fieldset>
+
+      {isCustom && (
+        <fieldset className="fieldset p-0 border-0">
+          <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+            Custom Cron Expression
+          </legend>
+          <input
+            className={`input input-bordered input-sm w-full font-mono text-xs ${
+              cronError ? "input-error" : ""
+            }`}
+            placeholder="* * * * *"
+            value={customExpr}
+            onChange={(e) => setCustomExpr(e.target.value)}
           />
-
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Schedule Presets
-            </legend>
-            <select
-              className="select select-bordered select-sm w-full font-medium"
-              value={preset}
-              onChange={(e) => setPreset(e.target.value)}
-            >
-              {PRESETS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </fieldset>
-
-          {isCustom && (
-            <fieldset className="fieldset p-0 border-0">
-              <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-                Cron Expression (5 fields)
-              </legend>
-              <input
-                className={`input input-bordered input-sm w-full font-mono text-xs ${
-                  cronError ? "input-error" : ""
-                }`}
-                placeholder="* * * * *"
-                value={customExpr}
-                onChange={(e) => setCustomExpr(e.target.value)}
-              />
-              {cronError ? (
-                <p className="text-xs text-error mt-1">{cronError}</p>
-              ) : (
-                <p className="text-[11px] text-base-content/50 mt-1">min hour day month weekday</p>
-              )}
-              {cronDescription && (
-                <div className="text-xs bg-base-200/70 border border-base-300 rounded-lg px-3 py-2 mt-2 font-mono">
-                  {cronDescription}
-                </div>
-              )}
-            </fieldset>
+          {cronError && (
+            <span className="text-error text-xs mt-1">{cronError}</span>
           )}
-
-          {!isCustom && (
-            <div className="text-xs font-mono bg-base-200/70 border border-base-300 rounded-lg px-3 py-2">
-              Expression: <strong className="text-primary">{cronExpr}</strong>
-            </div>
+          {cronDescription && (
+            <span className="text-info text-xs mt-1 block">
+              {cronDescription}
+            </span>
           )}
+        </fieldset>
+      )}
 
-          <fieldset className="fieldset p-0 border-0">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              Payload
-            </legend>
-            <textarea
-              className="textarea textarea-bordered textarea-sm w-full font-mono text-xs"
-              rows={2}
-              placeholder='{"ping": true}'
-              value={payload}
-              onChange={(e) => setPayload(e.target.value)}
-            />
-          </fieldset>
+      <fieldset className="fieldset p-0 border-0">
+        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
+          Payload (string or JSON)
+        </legend>
+        <textarea
+          className="textarea textarea-bordered textarea-sm w-full font-mono text-xs"
+          rows={2}
+          placeholder='{"ping": true}'
+          value={payload}
+          onChange={(e) => setPayload(e.target.value)}
+        />
+      </fieldset>
 
-          <fieldset className="fieldset p-0 border-0">
-            <label className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40">
-              <span className="text-xs font-medium text-base-content/80">
-                Enable Schedule Execution
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-xs toggle-primary"
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-              />
-            </label>
-          </fieldset>
-
-          <MqttOptionsSection
-            qos={qos}
-            retain={retain}
-            onQosChange={setQos}
-            onRetainChange={setRetain}
+      <fieldset className="fieldset p-0 border-0">
+        <label className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40">
+          <span className="text-xs font-medium text-base-content/80">
+            Enable Schedule Execution
+          </span>
+          <input
+            type="checkbox"
+            className="toggle toggle-xs toggle-primary"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
           />
-        </div>
+        </label>
+      </fieldset>
 
-        <div className="modal-action mt-6 pt-3 border-t border-base-300">
-          <button className="btn btn-sm" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={
-              brokerStatuses.length === 0 ||
-              (isCustom && !!cronError) ||
-              !topic.trim() ||
-              hasWildcardWarning
-            }
-            onClick={() =>
-              onSave(
-                {
-                  cron_expr: cronExpr,
-                  topic,
-                  payload,
-                  qos,
-                  retain,
-                  enabled,
-                },
-                selectedBrokerId || defaultBrokerId,
-              )
-            }
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      <MqttOptionsSection
+        qos={qos}
+        retain={retain}
+        onQosChange={setQos}
+        onRetainChange={setRetain}
+      />
+    </PanelModalFrame>
   );
 }
 
@@ -380,11 +360,6 @@ export default function CronPanel({
             <div className="text-xs text-warning/60">
               Enable to resume scheduling
             </div>
-          </div>
-        )}
-        {!config.cron_expr && (
-          <div className="text-xs text-base-content/40 text-center">
-            Configure via gear icon
           </div>
         )}
       </div>

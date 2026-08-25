@@ -3,6 +3,7 @@ import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
+import PanelModalFrame from "./PanelModalFrame";
 import { MdSpeed } from "react-icons/md";
 import { RiTimeLine } from "react-icons/ri";
 import { parseGaugePayload } from "./gaugeUtils";
@@ -155,19 +156,24 @@ export function GaugeConfigModal({
   }, [selectedBrokerId, topic, valueKey, gaugeType]);
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
-        <h3 className="font-bold text-lg mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MdSpeed className="text-primary text-xl" />
-            Gauge Configuration
-          </div>
-          {isLoadingSample && (
-            <span className="loading loading-spinner loading-xs text-primary" />
-          )}
-        </h3>
-
-        <div className="flex flex-col gap-4">
+    <PanelModalFrame
+      title="Gauge Configuration"
+      onClose={onClose}
+      onSave={() => {
+        const singleTopic = topic.split(",")[0]?.trim() ?? "";
+        onSave(
+          { topic: singleTopic, valueKey, unit, min, max, gaugeType },
+          selectedBrokerId || defaultBrokerId,
+        );
+      }}
+      saveDisabled={brokerStatuses.length === 0}
+      headerAction={
+        isLoadingSample ? (
+          <span className="loading loading-spinner loading-xs text-primary" />
+        ) : undefined
+      }
+    >
+      <div className="flex flex-col gap-4">
           <BrokerTopicSection
             selectedBrokerId={selectedBrokerId}
             onBrokerChange={setSelectedBrokerId}
@@ -358,28 +364,7 @@ export function GaugeConfigModal({
             </p>
           </fieldset>
         </div>
-
-        <div className="modal-action">
-          <button className="btn btn-sm" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={brokerStatuses.length === 0}
-            onClick={() => {
-              const singleTopic = topic.split(",")[0]?.trim() ?? "";
-              onSave(
-                { topic: singleTopic, valueKey, unit, min, max, gaugeType },
-                selectedBrokerId || defaultBrokerId,
-              );
-            }}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+    </PanelModalFrame>
   );
 }
 
