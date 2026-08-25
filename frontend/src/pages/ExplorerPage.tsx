@@ -160,7 +160,11 @@ export default function ExplorerPage() {
     if (
       pickerCtx &&
       pickerSelectedTopic &&
-      displayedTopics.includes(pickerSelectedTopic)
+      (displayedTopics.includes(pickerSelectedTopic) ||
+        (pickerSelectedTopic.endsWith("/#") &&
+          displayedTopics.some((t) =>
+            t.startsWith(pickerSelectedTopic.slice(0, -1)),
+          )))
     ) {
       if (!pickerInitializedRef.current) {
         pickerInitializedRef.current = true;

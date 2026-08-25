@@ -179,7 +179,8 @@ function TreeNodeItem({
   const isFiltered = Boolean(filterText?.trim());
   const [open, setOpen] = useState(isFiltered || defaultExpanded);
   const hasChildren = node.children.size > 0;
-  const isSelected = node.fullPath === selectedTopic;
+  const isSelected =
+    node.fullPath === selectedTopic || `${node.fullPath}/#` === selectedTopic;
   const isFlashing = flashTopics.has(node.fullPath);
 
   return (
