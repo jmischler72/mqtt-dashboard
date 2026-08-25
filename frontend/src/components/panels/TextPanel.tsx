@@ -86,16 +86,9 @@ interface TextPanelProps {
 }
 
 export default function TextPanel({ config }: TextPanelProps) {
-  if (!config.markdown) {
-    return (
-      <div className="flex items-center justify-center h-full text-base-content/40 text-sm">
-        Empty text panel — open settings to add content
-      </div>
-    );
-  }
   return (
     <div className="prose max-w-none prose-base h-full overflow-auto p-4">
-      <ReactMarkdown>{config.markdown}</ReactMarkdown>
+      <ReactMarkdown>{config.markdown ?? ""}</ReactMarkdown>
     </div>
   );
 }

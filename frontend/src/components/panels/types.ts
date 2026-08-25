@@ -3,6 +3,18 @@ import type { BrokerStatus } from "../../hooks/useBrokers";
 
 export type PanelCategory = "monitor" | "control" | "visual";
 
+export interface EmptyStateInfo {
+  message: string;
+  actionLabel?: string;
+  icon?: ComponentType<{ size?: number; className?: string }>;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  warning?: string | null;
+  errors?: Record<string, string>;
+}
+
 export interface PanelHeaderMeta {
   topicSummary: string;
   topicDetail?: string;
@@ -59,6 +71,10 @@ export interface PanelDefinition<TConfig = any> {
   // Traits & Warnings
   isVisual?: boolean;
   validateWarning?: (config: TConfig) => string | null;
+  validateConfig?: (config: TConfig) => ValidationResult;
+
+  // Empty state evaluation
+  isEmpty?: (config: TConfig) => boolean | string | EmptyStateInfo | null;
 
   // Header Meta customizer
   getHeaderMeta?: (config: TConfig) => Partial<PanelHeaderMeta>;

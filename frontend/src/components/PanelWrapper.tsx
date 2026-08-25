@@ -19,6 +19,8 @@ import {
   defaultValidateWarning,
   defaultBuildHeaderMeta,
   defaultResolvePickedTopic,
+  defaultCheckEmpty,
+  PanelEmptyState,
 } from "./panels";
 
 interface Props {
@@ -313,6 +315,20 @@ export default function PanelWrapper({
         </div>
       );
     }
+
+    const emptyInfo = defaultCheckEmpty(def, panel.config_json);
+    if (emptyInfo) {
+      return (
+        <PanelEmptyState
+          message={emptyInfo.message}
+          actionLabel={emptyInfo.actionLabel}
+          icon={emptyInfo.icon}
+          onConfigure={handleOpenConfig}
+          editMode={editMode}
+        />
+      );
+    }
+
     const PanelComponent = def.Component;
     return (
       <PanelComponent

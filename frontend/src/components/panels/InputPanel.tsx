@@ -154,14 +154,6 @@ export default function InputPanel({
     }
   };
 
-  if (!effectiveTopic?.trim()) {
-    return (
-      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
-        No topic configured — open settings to add topic
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full gap-2 p-1">
       <textarea

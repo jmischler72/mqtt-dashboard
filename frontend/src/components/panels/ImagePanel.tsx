@@ -231,14 +231,6 @@ interface ImagePanelProps {
 export default function ImagePanel({ config }: ImagePanelProps) {
   const [broken, setBroken] = useState(false);
 
-  if (!config.src) {
-    return (
-      <div className="flex items-center justify-center h-full text-base-content/40 text-sm">
-        No image — open settings to choose one
-      </div>
-    );
-  }
-
   if (broken) {
     return (
       <div className="flex items-center justify-center h-full text-base-content/40 text-sm">

@@ -382,11 +382,6 @@ export default function CronPanel({
             </div>
           </div>
         )}
-        {!config.cron_expr && (
-          <div className="text-xs text-base-content/40 text-center">
-            Configure via gear icon
-          </div>
-        )}
       </div>
     </div>
   );
