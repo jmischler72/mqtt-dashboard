@@ -13,6 +13,7 @@ import {
   defaultResolvePickedTopic,
   PanelPreviewCard,
   PanelEmptyState,
+  PanelModalFrame,
   type PanelDefinition,
 } from "./index";
 
@@ -335,3 +336,65 @@ describe("PanelEmptyState", () => {
     expect(screen.queryByRole("button", { name: /choose image/i })).not.toBeInTheDocument();
   });
 });
+
+describe("PanelModalFrame", () => {
+  it("renders title, content, and handles save/close events", () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <PanelModalFrame
+        title="Test Modal"
+        onClose={onClose}
+        onSave={onSave}
+        headerAction={<button type="button">Action</button>}
+      >
+        <div>Modal Body Content</div>
+      </PanelModalFrame>,
+    );
+
+    expect(screen.getByText("Test Modal")).toBeInTheDocument();
+    expect(screen.getByText("Modal Body Content")).toBeInTheDocument();
+    expect(screen.getByText("Action")).toBeInTheDocument();
+
+    const saveBtn = screen.getByRole("button", { name: "Save" });
+    fireEvent.click(saveBtn);
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+    fireEvent.click(cancelBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles Escape key dismissal", () => {
+    const onClose = vi.fn();
+    render(
+      <PanelModalFrame title="Escape Test" onClose={onClose}>
+        <div>Body</div>
+      </PanelModalFrame>,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables save button when saveDisabled is true", () => {
+    const onSave = vi.fn();
+    render(
+      <PanelModalFrame
+        title="Disabled Save"
+        onClose={() => {}}
+        onSave={onSave}
+        saveDisabled={true}
+      >
+        <div>Body</div>
+      </PanelModalFrame>,
+    );
+
+    const saveBtn = screen.getByRole("button", { name: "Save" });
+    expect(saveBtn).toBeDisabled();
+    fireEvent.click(saveBtn);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
+

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PanelModalFrame from "./PanelModalFrame";
 
 export interface SeparatorConfig {
   orientation?: "horizontal" | "vertical";
@@ -16,42 +17,32 @@ export function SeparatorConfigModal({ config, onSave, onClose }: ModalProps) {
   );
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
-        <h3 className="font-bold text-lg mb-4">Separator Configuration</h3>
-        <fieldset className="fieldset">
-          <legend className="fieldset-legend">Orientation</legend>
-          <div className="join">
-            <button
-              type="button"
-              className={`btn join-item ${orientation === "horizontal" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => setOrientation("horizontal")}
-            >
-              Horizontal
-            </button>
-            <button
-              type="button"
-              className={`btn join-item ${orientation === "vertical" ? "btn-primary" : "btn-outline"}`}
-              onClick={() => setOrientation("vertical")}
-            >
-              Vertical
-            </button>
-          </div>
-        </fieldset>
-        <div className="modal-action">
-          <button className="btn" onClick={onClose}>
-            Cancel
+    <PanelModalFrame
+      title="Separator Configuration"
+      onClose={onClose}
+      onSave={() => onSave({ orientation }, "")}
+      maxWidthClass="max-w-md"
+    >
+      <fieldset className="fieldset">
+        <legend className="fieldset-legend">Orientation</legend>
+        <div className="join">
+          <button
+            type="button"
+            className={`btn join-item ${orientation === "horizontal" ? "btn-primary" : "btn-outline"}`}
+            onClick={() => setOrientation("horizontal")}
+          >
+            Horizontal
           </button>
           <button
-            className="btn btn-primary"
-            onClick={() => onSave({ orientation }, "")}
+            type="button"
+            className={`btn join-item ${orientation === "vertical" ? "btn-primary" : "btn-outline"}`}
+            onClick={() => setOrientation("vertical")}
           >
-            Save
+            Vertical
           </button>
         </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      </fieldset>
+    </PanelModalFrame>
   );
 }
 

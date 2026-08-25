@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PanelModalFrame from "./PanelModalFrame";
 
 export interface ImageConfig {
   src?: string;
@@ -59,11 +60,13 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
   };
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box max-h-[85vh] overflow-y-auto">
-        <h3 className="font-bold text-lg mb-4">Image Configuration</h3>
-
-        <div role="tablist" className="tabs tabs-box mb-4">
+    <PanelModalFrame
+      title="Image Configuration"
+      onClose={onClose}
+      onSave={() => onSave({ src }, "")}
+      saveDisabled={uploading}
+    >
+      <div role="tablist" className="tabs tabs-box mb-4">
           <a
             role="tab"
             className={`tab flex-1 ${tab === "url" ? "tab-active" : ""}`}
@@ -206,21 +209,7 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
             )}
           </div>
         </div>
-
-        <div className="modal-action">
-          <button className="btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => onSave({ src }, "")}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+    </PanelModalFrame>
   );
 }
 

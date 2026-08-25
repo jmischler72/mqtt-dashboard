@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
+import PanelModalFrame from "./PanelModalFrame";
 
 export interface InputConfig {
   topic?: string;
@@ -46,55 +47,40 @@ export function InputConfigModal({
   const hasWildcardWarning = topic.includes("+") || topic.includes("#");
 
   return (
-    <dialog className="modal modal-open backdrop-blur-xs">
-      <div className="modal-box max-h-[85vh] overflow-y-auto max-w-lg p-5">
-        <h3 className="font-bold text-lg mb-4">Input Configuration</h3>
-        <div className="flex flex-col gap-4">
-          <BrokerTopicSection
-            selectedBrokerId={selectedBrokerId}
-            onBrokerChange={setSelectedBrokerId}
-            brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
-            onPickTopic={
-              onPickTopic
-                ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-                : undefined
-            }
-          />
+    <PanelModalFrame
+      title="Input Configuration"
+      onClose={onClose}
+      onSave={() =>
+        onSave(
+          { topic, qos, retain },
+          selectedBrokerId || defaultBrokerId,
+        )
+      }
+      saveDisabled={
+        brokerStatuses.length === 0 || !topic.trim() || hasWildcardWarning
+      }
+      maxWidthClass="max-w-lg"
+    >
+      <BrokerTopicSection
+        selectedBrokerId={selectedBrokerId}
+        onBrokerChange={setSelectedBrokerId}
+        brokerStatuses={brokerStatuses}
+        topic={topic}
+        onTopicChange={setTopic}
+        onPickTopic={
+          onPickTopic
+            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+            : undefined
+        }
+      />
 
-          <MqttOptionsSection
-            qos={qos}
-            retain={retain}
-            onQosChange={setQos}
-            onRetainChange={setRetain}
-          />
-        </div>
-
-        <div className="modal-action mt-6 pt-3 border-t border-base-300">
-          <button className="btn btn-sm" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={
-              brokerStatuses.length === 0 ||
-              !topic.trim() ||
-              hasWildcardWarning
-            }
-            onClick={() =>
-              onSave(
-                { topic, qos, retain },
-                selectedBrokerId || defaultBrokerId,
-              )
-            }
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
+      <MqttOptionsSection
+        qos={qos}
+        retain={retain}
+        onQosChange={setQos}
+        onRetainChange={setRetain}
+      />
+    </PanelModalFrame>
   );
 }
 
