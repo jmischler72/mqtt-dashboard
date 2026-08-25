@@ -213,9 +213,9 @@ export function CronConfigModal({
 
 interface CronPanelProps {
   panelId: string;
-  brokerId: string;
+  brokerId?: string;
   config: CronConfig;
-  onConfigChange: (cfg: CronConfig) => void;
+  onConfigChange?: (cfg: Partial<CronConfig>) => void;
 }
 
 export default function CronPanel({
@@ -280,7 +280,7 @@ export default function CronPanel({
     setToggling(true);
     try {
       await api.put(`/api/cron/${panelId}/toggle`, { enabled });
-      onConfigChange({ ...config, enabled });
+      onConfigChange?.({ ...config, enabled });
     } catch (error) {
       void error;
     } finally {
