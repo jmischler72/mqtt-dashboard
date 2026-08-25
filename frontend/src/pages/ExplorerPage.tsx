@@ -64,7 +64,7 @@ export default function ExplorerPage() {
   );
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
-  const [cumulativeShow, setCumulativeShow] = useState(true);
+  const [showExactTopicOnly, setShowExactTopicOnly] = useState(false);
   const [defaultExpanded, setDefaultExpanded] = useState(false);
   const [expandCollapseVersion, setExpandCollapseVersion] = useState(0);
   const [filterText, setFilterText] = useState("");
@@ -180,9 +180,35 @@ export default function ExplorerPage() {
     const isParent =
       !topic.endsWith("/#") &&
       displayedTopics.some((t) => t.startsWith(topic + "/"));
-    const effectiveTopic = cumulativeShow && isParent ? topic + "/#" : topic;
+    const effectiveTopic =
+      !showExactTopicOnly && isParent ? topic + "/#" : topic;
     setSelectedTopic(effectiveTopic);
     if (pickerCtx) setPickerSelectedTopic(effectiveTopic);
+  };
+
+  const handleToggleExactTopicOnly = (checked: boolean) => {
+    setShowExactTopicOnly(checked);
+    if (!selectedTopic || selectedTopic === "#") return;
+
+    if (checked) {
+      if (selectedTopic.endsWith("/#")) {
+        const stripped = selectedTopic.slice(0, -2);
+        setSelectedTopic(stripped);
+        if (pickerCtx) setPickerSelectedTopic(stripped);
+      }
+    } else {
+      const baseTopic = selectedTopic.endsWith("/#")
+        ? selectedTopic.slice(0, -2)
+        : selectedTopic;
+      const isParent = displayedTopics.some((t) =>
+        t.startsWith(baseTopic + "/"),
+      );
+      if (isParent) {
+        const subtreeTopic = `${baseTopic}/#`;
+        setSelectedTopic(subtreeTopic);
+        if (pickerCtx) setPickerSelectedTopic(subtreeTopic);
+      }
+    }
   };
 
   const handlePickerConfirm = () => {
@@ -292,15 +318,15 @@ export default function ExplorerPage() {
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left"
-              data-tip="When enabled, clicking a parent topic shows all messages from its child topics using a wildcard (topic/#)."
+              data-tip="When enabled, clicking a parent topic only shows messages published directly to that exact topic instead of including all child topics (topic/#)."
             >
-              <span className="label-text text-xs">Show subtree</span>
+              <span className="label-text text-xs">Show exact topic only</span>
             </div>
             <input
               type="checkbox"
               className="toggle toggle-xs toggle-secondary"
-              checked={cumulativeShow}
-              onChange={(e) => setCumulativeShow(e.target.checked)}
+              checked={showExactTopicOnly}
+              onChange={(e) => handleToggleExactTopicOnly(e.target.checked)}
             />
           </label>
           <label className="label cursor-pointer gap-2 p-0">
