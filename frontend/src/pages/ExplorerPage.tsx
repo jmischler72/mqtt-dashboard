@@ -6,6 +6,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import TopicTree from "../components/explorer/TopicTree";
 import LogPanel from "../components/panels/LogPanel";
 import ExplorerPublishPanel from "../components/explorer/ExplorerPublishPanel";
+import { topicMatchesFilter } from "../components/explorer/topicFilterUtils";
 
 interface WSMessage {
   topic: string;
@@ -63,9 +64,10 @@ export default function ExplorerPage() {
   );
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
-  const [cumulativeShow, setCumulativeShow] = useState(true);
+  const [showExactTopicOnly, setShowExactTopicOnly] = useState(false);
   const [defaultExpanded, setDefaultExpanded] = useState(false);
   const [expandCollapseVersion, setExpandCollapseVersion] = useState(0);
+  const [filterText, setFilterText] = useState("");
   const pickerInitializedRef = useRef(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
@@ -119,6 +121,13 @@ export default function ExplorerPage() {
     return Array.from(merged).sort();
   }, [topics, showSysTopic, effectiveBrokerId]);
 
+  const filteredTopics = useMemo(() => {
+    if (!filterText.trim()) return displayedTopics;
+    return displayedTopics.filter((topic) =>
+      topicMatchesFilter(topic, filterText),
+    );
+  }, [displayedTopics, filterText]);
+
   // Subscribe to # on selected broker via WebSocket
   const { subscribe } = useWebSocket({
     onMessage: (data) => {
@@ -151,7 +160,11 @@ export default function ExplorerPage() {
     if (
       pickerCtx &&
       pickerSelectedTopic &&
-      displayedTopics.includes(pickerSelectedTopic)
+      (displayedTopics.includes(pickerSelectedTopic) ||
+        (pickerSelectedTopic.endsWith("/#") &&
+          displayedTopics.some((t) =>
+            t.startsWith(pickerSelectedTopic.slice(0, -1)),
+          )))
     ) {
       if (!pickerInitializedRef.current) {
         pickerInitializedRef.current = true;
@@ -167,9 +180,35 @@ export default function ExplorerPage() {
     const isParent =
       !topic.endsWith("/#") &&
       displayedTopics.some((t) => t.startsWith(topic + "/"));
-    const effectiveTopic = cumulativeShow && isParent ? topic + "/#" : topic;
+    const effectiveTopic =
+      !showExactTopicOnly && isParent ? topic + "/#" : topic;
     setSelectedTopic(effectiveTopic);
     if (pickerCtx) setPickerSelectedTopic(effectiveTopic);
+  };
+
+  const handleToggleExactTopicOnly = (checked: boolean) => {
+    setShowExactTopicOnly(checked);
+    if (!selectedTopic || selectedTopic === "#") return;
+
+    if (checked) {
+      if (selectedTopic.endsWith("/#")) {
+        const stripped = selectedTopic.slice(0, -2);
+        setSelectedTopic(stripped);
+        if (pickerCtx) setPickerSelectedTopic(stripped);
+      }
+    } else {
+      const baseTopic = selectedTopic.endsWith("/#")
+        ? selectedTopic.slice(0, -2)
+        : selectedTopic;
+      const isParent = displayedTopics.some((t) =>
+        t.startsWith(baseTopic + "/"),
+      );
+      if (isParent) {
+        const subtreeTopic = `${baseTopic}/#`;
+        setSelectedTopic(subtreeTopic);
+        if (pickerCtx) setPickerSelectedTopic(subtreeTopic);
+      }
+    }
   };
 
   const handlePickerConfirm = () => {
@@ -271,21 +310,23 @@ export default function ExplorerPage() {
           ))}
         </select>
         <span className="text-xs text-base-content/40">
-          {displayedTopics.length} topics captured
+          {filterText.trim()
+            ? `${filteredTopics.length} of ${displayedTopics.length} topics`
+            : `${displayedTopics.length} topics captured`}
         </span>
         <div className="ml-auto flex items-center gap-4">
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left"
-              data-tip="When enabled, clicking a parent topic shows all messages from its child topics using a wildcard (topic/#)."
+              data-tip="When enabled, clicking a parent topic only shows messages published directly to that exact topic instead of including all child topics (topic/#)."
             >
-              <span className="label-text text-xs">Show subtree</span>
+              <span className="label-text text-xs">Show exact topic only</span>
             </div>
             <input
               type="checkbox"
               className="toggle toggle-xs toggle-secondary"
-              checked={cumulativeShow}
-              onChange={(e) => setCumulativeShow(e.target.checked)}
+              checked={showExactTopicOnly}
+              onChange={(e) => handleToggleExactTopicOnly(e.target.checked)}
             />
           </label>
           <label className="label cursor-pointer gap-2 p-0">
@@ -309,7 +350,7 @@ export default function ExplorerPage() {
       <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
         {/* Topic tree */}
         <aside className="w-full sm:w-72 shrink-0 max-h-64 sm:max-h-none border-b sm:border-b-0 sm:border-r border-base-300 bg-base-100 overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b border-base-300 flex items-center justify-between gap-2">
+          <div className="px-3 py-2 border-b border-base-300 flex items-center justify-between gap-2 shrink-0">
             <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
               Topics
             </span>
@@ -334,16 +375,70 @@ export default function ExplorerPage() {
               </button>
             </div>
           </div>
-          <TopicTree
-            topics={displayedTopics}
-            liveMessages={liveMessages}
-            selectedTopic={selectedTopic}
-            onSelectTopic={handleTopicSelect}
-            onDoubleClickTopic={handlePickerDoubleClick}
-            showSysTopic={showSysTopic}
-            defaultExpanded={defaultExpanded}
-            expandCollapseVersion={expandCollapseVersion}
-          />
+
+          {/* Topic search / filter input */}
+          <div className="p-2 border-b border-base-300 shrink-0">
+            <div className="relative flex items-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-3.5 w-3.5 absolute left-2.5 text-base-content/40 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setFilterText("");
+                  }
+                }}
+                placeholder="Filter topics..."
+                className="input input-sm input-bordered w-full pl-8 pr-7 text-xs font-mono"
+              />
+              {filterText && (
+                <button
+                  type="button"
+                  onClick={() => setFilterText("")}
+                  className="btn btn-ghost btn-xs btn-circle absolute right-1 h-5 w-5 min-h-0 text-base-content/50 hover:text-base-content"
+                  title="Clear filter (Esc)"
+                  aria-label="Clear filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {filterText && (
+              <div className="mt-1 px-1 text-[11px] text-base-content/50">
+                {filteredTopics.length} of {displayedTopics.length} matched
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
+            <TopicTree
+              topics={filteredTopics}
+              allTopicsCount={displayedTopics.length}
+              filterText={filterText}
+              onClearFilter={() => setFilterText("")}
+              liveMessages={liveMessages}
+              selectedTopic={selectedTopic}
+              onSelectTopic={handleTopicSelect}
+              onDoubleClickTopic={handlePickerDoubleClick}
+              showSysTopic={showSysTopic}
+              defaultExpanded={defaultExpanded}
+              expandCollapseVersion={expandCollapseVersion}
+            />
+          </div>
         </aside>
 
         {/* Detail panel */}
