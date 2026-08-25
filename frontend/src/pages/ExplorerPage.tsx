@@ -418,11 +418,9 @@ export default function ExplorerPage() {
               )}
             </div>
             {filterText && (
-              <div className="flex items-center justify-between mt-1 px-1 text-[11px] text-base-content/50">
-                <span>
-                  {filteredTopics.length} of {displayedTopics.length} matched
-                </span>
-                             </div>
+              <div className="mt-1 px-1 text-[11px] text-base-content/50">
+                {filteredTopics.length} of {displayedTopics.length} matched
+              </div>
             )}
           </div>
 
