@@ -44,8 +44,7 @@ export const gaugePanelDefinition: PanelDefinition<GaugeConfig> = {
   label: "Gauge",
   category: "monitor",
   icon: MdSpeed,
-  description:
-    "Live numeric, boolean, or status gauge visualization with radial, bar, and value displays.",
+  description: "Live value with range and thresholds",
   resolvePickedTopic: (_existing, picked) => picked,
   preview: (
     <div className="flex flex-col items-center justify-center h-full gap-1 p-2">
@@ -95,8 +94,7 @@ export const logPanelDefinition: PanelDefinition<LogConfig> = {
   label: "Log",
   category: "monitor",
   icon: MdListAlt,
-  description:
-    "Streaming log of live incoming MQTT messages with pause/clear, QoS, and retained indicators.",
+  description: "Streaming feed of incoming MQTT messages",
   preview: (
     <div className="flex flex-col h-full gap-1">
       <div className="flex gap-1 pb-1">
@@ -131,8 +129,7 @@ export const brokerStatsPanelDefinition: PanelDefinition<BrokerStatsConfig> = {
   label: "Stats",
   category: "monitor",
   icon: MdBarChart,
-  description:
-    "Real-time broker throughput statistics, message rates, topic breakdowns, and historical sparklines.",
+  description: "Broker throughput and message rates",
   preview: (
     <div className="flex flex-col gap-2 h-full">
       <div className="grid grid-cols-2 gap-1">
@@ -169,8 +166,7 @@ export const buttonPanelDefinition: PanelDefinition<ButtonConfig> = {
   label: "Button",
   category: "control",
   icon: MdSmartButton,
-  description:
-    "Interactive push button to publish a custom MQTT payload, with optional QoS, retain, and confirmation modal.",
+  description: "Publish a fixed payload on click",
   preview: (
     <div className="flex items-center justify-center h-full py-4">
       <button className="btn btn-primary btn-lg pointer-events-none">
@@ -188,8 +184,7 @@ export const inputPanelDefinition: PanelDefinition<InputConfig> = {
   label: "Input",
   category: "control",
   icon: MdInput,
-  description:
-    "Text area input to dynamically author and publish payload messages to MQTT topics.",
+  description: "Type and publish a payload",
   isEmpty: (config) =>
     !config?.topic?.trim()
       ? {
@@ -220,8 +215,7 @@ export const cronPanelDefinition: PanelDefinition<CronConfig> = {
   label: "Cron",
   category: "control",
   icon: MdSchedule,
-  description:
-    "Scheduled automated MQTT publisher with cron expressions, countdown progress bar, and pause/resume switch.",
+  description: "Publish on a cron schedule",
   isEmpty: (config) =>
     !config?.cron_expr?.trim()
       ? {
@@ -270,8 +264,7 @@ export const textPanelDefinition: PanelDefinition<TextConfig> = {
   category: "visual",
   icon: MdNotes,
   isVisual: true,
-  description:
-    "Rich formatted text, notes, headings, and instructions rendered with Markdown.",
+  description: "Notes and headings in Markdown",
   isEmpty: (config) =>
     !config?.markdown?.trim()
       ? {
@@ -298,8 +291,7 @@ export const separatorPanelDefinition: PanelDefinition<SeparatorConfig> = {
   category: "visual",
   icon: MdHorizontalRule,
   isVisual: true,
-  description:
-    "Divider line with customizable horizontal or vertical orientation to visually structure dashboards.",
+  description: "Break the grid into groups",
   getMinMaxConstraints: (config) => {
     const orient = config?.orientation ?? "horizontal";
     if (orient === "horizontal") {
@@ -323,8 +315,7 @@ export const imagePanelDefinition: PanelDefinition<ImageConfig> = {
   category: "visual",
   icon: MdImage,
   isVisual: true,
-  description:
-    "Static or web-hosted image, photo, or logo with built-in upload and preset gallery support.",
+  description: "Static picture or logo",
   isEmpty: (config) =>
     !config?.src?.trim()
       ? {

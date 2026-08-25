@@ -101,7 +101,7 @@ func (h *LayoutHandler) CreatePanel(w http.ResponseWriter, r *http.Request) {
 	var defaultBrokerID string
 	h.db.QueryRow(`SELECT id FROM mqtt_brokers WHERE is_enabled = 1 ORDER BY sort_order ASC LIMIT 1`).Scan(&defaultBrokerID) //nolint
 
-	w_, h_ := 4, 4
+	w_, h_ := 4, 3
 	if req.PanelType == "separator" {
 		w_, h_ = 4, 1
 	}
