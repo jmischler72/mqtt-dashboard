@@ -8,13 +8,11 @@ import {
   MdNotes,
   MdHorizontalRule,
   MdImage,
+  MdToggleOn,
 } from "react-icons/md";
 import { api } from "../../api/client";
-import type { PanelDefinition } from "./types";
-import GaugePanel, {
-  GaugeConfigModal,
-  type GaugeConfig,
-} from "./GaugePanel";
+import type { PanelDefinition, ValidationResult } from "./types";
+import GaugePanel, { GaugeConfigModal, type GaugeConfig } from "./GaugePanel";
 import LogPanel, { LogConfigModal, type LogConfig } from "./LogPanel";
 import BrokerStatsPanel, {
   BrokerStatsConfigModal,
@@ -24,20 +22,18 @@ import ButtonPanel, {
   ButtonConfigModal,
   type ButtonConfig,
 } from "./ButtonPanel";
-import InputPanel, {
-  InputConfigModal,
-  type InputConfig,
-} from "./InputPanel";
+import InputPanel, { InputConfigModal, type InputConfig } from "./InputPanel";
 import CronPanel, { CronConfigModal, type CronConfig } from "./CronPanel";
 import TextPanel, { TextConfigModal, type TextConfig } from "./TextPanel";
 import SeparatorPanel, {
   SeparatorConfigModal,
   type SeparatorConfig,
 } from "./SeparatorPanel";
-import ImagePanel, {
-  ImageConfigModal,
-  type ImageConfig,
-} from "./ImagePanel";
+import ImagePanel, { ImageConfigModal, type ImageConfig } from "./ImagePanel";
+import TogglePanel, {
+  ToggleConfigModal,
+  type ToggleConfig,
+} from "./TogglePanel";
 
 export const gaugePanelDefinition: PanelDefinition<GaugeConfig> = {
   type: "gauge",
@@ -181,6 +177,88 @@ export const buttonPanelDefinition: PanelDefinition<ButtonConfig> = {
   Component: ButtonPanel,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConfigModal: ButtonConfigModal as any,
+};
+
+export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
+  type: "toggle",
+  label: "Toggle",
+  category: "control",
+  icon: MdToggleOn,
+  description:
+    "Interactive switch to enable or disable components with live status feedback from MQTT telemetry and history.",
+  resolvePickedTopic: (_existing, picked) => picked,
+  isEmpty: (config) =>
+    !config?.topic?.trim()
+      ? {
+          message: "No topic configured — open settings to add topic",
+          actionLabel: "Configure Topic",
+        }
+      : null,
+  validateConfig: (config): ValidationResult => {
+    const topic = config?.topic?.trim() ?? "";
+    if (!topic) {
+      return {
+        isValid: false,
+        warning: "No topic configured",
+        errors: { topic: "Action topic is required" },
+      };
+    }
+    if (topic.includes("+") || topic.includes("#")) {
+      return {
+        isValid: false,
+        warning: "Cannot publish to wildcard topics (+ or #)",
+        errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
+      };
+    }
+    if (config?.useSeparateTopics && !config?.stateTopic?.trim()) {
+      return {
+        isValid: false,
+        warning: "State topic is required when separate topics are enabled",
+        errors: { stateTopic: "State topic is required" },
+      };
+    }
+    return { isValid: true };
+  },
+  getHeaderMeta: (config) => {
+    const actionTopic = config?.topic?.trim() || "not configured";
+    const stateTopic =
+      config?.useSeparateTopics && config?.stateTopic?.trim()
+        ? config.stateTopic.trim()
+        : undefined;
+
+    const summary = stateTopic
+      ? `${actionTopic} (state: ${stateTopic})`
+      : actionTopic;
+    const onVal = config?.onPayload || "ON";
+    const offVal = config?.offPayload || "OFF";
+
+    return {
+      topicSummary: summary,
+      topicDetail: stateTopic
+        ? `Action: ${actionTopic}\nState: ${stateTopic}`
+        : `Topic: ${actionTopic}`,
+      payloadPreview: `${onVal} / ${offVal}`,
+    };
+  },
+  preview: (
+    <div className="flex flex-col items-center justify-center h-full gap-2 p-2">
+      <span className="text-xs font-semibold text-base-content">
+        Power Switch
+      </span>
+      <input
+        type="checkbox"
+        className="toggle toggle-primary toggle-md pointer-events-none"
+        readOnly
+        checked
+      />
+      <span className="badge badge-success badge-xs font-mono font-bold">
+        ON
+      </span>
+    </div>
+  ),
+  Component: TogglePanel,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConfigModal: ToggleConfigModal as any,
 };
 
 export const inputPanelDefinition: PanelDefinition<InputConfig> = {

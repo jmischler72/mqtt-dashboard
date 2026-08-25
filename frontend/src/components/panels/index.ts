@@ -4,6 +4,7 @@ import {
   logPanelDefinition,
   brokerStatsPanelDefinition,
   buttonPanelDefinition,
+  togglePanelDefinition,
   inputPanelDefinition,
   cronPanelDefinition,
   textPanelDefinition,
@@ -16,6 +17,7 @@ registerPanel(gaugePanelDefinition);
 registerPanel(logPanelDefinition);
 registerPanel(brokerStatsPanelDefinition);
 registerPanel(buttonPanelDefinition);
+registerPanel(togglePanelDefinition);
 registerPanel(inputPanelDefinition);
 registerPanel(cronPanelDefinition);
 registerPanel(textPanelDefinition);
@@ -25,8 +27,8 @@ registerPanel(imagePanelDefinition);
 export * from "./types";
 export * from "./registry";
 export * from "./definitions";
+export * from "./TogglePanel";
+export * from "./toggleUtils";
 export { default as PanelPreviewCard } from "./PanelPreviewCard";
 export { default as PanelEmptyState } from "./PanelEmptyState";
 export { default as PanelModalFrame } from "./PanelModalFrame";
-
-
