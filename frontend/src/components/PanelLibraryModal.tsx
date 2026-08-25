@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MdClose, MdSearch } from "react-icons/md";
 import {
   getAllPanels,
@@ -21,27 +21,17 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "visual", label: "Visual" },
 ];
 
-export default function PanelLibraryModal({ open, onClose, onPick }: Props) {
+function PanelLibraryModalInner({ onClose, onPick }: Omit<Props, "open">) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setFilter("all");
-    const t = setTimeout(() => inputRef.current?.focus(), 0);
-    return () => clearTimeout(t);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+  }, [onClose]);
 
   const counts = useMemo(() => {
     const all = getAllPanels();
@@ -71,15 +61,13 @@ export default function PanelLibraryModal({ open, onClose, onPick }: Props) {
     onClose();
   };
 
-  if (!open) return null;
-
   return (
     <div className="modal modal-open">
       <div className="modal-box max-w-2xl p-0 overflow-hidden">
         <div className="flex items-center gap-2 px-4 h-12 border-b border-base-300">
           <MdSearch className="text-base-content/60 text-lg" />
           <input
-            ref={inputRef}
+            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search panels…"
@@ -176,4 +164,9 @@ export default function PanelLibraryModal({ open, onClose, onPick }: Props) {
       <div className="modal-backdrop" onClick={onClose} />
     </div>
   );
+}
+
+export default function PanelLibraryModal({ open, onClose, onPick }: Props) {
+  if (!open) return null;
+  return <PanelLibraryModalInner onClose={onClose} onPick={onPick} />;
 }
