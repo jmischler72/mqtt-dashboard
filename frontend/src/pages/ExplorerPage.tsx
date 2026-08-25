@@ -6,6 +6,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import TopicTree from "../components/explorer/TopicTree";
 import LogPanel from "../components/panels/LogPanel";
 import ExplorerPublishPanel from "../components/explorer/ExplorerPublishPanel";
+import { topicMatchesFilter } from "../components/explorer/topicFilterUtils";
 
 interface WSMessage {
   topic: string;
@@ -66,6 +67,7 @@ export default function ExplorerPage() {
   const [cumulativeShow, setCumulativeShow] = useState(true);
   const [defaultExpanded, setDefaultExpanded] = useState(false);
   const [expandCollapseVersion, setExpandCollapseVersion] = useState(0);
+  const [filterText, setFilterText] = useState("");
   const pickerInitializedRef = useRef(false);
   const panelId = useId();
   const autoSelectedBrokerId = useMemo(() => {
@@ -118,6 +120,13 @@ export default function ExplorerPage() {
     for (const t of commonSysTopics) merged.add(t);
     return Array.from(merged).sort();
   }, [topics, showSysTopic, effectiveBrokerId]);
+
+  const filteredTopics = useMemo(() => {
+    if (!filterText.trim()) return displayedTopics;
+    return displayedTopics.filter((topic) =>
+      topicMatchesFilter(topic, filterText),
+    );
+  }, [displayedTopics, filterText]);
 
   // Subscribe to # on selected broker via WebSocket
   const { subscribe } = useWebSocket({
@@ -271,7 +280,9 @@ export default function ExplorerPage() {
           ))}
         </select>
         <span className="text-xs text-base-content/40">
-          {displayedTopics.length} topics captured
+          {filterText.trim()
+            ? `${filteredTopics.length} of ${displayedTopics.length} topics`
+            : `${displayedTopics.length} topics captured`}
         </span>
         <div className="ml-auto flex items-center gap-4">
           <label className="label cursor-pointer gap-2 p-0">
@@ -309,7 +320,7 @@ export default function ExplorerPage() {
       <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
         {/* Topic tree */}
         <aside className="w-full sm:w-72 shrink-0 max-h-64 sm:max-h-none border-b sm:border-b-0 sm:border-r border-base-300 bg-base-100 overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b border-base-300 flex items-center justify-between gap-2">
+          <div className="px-3 py-2 border-b border-base-300 flex items-center justify-between gap-2 shrink-0">
             <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
               Topics
             </span>
@@ -334,16 +345,72 @@ export default function ExplorerPage() {
               </button>
             </div>
           </div>
-          <TopicTree
-            topics={displayedTopics}
-            liveMessages={liveMessages}
-            selectedTopic={selectedTopic}
-            onSelectTopic={handleTopicSelect}
-            onDoubleClickTopic={handlePickerDoubleClick}
-            showSysTopic={showSysTopic}
-            defaultExpanded={defaultExpanded}
-            expandCollapseVersion={expandCollapseVersion}
-          />
+
+          {/* Topic search / filter input */}
+          <div className="p-2 border-b border-base-300 shrink-0">
+            <div className="relative flex items-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-3.5 w-3.5 absolute left-2.5 text-base-content/40 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setFilterText("");
+                  }
+                }}
+                placeholder="Filter topics..."
+                className="input input-sm input-bordered w-full pl-8 pr-7 text-xs font-mono"
+              />
+              {filterText && (
+                <button
+                  type="button"
+                  onClick={() => setFilterText("")}
+                  className="btn btn-ghost btn-xs btn-circle absolute right-1 h-5 w-5 min-h-0 text-base-content/50 hover:text-base-content"
+                  title="Clear filter (Esc)"
+                  aria-label="Clear filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {filterText && (
+              <div className="flex items-center justify-between mt-1 px-1 text-[11px] text-base-content/50">
+                <span>
+                  {filteredTopics.length} of {displayedTopics.length} matched
+                </span>
+                             </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
+            <TopicTree
+              topics={filteredTopics}
+              allTopicsCount={displayedTopics.length}
+              filterText={filterText}
+              onClearFilter={() => setFilterText("")}
+              liveMessages={liveMessages}
+              selectedTopic={selectedTopic}
+              onSelectTopic={handleTopicSelect}
+              onDoubleClickTopic={handlePickerDoubleClick}
+              showSysTopic={showSysTopic}
+              defaultExpanded={defaultExpanded}
+              expandCollapseVersion={expandCollapseVersion}
+            />
+          </div>
         </aside>
 
         {/* Detail panel */}
