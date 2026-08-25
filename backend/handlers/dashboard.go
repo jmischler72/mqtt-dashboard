@@ -107,28 +107,11 @@ func (h *DashboardHandler) RenameDashboard(w http.ResponseWriter, r *http.Reques
 }
 
 // importPanel mirrors a single panel entry in an export envelope. Install-specific
-// fields (id, dashboard_id) are intentionally absent; broker_id is resolved on import.
-type importPanel struct {
-	Title      string          `json:"title"`
-	PanelType  string          `json:"panel_type"`
-	X          int             `json:"x"`
-	Y          int             `json:"y"`
-	W          int             `json:"w"`
-	H          int             `json:"h"`
-	ConfigJSON json.RawMessage `json:"config_json"`
-	BrokerID   string          `json:"broker_id"`
-}
-
 // ImportDashboard creates a brand-new dashboard and all of its panels from an
 // export envelope, atomically. Each panel's broker_id is kept when a broker with
 // that id exists locally, otherwise it falls back to the default enabled broker.
 func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Type    string        `json:"type"`
-		Version int           `json:"version"`
-		Name    string        `json:"name"`
-		Panels  []importPanel `json:"panels"`
-	}
+	var req models.DashboardImportPayload
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -182,12 +165,17 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		// Resolve broker: keep if it exists locally, else default.
+		// Resolve broker: keep if it exists locally, else match by name, else default.
 		brokerID := defaultBrokerID
 		if p.BrokerID != "" {
 			var exists string
 			if err := tx.QueryRow(`SELECT id FROM mqtt_brokers WHERE id = ?`, p.BrokerID).Scan(&exists); err == nil {
 				brokerID = p.BrokerID
+			}
+		} else if p.BrokerName != "" {
+			var exists string
+			if err := tx.QueryRow(`SELECT id FROM mqtt_brokers WHERE name = ?`, p.BrokerName).Scan(&exists); err == nil {
+				brokerID = exists
 			}
 		}
 

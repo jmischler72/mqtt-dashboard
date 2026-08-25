@@ -35,29 +35,10 @@ type ConfigBroker struct {
 	ClientKeyFile  string `json:"client_key_file"`
 }
 
-type ConfigDashboard struct {
-	ID     string        `json:"id,omitempty"`
-	Name   string        `json:"name"`
-	Panels []ConfigPanel `json:"panels"`
-}
-
-type ConfigPanel struct {
-	ID         string          `json:"id,omitempty"`
-	Title      string          `json:"title"`
-	PanelType  string          `json:"panel_type"`
-	X          int             `json:"x"`
-	Y          int             `json:"y"`
-	W          int             `json:"w"`
-	H          int             `json:"h"`
-	ConfigJSON json.RawMessage `json:"config_json"`
-	BrokerID   string          `json:"broker_id,omitempty"`
-	BrokerName string          `json:"broker_name,omitempty"`
-}
-
 type AppConfigFile struct {
-	Brokers    []ConfigBroker      `json:"brokers"`
-	Settings   *models.AppSettings `json:"settings,omitempty"`
-	Dashboards []ConfigDashboard   `json:"dashboards,omitempty"`
+	Brokers    []ConfigBroker                  `json:"brokers"`
+	Settings   *models.AppSettings             `json:"settings,omitempty"`
+	Dashboards []models.DashboardImportPayload `json:"dashboards,omitempty"`
 }
 
 func ResolveCertContent(val string, baseDir string) string {
@@ -110,7 +91,7 @@ func SeedBrokersFromConfig(database *sql.DB) {
 	baseDir := filepath.Dir(configFile)
 
 	var configBrokers []ConfigBroker
-	var configDashboards []ConfigDashboard
+	var configDashboards []models.DashboardImportPayload
 	var configObj AppConfigFile
 
 	if err := json.Unmarshal(data, &configObj); err == nil && (len(configObj.Brokers) > 0 || configObj.Settings != nil || len(configObj.Dashboards) > 0) {
@@ -227,17 +208,13 @@ func SeedBrokersFromConfig(database *sql.DB) {
 			if d.Name == "" {
 				d.Name = "Custom Dashboard"
 			}
-			dashID := d.ID
-			if dashID == "" {
-				if strings.EqualFold(d.Name, "Default") {
-					dashID = "default"
-				} else {
-					dashID = uuid.New().String()
-				}
+			dashID := uuid.New().String()
+			if strings.EqualFold(d.Name, "Default") {
+				dashID = "default"
 			}
 
 			var existingDashID string
-			err := database.QueryRow(`SELECT id FROM dashboards WHERE id = ? OR name = ? LIMIT 1`, dashID, d.Name).Scan(&existingDashID)
+			err := database.QueryRow(`SELECT id FROM dashboards WHERE name = ? LIMIT 1`, d.Name).Scan(&existingDashID)
 			if err != nil {
 				_, err = database.Exec(`INSERT INTO dashboards (id, name) VALUES (?, ?)`, dashID, d.Name)
 				if err != nil {
@@ -252,10 +229,7 @@ func SeedBrokersFromConfig(database *sql.DB) {
 			err = database.QueryRow(`SELECT COUNT(*) FROM dashboard_layouts WHERE dashboard_id = ?`, existingDashID).Scan(&panelCount)
 			if err == nil && panelCount == 0 && len(d.Panels) > 0 {
 				for _, p := range d.Panels {
-					panelID := p.ID
-					if panelID == "" {
-						panelID = uuid.New().String()
-					}
+					panelID := uuid.New().String()
 					w := p.W
 					if w <= 0 {
 						w = 4
@@ -265,8 +239,14 @@ func SeedBrokersFromConfig(database *sql.DB) {
 						h = 4
 					}
 					panelBrokerID := p.BrokerID
-					if panelBrokerID == "" && p.BrokerName != "" {
-						panelBrokerID = brokerMap[p.BrokerName]
+					if panelBrokerID != "" {
+						if id, ok := brokerMap[panelBrokerID]; ok {
+							panelBrokerID = id
+						}
+					} else if p.BrokerName != "" {
+						if id, ok := brokerMap[p.BrokerName]; ok {
+							panelBrokerID = id
+						}
 					}
 					if panelBrokerID == "" {
 						panelBrokerID = defaultBrokerID
