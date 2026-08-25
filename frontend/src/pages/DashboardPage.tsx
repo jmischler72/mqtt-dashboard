@@ -1,22 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import {
-  MdSmartButton,
-  MdInput,
-  MdListAlt,
-  MdSchedule,
-  MdBarChart,
-  MdSpeed,
-  MdImage,
-  MdHorizontalRule,
-  MdNotes,
-} from "react-icons/md";
 import ReactGridLayout from "react-grid-layout";
 import { useOutletContext } from "react-router-dom";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const RGL = ReactGridLayout as any;
 import { api } from "../api/client";
 import PanelWrapper from "../components/PanelWrapper";
+import {
+  getPanelsByCategory,
+  getPanelDefinition,
+  PanelPreviewCard,
+  type PanelDefinition,
+} from "../components/panels";
 import type { BrokerStatus } from "../hooks/useBrokers";
 import { useIsMobile } from "../hooks/useIsMobile";
 
@@ -42,185 +37,6 @@ export interface Panel {
   broker_id: string;
 }
 
-const PANEL_TYPES = [
-  {
-    value: "button",
-    label: "Button",
-    icon: MdSmartButton,
-    preview: (
-      <div className="flex items-center justify-center h-full py-4">
-        <button className="btn btn-primary btn-lg pointer-events-none">
-          Click
-        </button>
-      </div>
-    ),
-  },
-  {
-    value: "input",
-    label: "Input",
-    icon: MdInput,
-    preview: (
-      <div className="flex flex-col gap-2 p-1 h-full">
-        <textarea
-          className="textarea textarea-bordered font-mono flex-1 resize-none w-full text-xs pointer-events-none"
-          placeholder="Enter payload…"
-          readOnly
-          value=""
-        />
-        <button className="btn btn-sm btn-primary pointer-events-none">
-          Publish
-        </button>
-      </div>
-    ),
-  },
-  {
-    value: "log",
-    label: "Log",
-    icon: MdListAlt,
-    preview: (
-      <div className="flex flex-col h-full gap-1">
-        <div className="flex gap-1 pb-1">
-          <span className="btn btn-xs pointer-events-none">Clear</span>
-          <span className="btn btn-xs pointer-events-none">Pause</span>
-          <span className="text-xs text-base-content/50 ml-auto self-center">
-            3 msgs
-          </span>
-        </div>
-        <div className="flex-1 bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5">
-          {[
-            { topic: "sensor/temp", payload: "22.4" },
-            { topic: "sensor/hum", payload: "61%" },
-            { topic: "device/status", payload: "online" },
-          ].map((m, i) => (
-            <div key={i} className="leading-tight">
-              <span className="text-neutral-content/70">[12:00:0{i}]</span>{" "}
-              <span className="text-accent">{m.topic}</span>{" "}
-              <span>{m.payload}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-  {
-    value: "cron",
-    label: "Cron",
-    icon: MdSchedule,
-    preview: (
-      <div className="flex flex-col gap-3 p-1 h-full">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-mono bg-base-200 rounded px-2 py-1">
-            every minute
-          </span>
-          <input
-            type="checkbox"
-            className="toggle toggle-primary toggle-sm pointer-events-none"
-            readOnly
-            checked
-          />
-        </div>
-        <div className="flex flex-col items-center justify-center gap-1 flex-1">
-          <div className="text-xs text-base-content/50">Next run in</div>
-          <div className="text-xl font-bold font-mono">00:42</div>
-          <progress
-            className="progress progress-primary w-full"
-            value={30}
-            max="100"
-          />
-        </div>
-      </div>
-    ),
-  },
-  {
-    value: "stats",
-    label: "Stats",
-    icon: MdBarChart,
-    preview: (
-      <div className="flex flex-col gap-2 h-full">
-        <div className="grid grid-cols-2 gap-1">
-          {[
-            { label: "Msg/s", value: "4.2" },
-            { label: "Total", value: "1.2k" },
-            { label: "Topics", value: "8" },
-            { label: "Data in", value: "3.1k" },
-          ].map((s) => (
-            <div key={s.label} className="bg-base-200 rounded p-1 text-center">
-              <div className="text-xs text-base-content/50">{s.label}</div>
-              <div className="text-sm font-bold">{s.value}</div>
-            </div>
-          ))}
-        </div>
-        <svg viewBox="0 0 100 30" className="w-full opacity-60">
-          <polyline
-            points="0,28 20,20 40,22 60,10 80,14 100,6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="text-primary"
-          />
-        </svg>
-      </div>
-    ),
-  },
-  {
-    value: "gauge",
-    label: "Gauge",
-    icon: MdSpeed,
-    preview: (
-      <div className="flex flex-col items-center justify-center h-full gap-1 p-2">
-        <div className="relative flex items-center justify-center w-12 h-12">
-          <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-            <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="10" className="text-base-content/10" />
-            <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round" strokeDasharray="251.327" strokeDashoffset="70" className="text-primary" />
-          </svg>
-          <span className="absolute text-[10px] font-bold font-mono text-base-content">24°C</span>
-        </div>
-        <span className="text-[10px] text-base-content/50 font-mono">sensor/temp</span>
-      </div>
-    ),
-  },
-];
-
-const VISUAL_PANEL_TYPES = [
-  {
-    value: "text",
-    label: "Text",
-    icon: MdNotes,
-    preview: (
-      <div className="flex flex-col gap-1 p-2 h-full justify-center">
-        <div className="h-2 w-2/3 bg-base-content/30 rounded" />
-        <div className="h-1.5 w-full bg-base-content/15 rounded" />
-        <div className="h-1.5 w-5/6 bg-base-content/15 rounded" />
-        <div className="h-1.5 w-3/4 bg-base-content/15 rounded" />
-      </div>
-    ),
-  },
-  {
-    value: "separator",
-    label: "Separator",
-    icon: MdHorizontalRule,
-    preview: (
-      <div className="flex items-center justify-center h-full px-2">
-        <div className="w-full h-0.5 bg-base-content/40 rounded-full" />
-      </div>
-    ),
-  },
-  {
-    value: "image",
-    label: "Image",
-    icon: MdImage,
-    preview: (
-      <div className="flex items-center justify-center h-full p-2">
-        <div className="flex items-center justify-center w-full h-full bg-base-200 rounded">
-          <MdImage className="text-3xl text-base-content/30" />
-        </div>
-      </div>
-    ),
-  },
-];
-
-const ALL_PANEL_TYPES = [...PANEL_TYPES, ...VISUAL_PANEL_TYPES];
-
 const GRID_COLS = 12;
 const GRID_ROW_HEIGHT = 60;
 const GRID_ROW_GAP = 10;
@@ -242,7 +58,8 @@ export default function DashboardPage() {
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [gridWidth, setGridWidth] = useState(1200);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [addMonitorMenuOpen, setAddMonitorMenuOpen] = useState(false);
+  const [addControlMenuOpen, setAddControlMenuOpen] = useState(false);
   const [addVisualMenuOpen, setAddVisualMenuOpen] = useState(false);
   const [newPanelId, setNewPanelId] = useState<string | null>(null);
   const [openConfigPanels, setOpenConfigPanels] = useState<Set<string>>(
@@ -286,7 +103,8 @@ export default function DashboardPage() {
     null,
   );
   const containerRef = useRef<HTMLDivElement>(null);
-  const addMenuRef = useRef<HTMLDivElement>(null);
+  const addMonitorMenuRef = useRef<HTMLDivElement>(null);
+  const addControlMenuRef = useRef<HTMLDivElement>(null);
   const addVisualMenuRef = useRef<HTMLDivElement>(null);
   const { editMode, activeDashboardId, dashboardsLoading, brokerStatuses } =
     useOutletContext<LayoutContext>();
@@ -295,10 +113,16 @@ export default function DashboardPage() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (
-        addMenuRef.current &&
-        !addMenuRef.current.contains(e.target as Node)
+        addMonitorMenuRef.current &&
+        !addMonitorMenuRef.current.contains(e.target as Node)
       ) {
-        setAddMenuOpen(false);
+        setAddMonitorMenuOpen(false);
+      }
+      if (
+        addControlMenuRef.current &&
+        !addControlMenuRef.current.contains(e.target as Node)
+      ) {
+        setAddControlMenuOpen(false);
       }
       if (
         addVisualMenuRef.current &&
@@ -366,18 +190,21 @@ export default function DashboardPage() {
   const gridInteractionsEnabled =
     editMode && openConfigPanels.size === 0 && !hasAnyModalOpen;
 
+  const monitorPanels = getPanelsByCategory("monitor");
+  const controlPanels = getPanelsByCategory("control");
+  const visualPanels = getPanelsByCategory("visual");
+
   const layout = panels.map((p) => {
     let minW = 2,
       minH = 2;
     let maxW: number | undefined, maxH: number | undefined;
-    if (p.panel_type === "separator") {
-      const orient =
-        (p.config_json as { orientation?: string })?.orientation ??
-        "horizontal";
-      minW = 1;
-      minH = 1;
-      if (orient === "horizontal") maxH = 1;
-      else maxW = 1;
+    const def = getPanelDefinition(p.panel_type);
+    if (def?.getMinMaxConstraints) {
+      const constraints = def.getMinMaxConstraints(p.config_json);
+      if (constraints.minW !== undefined) minW = constraints.minW;
+      if (constraints.minH !== undefined) minH = constraints.minH;
+      if (constraints.maxW !== undefined) maxW = constraints.maxW;
+      if (constraints.maxH !== undefined) maxH = constraints.maxH;
     }
     return {
       i: p.id,
@@ -466,7 +293,8 @@ export default function DashboardPage() {
 
   const addPanel = async (panelType: string) => {
     if (isLoadingLayout || !activeDashboardId) return;
-    setAddMenuOpen(false);
+    setAddMonitorMenuOpen(false);
+    setAddControlMenuOpen(false);
     setAddVisualMenuOpen(false);
     if (previewHideTimerRef.current) {
       clearTimeout(previewHideTimerRef.current);
@@ -481,7 +309,7 @@ export default function DashboardPage() {
         panel_type: panelType,
         x,
         y,
-        title: `${ALL_PANEL_TYPES.find((t) => t.value === panelType)?.label ?? "New"} Panel`,
+        title: `${getPanelDefinition(panelType)?.label ?? "New"} Panel`,
       });
       setPanels((prev) => [...prev, panel]);
       setNewPanelId(panel.id);
@@ -490,33 +318,36 @@ export default function DashboardPage() {
     }
   };
 
-  const renderAddMenuItem = (t: (typeof ALL_PANEL_TYPES)[number]) => (
-    <button
-      className="w-full text-left px-3 py-2 hover:bg-base-200 rounded flex items-center gap-2"
-      onClick={() => addPanel(t.value)}
-      onMouseEnter={(e) => {
-        if (previewHideTimerRef.current)
-          clearTimeout(previewHideTimerRef.current);
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const PREVIEW_W = 208;
-        const left = Math.min(
-          rect.right + 8,
-          window.innerWidth - PREVIEW_W - 8,
-        );
-        setPreviewPos({ top: rect.top, left });
-        setHoveredPanelType(t.value);
-      }}
-      onMouseLeave={() => {
-        previewHideTimerRef.current = setTimeout(() => {
-          setHoveredPanelType(null);
-          setPreviewPos(null);
-        }, 150);
-      }}
-    >
-      <t.icon size={16} className="text-base-content/60 shrink-0" />
-      {t.label}
-    </button>
-  );
+  const renderAddMenuItem = (t: PanelDefinition) => {
+    const Icon = t.icon;
+    return (
+      <button
+        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded flex items-center gap-2"
+        onClick={() => addPanel(t.type)}
+        onMouseEnter={(e) => {
+          if (previewHideTimerRef.current)
+            clearTimeout(previewHideTimerRef.current);
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const PREVIEW_W = 208;
+          const left = Math.min(
+            rect.right + 8,
+            window.innerWidth - PREVIEW_W - 8,
+          );
+          setPreviewPos({ top: rect.top, left });
+          setHoveredPanelType(t.type);
+        }}
+        onMouseLeave={() => {
+          previewHideTimerRef.current = setTimeout(() => {
+            setHoveredPanelType(null);
+            setPreviewPos(null);
+          }, 150);
+        }}
+      >
+        <Icon size={16} className="text-base-content/60 shrink-0" />
+        {t.label}
+      </button>
+    );
+  };
 
   const removePanel = (id: string) => {
     setPanels((prev) => prev.filter((p) => p.id !== id));
@@ -597,21 +428,42 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-base-200">
         {editMode && (
           <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 sticky top-0 z-10">
-            <div className="relative" ref={addMenuRef}>
+            <div className="relative" ref={addMonitorMenuRef}>
               <button
                 className="btn btn-sm btn-primary"
                 onClick={() => {
+                  setAddControlMenuOpen(false);
                   setAddVisualMenuOpen(false);
-                  setAddMenuOpen((o) => !o);
+                  setAddMonitorMenuOpen((o) => !o);
                 }}
                 disabled={isLoadingLayout}
               >
-                {isLoadingLayout ? "Loading layout..." : "+ Add Panel"}
+                {isLoadingLayout ? "Loading layout..." : "+ Add Monitor"}
               </button>
-              {addMenuOpen && !isLoadingLayout && (
+              {addMonitorMenuOpen && !isLoadingLayout && (
                 <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
-                  {PANEL_TYPES.map((t) => (
-                    <li key={t.value}>{renderAddMenuItem(t)}</li>
+                  {monitorPanels.map((t) => (
+                    <li key={t.type}>{renderAddMenuItem(t)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="relative" ref={addControlMenuRef}>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => {
+                  setAddMonitorMenuOpen(false);
+                  setAddVisualMenuOpen(false);
+                  setAddControlMenuOpen((o) => !o);
+                }}
+                disabled={isLoadingLayout}
+              >
+                + Add Control
+              </button>
+              {addControlMenuOpen && !isLoadingLayout && (
+                <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
+                  {controlPanels.map((t) => (
+                    <li key={t.type}>{renderAddMenuItem(t)}</li>
                   ))}
                 </ul>
               )}
@@ -620,7 +472,8 @@ export default function DashboardPage() {
               <button
                 className="btn btn-sm btn-outline btn-primary"
                 onClick={() => {
-                  setAddMenuOpen(false);
+                  setAddMonitorMenuOpen(false);
+                  setAddControlMenuOpen(false);
                   setAddVisualMenuOpen((o) => !o);
                 }}
                 disabled={isLoadingLayout}
@@ -629,8 +482,8 @@ export default function DashboardPage() {
               </button>
               {addVisualMenuOpen && !isLoadingLayout && (
                 <ul className="absolute top-full left-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-40 p-2 shadow">
-                  {VISUAL_PANEL_TYPES.map((t) => (
-                    <li key={t.value}>{renderAddMenuItem(t)}</li>
+                  {visualPanels.map((t) => (
+                    <li key={t.type}>{renderAddMenuItem(t)}</li>
                   ))}
                 </ul>
               )}
@@ -653,7 +506,7 @@ export default function DashboardPage() {
                 <p className="text-2xl mb-2">No panels yet</p>
                 <p>
                   {editMode
-                    ? 'Click "+ Add Panel" to get started'
+                    ? 'Click "+ Add Monitor", "+ Add Control", or "+ Add Visual" to get started'
                     : "Toggle Edit: ON in the navbar to add panels"}
                 </p>
               </div>
@@ -722,15 +575,19 @@ export default function DashboardPage() {
       </div>
       {hoveredPanelType &&
         previewPos &&
-        createPortal(
-          <div
-            className="fixed z-[100] rounded-box border border-base-300 bg-base-100 shadow-lg p-3 w-52 h-40 pointer-events-none"
-            style={{ top: previewPos.top, left: previewPos.left }}
-          >
-            {ALL_PANEL_TYPES.find((t) => t.value === hoveredPanelType)?.preview}
-          </div>,
-          document.body,
-        )}
+        (() => {
+          const hoveredDef = getPanelDefinition(hoveredPanelType);
+          if (!hoveredDef) return null;
+          return createPortal(
+            <div
+              className="fixed z-[100] rounded-box border border-base-300 bg-base-100 shadow-lg p-3 w-52 h-40 pointer-events-none"
+              style={{ top: previewPos.top, left: previewPos.left }}
+            >
+              <PanelPreviewCard definition={hoveredDef} />
+            </div>,
+            document.body,
+          );
+        })()}
     </>
   );
 }
