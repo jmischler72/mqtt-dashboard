@@ -10,5 +10,261 @@
   "settings": {
     "retention_period_hours": 24,
     "save_sys_topics": false
-  }
+  },
+  "dashboards": [
+    {
+      "id": "dev-showcase",
+      "name": "Dev Showcase",
+      "panels": [
+        {
+          "title": "🧪 Developer Showcase",
+          "panel_type": "text",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 2,
+          "config_json": {
+            "markdown": "# 🧪 Developer Showcase Dashboard\n\nComprehensive test suite featuring all **9 panel types** and configurations:\n- **Monitors**: Radial / Bar / Value Gauges, Topic Throughput Stats, Streaming Live Logs\n- **Controls**: Instant & Confirmation Action Buttons, Dynamic Input, Automated Cron\n- **Visuals**: Separator Dividers, Rich Markdown, Architecture Media Cards"
+          }
+        },
+        {
+          "title": "Section Divider",
+          "panel_type": "separator",
+          "x": 0,
+          "y": 2,
+          "w": 12,
+          "h": 1,
+          "config_json": {
+            "orientation": "horizontal",
+            "thickness": 2,
+            "color": "#9ca3af"
+          }
+        },
+        {
+          "title": "Temperature (Radial Dial)",
+          "panel_type": "gauge",
+          "x": 0,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "sensors/living-room/temperature",
+            "valueKey": "value",
+            "unit": "°C",
+            "min": 0,
+            "max": 50,
+            "colorScheme": "auto",
+            "gaugeType": "radial"
+          }
+        },
+        {
+          "title": "Humidity (Progress Bar)",
+          "panel_type": "gauge",
+          "x": 3,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "sensors/living-room/humidity",
+            "valueKey": "value",
+            "unit": "%",
+            "min": 0,
+            "max": 100,
+            "colorScheme": "auto",
+            "gaugeType": "bar"
+          }
+        },
+        {
+          "title": "Motion Detector (Value Card)",
+          "panel_type": "gauge",
+          "x": 6,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "sensors/living-room/motion",
+            "valueKey": "value",
+            "gaugeType": "value"
+          }
+        },
+        {
+          "title": "Sensor Metrics & Rate",
+          "panel_type": "stats",
+          "x": 9,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "sensors/#",
+            "defaultRange": 60,
+            "showStatTiles": true,
+            "showChart": true,
+            "showTopicBreakdown": true
+          }
+        },
+        {
+          "title": "Section Divider",
+          "panel_type": "separator",
+          "x": 0,
+          "y": 6,
+          "w": 12,
+          "h": 1,
+          "config_json": {
+            "orientation": "horizontal",
+            "thickness": 2,
+            "color": "#9ca3af"
+          }
+        },
+        {
+          "title": "Start Node (Action Button)",
+          "panel_type": "button",
+          "x": 0,
+          "y": 7,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Start Node",
+            "topic": "device/1/cmd",
+            "payload": "START",
+            "qos": 1,
+            "retain": false
+          }
+        },
+        {
+          "title": "Stop Node (Action Button)",
+          "panel_type": "button",
+          "x": 3,
+          "y": 7,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Stop Node",
+            "topic": "device/1/cmd",
+            "payload": "STOP",
+            "qos": 1,
+            "retain": false
+          }
+        },
+        {
+          "title": "Quick Boost (Custom Payload)",
+          "panel_type": "button",
+          "x": 6,
+          "y": 7,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Boost Fan",
+            "topic": "sensors/bathroom/humidity",
+            "payload": "{\"action\": \"boost\", \"speed\": 100}",
+            "qos": 1
+          }
+        },
+        {
+          "title": "Emergency Cut (Confirmed)",
+          "panel_type": "button",
+          "x": 9,
+          "y": 7,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Emergency Stop",
+            "topic": "device/1/cmd",
+            "payload": "{\"action\": \"emergency_stop\"}",
+            "qos": 1,
+            "requireConfirm": true
+          }
+        },
+        {
+          "title": "Section Divider",
+          "panel_type": "separator",
+          "x": 0,
+          "y": 10,
+          "w": 12,
+          "h": 1,
+          "config_json": {
+            "orientation": "horizontal",
+            "thickness": 2,
+            "color": "#9ca3af"
+          }
+        },
+        {
+          "title": "Custom Command Publisher",
+          "panel_type": "input",
+          "x": 0,
+          "y": 11,
+          "w": 4,
+          "h": 3,
+          "config_json": {
+            "topic": "test/command",
+            "qos": 0,
+            "retain": false
+          }
+        },
+        {
+          "title": "Heartbeat Scheduler",
+          "panel_type": "cron",
+          "x": 4,
+          "y": 11,
+          "w": 4,
+          "h": 3,
+          "config_json": {
+            "cron_expr": "* * * * *",
+            "topic": "test/heartbeat",
+            "payload": "{\"status\": \"healthy\"}",
+            "enabled": true
+          }
+        },
+        {
+          "title": "Live IoT & Test Feed",
+          "panel_type": "log",
+          "x": 8,
+          "y": 11,
+          "w": 4,
+          "h": 3,
+          "config_json": {
+            "topics": "sensors/#, test/#",
+            "maxMessages": 200,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true
+          }
+        },
+        {
+          "title": "Section Divider",
+          "panel_type": "separator",
+          "x": 0,
+          "y": 14,
+          "w": 12,
+          "h": 1,
+          "config_json": {
+            "orientation": "horizontal",
+            "thickness": 2,
+            "color": "#9ca3af"
+          }
+        },
+        {
+          "title": "Architecture Blueprint",
+          "panel_type": "image",
+          "x": 0,
+          "y": 15,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "src": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80"
+          }
+        },
+        {
+          "title": "System Notes & Guide",
+          "panel_type": "text",
+          "x": 6,
+          "y": 15,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "markdown": "### 🛠️ Developer Tips & Controls\n\n- **Drag & Resize**: Click **Edit: ON** in the header to reorder or resize panels.\n- **Topic Explorer**: Use the search icon in any config modal to browse topics.\n- **QoS & Retain**: Configure per-panel Quality of Service and retained flags.\n- **Multiple Brokers**: Easily switch brokers per panel."
+          }
+        }
+      ]
+    }
+  ]
 }
