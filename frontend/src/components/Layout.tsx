@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { MdMenu } from "react-icons/md";
+import {
+  MdMenu,
+  MdEdit,
+  MdAdd,
+  MdKeyboardArrowUp,
+  MdKeyboardArrowDown,
+} from "react-icons/md";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
 const worktreeModules = import.meta.glob<{
@@ -50,6 +56,8 @@ export default function Layout() {
   const brokerStatuses = useBrokerStatuses();
   const [showCredits, setShowCredits] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [panelLibraryOpen, setPanelLibraryOpen] = useState(false);
+  const [navHidden, setNavHidden] = useState(false);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeDashboardId, setActiveDashboardId] = useState<string>(() => {
     return localStorage.getItem(ACTIVE_DASHBOARD_KEY) ?? "";
@@ -133,7 +141,10 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <nav className="navbar bg-base-100 border-b border-base-300 px-4 gap-2">
+      <div className="sticky top-0 z-40 relative">
+        <nav
+          className={`navbar bg-base-100 border-b border-base-300 px-4 gap-2 ${navHidden && showDashboardControls ? "hidden" : ""}`}
+        >
         <img
           src="/logo.svg"
           alt="mqtt-dashboard"
@@ -301,12 +312,29 @@ export default function Layout() {
             />
           )}
           {showDashboardControls && (
-            <button
-              className={`btn btn-sm ${editMode ? "btn-warning" : "btn-outline"}`}
-              onClick={() => setEditMode((prev) => !prev)}
-            >
-              {editMode ? "Edit: ON" : "Edit: OFF"}
-            </button>
+            <>
+              <div
+                aria-hidden="true"
+                className="h-6 w-px bg-base-300 mx-1"
+              />
+              {editMode && (
+                <button
+                  className="btn btn-sm btn-primary gap-1.5"
+                  onClick={() => setPanelLibraryOpen(true)}
+                  title="Add panel"
+                >
+                  <MdAdd className="text-base" />
+                  <span className="hidden sm:inline">Add panel</span>
+                </button>
+              )}
+              <button
+                className={`btn btn-sm gap-1.5 ${editMode ? "btn-warning" : "btn-outline"}`}
+                onClick={() => setEditMode((prev) => !prev)}
+              >
+                <MdEdit className="text-base" />
+                {editMode ? "Edit: ON" : "Edit: OFF"}
+              </button>
+            </>
           )}
 
           {/* Aggregated broker status with flyout */}
@@ -353,7 +381,22 @@ export default function Layout() {
             )}
           </div>
         </div>
-      </nav>
+        </nav>
+        {showDashboardControls && (
+          <button
+            onClick={() => setNavHidden((v) => !v)}
+            title={navHidden ? "Show navbar" : "Hide navbar"}
+            aria-label={navHidden ? "Show navbar" : "Hide navbar"}
+            className="absolute left-2 top-full flex items-center justify-center w-7 h-5 bg-base-100 border-l border-r border-b border-base-300 rounded-b-md text-base-content/60 hover:text-base-content"
+          >
+            {navHidden ? (
+              <MdKeyboardArrowDown className="text-base" />
+            ) : (
+              <MdKeyboardArrowUp className="text-base" />
+            )}
+          </button>
+        )}
+      </div>
       <main className="flex-1">
         {!backendReady ? (
           <div className="flex items-center justify-center h-64 text-base-content/60">
@@ -370,6 +413,8 @@ export default function Layout() {
               activeDashboardId,
               dashboardsLoading,
               brokerStatuses,
+              panelLibraryOpen,
+              setPanelLibraryOpen,
             }}
           />
         )}

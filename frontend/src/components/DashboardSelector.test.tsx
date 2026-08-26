@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 
@@ -12,7 +12,7 @@ describe("DashboardSelector", () => {
     cleanup();
   });
 
-  it("does not render create and load (import) options when editMode is false", () => {
+  it("hides the kebab menu when editMode is false", () => {
     render(
       <DashboardSelector
         dashboards={dashboards}
@@ -25,14 +25,16 @@ describe("DashboardSelector", () => {
       />,
     );
 
-    expect(screen.getByRole("option", { name: "Default Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Second Dashboard" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Create New Dashboard/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Import from JSON/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Default Dashboard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Second Dashboard" }),
+    ).toBeInTheDocument();
     expect(screen.queryByTitle("Dashboard options")).not.toBeInTheDocument();
   });
 
-  it("renders create and load (import) options when editMode is true", () => {
+  it("exposes create, import, rename, export, and delete via the kebab menu when editMode is true", () => {
     render(
       <DashboardSelector
         dashboards={dashboards}
@@ -45,10 +47,31 @@ describe("DashboardSelector", () => {
       />,
     );
 
-    expect(screen.getByRole("option", { name: "Default Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Second Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Create New Dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Import from JSON/i })).toBeInTheDocument();
-    expect(screen.getByTitle("Dashboard options")).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Default Dashboard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Second Dashboard" }),
+    ).toBeInTheDocument();
+
+    const kebab = screen.getByTitle("Dashboard options");
+    expect(kebab).toBeInTheDocument();
+    fireEvent.click(kebab);
+
+    expect(
+      screen.getByRole("button", { name: /Create new/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Import from JSON/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Rename/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Export/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Delete/i }),
+    ).toBeInTheDocument();
   });
 });

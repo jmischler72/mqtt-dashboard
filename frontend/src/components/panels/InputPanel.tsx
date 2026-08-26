@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
@@ -100,6 +100,14 @@ export default function InputPanel({
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    },
+    [],
+  );
 
   const effectiveTopic = overrideTopic ?? config.topic;
   const effectiveBrokerId = overrideBrokerId ?? brokerId;
@@ -136,7 +144,8 @@ export default function InputPanel({
       setFlash("error");
     } finally {
       setLoading(false);
-      setTimeout(() => setFlash(null), 1500);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = setTimeout(() => setFlash(null), 1500);
     }
   };
 
@@ -147,6 +156,14 @@ export default function InputPanel({
         placeholder="Enter payload…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (!loading && parsedTopics.length > 0 && value && !hasWildcard) {
+              handlePublish();
+            }
+          }
+        }}
       />
       <button
         className={`btn btn-sm ${

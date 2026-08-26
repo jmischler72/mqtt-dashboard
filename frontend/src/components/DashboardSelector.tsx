@@ -24,9 +24,6 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
-const CREATE_NEW = "__create_new__";
-const IMPORT = "__import__";
-
 export default function DashboardSelector({
   dashboards,
   activeDashboardId,
@@ -78,18 +75,19 @@ export default function DashboardSelector({
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
-    if (val === CREATE_NEW) {
-      setCreateValue("");
-      setImportError(null);
-      setCreateOpen(true);
-      // Reset the select visually back to the active one
-      e.target.value = activeDashboardId;
-    } else if (val === IMPORT) {
-      e.target.value = activeDashboardId;
-      importInputRef.current?.click();
-    } else if (val !== activeDashboardId) {
-      onSwitch(val);
-    }
+    if (val !== activeDashboardId) onSwitch(val);
+  };
+
+  const openCreate = () => {
+    setCreateValue("");
+    setImportError(null);
+    setCreateOpen(true);
+    setMenuOpen(false);
+  };
+
+  const openImport = () => {
+    setMenuOpen(false);
+    importInputRef.current?.click();
   };
 
   const handleCreate = async () => {
@@ -209,12 +207,6 @@ export default function DashboardSelector({
               {d.name}
             </option>
           ))}
-          {editMode && (
-            <>
-              <option value={CREATE_NEW}>＋ Create New Dashboard</option>
-              <option value={IMPORT}>↑ Import from JSON</option>
-            </>
-          )}
         </select>
         <input
           ref={importInputRef}
@@ -225,7 +217,7 @@ export default function DashboardSelector({
         />
 
         {/* Kebab menu — only in edit mode */}
-        {editMode && activeDashboard && (
+        {editMode && (
           <div className="relative" ref={menuRef}>
             <button
               className="btn btn-sm btn-ghost btn-square"
@@ -235,39 +227,63 @@ export default function DashboardSelector({
               ⋮
             </button>
             {menuOpen && (
-              <ul className="absolute top-full right-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-36 p-1 shadow">
+              <ul className="absolute top-full right-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-44 p-1 shadow">
                 <li>
                   <button
                     className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
-                    onClick={() => {
-                      setRenameValue(activeDashboard.name);
-                      setRenameOpen(true);
-                      setMenuOpen(false);
-                    }}
+                    onClick={openCreate}
                   >
-                    Rename
+                    Create new
                   </button>
                 </li>
                 <li>
                   <button
                     className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
-                    onClick={handleExport}
+                    onClick={openImport}
                   >
-                    Export
+                    Import from JSON
                   </button>
                 </li>
-                <li>
-                  <button
-                    className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm text-error"
-                    onClick={() => {
-                      setDeleteOpen(true);
-                      setMenuOpen(false);
-                    }}
-                    disabled={dashboards.length <= 1}
-                  >
-                    Delete
-                  </button>
-                </li>
+                {activeDashboard && (
+                  <>
+                    <li
+                      aria-hidden="true"
+                      className="my-1 border-t border-base-300"
+                    />
+                    <li>
+                      <button
+                        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
+                        onClick={() => {
+                          setRenameValue(activeDashboard.name);
+                          setRenameOpen(true);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Rename
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
+                        onClick={handleExport}
+                      >
+                        Export
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm text-error"
+                        onClick={() => {
+                          setDeleteOpen(true);
+                          setMenuOpen(false);
+                        }}
+                        disabled={dashboards.length <= 1}
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  </>
+                )}
               </ul>
             )}
           </div>
