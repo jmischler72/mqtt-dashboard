@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.10.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.9.1...v1.10.0) (2026-08-27)
+
+
+### Features
+
+* **config:** support seeding dashboards and panels from config file and add dev showcase ([#137](https://github.com/jmischler72/mqtt-dashboard/issues/137)) ([5c6db00](https://github.com/jmischler72/mqtt-dashboard/commit/5c6db00201e35cb58d6e7bdc89d4fe5db51b0450))
+* **explorer:** add topic filtering and search highlighting ([#129](https://github.com/jmischler72/mqtt-dashboard/issues/129)) ([a04ec60](https://github.com/jmischler72/mqtt-dashboard/commit/a04ec6039a9b3409154214ba87930665a348ebba))
+* **navbar:** redesign navbar and dashboard selector ([#139](https://github.com/jmischler72/mqtt-dashboard/issues/139)) ([4e5149b](https://github.com/jmischler72/mqtt-dashboard/commit/4e5149bb5b93a0650c5e372c72ff441ae0aefdf8))
+
+
+### Bug Fixes
+
+* **dashboard:** polish edit flow, add unified panel library ([#138](https://github.com/jmischler72/mqtt-dashboard/issues/138)) ([24fbecc](https://github.com/jmischler72/mqtt-dashboard/commit/24fbecce4c44348ee5f9c8c81555b7e592a24c0f))
+* **docker:** wait for mosquitto healthcheck before starting dashboard ([#140](https://github.com/jmischler72/mqtt-dashboard/issues/140)) ([7bdcf4e](https://github.com/jmischler72/mqtt-dashboard/commit/7bdcf4e8205e2456bf0cb2a6a9d65fa00a63d3c8))
+
+
+### Code Refactoring
+
+* **dashboard:** implement generalized panel registry and plugin architecture ([#134](https://github.com/jmischler72/mqtt-dashboard/issues/134)) ([677e673](https://github.com/jmischler72/mqtt-dashboard/commit/677e67373b17ef25e9c8d7a4bb6957ba8c9fad69))
+* **panel:** standardize empty states, validation and config modal across panels ([#135](https://github.com/jmischler72/mqtt-dashboard/issues/135)) ([d2ceabf](https://github.com/jmischler72/mqtt-dashboard/commit/d2ceabf6fd97167dd40f48af5ae97a25274ed6ba))
+
 ## [1.9.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.9.0...v1.9.1) (2026-08-23)
 
 
