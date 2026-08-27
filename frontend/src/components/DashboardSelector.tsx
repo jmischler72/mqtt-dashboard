@@ -1,7 +1,12 @@
 import { useRef, useState, useEffect } from "react";
+import { MdSearch } from "react-icons/md";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
-import { exportDashboard, parseDashboardImport } from "../utils/dashboardIO";
+import {
+  buildDashboardExport,
+  exportDashboard,
+  parseDashboardImport,
+} from "../utils/dashboardIO";
 import {
   DASHBOARD_TEMPLATES,
   templateToImportPayload,
@@ -17,7 +22,6 @@ export interface Dashboard {
 interface Props {
   dashboards: Dashboard[];
   activeDashboardId: string;
-  editMode: boolean;
   onSwitch: (id: string) => void;
   onCreate: (d: Dashboard) => void;
   onRename: (d: Dashboard) => void;
@@ -27,7 +31,6 @@ interface Props {
 export default function DashboardSelector({
   dashboards,
   activeDashboardId,
-  editMode,
   onSwitch,
   onCreate,
   onRename,
@@ -41,7 +44,9 @@ export default function DashboardSelector({
   const [createValue, setCreateValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -73,9 +78,44 @@ export default function DashboardSelector({
 
   const activeDashboard = dashboards.find((d) => d.id === activeDashboardId);
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    if (val !== activeDashboardId) onSwitch(val);
+  const q = query.trim().toLowerCase();
+  const visibleDashboards = q
+    ? dashboards.filter((d) => d.name.toLowerCase().includes(q))
+    : dashboards;
+
+  const openMenu = () => {
+    setQuery("");
+    setMenuOpen((o) => !o);
+  };
+
+  const closeMenu = () => {
+    setMenuOpen(false);
+    menuTriggerRef.current?.focus();
+  };
+
+  const pick = (id: string) => {
+    closeMenu();
+    if (id !== activeDashboardId) onSwitch(id);
+  };
+
+  const handleDuplicate = async () => {
+    if (!activeDashboard || busy) return;
+    setMenuOpen(false);
+    setBusy(true);
+    try {
+      const panels = await api.get<Panel[]>(
+        `/api/layouts?dashboard_id=${activeDashboardId}`,
+      );
+      const envelope = buildDashboardExport(
+        `${activeDashboard.name} copy`,
+        panels,
+      );
+      const d = await api.post<Dashboard>("/api/dashboards/import", envelope);
+      onCreate(d);
+    } catch (error) {
+      void error;
+    }
+    setBusy(false);
   };
 
   const openCreate = () => {
@@ -195,19 +235,34 @@ export default function DashboardSelector({
 
   return (
     <>
-      <div className="flex items-center gap-1">
-        {/* Dashboard select */}
-        <select
-          className="select select-sm"
-          value={activeDashboardId}
-          onChange={handleSelectChange}
+      <div
+        className="relative min-w-0"
+        ref={menuRef}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") closeMenu();
+        }}
+      >
+        <button
+          ref={menuTriggerRef}
+          className={`h-8 max-w-full flex items-center gap-2 pl-3 pr-2 rounded-lg border text-[12.5px] font-medium transition-colors ${
+            menuOpen
+              ? "bg-base-300 border-base-content/20"
+              : "bg-base-200 border-base-300 hover:bg-base-300"
+          }`}
+          onClick={openMenu}
+          title="Dashboard options"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
         >
-          {dashboards.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+          <span className="truncate max-w-[6rem] sm:max-w-[10rem]">
+            {activeDashboard?.name ?? "No dashboard"}
+          </span>
+          <span
+            aria-hidden="true"
+            className="w-0 h-0 shrink-0 border-x-[3.5px] border-x-transparent border-t-4 border-t-base-content/50"
+          />
+        </button>
+
         <input
           ref={importInputRef}
           type="file"
@@ -216,75 +271,156 @@ export default function DashboardSelector({
           onChange={handleImportFile}
         />
 
-        {/* Kebab menu — only in edit mode */}
-        {editMode && (
-          <div className="relative" ref={menuRef}>
-            <button
-              className="btn btn-sm btn-ghost btn-square"
-              onClick={() => setMenuOpen((o) => !o)}
-              title="Dashboard options"
+        {menuOpen && (
+          <div
+            role="menu"
+            aria-label="Dashboard options"
+            className="fixed inset-x-2 top-[4.25rem] sm:absolute sm:inset-x-auto sm:left-0 sm:top-full sm:mt-1 sm:w-72 z-50 bg-base-100 border border-base-300 rounded-box shadow-lg"
+          >
+            <div className="p-2 pb-1">
+              <label className="input input-sm w-full">
+                <MdSearch className="text-base opacity-50" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && visibleDashboards[0]) {
+                      pick(visibleDashboards[0].id);
+                    }
+                  }}
+                  placeholder="Find a dashboard"
+                />
+              </label>
+            </div>
+
+            <ul
+              aria-label="Dashboards"
+              className="menu w-full p-2 max-h-64 flex-nowrap overflow-y-auto"
             >
-              ⋮
-            </button>
-            {menuOpen && (
-              <ul className="absolute top-full right-0 mt-1 bg-base-100 border border-base-300 rounded-box z-50 w-44 p-1 shadow">
-                <li>
-                  <button
-                    className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
-                    onClick={openCreate}
-                  >
-                    Create new
-                  </button>
+              {dashboards.length === 0 ? (
+                <li className="px-2 py-1 text-xs text-base-content/50">
+                  No dashboards yet
                 </li>
-                <li>
-                  <button
-                    className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
-                    onClick={openImport}
-                  >
-                    Import from JSON
-                  </button>
+              ) : visibleDashboards.length === 0 ? (
+                <li className="px-2 py-1 text-xs text-base-content/50">
+                  No dashboard matches “{query}”
                 </li>
-                {activeDashboard && (
-                  <>
-                    <li
-                      aria-hidden="true"
-                      className="my-1 border-t border-base-300"
-                    />
-                    <li>
+              ) : (
+                visibleDashboards.map((d) => {
+                  const active = d.id === activeDashboardId;
+                  return (
+                    <li key={d.id} className="w-full min-w-0">
                       <button
-                        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
-                        onClick={() => {
-                          setRenameValue(activeDashboard.name);
-                          setRenameOpen(true);
-                          setMenuOpen(false);
-                        }}
+                        role="menuitem"
+                        className={`!flex w-full min-w-0 items-center gap-2 ${active ? "menu-active" : ""}`}
+                        onClick={() => pick(d.id)}
                       >
-                        Rename
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            active ? "bg-success" : "bg-base-content/25"
+                          }`}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-left">
+                          {d.name}
+                        </span>
                       </button>
                     </li>
-                    <li>
-                      <button
-                        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm"
-                        onClick={handleExport}
-                      >
-                        Export
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        className="w-full text-left px-3 py-2 hover:bg-base-200 rounded text-sm text-error"
-                        onClick={() => {
-                          setDeleteOpen(true);
-                          setMenuOpen(false);
-                        }}
-                        disabled={dashboards.length <= 1}
-                      >
-                        Delete
-                      </button>
-                    </li>
-                  </>
-                )}
-              </ul>
+                  );
+                })
+              )}
+            </ul>
+
+            <div className="border-t border-base-300" />
+            <ul className="menu w-full p-2">
+              <li>
+                <button role="menuitem" onClick={openCreate}>
+                  New dashboard
+                </button>
+              </li>
+              <li className="w-full min-w-0">
+                <button
+                  role="menuitem"
+                  className="!flex w-full min-w-0 items-center justify-between"
+                  onClick={openImport}
+                >
+                  <span>Import from file…</span>
+                  <span className="text-xs text-base-content/40 shrink-0">
+                    .json
+                  </span>
+                </button>
+              </li>
+              {activeDashboard && (
+                <>
+                  <li>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setRenameValue(activeDashboard.name);
+                        setRenameOpen(true);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      Rename
+                    </button>
+                  </li>
+                  <li className="w-full min-w-0">
+                    <button
+                      role="menuitem"
+                      className="!flex w-full min-w-0 items-center justify-between gap-2"
+                      onClick={handleExport}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-left">
+                        Export “{activeDashboard.name}”
+                      </span>
+                      <span className="text-xs text-base-content/40 shrink-0">
+                        .json
+                      </span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      role="menuitem"
+                      onClick={handleDuplicate}
+                      disabled={busy}
+                    >
+                      Duplicate
+                    </button>
+                  </li>
+                </>
+              )}
+            </ul>
+            {activeDashboard && (
+              <div className="border-t border-base-300">
+                <ul className="menu w-full p-2">
+                  <li
+                    className="w-full min-w-0"
+                    title={
+                      dashboards.length <= 1
+                        ? "You need at least one dashboard — create another before deleting this one"
+                        : undefined
+                    }
+                  >
+                    <button
+                      role="menuitem"
+                      className="!flex w-full min-w-0 items-center text-error"
+                      onClick={() => {
+                        setDeleteOpen(true);
+                        setMenuOpen(false);
+                      }}
+                      disabled={dashboards.length <= 1}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-left">
+                        Delete “{activeDashboard.name}”…
+                      </span>
+                      {dashboards.length <= 1 && (
+                        <span className="text-xs text-base-content/40 shrink-0">
+                          Last one
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                </ul>
+              </div>
             )}
           </div>
         )}

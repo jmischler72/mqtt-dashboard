@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 
@@ -7,71 +13,78 @@ const dashboards: Dashboard[] = [
   { id: "dash-2", name: "Second Dashboard", created_at: "2026-01-02" },
 ];
 
+function renderSelector(onSwitch = vi.fn()) {
+  render(
+    <DashboardSelector
+      dashboards={dashboards}
+      activeDashboardId="dash-1"
+      onSwitch={onSwitch}
+      onCreate={vi.fn()}
+      onRename={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  return onSwitch;
+}
+
 describe("DashboardSelector", () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("hides the kebab menu when editMode is false", () => {
-    render(
-      <DashboardSelector
-        dashboards={dashboards}
-        activeDashboardId="dash-1"
-        editMode={false}
-        onSwitch={vi.fn()}
-        onCreate={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+  it("lists dashboards and switches", () => {
+    const onSwitch = renderSelector();
+
+    fireEvent.click(screen.getByTitle("Dashboard options"));
+    const list = within(screen.getByRole("list", { name: "Dashboards" }));
 
     expect(
-      screen.getByRole("option", { name: "Default Dashboard" }),
+      list.getByRole("menuitem", { name: "Default Dashboard" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("option", { name: "Second Dashboard" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByTitle("Dashboard options")).not.toBeInTheDocument();
+
+    fireEvent.click(list.getByRole("menuitem", { name: "Second Dashboard" }));
+    expect(onSwitch).toHaveBeenCalledWith("dash-2");
   });
 
-  it("exposes create, import, rename, export, and delete via the kebab menu when editMode is true", () => {
-    render(
-      <DashboardSelector
-        dashboards={dashboards}
-        activeDashboardId="dash-1"
-        editMode={true}
-        onSwitch={vi.fn()}
-        onCreate={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+  it("always exposes new, import, rename, export, duplicate and delete", () => {
+    renderSelector();
+
+    fireEvent.click(screen.getByTitle("Dashboard options"));
 
     expect(
-      screen.getByRole("option", { name: "Default Dashboard" }),
+      screen.getByRole("menuitem", { name: /New dashboard/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: "Second Dashboard" }),
+      screen.getByRole("menuitem", { name: /Import from file/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Rename/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Export/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Duplicate/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Delete/i }),
+    ).toBeInTheDocument();
+  });
 
-    const kebab = screen.getByTitle("Dashboard options");
-    expect(kebab).toBeInTheDocument();
-    fireEvent.click(kebab);
+  it("filters the dashboard list by the search query", () => {
+    renderSelector();
 
+    fireEvent.click(screen.getByTitle("Dashboard options"));
+    fireEvent.change(screen.getByPlaceholderText("Find a dashboard"), {
+      target: { value: "second" },
+    });
+
+    const list = within(screen.getByRole("list", { name: "Dashboards" }));
     expect(
-      screen.getByRole("button", { name: /Create new/i }),
+      list.getByRole("menuitem", { name: "Second Dashboard" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Import from JSON/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Rename/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Export/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Delete/i }),
-    ).toBeInTheDocument();
+      list.queryByRole("menuitem", { name: "Default Dashboard" }),
+    ).not.toBeInTheDocument();
   });
 });
