@@ -1,8 +1,5 @@
 ignore
 
-# Generated worktree info
-frontend/src/worktreeInfo.json
-worktreeInfo.json
 
 # Test coverage artifacts
 *.out

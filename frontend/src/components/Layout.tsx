@@ -3,11 +3,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MdMenu, MdEdit, MdAdd, MdKeyboardArrowUp } from "react-icons/md";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
-const worktreeModules = import.meta.glob<{
-  default: { slug?: string };
-}>("../worktreeInfo.json", { eager: true });
-const worktreeSlug =
-  worktreeModules["../worktreeInfo.json"]?.default?.slug ?? null;
+// Injected by docker/dev/docker-compose-dev.yml, one per worktree
+const worktreeSlug = import.meta.env.VITE_WORKTREE_SLUG;
 
 import packageJson from "../../package.json";
 

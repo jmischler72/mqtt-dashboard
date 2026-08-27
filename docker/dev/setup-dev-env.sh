@@ -64,9 +64,5 @@ if [ -z "$(docker ps --quiet --filter "name=^${PROXY_PROJECT}$")" ]; then
         -f "$SCRIPT_DIR/proxy/docker-compose-proxy.yml" up -d
 fi
 
-# 7. Generate worktree info for the frontend dev badge
-TARGET_FILE="$(cd "$SCRIPT_DIR/../.." && pwd)/frontend/src/worktreeInfo.json"
-printf '{ "slug": "%s" }\n' "$SLUG" > "$TARGET_FILE"
-
 echo "==> Dev environment setup complete!"
 echo "==> This worktree will be served at $DEV_URL"
