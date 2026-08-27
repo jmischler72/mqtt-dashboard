@@ -6,6 +6,7 @@ import {
   buttonPanelDefinition,
   inputPanelDefinition,
   cronPanelDefinition,
+  togglePanelDefinition,
   textPanelDefinition,
   separatorPanelDefinition,
   imagePanelDefinition,
@@ -18,6 +19,7 @@ registerPanel(brokerStatsPanelDefinition);
 registerPanel(buttonPanelDefinition);
 registerPanel(inputPanelDefinition);
 registerPanel(cronPanelDefinition);
+registerPanel(togglePanelDefinition);
 registerPanel(textPanelDefinition);
 registerPanel(separatorPanelDefinition);
 registerPanel(imagePanelDefinition);

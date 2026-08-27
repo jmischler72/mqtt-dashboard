@@ -8,6 +8,7 @@ import {
   MdNotes,
   MdHorizontalRule,
   MdImage,
+  MdToggleOn,
 } from "react-icons/md";
 import { api } from "../../api/client";
 import type { PanelDefinition } from "./types";
@@ -29,6 +30,10 @@ import SeparatorPanel, {
   type SeparatorConfig,
 } from "./SeparatorPanel";
 import ImagePanel, { ImageConfigModal, type ImageConfig } from "./ImagePanel";
+import TogglePanel, {
+  ToggleConfigModal,
+  type ToggleConfig,
+} from "./TogglePanel";
 
 export const gaugePanelDefinition: PanelDefinition<GaugeConfig> = {
   type: "gauge",
@@ -247,6 +252,77 @@ export const cronPanelDefinition: PanelDefinition<CronConfig> = {
   Component: CronPanel,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConfigModal: CronConfigModal as any,
+};
+
+export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
+  type: "toggle",
+  label: "Toggle",
+  category: "control",
+  icon: MdToggleOn,
+  description: "Switch a device on or off and reflect its state",
+  resolvePickedTopic: (_existing, picked) => picked,
+  isEmpty: (config) =>
+    !config?.topic?.trim()
+      ? {
+          message: "No topic configured — open settings to add topic",
+          actionLabel: "Configure Topic",
+        }
+      : null,
+  // The generic validator only inspects `topic`. Wildcards are illegal on the
+  // command topic (it is published to) but fine on the state topic (read-only).
+  validateConfig: (config) => {
+    const topic = (config?.topic ?? "").trim();
+    if (!topic) {
+      return {
+        isValid: false,
+        warning: "No topic configured",
+        errors: { topic: "Topic is required" },
+      };
+    }
+    if (topic.includes("+") || topic.includes("#")) {
+      return {
+        isValid: false,
+        warning: "Cannot publish to wildcard topics (+ or #)",
+        errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
+      };
+    }
+    if (!(config?.onPayload ?? "ON").trim() || !(config?.offPayload ?? "OFF").trim()) {
+      return {
+        isValid: false,
+        warning: "On and Off payloads are required",
+        errors: { payload: "On and Off payloads are required" },
+      };
+    }
+    return { isValid: true };
+  },
+  getHeaderMeta: (config) => {
+    const topic = (config?.topic ?? "").trim();
+    const stateTopic = config?.stateTopic?.trim();
+    if (!topic) return { topicSummary: "not configured" };
+    return {
+      topicSummary: stateTopic ? `${topic} ⇄ ${stateTopic}` : topic,
+      topicDetail: stateTopic
+        ? `command → ${topic} · state ← ${stateTopic}`
+        : `command and state → ${topic}`,
+      payloadPreview: `${(config?.onPayload ?? "ON").trim()} / ${(config?.offPayload ?? "OFF").trim()}`,
+    };
+  },
+  preview: (
+    <div className="flex flex-col items-center justify-center h-full gap-2 p-2">
+      <div className="relative rounded-full bg-success w-16 h-7">
+        <span className="absolute inset-y-1 left-1 right-8 flex items-center justify-center text-[10px] font-bold tracking-wide text-success-content">
+          ON
+        </span>
+        <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-base-100 shadow-md" />
+      </div>
+      <span className="text-[10px] text-base-content/50 font-mono">
+        home/lamp/set
+      </span>
+    </div>
+  ),
+  Component: TogglePanel,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConfigModal: ToggleConfigModal as any,
 };
 
 export const textPanelDefinition: PanelDefinition<TextConfig> = {

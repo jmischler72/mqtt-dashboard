@@ -122,6 +122,7 @@ go build -o mqtt-dashboard .
 | **Gauge** | Real-time telemetry gauge (radial, bar, value) for numeric, boolean, or string data, with nested JSON path extraction |
 | **Button** | One-click publish a preset payload to a topic with QoS, Retain, and optional confirmation modal |
 | **Input** | Type and send ad-hoc messages to any topic with configurable QoS and Retain flags |
+| **Toggle** | Switch a device on/off and reflect its real state from a command or separate telemetry topic, with configurable on/off payloads |
 | **Log** | Real-time message stream with persistent history, wildcards, QoS/Retain badges, and date formatting |
 | **Cron** | Scheduled automatic publishing with visual cron builder helper, next-run countdown, and toggle switch |
 | **Stats** | Live broker statistics and message activity charts ($SYS telemetry, memory, client counts) |
