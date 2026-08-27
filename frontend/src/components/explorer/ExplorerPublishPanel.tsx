@@ -41,7 +41,10 @@ export default function ExplorerPublishPanel({
           </button>
         </div>
         <p className="text-[11px] text-base-content/60 leading-normal pr-4">
-          Topics with wildcards (<code className="font-mono text-warning">+</code> or <code className="font-mono text-warning">#</code>) cannot receive published messages. Select a specific sub-topic to publish.
+          Topics with wildcards (
+          <code className="font-mono text-warning">+</code> or{" "}
+          <code className="font-mono text-warning">#</code>) cannot receive
+          published messages. Select a specific sub-topic to publish.
         </p>
       </div>
     );

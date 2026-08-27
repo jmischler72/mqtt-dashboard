@@ -56,7 +56,7 @@ describe("dashboardTemplates", () => {
               const cell = `${col},${row}`;
               if (occupied.has(cell)) {
                 throw new Error(
-                  `Overlap in template "${template.name}" at cell (${col}, ${row}) between "${occupied.get(cell)}" and "${p.title}"`
+                  `Overlap in template "${template.name}" at cell (${col}, ${row}) between "${occupied.get(cell)}" and "${p.title}"`,
                 );
               }
               occupied.set(cell, p.title);

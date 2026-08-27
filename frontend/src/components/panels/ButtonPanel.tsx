@@ -52,8 +52,7 @@ export function ButtonConfigModal({
     initialBrokerId || brokerId || defaultBrokerId,
   );
 
-  const hasWildcardWarning =
-    topic.includes("+") || topic.includes("#");
+  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
 
   return (
     <PanelModalFrame
@@ -149,12 +148,14 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
   const rawTopic = config.topic ?? "";
   const parsedTopics = rawTopic
     ? rawTopic
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean)
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
     : [];
 
-  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+  const hasWildcard = parsedTopics.some(
+    (t) => t.includes("+") || t.includes("#"),
+  );
 
   const publishMessage = async () => {
     if (parsedTopics.length === 0 || hasWildcard) return;
@@ -212,7 +213,7 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
         {loading ? (
           <span className="loading loading-spinner" />
         ) : (
-          config.label ?? "Click"
+          (config.label ?? "Click")
         )}
       </button>
 
@@ -221,7 +222,11 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
           <div className="modal-box max-w-sm p-5">
             <h3 className="font-bold text-base mb-2">Confirm Action</h3>
             <p className="text-xs text-base-content/80 mb-3">
-              Are you sure you want to send this message to {parsedTopics.length === 1 ? "topic" : `${parsedTopics.length} topics`}?
+              Are you sure you want to send this message to{" "}
+              {parsedTopics.length === 1
+                ? "topic"
+                : `${parsedTopics.length} topics`}
+              ?
             </p>
             <div className="flex flex-wrap gap-1 mb-4 max-h-28 overflow-y-auto">
               {parsedTopics.map((t, idx) => (

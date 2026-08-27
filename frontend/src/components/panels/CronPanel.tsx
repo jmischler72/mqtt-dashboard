@@ -329,7 +329,11 @@ export default function CronPanel({
           className="toggle toggle-primary"
           checked={config.enabled ?? false}
           disabled={toggling || !config.cron_expr || hasWildcard}
-          title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
+          title={
+            hasWildcard
+              ? "Cannot publish to wildcard topics (+ or #)"
+              : undefined
+          }
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>

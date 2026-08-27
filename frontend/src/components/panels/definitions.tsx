@@ -11,10 +11,7 @@ import {
 } from "react-icons/md";
 import { api } from "../../api/client";
 import type { PanelDefinition } from "./types";
-import GaugePanel, {
-  GaugeConfigModal,
-  type GaugeConfig,
-} from "./GaugePanel";
+import GaugePanel, { GaugeConfigModal, type GaugeConfig } from "./GaugePanel";
 import LogPanel, { LogConfigModal, type LogConfig } from "./LogPanel";
 import BrokerStatsPanel, {
   BrokerStatsConfigModal,
@@ -24,20 +21,14 @@ import ButtonPanel, {
   ButtonConfigModal,
   type ButtonConfig,
 } from "./ButtonPanel";
-import InputPanel, {
-  InputConfigModal,
-  type InputConfig,
-} from "./InputPanel";
+import InputPanel, { InputConfigModal, type InputConfig } from "./InputPanel";
 import CronPanel, { CronConfigModal, type CronConfig } from "./CronPanel";
 import TextPanel, { TextConfigModal, type TextConfig } from "./TextPanel";
 import SeparatorPanel, {
   SeparatorConfigModal,
   type SeparatorConfig,
 } from "./SeparatorPanel";
-import ImagePanel, {
-  ImageConfigModal,
-  type ImageConfig,
-} from "./ImagePanel";
+import ImagePanel, { ImageConfigModal, type ImageConfig } from "./ImagePanel";
 
 export const gaugePanelDefinition: PanelDefinition<GaugeConfig> = {
   type: "gauge",
