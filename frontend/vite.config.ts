@@ -10,6 +10,11 @@ export default defineConfig({
     process: { env: {} },
   },
   server: {
+    // Served through the shared dev proxy at http://<worktree>.localhost
+    allowedHosts: [".localhost"],
+    hmr: {
+      clientPort: Number(process.env.VITE_HMR_CLIENT_PORT ?? 5173),
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8080",

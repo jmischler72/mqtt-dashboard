@@ -21,6 +21,11 @@ npm ci
 npm run dev
 ```
 
+Running the frontend standalone this way expects a Go backend on port 8080. The usual
+workflow is the full Docker dev stack instead — `make dev-start` from the repo root, which
+runs frontend and backend together and serves them at `http://<worktree>.localhost`
+(`make dev-url`). See [`AGENTS.md`](../AGENTS.md).
+
 ### Production Build
 
 ```bash

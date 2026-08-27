@@ -9,6 +9,7 @@ const worktreeModules = import.meta.glob<{
     branch?: string;
     commit?: string;
     message?: string;
+    url?: string;
   };
 }>("../worktreeInfo.json", { eager: true });
 const worktreeInfo = worktreeModules["../worktreeInfo.json"]?.default ?? null;
@@ -256,9 +257,19 @@ export default function Layout() {
                     <span className="text-base-content/60 font-sans">
                       Worktree:
                     </span>
-                    <span className="badge badge-sm badge-primary font-mono">
-                      {worktreeInfo.worktree}
-                    </span>
+                    {worktreeInfo.url ? (
+                      <a
+                        href={worktreeInfo.url}
+                        className="badge badge-sm badge-primary font-mono link link-hover"
+                        title={worktreeInfo.url}
+                      >
+                        {worktreeInfo.worktree}
+                      </a>
+                    ) : (
+                      <span className="badge badge-sm badge-primary font-mono">
+                        {worktreeInfo.worktree}
+                      </span>
+                    )}
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-base-content/60 font-sans">
