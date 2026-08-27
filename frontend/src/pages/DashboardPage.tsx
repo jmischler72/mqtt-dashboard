@@ -47,6 +47,7 @@ type LayoutContext = {
   setEditMode: React.Dispatch<React.SetStateAction<boolean>>;
   activeDashboardId: string;
   dashboardsLoading: boolean;
+  hasDashboards: boolean;
   brokerStatuses: BrokerStatus[];
   panelLibraryOpen: boolean;
   setPanelLibraryOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -94,6 +95,7 @@ export default function DashboardPage() {
     editMode,
     activeDashboardId,
     dashboardsLoading,
+    hasDashboards,
     brokerStatuses,
     panelLibraryOpen,
     setPanelLibraryOpen,
@@ -180,7 +182,6 @@ export default function DashboardPage() {
       static: !gridInteractionsEnabled,
     };
   });
-
 
   const handleLayoutChange = useCallback(
     (newLayout: GridLayout[]) => {
@@ -332,11 +333,21 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-base-200">
         {/* Grid */}
         <div className="p-4" ref={containerRef}>
-          {dashboardsLoading || isLoadingLayout ? (
+          {dashboardsLoading || (hasDashboards && isLoadingLayout) ? (
             <div className="flex items-center justify-center h-64 text-base-content/60">
               <div className="text-center">
                 <span className="loading loading-spinner loading-lg mb-4" />
                 <p className="text-xl">Loading dashboard layout...</p>
+              </div>
+            </div>
+          ) : !hasDashboards ? (
+            <div className="flex items-center justify-center h-64 text-base-content/40">
+              <div className="text-center">
+                <p className="text-2xl mb-2">No dashboards yet</p>
+                <p>
+                  Open the dashboard selector in the navbar to create your first
+                  one
+                </p>
               </div>
             </div>
           ) : panels.length === 0 ? (
