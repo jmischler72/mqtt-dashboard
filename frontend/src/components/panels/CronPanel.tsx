@@ -5,6 +5,7 @@ import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
 import PanelModalFrame from "./PanelModalFrame";
+import { usePanelSize } from "../../hooks/usePanelSize";
 import {
   PRESETS,
   validateCron,
@@ -191,6 +192,9 @@ export function CronConfigModal({
   );
 }
 
+// Countdown is the panel's hero text, but it should not dwarf a large panel.
+const MAX_COUNTDOWN_FONT_SIZE = 34;
+
 interface CronPanelProps {
   panelId: string;
   brokerId?: string;
@@ -203,6 +207,7 @@ export default function CronPanel({
   config,
   onConfigChange,
 }: CronPanelProps) {
+  const { ref: containerRef, size: dimensions } = usePanelSize<HTMLDivElement>();
   const [nextRun, setNextRun] = useState<Date | null>(null);
   const [cronStart, setCronStart] = useState<Date | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -315,49 +320,137 @@ export default function CronPanel({
     );
   }
 
+  // Dynamic Sizing derived from container dimensions
+  const availW = Math.max(80, (dimensions.width || 260) - 16);
+  const availH = Math.max(80, (dimensions.height || 200) - 16);
+
+  // Header: schedule chip + enable toggle
+  const headerFontSize = Math.max(
+    10,
+    Math.min(Math.round(Math.min(availH * 0.09, availW * 0.05)), 16),
+  );
+  const toggleClass =
+    availW < 180 || availH < 130
+      ? "toggle-xs"
+      : availW < 300 && availH < 220
+        ? "toggle-sm"
+        : availW > 460 && availH > 320
+          ? "toggle-lg"
+          : "toggle-md";
+
+  // Countdown block: hero text scales on both axes so long values still fit.
+  const countdownLen = Math.max(1, countdown.length);
+  const countdownFontSize = Math.max(
+    16,
+    Math.floor(
+      Math.min(
+        availH * 0.28,
+        availW / (countdownLen * 0.62),
+        MAX_COUNTDOWN_FONT_SIZE,
+      ),
+    ),
+  );
+  const captionFontSize = Math.max(
+    9,
+    Math.round(Math.min(countdownFontSize * 0.4, availH * 0.09)),
+  );
+  const progressHeight = Math.max(
+    5,
+    Math.min(Math.round(availH * 0.09), 22),
+  );
+
+  // Paused / waiting states
+  const stateIconSize = Math.max(
+    22,
+    Math.floor(Math.min(availH * 0.28, availW * 0.24, 56)),
+  );
+  const stateTitleFontSize = Math.max(
+    12,
+    Math.floor(Math.min(availH * 0.12, availW * 0.08, 20)),
+  );
+  const stateHintFontSize = Math.max(
+    9,
+    Math.round(stateTitleFontSize * 0.6),
+  );
+
   return (
-    <div className="flex flex-col gap-3 p-2 h-full">
-      <div className="flex items-center justify-between flex-none">
+    <div
+      ref={containerRef}
+      className="flex flex-col gap-2 p-2 h-full overflow-hidden"
+    >
+      <div className="flex items-center justify-between gap-2 flex-none min-w-0">
         <span
-          className="text-sm font-mono bg-base-200 rounded px-2 py-1"
-          title={presetTitle}
+          className="font-mono bg-base-200 rounded px-2 py-1 truncate leading-tight"
+          style={{ fontSize: `${headerFontSize}px` }}
+          title={presetTitle ?? prettyPreset}
         >
           {prettyPreset}
         </span>
         <input
           type="checkbox"
-          className="toggle toggle-primary"
+          className={`toggle toggle-primary shrink-0 ${toggleClass}`}
           checked={config.enabled ?? false}
           disabled={toggling || !config.cron_expr || hasWildcard}
           title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center w-full min-w-0">
+      <div className="flex-1 flex flex-col items-center justify-center w-full min-w-0 min-h-0 overflow-hidden">
         {config.enabled && countdown && (
-          <div className="text-center w-full">
-            <div className="text-xs text-base-content/50 mb-2">Next run in</div>
-            <div className="text-2xl font-bold font-mono mb-3">{countdown}</div>
+          <div className="text-center w-full px-1">
+            <div
+              className="text-base-content/50 mb-1"
+              style={{ fontSize: `${captionFontSize}px` }}
+            >
+              Next run in
+            </div>
+            <div
+              className="font-bold font-mono mb-2 leading-none truncate"
+              style={{ fontSize: `${countdownFontSize}px` }}
+            >
+              {countdown}
+            </div>
             <progress
-              className="progress progress-primary w-full"
+              className="progress progress-primary w-full rounded-lg"
+              style={{ height: `${progressHeight}px` }}
               value={progressPercent}
               max="100"
             />
           </div>
         )}
         {config.enabled && !countdown && (
-          <div className="flex flex-col items-center justify-center gap-2 w-full py-6">
-            <span className="loading loading-spinner loading-md text-primary" />
-            <div className="text-xs text-base-content/50">
+          <div className="flex flex-col items-center justify-center gap-2 w-full">
+            <span
+              className="loading loading-spinner text-primary"
+              style={{
+                width: `${Math.max(16, Math.round(stateIconSize * 0.5))}px`,
+                height: `${Math.max(16, Math.round(stateIconSize * 0.5))}px`,
+              }}
+            />
+            <div
+              className="text-base-content/50 text-center"
+              style={{ fontSize: `${stateHintFontSize}px` }}
+            >
               Waiting for next run…
             </div>
           </div>
         )}
         {!config.enabled && config.cron_expr && (
-          <div className="flex flex-col items-center justify-center gap-3 w-full py-6 bg-gradient-to-br from-warning/10 to-warning/5 rounded-lg border border-warning/20">
-            <CiPause1 className="text-5xl text-warning" />
-            <div className="text-lg font-semibold text-warning">Job paused</div>
-            <div className="text-xs text-warning/60">
+          <div className="flex flex-col items-center justify-center gap-1.5 w-full h-full bg-gradient-to-br from-warning/10 to-warning/5 rounded-lg border border-warning/20 overflow-hidden px-2 text-center">
+            <CiPause1
+              className="text-warning shrink-0"
+              style={{ fontSize: `${stateIconSize}px` }}
+            />
+            <div
+              className="font-semibold text-warning leading-tight"
+              style={{ fontSize: `${stateTitleFontSize}px` }}
+            >
+              Job paused
+            </div>
+            <div
+              className="text-warning/60 leading-tight"
+              style={{ fontSize: `${stateHintFontSize}px` }}
+            >
               Enable to resume scheduling
             </div>
           </div>
