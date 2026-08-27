@@ -13,7 +13,10 @@ export const DEFAULT_OFF_PAYLOAD = "OFF";
  * Pull the meaningful part out of a payload. With a valueKey set, a JSON object
  * payload is unwrapped to that key; everything else is returned trimmed as-is.
  */
-export function extractPayloadValue(payload: string, valueKey?: string): string {
+export function extractPayloadValue(
+  payload: string,
+  valueKey?: string,
+): string {
   if (!valueKey?.trim()) return payload.trim();
 
   try {

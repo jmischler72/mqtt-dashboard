@@ -7,7 +7,9 @@ describe("extractPayloadValue", () => {
   });
 
   it("unwraps the configured key from a JSON object", () => {
-    expect(extractPayloadValue('{"state":"ON","rssi":-40}', "state")).toBe("ON");
+    expect(extractPayloadValue('{"state":"ON","rssi":-40}', "state")).toBe(
+      "ON",
+    );
   });
 
   it("stringifies non-string JSON values", () => {
@@ -70,9 +72,9 @@ describe("parseToggleState", () => {
 
   it("prefers the configured payloads over the truthiness table", () => {
     // "off" would normally be falsy, but it is configured as the ON payload here
-    expect(parseToggleState("off", { onPayload: "off", offPayload: "on" })).toBe(
-      true,
-    );
+    expect(
+      parseToggleState("off", { onPayload: "off", offPayload: "on" }),
+    ).toBe(true);
   });
 
   it("returns null for payloads it cannot map", () => {
@@ -82,7 +84,11 @@ describe("parseToggleState", () => {
   });
 
   it("ignores blank configured payloads instead of matching everything", () => {
-    expect(parseToggleState("ON", { onPayload: "", offPayload: "" })).toBe(true);
-    expect(parseToggleState("whatever", { onPayload: "", offPayload: "" })).toBeNull();
+    expect(parseToggleState("ON", { onPayload: "", offPayload: "" })).toBe(
+      true,
+    );
+    expect(
+      parseToggleState("whatever", { onPayload: "", offPayload: "" }),
+    ).toBeNull();
   });
 });

@@ -11,7 +11,7 @@ import {
   MdToggleOn,
 } from "react-icons/md";
 import { api } from "../../api/client";
-import type { PanelDefinition } from "./types";
+import type { PanelDefinition, ValidationResult } from "./types";
 import GaugePanel, { GaugeConfigModal, type GaugeConfig } from "./GaugePanel";
 import LogPanel, { LogConfigModal, type LogConfig } from "./LogPanel";
 import BrokerStatsPanel, {
@@ -270,7 +270,7 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
       : null,
   // The generic validator only inspects `topic`. Wildcards are illegal on the
   // command topic (it is published to) but fine on the state topic (read-only).
-  validateConfig: (config) => {
+  validateConfig: (config): ValidationResult => {
     const topic = (config?.topic ?? "").trim();
     if (!topic) {
       return {
@@ -286,7 +286,10 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
         errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
       };
     }
-    if (!(config?.onPayload ?? "ON").trim() || !(config?.offPayload ?? "OFF").trim()) {
+    if (
+      !(config?.onPayload ?? "ON").trim() ||
+      !(config?.offPayload ?? "OFF").trim()
+    ) {
       return {
         isValid: false,
         warning: "On and Off payloads are required",

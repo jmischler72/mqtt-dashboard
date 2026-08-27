@@ -323,7 +323,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
           Number.isNaN(parsed) ? Date.now() : parsed,
         );
       })
-      .catch(() => { });
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -472,11 +472,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
     : "transform 200ms ease, background-color 200ms ease";
 
   const trackClass =
-    displayed === null
-      ? "bg-base-300"
-      : displayed
-        ? "bg-success"
-        : "bg-error";
+    displayed === null ? "bg-base-300" : displayed ? "bg-success" : "bg-error";
   const stateTextClass =
     displayed === null
       ? "text-base-content/50"
