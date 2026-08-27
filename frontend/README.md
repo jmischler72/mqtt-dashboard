@@ -66,15 +66,15 @@ frontend/
 
 ## 🛠️ Available Scripts
 
-| Command | Description |
-| ------- | ----------- |
-| `npm run dev` | Start local Vite development server with proxying to `:8080` |
-| `npm run build` | Run TypeScript type checks (`tsc -b`) and bundle for production (`dist/`) |
-| `npm run test` | Run unit tests using Vitest in single-run mode |
-| `npm run test:watch` | Run Vitest in interactive watch mode |
-| `npm run lint` | Check code with ESLint |
-| `npm run prettier` | Format codebase using Prettier |
-| `npm run preview` | Locally preview the production build in `dist/` |
+| Command              | Description                                                               |
+| -------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`        | Start local Vite development server with proxying to `:8080`              |
+| `npm run build`      | Run TypeScript type checks (`tsc -b`) and bundle for production (`dist/`) |
+| `npm run test`       | Run unit tests using Vitest in single-run mode                            |
+| `npm run test:watch` | Run Vitest in interactive watch mode                                      |
+| `npm run lint`       | Check code with ESLint                                                    |
+| `npm run prettier`   | Format codebase using Prettier                                            |
+| `npm run preview`    | Locally preview the production build in `dist/`                           |
 
 ---
 
@@ -88,4 +88,3 @@ frontend/
 - **Routing:** [React Router 7](https://reactrouter.com/)
 - **Cron Formatter:** [cronstrue](https://github.com/bradymholt/cronstrue)
 - **Testing:** [Vitest](https://vitest.dev/) + [React Testing Library](https://testing-library.com/)
-

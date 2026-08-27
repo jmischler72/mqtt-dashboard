@@ -148,7 +148,9 @@ export function LogConfigModal({
               key={label}
               className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
             >
-              <span className="text-xs font-medium text-base-content/80">{label}</span>
+              <span className="text-xs font-medium text-base-content/80">
+                {label}
+              </span>
               <input
                 type="checkbox"
                 className="toggle toggle-xs toggle-primary"

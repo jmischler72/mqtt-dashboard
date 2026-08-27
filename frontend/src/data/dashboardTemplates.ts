@@ -97,7 +97,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         config_json: {
           label: "Boost Fan",
           topic: "sensors/bathroom/humidity",
-          payload: "{\n  \"action\": \"boost\"\n}",
+          payload: '{\n  "action": "boost"\n}',
           qos: 0,
           retain: false,
           header_meta_pinned: false,
@@ -323,8 +323,7 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         w: 4,
         h: 2,
         config_json: {
-          topics:
-            "$SYS/broker/log/W, $SYS/broker/log/E, $SYS/broker/clients/#",
+          topics: "$SYS/broker/log/W, $SYS/broker/log/E, $SYS/broker/clients/#",
           maxMessages: 100,
           dateFormat: "time",
           showQos: true,

@@ -139,8 +139,12 @@ describe("Registry Helper: defaultValidateConfig & defaultValidateWarning", () =
     };
 
     expect(defaultValidateConfig(customDef, {}).isValid).toBe(false);
-    expect(defaultValidateConfig(customDef, {}).warning).toBe("API Key required");
-    expect(defaultValidateConfig(customDef, { apiKey: "secret" }).isValid).toBe(true);
+    expect(defaultValidateConfig(customDef, {}).warning).toBe(
+      "API Key required",
+    );
+    expect(defaultValidateConfig(customDef, { apiKey: "secret" }).isValid).toBe(
+      true,
+    );
   });
 });
 
@@ -166,7 +170,9 @@ describe("Registry Helper: defaultCheckEmpty", () => {
     expect(empty?.message).toContain("No image");
     expect(empty?.actionLabel).toBe("Choose Image");
 
-    expect(defaultCheckEmpty(imageDef, { src: "https://example.com/logo.png" })).toBeNull();
+    expect(
+      defaultCheckEmpty(imageDef, { src: "https://example.com/logo.png" }),
+    ).toBeNull();
   });
 
   it("detects empty state for unconfigured Input panel", () => {
@@ -174,7 +180,9 @@ describe("Registry Helper: defaultCheckEmpty", () => {
     expect(empty).toBeDefined();
     expect(empty?.message).toContain("No topic configured");
 
-    expect(defaultCheckEmpty(inputDef, { topic: "devices/command" })).toBeNull();
+    expect(
+      defaultCheckEmpty(inputDef, { topic: "devices/command" }),
+    ).toBeNull();
   });
 
   it("detects empty state for unconfigured Cron panel", () => {
@@ -196,7 +204,9 @@ describe("Registry Helper: defaultBuildHeaderMeta", () => {
   const textDef = getPanelDefinition("text")!;
 
   it("formats single topic summary", () => {
-    const meta = defaultBuildHeaderMeta(buttonDef, { topic: "home/living/temp" });
+    const meta = defaultBuildHeaderMeta(buttonDef, {
+      topic: "home/living/temp",
+    });
     expect(meta.topicSummary).toBe("home/living/temp");
   });
 
@@ -210,7 +220,9 @@ describe("Registry Helper: defaultBuildHeaderMeta", () => {
       topics: "sensor/temp, sensor/humidity, sensor/pressure",
     });
     expect(meta.topicSummary).toBe("3 configured");
-    expect(meta.topicDetail).toBe("sensor/temp, sensor/humidity, sensor/pressure");
+    expect(meta.topicDetail).toBe(
+      "sensor/temp, sensor/humidity, sensor/pressure",
+    );
   });
 
   it("includes payload preview for control category panels", () => {
@@ -232,19 +244,21 @@ describe("Registry Helper: defaultBuildHeaderMeta", () => {
 describe("Registry Helper: defaultResolvePickedTopic & Custom Resolve", () => {
   it("replaces topic when existing topic is empty", () => {
     expect(defaultResolvePickedTopic("", "sensor/temp")).toBe("sensor/temp");
-    expect(defaultResolvePickedTopic(undefined, "sensor/temp")).toBe("sensor/temp");
+    expect(defaultResolvePickedTopic(undefined, "sensor/temp")).toBe(
+      "sensor/temp",
+    );
   });
 
   it("merges multiple topics uniquely", () => {
-    expect(
-      defaultResolvePickedTopic("sensor/a, sensor/b", "sensor/c"),
-    ).toBe("sensor/a, sensor/b, sensor/c");
+    expect(defaultResolvePickedTopic("sensor/a, sensor/b", "sensor/c")).toBe(
+      "sensor/a, sensor/b, sensor/c",
+    );
   });
 
   it("does not duplicate already existing topic in list", () => {
-    expect(
-      defaultResolvePickedTopic("sensor/a, sensor/b", "sensor/a"),
-    ).toBe("sensor/a, sensor/b");
+    expect(defaultResolvePickedTopic("sensor/a, sensor/b", "sensor/a")).toBe(
+      "sensor/a, sensor/b",
+    );
   });
 
   it("gauge custom resolvePickedTopic replaces rather than merging", () => {
@@ -259,12 +273,16 @@ describe("Separator layout constraints", () => {
   const sepDef = getPanelDefinition("separator")!;
 
   it("applies horizontal height constraint", () => {
-    const constraints = sepDef.getMinMaxConstraints?.({ orientation: "horizontal" });
+    const constraints = sepDef.getMinMaxConstraints?.({
+      orientation: "horizontal",
+    });
     expect(constraints).toEqual({ minW: 1, minH: 1, maxH: 1 });
   });
 
   it("applies vertical width constraint", () => {
-    const constraints = sepDef.getMinMaxConstraints?.({ orientation: "vertical" });
+    const constraints = sepDef.getMinMaxConstraints?.({
+      orientation: "vertical",
+    });
     expect(constraints).toEqual({ minW: 1, minH: 1, maxW: 1 });
   });
 });
@@ -333,7 +351,9 @@ describe("PanelEmptyState", () => {
     );
 
     expect(screen.getByText("No image chosen")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /choose image/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /choose image/i }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -397,4 +417,3 @@ describe("PanelModalFrame", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
-

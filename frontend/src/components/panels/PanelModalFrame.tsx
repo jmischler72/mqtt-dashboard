@@ -52,11 +52,7 @@ export default function PanelModalFrame({
         <div className="space-y-4">{children}</div>
 
         <div className="modal-action">
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={onClose}
-          >
+          <button type="button" className="btn btn-sm" onClick={onClose}>
             {cancelLabel}
           </button>
           {onSave && (

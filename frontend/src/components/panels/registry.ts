@@ -12,9 +12,7 @@ export function registerPanel(definition: PanelDefinition): void {
   registry.set(definition.type, definition);
 }
 
-export function getPanelDefinition(
-  type: string,
-): PanelDefinition | undefined {
+export function getPanelDefinition(type: string): PanelDefinition | undefined {
   return registry.get(type);
 }
 
@@ -22,7 +20,9 @@ export function getAllPanels(): PanelDefinition[] {
   return Array.from(registry.values());
 }
 
-export function getPanelsByCategory(category: PanelCategory): PanelDefinition[] {
+export function getPanelsByCategory(
+  category: PanelCategory,
+): PanelDefinition[] {
   return getAllPanels().filter((p) => p.category === category);
 }
 
@@ -77,7 +77,10 @@ export function defaultValidateConfig(
   }
 
   if (def.category === "control") {
-    const topicsList = topic.split(",").map((t) => t.trim()).filter(Boolean);
+    const topicsList = topic
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
     if (topicsList.some((t) => t.includes("+") || t.includes("#"))) {
       return {
         isValid: false,

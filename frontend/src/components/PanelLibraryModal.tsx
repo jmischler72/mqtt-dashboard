@@ -125,10 +125,7 @@ function PanelLibraryModalInner({ onClose, onPick }: Omit<Props, "open">) {
                       >
                         <div className="flex items-center justify-between w-full">
                           <span className="w-8 h-8 rounded-md bg-base-100 border border-base-300 flex items-center justify-center shrink-0">
-                            <Icon
-                              size={16}
-                              className="text-base-content/70"
-                            />
+                            <Icon size={16} className="text-base-content/70" />
                           </span>
                           <span className="text-[9.5px] uppercase tracking-widest text-base-content/40">
                             {p.category}
