@@ -25,6 +25,4 @@ dist-ssr
 
 coverage
 
-# Generated worktree info
-src/worktreeInfo.json
 

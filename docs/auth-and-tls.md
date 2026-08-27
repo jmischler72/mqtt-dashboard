@@ -154,13 +154,21 @@ keyfile /mosquitto/certs/server.key
 
 `docker/dev/docker-compose-dev.yml` provides three Mosquitto instances, one for each connection type:
 
-| Service | Host (in-container) | Port | Auth | TLS |
-| ------- | ------------------- | ---- | ---- | --- |
+| Service | Host | Port | Auth | TLS |
+| ------- | ---- | ---- | ---- | --- |
 | `mosquitto` | `mosquitto` | `1883` | None | No |
-| `mosquitto-password` | `mosquitto-password` | `1884` (in container: 1883) | Username / Password | No |
+| `mosquitto-password` | `mosquitto-password` | `1883` | Username / Password | No |
 | `mosquitto-tls` | `mosquitto-tls` | `8883` | None or Client Cert | Yes |
 
-From the **host machine**, connect to `localhost`.
+These brokers are **not published to the host**: each worktree gets its own Docker
+network so several dev environments can run side by side (see [`AGENTS.md`](../AGENTS.md)).
+Use the container hostnames above — they resolve from the app container, which is what the
+dashboard uses. To reach a broker from a shell, go through Compose:
+
+```bash
+docker compose -f docker/dev/docker-compose-dev.yml exec mosquitto \
+  mosquitto_sub -h localhost -t '#' -v
+```
 
 ---
 
@@ -168,7 +176,7 @@ From the **host machine**, connect to `localhost`.
 
 Connect with:
 
-- **Host:** `localhost` (or `mosquitto` from inside the app container)
+- **Host:** `mosquitto`
 - **Port:** `1883`
 - **Auth:** None
 - **TLS:** Off
@@ -190,8 +198,8 @@ This generates `docker/dev/mosquitto/passwd/passwd` with credentials `testuser` 
 
 Connect with:
 
-- **Host:** `localhost` (or `mosquitto-password` from inside container on port 1883)
-- **Port:** `1884`
+- **Host:** `mosquitto-password`
+- **Port:** `1883`
 - **Auth:** Username / Password → `testuser` / `testpass`
 - **TLS:** Off
 
@@ -216,7 +224,7 @@ Files created in `docker/dev/mosquitto/certs/`:
 
 Connect with:
 
-- **Host:** `localhost` (or `mosquitto-tls` inside container)
+- **Host:** `mosquitto-tls`
 - **Port:** `8883`
 - **Auth:** None
 - **TLS:** On
@@ -226,7 +234,7 @@ Connect with:
 
 Connect with:
 
-- **Host:** `localhost` (or `mosquitto-tls` inside container)
+- **Host:** `mosquitto-tls`
 - **Port:** `8883`
 - **TLS:** On, **Skip TLS verification:** checked
 - **Auth:** None
@@ -253,7 +261,7 @@ docker compose -f docker/dev/docker-compose-dev.yml restart mosquitto-tls
 
 Connect with:
 
-- **Host:** `localhost` (or `mosquitto-tls` inside container)
+- **Host:** `mosquitto-tls`
 - **Port:** `8883`
 - **TLS:** On
 - **CA Certificate:** paste `docker/dev/mosquitto/certs/ca.crt`

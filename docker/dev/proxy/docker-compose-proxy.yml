@@ -1,0 +1,39 @@
+# Shared reverse proxy for all mqtt-dashboard dev environments.
+#
+# One instance is shared by every worktree: `setup-dev-env.sh` starts it
+# (idempotently) with the fixed project name `mqtt-dev-proxy`. Each worktree's
+# app container joins the external `mqtt-dev-proxy` network and declares Traefik
+# labels, so it becomes reachable at http://<worktree-slug>.localhost
+#
+#   docker compose -p mqtt-dev-proxy -f docker/dev/proxy/docker-compose-proxy.yml up -d
+#   docker compose -p mqtt-dev-proxy -f docker/dev/proxy/docker-compose-proxy.yml down
+
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: mqtt-dev-proxy
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=mqtt-dev-proxy"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=INFO"
+    ports:
+      # The only host port binding in the whole dev setup.
+      - "${DEV_PROXY_PORT:-80}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      # http://traefik.localhost lists every dev env currently running
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: mqtt-dev-proxy
