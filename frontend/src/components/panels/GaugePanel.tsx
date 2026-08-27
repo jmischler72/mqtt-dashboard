@@ -16,14 +16,14 @@ export interface GaugeConfig {
   min?: number;
   max?: number;
   colorScheme?:
-  | "auto"
-  | "primary"
-  | "secondary"
-  | "accent"
-  | "success"
-  | "warning"
-  | "error"
-  | "info";
+    | "auto"
+    | "primary"
+    | "secondary"
+    | "accent"
+    | "success"
+    | "warning"
+    | "error"
+    | "info";
   gaugeType?: "radial" | "bar" | "value";
 }
 
@@ -66,8 +66,12 @@ export function GaugeConfigModal({
     initialBrokerId || brokerId || defaultBrokerId,
   );
 
-  const [detectedType, setDetectedType] = useState<"number" | "boolean" | "string" | null>(null);
-  const [sampleValue, setSampleValue] = useState<string | number | boolean | null>(null);
+  const [detectedType, setDetectedType] = useState<
+    "number" | "boolean" | "string" | null
+  >(null);
+  const [sampleValue, setSampleValue] = useState<
+    string | number | boolean | null
+  >(null);
   const [detectedKey, setDetectedKey] = useState<string | null>(null);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
 
@@ -94,14 +98,19 @@ export function GaugeConfigModal({
         if (cancelled) return;
         if (records && records.length > 0) {
           const sorted = [...records].sort(
-            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+            (a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
           );
           const latest = sorted[0];
           if (latest?.payload) {
             let keyCandidate: string | null = null;
             try {
               const json = JSON.parse(latest.payload);
-              if (typeof json === "object" && json !== null && !Array.isArray(json)) {
+              if (
+                typeof json === "object" &&
+                json !== null &&
+                !Array.isArray(json)
+              ) {
                 const commonKeys = [
                   "val",
                   "value",
@@ -130,7 +139,10 @@ export function GaugeConfigModal({
             setSampleValue(parsed.parsedValue);
             setIsLoadingSample(false);
 
-            if (parsed.dataType !== "number" && (gaugeType === "radial" || gaugeType === "bar")) {
+            if (
+              parsed.dataType !== "number" &&
+              (gaugeType === "radial" || gaugeType === "bar")
+            ) {
               setGaugeType("value");
             }
             return;
@@ -175,20 +187,20 @@ export function GaugeConfigModal({
       }
     >
       <div className="flex flex-col gap-4">
-          <BrokerTopicSection
-            selectedBrokerId={selectedBrokerId}
-            onBrokerChange={setSelectedBrokerId}
-            brokerStatuses={brokerStatuses}
-            topic={topic}
-            onTopicChange={setTopic}
-            allowWildcards={true}
-            allowMultiple={false}
-            topicLabel="Topic"
-            placeholder="e.g. sensor/temperature"
-            helpText="Single topic to monitor for live data values (wildcards supported)."
-            onPickTopic={
-              onPickTopic
-                ? () =>
+        <BrokerTopicSection
+          selectedBrokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          brokerStatuses={brokerStatuses}
+          topic={topic}
+          onTopicChange={setTopic}
+          allowWildcards={true}
+          allowMultiple={false}
+          topicLabel="Topic"
+          placeholder="e.g. sensor/temperature"
+          helpText="Single topic to monitor for live data values (wildcards supported)."
+          onPickTopic={
+            onPickTopic
+              ? () =>
                   onPickTopic({
                     currentTopic: topic,
                     selectedBrokerId,
@@ -201,170 +213,181 @@ export function GaugeConfigModal({
                       gaugeType,
                     },
                   })
-                : undefined
-            }
-          />
+              : undefined
+          }
+        />
 
-          {/* Payload Detection Banner */}
-          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-base-200/60 rounded-lg text-xs border border-base-300">
-            <span className="font-medium text-base-content/70 shrink-0">
-              Detected Payload Type:
-            </span>
+        {/* Payload Detection Banner */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-base-200/60 rounded-lg text-xs border border-base-300">
+          <span className="font-medium text-base-content/70 shrink-0">
+            Detected Payload Type:
+          </span>
 
-            <div className="flex items-center gap-2 min-w-0">
-              {sampleValue !== null && (
-                <>
-                  <span
-                    className="font-mono text-[11px] text-base-content/80 truncate max-w-[180px] bg-base-100 px-2 py-0.5 rounded border border-base-300"
-                    title={String(sampleValue)}
-                  >
-                    {String(sampleValue)}
-                  </span>
-                  <span className="text-base-content/40 font-mono text-xs font-semibold shrink-0">
-                    →
-                  </span>
-                </>
-              )}
+          <div className="flex items-center gap-2 min-w-0">
+            {sampleValue !== null && (
+              <>
+                <span
+                  className="font-mono text-[11px] text-base-content/80 truncate max-w-[180px] bg-base-100 px-2 py-0.5 rounded border border-base-300"
+                  title={String(sampleValue)}
+                >
+                  {String(sampleValue)}
+                </span>
+                <span className="text-base-content/40 font-mono text-xs font-semibold shrink-0">
+                  →
+                </span>
+              </>
+            )}
 
-              {detectedType === "number" && (
-                <span className="badge badge-info badge-sm font-semibold shrink-0">
-                  Number
-                </span>
-              )}
-              {detectedType === "boolean" && (
-                <span className="badge badge-success badge-sm font-semibold shrink-0">
-                  Boolean
-                </span>
-              )}
-              {detectedType === "string" && (
-                <span className="badge badge-accent badge-sm font-semibold shrink-0">
-                  String
-                </span>
-              )}
-              {!detectedType && !isLoadingSample && (
-                <span className="badge badge-ghost badge-sm text-base-content/50 shrink-0">
-                  No sample data
-                </span>
-              )}
-            </div>
+            {detectedType === "number" && (
+              <span className="badge badge-info badge-sm font-semibold shrink-0">
+                Number
+              </span>
+            )}
+            {detectedType === "boolean" && (
+              <span className="badge badge-success badge-sm font-semibold shrink-0">
+                Boolean
+              </span>
+            )}
+            {detectedType === "string" && (
+              <span className="badge badge-accent badge-sm font-semibold shrink-0">
+                String
+              </span>
+            )}
+            {!detectedType && !isLoadingSample && (
+              <span className="badge badge-ghost badge-sm text-base-content/50 shrink-0">
+                No sample data
+              </span>
+            )}
           </div>
+        </div>
 
-          {/* JSON Key Section */}
-          <fieldset className="fieldset w-full">
-            <div className="flex items-center justify-between">
-              <legend className="fieldset-legend font-semibold">JSON Key (Optional)</legend>
-              {detectedKey && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-base-content/70">Detected:</span>
-                  <button
-                    type="button"
-                    className="font-mono text-[11px] text-primary hover:text-primary-focus bg-base-100 hover:bg-base-200/80 px-2 py-0.5 rounded border border-base-300 transition-colors gap-1 inline-flex items-center cursor-pointer"
-                    title={`Click to use detected key "${detectedKey}"`}
-                    onClick={() => setValueKey(detectedKey)}
-                  >
-                    <span>"{detectedKey}"</span>
-                    <span className="badge badge-primary badge-xs ml-0.5 font-sans font-normal text-[10px]">Use</span>
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="relative w-full">
-              <input
-                className="input input-bordered input-sm w-full font-mono text-xs pr-8"
-                placeholder="e.g. temp or data.value"
-                value={valueKey}
-                onChange={(e) => setValueKey(e.target.value)}
-              />
-              {valueKey && (
+        {/* JSON Key Section */}
+        <fieldset className="fieldset w-full">
+          <div className="flex items-center justify-between">
+            <legend className="fieldset-legend font-semibold">
+              JSON Key (Optional)
+            </legend>
+            {detectedKey && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-base-content/70">
+                  Detected:
+                </span>
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-xs btn-ghost btn-circle text-base-content/50 hover:text-base-content"
-                  title="Clear JSON Key"
-                  onClick={() => setValueKey("")}
+                  className="font-mono text-[11px] text-primary hover:text-primary-focus bg-base-100 hover:bg-base-200/80 px-2 py-0.5 rounded border border-base-300 transition-colors gap-1 inline-flex items-center cursor-pointer"
+                  title={`Click to use detected key "${detectedKey}"`}
+                  onClick={() => setValueKey(detectedKey)}
                 >
-                  ✕
+                  <span>"{detectedKey}"</span>
+                  <span className="badge badge-primary badge-xs ml-0.5 font-sans font-normal text-[10px]">
+                    Use
+                  </span>
                 </button>
-              )}
-            </div>
-            <p className="text-[11px] text-base-content/60 mt-1">
-              Field name to extract if payload is JSON. Leave blank to display the raw payload.
-            </p>
-          </fieldset>
-
-          {/* Full-width Gauge Style Selector */}
-          <fieldset className="fieldset w-full">
-            <legend className="fieldset-legend font-semibold">Gauge Style</legend>
-            <select
-              className="select select-bordered select-sm w-full font-medium"
-              value={gaugeType}
-              onChange={(e) =>
-                setGaugeType(e.target.value as GaugeConfig["gaugeType"])
-              }
-            >
-              <option
-                value="radial"
-                disabled={detectedType !== null && detectedType !== "number"}
-              >
-                Radial Ring Dial{" "}
-                {detectedType !== null && detectedType !== "number"
-                  ? "(Disabled: Requires numeric data)"
-                  : ""}
-              </option>
-              <option
-                value="bar"
-                disabled={detectedType !== null && detectedType !== "number"}
-              >
-                Progress Bar Meter{" "}
-                {detectedType !== null && detectedType !== "number"
-                  ? "(Disabled: Requires numeric data)"
-                  : ""}
-              </option>
-              <option value="value">
-                Big Value Card (Compatible with Numbers, Booleans & Strings)
-              </option>
-            </select>
-            {detectedType !== null && detectedType !== "number" && (
-              <p className="text-[11px] text-warning mt-1">
-                Radial and Progress Bar gauges require numeric payloads to calculate min/max percentages. "Big Value Card" has been auto-selected.
-              </p>
+              </div>
             )}
+          </div>
+          <div className="relative w-full">
+            <input
+              className="input input-bordered input-sm w-full font-mono text-xs pr-8"
+              placeholder="e.g. temp or data.value"
+              value={valueKey}
+              onChange={(e) => setValueKey(e.target.value)}
+            />
+            {valueKey && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-xs btn-ghost btn-circle text-base-content/50 hover:text-base-content"
+                title="Clear JSON Key"
+                onClick={() => setValueKey("")}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-base-content/60 mt-1">
+            Field name to extract if payload is JSON. Leave blank to display the
+            raw payload.
+          </p>
+        </fieldset>
+
+        {/* Full-width Gauge Style Selector */}
+        <fieldset className="fieldset w-full">
+          <legend className="fieldset-legend font-semibold">Gauge Style</legend>
+          <select
+            className="select select-bordered select-sm w-full font-medium"
+            value={gaugeType}
+            onChange={(e) =>
+              setGaugeType(e.target.value as GaugeConfig["gaugeType"])
+            }
+          >
+            <option
+              value="radial"
+              disabled={detectedType !== null && detectedType !== "number"}
+            >
+              Radial Ring Dial{" "}
+              {detectedType !== null && detectedType !== "number"
+                ? "(Disabled: Requires numeric data)"
+                : ""}
+            </option>
+            <option
+              value="bar"
+              disabled={detectedType !== null && detectedType !== "number"}
+            >
+              Progress Bar Meter{" "}
+              {detectedType !== null && detectedType !== "number"
+                ? "(Disabled: Requires numeric data)"
+                : ""}
+            </option>
+            <option value="value">
+              Big Value Card (Compatible with Numbers, Booleans & Strings)
+            </option>
+          </select>
+          {detectedType !== null && detectedType !== "number" && (
+            <p className="text-[11px] text-warning mt-1">
+              Radial and Progress Bar gauges require numeric payloads to
+              calculate min/max percentages. "Big Value Card" has been
+              auto-selected.
+            </p>
+          )}
+        </fieldset>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">Min Value</legend>
+            <input
+              className="input input-bordered input-sm w-full"
+              type="number"
+              value={min}
+              onChange={(e) => setMin(Number(e.target.value))}
+            />
           </fieldset>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <fieldset className="fieldset">
-              <legend className="fieldset-legend">Min Value</legend>
-              <input
-                className="input input-bordered input-sm w-full"
-                type="number"
-                value={min}
-                onChange={(e) => setMin(Number(e.target.value))}
-              />
-            </fieldset>
-
-            <fieldset className="fieldset">
-              <legend className="fieldset-legend">Max Value</legend>
-              <input
-                className="input input-bordered input-sm w-full"
-                type="number"
-                value={max}
-                onChange={(e) => setMax(Number(e.target.value))}
-              />
-            </fieldset>
-          </div>
-
-          <fieldset className="fieldset w-full">
-            <legend className="fieldset-legend font-semibold">Unit / Suffix</legend>
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">Max Value</legend>
             <input
-              className="input input-bordered input-sm w-full text-xs"
-              placeholder="e.g. °C, %, V, kW"
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
+              className="input input-bordered input-sm w-full"
+              type="number"
+              value={max}
+              onChange={(e) => setMax(Number(e.target.value))}
             />
-            <p className="text-[11px] text-base-content/60 mt-1">
-              Displayed next to the value.
-            </p>
           </fieldset>
         </div>
+
+        <fieldset className="fieldset w-full">
+          <legend className="fieldset-legend font-semibold">
+            Unit / Suffix
+          </legend>
+          <input
+            className="input input-bordered input-sm w-full text-xs"
+            placeholder="e.g. °C, %, V, kW"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+          <p className="text-[11px] text-base-content/60 mt-1">
+            Displayed next to the value.
+          </p>
+        </fieldset>
+      </div>
     </PanelModalFrame>
   );
 }
@@ -386,15 +409,17 @@ function formatTime(isoStr: string): string {
   }
 }
 
-
-
 interface GaugePanelProps {
   panelId: string;
   brokerId: string;
   config: GaugeConfig;
 }
 
-export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProps) {
+export default function GaugePanel({
+  panelId,
+  brokerId,
+  config,
+}: GaugePanelProps) {
   const [data, setData] = useState<{
     parsedValue: string | number | boolean;
     dataType: "number" | "boolean" | "string";
@@ -403,7 +428,8 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
     isHistorical: boolean;
   } | null>(null);
 
-  const { ref: containerRef, size: dimensions } = usePanelSize<HTMLDivElement>();
+  const { ref: containerRef, size: dimensions } =
+    usePanelSize<HTMLDivElement>();
 
   const topic = (config.topic ?? "").split(",")[0]?.trim() ?? "";
   const min = config.min ?? 0;
@@ -440,7 +466,7 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
           isHistorical: true,
         });
       })
-      .catch(() => { });
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -549,7 +575,10 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   const barSubFontSize = Math.max(10, Math.round(barValFontSize * 0.45));
 
   // Value Card / String / Boolean Sizing: hero text/badge
-  const strLen = Math.max(1, formattedValue.length + (unit ? unit.length + 1 : 0));
+  const strLen = Math.max(
+    1,
+    formattedValue.length + (unit ? unit.length + 1 : 0),
+  );
   const maxFontFromHeight = availH * 0.42;
   const maxFontFromWidth = (availW * 0.95) / Math.max(1, strLen * 0.65);
   const cardValFontSize = Math.max(
@@ -562,7 +591,10 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
   );
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full justify-between p-2">
+    <div
+      ref={containerRef}
+      className="flex flex-col h-full justify-between p-2"
+    >
       {!topic ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 text-base-content/40 p-4 text-center">
           <MdSpeed className="text-4xl opacity-50" />
@@ -575,167 +607,170 @@ export default function GaugePanel({ panelId, brokerId, config }: GaugePanelProp
         <div className="flex flex-col items-center justify-center flex-1 gap-2 p-4 text-center">
           <div className="loading loading-spinner loading-md text-primary" />
           <span className="text-xs text-base-content/60 font-mono animate-pulse">
-            Waiting for data on <span className="font-semibold text-accent">{topic}</span>…
+            Waiting for data on{" "}
+            <span className="font-semibold text-accent">{topic}</span>…
           </span>
         </div>
       ) : (
         <>
           {/* Visual Display Container */}
           <div className="flex-1 flex items-center justify-center min-h-0 w-full overflow-hidden p-1">
-        {data.dataType === "number" && gaugeType === "radial" && (
-          <div
-            className="relative flex items-center justify-center shrink-0"
-            style={{ width: `${dialSize}px`, height: `${dialSize}px` }}
-            role="progressbar"
-            aria-valuenow={Math.round(pct)}
-            aria-valuemin={min}
-            aria-valuemax={max}
-          >
-            <svg
-              viewBox="0 0 100 100"
-              className="w-full h-full transform -rotate-90 overflow-visible"
-            >
-              {/* Background Track Circle */}
-              <circle
-                cx="50"
-                cy="50"
-                r="40"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="8"
-                className="text-base-content/10"
-              />
-              {/* Animated Progress Fill Arc */}
-              <circle
-                cx="50"
-                cy="50"
-                r="40"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray="251.327"
-                strokeDashoffset={251.327 - (pct / 100) * 251.327}
-                className={`${colorClass} transition-[stroke-dashoffset] duration-500 ease-out`}
-              />
-            </svg>
-            {/* Center Value Text */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center leading-none pointer-events-none">
-              <span
-                className="font-bold font-mono tracking-tight text-base-content"
-                style={{ fontSize: `${radialValFontSize}px` }}
+            {data.dataType === "number" && gaugeType === "radial" && (
+              <div
+                className="relative flex items-center justify-center shrink-0"
+                style={{ width: `${dialSize}px`, height: `${dialSize}px` }}
+                role="progressbar"
+                aria-valuenow={Math.round(pct)}
+                aria-valuemin={min}
+                aria-valuemax={max}
               >
-                {formattedValue}
-              </span>
-              {unit && (
-                <span
-                  className="font-semibold text-base-content/60 mt-1"
-                  style={{ fontSize: `${radialUnitFontSize}px` }}
+                <svg
+                  viewBox="0 0 100 100"
+                  className="w-full h-full transform -rotate-90 overflow-visible"
                 >
-                  {unit}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {data.dataType === "number" && gaugeType === "bar" && (
-          <div className="w-full h-full flex flex-col justify-center gap-2 px-1">
-            <div className="flex justify-between items-baseline">
-              <span
-                className="font-bold font-mono text-base-content leading-none"
-                style={{ fontSize: `${barValFontSize}px` }}
-              >
-                {formattedValue}{" "}
-                {unit && (
+                  {/* Background Track Circle */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    className="text-base-content/10"
+                  />
+                  {/* Animated Progress Fill Arc */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray="251.327"
+                    strokeDashoffset={251.327 - (pct / 100) * 251.327}
+                    className={`${colorClass} transition-[stroke-dashoffset] duration-500 ease-out`}
+                  />
+                </svg>
+                {/* Center Value Text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center leading-none pointer-events-none">
                   <span
-                    className="font-medium text-base-content/60"
+                    className="font-bold font-mono tracking-tight text-base-content"
+                    style={{ fontSize: `${radialValFontSize}px` }}
+                  >
+                    {formattedValue}
+                  </span>
+                  {unit && (
+                    <span
+                      className="font-semibold text-base-content/60 mt-1"
+                      style={{ fontSize: `${radialUnitFontSize}px` }}
+                    >
+                      {unit}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {data.dataType === "number" && gaugeType === "bar" && (
+              <div className="w-full h-full flex flex-col justify-center gap-2 px-1">
+                <div className="flex justify-between items-baseline">
+                  <span
+                    className="font-bold font-mono text-base-content leading-none"
+                    style={{ fontSize: `${barValFontSize}px` }}
+                  >
+                    {formattedValue}{" "}
+                    {unit && (
+                      <span
+                        className="font-medium text-base-content/60"
+                        style={{ fontSize: `${barSubFontSize}px` }}
+                      >
+                        {unit}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className="font-mono text-base-content/50"
                     style={{ fontSize: `${barSubFontSize}px` }}
                   >
-                    {unit}
+                    {Math.round(pct)}%
                   </span>
-                )}
-              </span>
-              <span
-                className="font-mono text-base-content/50"
-                style={{ fontSize: `${barSubFontSize}px` }}
-              >
-                {Math.round(pct)}%
-              </span>
-            </div>
-            <progress
-              className={`progress ${progressClass} w-full rounded-lg transition-all duration-300`}
-              style={{ height: `${barHeight}px` }}
-              value={pct}
-              max="100"
-            />
-            <div
-              className="flex justify-between font-mono text-base-content/50"
-              style={{ fontSize: `${Math.max(9, barSubFontSize * 0.8)}px` }}
-            >
-              <span>{min}</span>
-              <span>{max}</span>
-            </div>
-          </div>
-        )}
-
-        {(gaugeType === "value" || data.dataType !== "number") && (
-          <div className="flex flex-col items-center justify-center gap-1.5 p-1 text-center w-full h-full overflow-hidden">
-            {data.dataType === "boolean" ? (
-              <div
-                className={`inline-flex items-center gap-2.5 rounded-2xl font-mono font-bold tracking-wider uppercase border shadow-sm transition-all duration-300 ${
-                  data.parsedValue
-                    ? "bg-success/15 text-success border-success/40 shadow-success/10"
-                    : "bg-error/15 text-error border-error/40 shadow-error/10"
-                }`}
-                style={{
-                  fontSize: `${cardBadgeFontSize}px`,
-                  padding: `${Math.max(4, Math.round(cardBadgeFontSize * 0.25))}px ${Math.max(12, Math.round(cardBadgeFontSize * 0.6))}px`,
-                }}
-              >
-                <span
-                  className={`rounded-full shrink-0 animate-pulse ${
-                    data.parsedValue
-                      ? "bg-success shadow-[0_0_8px_#22c55e]"
-                      : "bg-error shadow-[0_0_8px_#ef4444]"
-                  }`}
-                  style={{
-                    width: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,
-                    height: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,
-                  }}
+                </div>
+                <progress
+                  className={`progress ${progressClass} w-full rounded-lg transition-all duration-300`}
+                  style={{ height: `${barHeight}px` }}
+                  value={pct}
+                  max="100"
                 />
-                <span>{formattedValue}</span>
-              </div>
-            ) : (
-              <div className="flex items-baseline gap-1.5 justify-center flex-wrap max-w-full px-2">
-                <span
-                  className="font-bold font-mono text-base-content tracking-tight leading-tight break-words text-center max-w-full"
-                  style={{ fontSize: `${cardValFontSize}px` }}
+                <div
+                  className="flex justify-between font-mono text-base-content/50"
+                  style={{ fontSize: `${Math.max(9, barSubFontSize * 0.8)}px` }}
                 >
-                  {formattedValue}
-                </span>
-                {unit && (
-                  <span
-                    className="font-semibold text-base-content/70 shrink-0"
-                    style={{ fontSize: `${Math.max(11, cardValFontSize * 0.45)}px` }}
+                  <span>{min}</span>
+                  <span>{max}</span>
+                </div>
+              </div>
+            )}
+
+            {(gaugeType === "value" || data.dataType !== "number") && (
+              <div className="flex flex-col items-center justify-center gap-1.5 p-1 text-center w-full h-full overflow-hidden">
+                {data.dataType === "boolean" ? (
+                  <div
+                    className={`inline-flex items-center gap-2.5 rounded-2xl font-mono font-bold tracking-wider uppercase border shadow-sm transition-all duration-300 ${
+                      data.parsedValue
+                        ? "bg-success/15 text-success border-success/40 shadow-success/10"
+                        : "bg-error/15 text-error border-error/40 shadow-error/10"
+                    }`}
+                    style={{
+                      fontSize: `${cardBadgeFontSize}px`,
+                      padding: `${Math.max(4, Math.round(cardBadgeFontSize * 0.25))}px ${Math.max(12, Math.round(cardBadgeFontSize * 0.6))}px`,
+                    }}
                   >
-                    {unit}
-                  </span>
+                    <span
+                      className={`rounded-full shrink-0 animate-pulse ${
+                        data.parsedValue
+                          ? "bg-success shadow-[0_0_8px_#22c55e]"
+                          : "bg-error shadow-[0_0_8px_#ef4444]"
+                      }`}
+                      style={{
+                        width: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,
+                        height: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,
+                      }}
+                    />
+                    <span>{formattedValue}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-baseline gap-1.5 justify-center flex-wrap max-w-full px-2">
+                    <span
+                      className="font-bold font-mono text-base-content tracking-tight leading-tight break-words text-center max-w-full"
+                      style={{ fontSize: `${cardValFontSize}px` }}
+                    >
+                      {formattedValue}
+                    </span>
+                    {unit && (
+                      <span
+                        className="font-semibold text-base-content/70 shrink-0"
+                        style={{
+                          fontSize: `${Math.max(11, cardValFontSize * 0.45)}px`,
+                        }}
+                      >
+                        {unit}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Footer Meta */}
-      <div className="flex items-center justify-between text-[10px] text-base-content/50 pt-1.5 border-t border-base-200">
-        <div className="flex items-center gap-1">
-          <RiTimeLine className="text-xs" />
-          <span>{formatTime(data.receivedAt)}</span>
-        </div>
-      </div>
-    </>
+          {/* Footer Meta */}
+          <div className="flex items-center justify-between text-[10px] text-base-content/50 pt-1.5 border-t border-base-200">
+            <div className="flex items-center gap-1">
+              <RiTimeLine className="text-xs" />
+              <span>{formatTime(data.receivedAt)}</span>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

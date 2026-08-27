@@ -359,8 +359,7 @@ export default function PanelWrapper({
     const brokerId = panel.broker_id ?? "";
     const ConfigModal = def.ConfigModal;
 
-    const resolveTopicFn =
-      def.resolvePickedTopic ?? defaultResolvePickedTopic;
+    const resolveTopicFn = def.resolvePickedTopic ?? defaultResolvePickedTopic;
     const initialTopic = resolveTopicFn(
       (cfg.topic ?? cfg.topics) as string | undefined,
       capturedPicker.topic,

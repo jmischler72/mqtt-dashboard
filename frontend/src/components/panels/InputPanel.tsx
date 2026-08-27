@@ -51,10 +51,7 @@ export function InputConfigModal({
       title="Input Configuration"
       onClose={onClose}
       onSave={() =>
-        onSave(
-          { topic, qos, retain },
-          selectedBrokerId || defaultBrokerId,
-        )
+        onSave({ topic, qos, retain }, selectedBrokerId || defaultBrokerId)
       }
       saveDisabled={
         brokerStatuses.length === 0 || !topic.trim() || hasWildcardWarning
@@ -121,7 +118,9 @@ export default function InputPanel({
         .filter(Boolean)
     : [];
 
-  const hasWildcard = parsedTopics.some((t) => t.includes("+") || t.includes("#"));
+  const hasWildcard = parsedTopics.some(
+    (t) => t.includes("+") || t.includes("#"),
+  );
 
   const handlePublish = async () => {
     if (parsedTopics.length === 0 || hasWildcard) return;
@@ -175,7 +174,9 @@ export default function InputPanel({
         }`}
         onClick={handlePublish}
         disabled={loading || parsedTopics.length === 0 || !value || hasWildcard}
-        title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
+        title={
+          hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined
+        }
       >
         {loading ? (
           <span className="loading loading-spinner loading-xs" />

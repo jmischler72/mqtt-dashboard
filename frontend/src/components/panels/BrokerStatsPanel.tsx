@@ -129,9 +129,7 @@ export function BrokerStatsConfigModal({
         <select
           className="select select-bordered select-sm w-full font-medium"
           value={defaultRange}
-          onChange={(e) =>
-            setDefaultRange(Number(e.target.value) as TimeRange)
-          }
+          onChange={(e) => setDefaultRange(Number(e.target.value) as TimeRange)}
         >
           <option value={60}>1 minute</option>
           <option value={300}>5 minutes</option>
@@ -149,18 +147,16 @@ export function BrokerStatsConfigModal({
             [
               [showStatTiles, setShowStatTiles, "Stat tiles"],
               [showChart, setShowChart, "Chart"],
-              [
-                showTopicBreakdown,
-                setShowTopicBreakdown,
-                "Topic breakdown",
-              ],
+              [showTopicBreakdown, setShowTopicBreakdown, "Topic breakdown"],
             ] as [boolean, (v: boolean) => void, string][]
           ).map(([value, setter, label]) => (
             <label
               key={label}
               className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
             >
-              <span className="text-xs font-medium text-base-content/80">{label}</span>
+              <span className="text-xs font-medium text-base-content/80">
+                {label}
+              </span>
               <input
                 type="checkbox"
                 className="toggle toggle-xs toggle-primary"

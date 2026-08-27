@@ -207,7 +207,8 @@ export default function CronPanel({
   config,
   onConfigChange,
 }: CronPanelProps) {
-  const { ref: containerRef, size: dimensions } = usePanelSize<HTMLDivElement>();
+  const { ref: containerRef, size: dimensions } =
+    usePanelSize<HTMLDivElement>();
   const [nextRun, setNextRun] = useState<Date | null>(null);
   const [cronStart, setCronStart] = useState<Date | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -354,10 +355,7 @@ export default function CronPanel({
     9,
     Math.round(Math.min(countdownFontSize * 0.4, availH * 0.09)),
   );
-  const progressHeight = Math.max(
-    5,
-    Math.min(Math.round(availH * 0.09), 22),
-  );
+  const progressHeight = Math.max(5, Math.min(Math.round(availH * 0.09), 22));
 
   // Paused / waiting states
   const stateIconSize = Math.max(
@@ -368,10 +366,7 @@ export default function CronPanel({
     12,
     Math.floor(Math.min(availH * 0.12, availW * 0.08, 20)),
   );
-  const stateHintFontSize = Math.max(
-    9,
-    Math.round(stateTitleFontSize * 0.6),
-  );
+  const stateHintFontSize = Math.max(9, Math.round(stateTitleFontSize * 0.6));
 
   return (
     <div
@@ -391,7 +386,11 @@ export default function CronPanel({
           className={`toggle toggle-primary shrink-0 ${toggleClass}`}
           checked={config.enabled ?? false}
           disabled={toggling || !config.cron_expr || hasWildcard}
-          title={hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined}
+          title={
+            hasWildcard
+              ? "Cannot publish to wildcard topics (+ or #)"
+              : undefined
+          }
           onChange={(e) => handleToggle(e.target.checked)}
         />
       </div>

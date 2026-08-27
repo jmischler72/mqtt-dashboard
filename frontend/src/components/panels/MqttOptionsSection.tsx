@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { RiSettings3Line, RiArrowRightSLine, RiArrowDownSLine } from "react-icons/ri";
+import {
+  RiSettings3Line,
+  RiArrowRightSLine,
+  RiArrowDownSLine,
+} from "react-icons/ri";
 
 interface Props {
   qos: number;

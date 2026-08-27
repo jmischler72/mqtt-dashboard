@@ -44,8 +44,8 @@ export default function BrokerTopicSection({
         ? "e.g. sensors/+, home/#"
         : "e.g. home/living/light, home/kitchen/light"
       : allowWildcards
-      ? "e.g. sensor/temperature, sensor/+"
-      : "e.g. sensor/temperature");
+        ? "e.g. sensor/temperature, sensor/+"
+        : "e.g. sensor/temperature");
 
   const effectiveHelpText =
     helpText ??
@@ -54,8 +54,8 @@ export default function BrokerTopicSection({
         ? "Separate multiple topics with commas. Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp, home/#."
         : "Separate multiple topics with commas."
       : allowWildcards
-      ? "Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp."
-      : "Specify a single topic.");
+        ? "Supports wildcards: + (single level) and # (multi-level), e.g. sensors/+/temp."
+        : "Specify a single topic.");
 
   // Parse comma-separated topics for visual badge preview
   const parsedTopics = useMemo(() => {
@@ -154,7 +154,11 @@ export default function BrokerTopicSection({
             <div className="flex-1 min-w-0">
               <input
                 className={`input input-bordered input-sm w-full font-mono text-xs ${
-                  hasWildcardWarning || hasMultipleTopicsWarning || !topic?.trim() ? "input-warning" : ""
+                  hasWildcardWarning ||
+                  hasMultipleTopicsWarning ||
+                  !topic?.trim()
+                    ? "input-warning"
+                    : ""
                 }`}
                 placeholder={effectivePlaceholder}
                 value={topic}
@@ -181,7 +185,8 @@ export default function BrokerTopicSection({
             >
               <WarningIcon className="text-sm shrink-0" />
               <span>
-                No topic configured. Panel will not receive or publish messages until a topic is set.
+                No topic configured. Panel will not receive or publish messages
+                until a topic is set.
               </span>
             </div>
           )}
@@ -202,7 +207,8 @@ export default function BrokerTopicSection({
                         : "bg-base-100 border border-base-300 text-base-content"
                     }`}
                   >
-                    {isInvalidWildcard || (hasMultipleTopicsWarning && idx > 0) ? (
+                    {isInvalidWildcard ||
+                    (hasMultipleTopicsWarning && idx > 0) ? (
                       <WarningIcon className="text-warning text-xs shrink-0" />
                     ) : (
                       <span className="text-secondary opacity-70">#</span>
@@ -230,7 +236,8 @@ export default function BrokerTopicSection({
             >
               <WarningIcon className="text-sm shrink-0" />
               <span>
-                Multiple topics (comma-separated) are not supported for this panel. Please specify a single topic.
+                Multiple topics (comma-separated) are not supported for this
+                panel. Please specify a single topic.
               </span>
             </div>
           )}
@@ -243,7 +250,8 @@ export default function BrokerTopicSection({
             >
               <WarningIcon className="text-sm shrink-0" />
               <span>
-                Wildcards (<strong>+</strong> or <strong>#</strong>) are not supported when publishing. Please use exact topic names.
+                Wildcards (<strong>+</strong> or <strong>#</strong>) are not
+                supported when publishing. Please use exact topic names.
               </span>
             </div>
           )}

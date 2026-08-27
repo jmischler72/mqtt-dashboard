@@ -754,7 +754,10 @@ export default function ConfigPage() {
                       <span className="font-medium text-sm">
                         Authentication
                       </span>
-                      <div role="tablist" className="tabs tabs-box tabs-sm grid grid-cols-3 w-full">
+                      <div
+                        role="tablist"
+                        className="tabs tabs-box tabs-sm grid grid-cols-3 w-full"
+                      >
                         {(["none", "password", "certificate"] as const).map(
                           (mode) => {
                             const isCert = mode === "certificate";
@@ -766,7 +769,11 @@ export default function ConfigPage() {
                                 type="button"
                                 aria-disabled={disabled}
                                 className={`tab w-full truncate ${form.auth_mode === mode ? "tab-active" : ""} ${disabled ? "opacity-40 cursor-not-allowed tooltip tooltip-bottom" : ""}`}
-                                data-tip={disabled ? "Requires TLS to be enabled" : undefined}
+                                data-tip={
+                                  disabled
+                                    ? "Requires TLS to be enabled"
+                                    : undefined
+                                }
                                 onClick={() =>
                                   !disabled &&
                                   setForm((prev) => ({

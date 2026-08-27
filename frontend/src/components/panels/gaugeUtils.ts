@@ -4,7 +4,10 @@ export interface ParsedResult {
   raw: string;
 }
 
-export function parseGaugePayload(payload: string, valueKey?: string): ParsedResult {
+export function parseGaugePayload(
+  payload: string,
+  valueKey?: string,
+): ParsedResult {
   const raw = payload;
   let target: unknown = payload;
 
@@ -34,7 +37,11 @@ export function parseGaugePayload(payload: string, valueKey?: string): ParsedRes
     const trimmed = target.trim();
 
     const lower = trimmed.toLowerCase();
-    if (["true", "false", "on", "off", "yes", "no", "online", "offline"].includes(lower)) {
+    if (
+      ["true", "false", "on", "off", "yes", "no", "online", "offline"].includes(
+        lower,
+      )
+    ) {
       const isTrue = ["true", "on", "yes", "online"].includes(lower);
       return { parsedValue: isTrue, dataType: "boolean", raw };
     }

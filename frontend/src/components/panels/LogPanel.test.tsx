@@ -146,13 +146,7 @@ describe("LogPanel", () => {
   });
 
   it("shows empty state placeholder when no topic is configured", () => {
-    render(
-      <LogPanel
-        panelId="panel-1"
-        brokerId="b1"
-        config={{}}
-      />,
-    );
+    render(<LogPanel panelId="panel-1" brokerId="b1" config={{}} />);
 
     expect(
       screen.getByText("No topic configured — open settings to add topic"),
