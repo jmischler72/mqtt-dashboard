@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
@@ -7,6 +7,7 @@ import PanelModalFrame from "./PanelModalFrame";
 import { MdSpeed } from "react-icons/md";
 import { RiTimeLine } from "react-icons/ri";
 import { parseGaugePayload } from "./gaugeUtils";
+import { usePanelSize } from "../../hooks/usePanelSize";
 
 export interface GaugeConfig {
   topic?: string;
@@ -427,58 +428,8 @@ export default function GaugePanel({
     isHistorical: boolean;
   } | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState<{
-    width: number;
-    height: number;
-  }>({
-    width: 0,
-    height: 0,
-  });
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      const w = el.offsetWidth || el.getBoundingClientRect().width;
-      const h = el.offsetHeight || el.getBoundingClientRect().height;
-      if (w > 0 && h > 0) {
-        setDimensions({ width: w, height: h });
-      }
-    };
-
-    measure();
-    const timer = setTimeout(measure, 100);
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener("resize", measure);
-      };
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        const w = entry.contentRect.width || el.offsetWidth;
-        const h = entry.contentRect.height || el.offsetHeight;
-        if (w > 0 && h > 0) {
-          setDimensions({ width: w, height: h });
-        }
-      }
-    });
-
-    observer.observe(el);
-    window.addEventListener("resize", measure);
-
-    return () => {
-      clearTimeout(timer);
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, []);
+  const { ref: containerRef, size: dimensions } =
+    usePanelSize<HTMLDivElement>();
 
   const topic = (config.topic ?? "").split(",")[0]?.trim() ?? "";
   const min = config.min ?? 0;

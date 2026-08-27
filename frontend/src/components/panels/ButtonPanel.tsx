@@ -4,6 +4,7 @@ import type { BrokerStatus } from "../../hooks/useBrokers";
 import BrokerTopicSection from "./BrokerTopicSection";
 import MqttOptionsSection from "./MqttOptionsSection";
 import PanelModalFrame from "./PanelModalFrame";
+import { usePanelSize } from "../../hooks/usePanelSize";
 
 export interface ButtonConfig {
   label?: string;
@@ -131,6 +132,12 @@ export function ButtonConfigModal({
   );
 }
 
+// Keeps the label readable without turning the panel into a billboard.
+const MAX_FONT_SIZE = 28;
+
+// The button spans most of the panel but stays inset from its edges.
+const WIDTH_RATIO = 0.8;
+
 interface ButtonPanelProps {
   panelId: string;
   brokerId: string;
@@ -138,6 +145,8 @@ interface ButtonPanelProps {
 }
 
 export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
+  const { ref: containerRef, size: dimensions } =
+    usePanelSize<HTMLDivElement>();
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -190,16 +199,55 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
     }
   };
 
+  const label = config.label ?? "Click";
+
+  // Dynamic Sizing derived from container dimensions
+  const availW = Math.max(60, (dimensions.width || 240) - 16);
+  const availH = Math.max(40, (dimensions.height || 120) - 16);
+
+  // The button fills the panel rather than hugging its label, so the box is a
+  // function of the panel alone and only the text is clamped.
+  const labelLen = Math.max(1, label.length);
+  const btnWidth = Math.max(48, Math.round(availW * WIDTH_RATIO));
+  const btnHeight = Math.max(28, Math.min(Math.round(availH * 0.72), 160));
+  const btnPaddingX = Math.max(12, Math.min(Math.round(btnWidth * 0.08), 32));
+  const btnRadius = Math.max(6, Math.round(Math.min(btnHeight * 0.22, 24)));
+
+  // Font scales on both axes against the button's real inner width, so a long
+  // label shrinks to fit instead of truncating.
+  const textWidthBudget = Math.max(24, btnWidth - 2 * btnPaddingX);
+  const fontSize = Math.max(
+    10,
+    Math.floor(
+      Math.min(
+        availH * 0.34,
+        textWidthBudget / (labelLen * 0.58),
+        MAX_FONT_SIZE,
+      ),
+    ),
+  );
+
   return (
-    <div className="flex items-center justify-center h-full">
+    <div
+      ref={containerRef}
+      className="flex items-center justify-center h-full w-full overflow-hidden p-2"
+    >
       <button
-        className={`btn btn-lg ${
+        className={`btn border-0 font-semibold ${
           flash === "success"
             ? "btn-success"
             : flash === "error"
               ? "btn-error"
               : "btn-primary"
         }`}
+        style={{
+          fontSize: `${fontSize}px`,
+          width: `${btnWidth}px`,
+          height: `${btnHeight}px`,
+          minHeight: `${btnHeight}px`,
+          paddingInline: `${btnPaddingX}px`,
+          borderRadius: `${btnRadius}px`,
+        }}
         onClick={handleClick}
         disabled={loading || parsedTopics.length === 0 || hasWildcard}
         title={
@@ -211,9 +259,15 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
         }
       >
         {loading ? (
-          <span className="loading loading-spinner" />
+          <span
+            className="loading loading-spinner"
+            style={{
+              width: `${Math.round(fontSize * 1.2)}px`,
+              height: `${Math.round(fontSize * 1.2)}px`,
+            }}
+          />
         ) : (
-          (config.label ?? "Click")
+          <span className="truncate leading-none min-w-0">{label}</span>
         )}
       </button>
 
