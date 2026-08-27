@@ -11,7 +11,8 @@ services:
       - dashboard_data:/app/data
       - ./config.json:/app/config.json:ro
     depends_on:
-      - mosquitto
+      mosquitto:
+        condition: service_healthy
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -24,6 +25,12 @@ services:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ping", "-q", "0"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 volumes:
   dashboard_data:
