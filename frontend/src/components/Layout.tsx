@@ -4,15 +4,10 @@ import { MdMenu, MdEdit, MdAdd, MdKeyboardArrowUp } from "react-icons/md";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
 const worktreeModules = import.meta.glob<{
-  default: {
-    worktree?: string;
-    branch?: string;
-    commit?: string;
-    message?: string;
-    url?: string;
-  };
+  default: { slug?: string };
 }>("../worktreeInfo.json", { eager: true });
-const worktreeInfo = worktreeModules["../worktreeInfo.json"]?.default ?? null;
+const worktreeSlug =
+  worktreeModules["../worktreeInfo.json"]?.default?.slug ?? null;
 
 import packageJson from "../../package.json";
 
@@ -246,61 +241,13 @@ export default function Layout() {
               </p>
             </div>
 
-            {/* Worktree info in dev environment */}
-            {import.meta.env.DEV && worktreeInfo && (
-              <div className="mt-4 pt-3 border-t border-base-300">
-                <div className="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-2">
-                  Development Worktree
-                </div>
-                <div className="bg-base-200 rounded-lg p-2.5 space-y-1.5 text-xs font-mono">
-                  <div className="flex justify-between items-center">
-                    <span className="text-base-content/60 font-sans">
-                      Worktree:
-                    </span>
-                    {worktreeInfo.url ? (
-                      <a
-                        href={worktreeInfo.url}
-                        className="badge badge-sm badge-primary font-mono link link-hover"
-                        title={worktreeInfo.url}
-                      >
-                        {worktreeInfo.worktree}
-                      </a>
-                    ) : (
-                      <span className="badge badge-sm badge-primary font-mono">
-                        {worktreeInfo.worktree}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-base-content/60 font-sans">
-                      Branch:
-                    </span>
-                    <span className="text-base-content/90">
-                      {worktreeInfo.branch}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-base-content/60 font-sans">
-                      Commit:
-                    </span>
-                    <span className="bg-base-300 px-1.5 py-0.5 rounded text-base-content/90">
-                      {worktreeInfo.commit}
-                    </span>
-                  </div>
-                  {worktreeInfo.message && (
-                    <div className="flex flex-col gap-0.5 pt-1.5 border-t border-base-300">
-                      <span className="text-base-content/60 font-sans">
-                        Last Commit:
-                      </span>
-                      <span
-                        className="text-[11px] text-base-content/80 truncate font-sans"
-                        title={worktreeInfo.message}
-                      >
-                        {worktreeInfo.message}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            {/* Worktree slug in dev environment */}
+            {import.meta.env.DEV && worktreeSlug && (
+              <div className="mt-4 pt-3 border-t border-base-300 flex items-center gap-2 text-xs">
+                <span className="text-base-content/60">Worktree:</span>
+                <span className="badge badge-sm badge-primary font-mono">
+                  {worktreeSlug}
+                </span>
               </div>
             )}
 
