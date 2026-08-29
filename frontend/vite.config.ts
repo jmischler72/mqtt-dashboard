@@ -4,6 +4,10 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Defaults to <root>/node_modules/.vite. The dev container keeps node_modules
+  // outside the bind-mounted worktree, so it overrides this (see
+  // docker/dev/Dockerfile.dev); everywhere else the default applies.
+  cacheDir: process.env.VITE_CACHE_DIR,
   define: {
     "process.env.NODE_ENV": JSON.stringify(
       process.env.NODE_ENV ?? "production",
