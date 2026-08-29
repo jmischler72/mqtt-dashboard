@@ -65,7 +65,10 @@ export function readTemplate(host: Node): string {
     }
 
     if (node.tagName === "BR") {
-      out += "\n";
+      // Browsers park a filler <br> at the end of editable content to keep the
+      // last line reachable. It is not a line the user typed, and publishing
+      // the newline it stands for would append a byte they cannot see.
+      if (!isTrailingFiller(node, host)) out += "\n";
       return;
     }
 
@@ -79,6 +82,18 @@ export function readTemplate(host: Node): string {
   host.childNodes.forEach(walk);
 
   return out;
+}
+
+/** True for a <br> with nothing after it, anywhere up to the host. */
+function isTrailingFiller(node: Node, host: Node): boolean {
+  let current: Node | null = node;
+
+  while (current && current !== host) {
+    if (current.nextSibling) return false;
+    current = current.parentNode;
+  }
+
+  return true;
 }
 
 /**
@@ -138,7 +153,13 @@ export function setCaret(host: HTMLElement, offset: number): void {
       continue;
     }
 
-    // A chip is one character wide, and the caret can only sit beside it
+    // A chip is one character wide, and the caret can only sit beside it: on
+    // its leading edge that means before it, past it means after.
+    if (offset <= seen) {
+      range.setStart(host, index);
+      placed = true;
+      break;
+    }
     seen += 1;
     if (offset <= seen) {
       range.setStart(host, index + 1);

@@ -77,6 +77,18 @@ describe("SliderPanel publishing", () => {
     );
   });
 
+  it("publishes nothing when the readout is cleared and confirmed", () => {
+    render(<SliderPanel panelId="p1" brokerId="b1" config={config} />);
+
+    fireEvent.doubleClick(screen.getByTitle(/Double-click/));
+    const field = screen.getByLabelText("Value") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    // Number("") is 0, which would have sent the range minimum
+    expect(postMock).not.toHaveBeenCalled();
+  });
+
   it("escape abandons what was typed", () => {
     render(<SliderPanel panelId="p1" brokerId="b1" config={config} />);
 

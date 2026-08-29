@@ -59,6 +59,15 @@ describe("token editor DOM", () => {
     expect(readTemplate(host("<div>a</div><div>b</div>"))).toBe("a\nb");
   });
 
+  it("ignores the filler <br> a browser parks at the end", () => {
+    // Invisible to the user, so publishing the newline it stands for would
+    // append a byte they never typed
+    expect(readTemplate(host("a<br>"))).toBe("a");
+    expect(readTemplate(host("<div>a</div><div>b<br></div>"))).toBe("a\nb");
+    // A blank line the user actually made is still a line
+    expect(readTemplate(host("a<br><br>"))).toBe("a\n");
+  });
+
   it("repainting replaces the previous content rather than appending", () => {
     const el = host();
     paintTemplate(el, `{"a":${VALUE_TOKEN}}`);
@@ -150,6 +159,14 @@ describe("selection in payload coordinates", () => {
       setCaret(el, offset);
       expect(readSelectionOffsets(el)).toEqual({ start: offset, end: offset });
     }
+  });
+
+  it("puts an offset on a chip's leading edge before it, not after", () => {
+    const el = painted(`${VALUE_TOKEN}C`);
+    setCaret(el, 0);
+    expect(readSelectionOffsets(el)).toEqual({ start: 0, end: 0 });
+    setCaret(el, 1);
+    expect(readSelectionOffsets(el)).toEqual({ start: 1, end: 1 });
   });
 
   it("reports nothing when the selection is outside the editor", () => {

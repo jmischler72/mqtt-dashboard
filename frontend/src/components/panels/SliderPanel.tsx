@@ -571,8 +571,12 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
 
   /** Publish what was typed into the readout, snapped onto the range. */
   const commitTyped = () => {
-    const raw = Number(typed);
+    const text = (typed ?? "").trim();
     setTyped(null);
+    // `Number("")` is 0, so a field cleared and confirmed would publish the
+    // range minimum — a command nobody asked for. Nothing typed, nothing sent.
+    if (text === "") return;
+    const raw = Number(text);
     if (!Number.isFinite(raw)) return;
     commit(raw);
   };
