@@ -21,10 +21,32 @@ afterEach(() => {
   cleanup();
 });
 
+describe("Slider header meta", () => {
+  const slider = () => getPanelDefinition("slider");
+
+  it("shows the payload, as the config modal does", () => {
+    expect(
+      slider()?.getHeaderMeta?.({ topic: "lamp", payloadTemplate: '{"b":◆}' })
+        ?.payloadPreview,
+    ).toBe('{"b":value}');
+  });
+
+  it("shows both shapes when the panel reads from elsewhere", () => {
+    expect(
+      slider()?.getHeaderMeta?.({
+        topic: "lamp",
+        payloadTemplate: "◆",
+        separateRead: true,
+        readTemplate: '{"bri":◆}',
+      })?.payloadPreview,
+    ).toBe('sends  value\nreads  {"bri":value}');
+  });
+});
+
 describe("Panel Registry", () => {
-  it("registers all 10 built-in panels by default", () => {
+  it("registers all 11 built-in panels by default", () => {
     const panels = getAllPanels();
-    expect(panels.length).toBeGreaterThanOrEqual(10);
+    expect(panels.length).toBeGreaterThanOrEqual(11);
 
     const types = panels.map((p) => p.type);
     expect(types).toContain("gauge");
@@ -34,6 +56,7 @@ describe("Panel Registry", () => {
     expect(types).toContain("input");
     expect(types).toContain("cron");
     expect(types).toContain("toggle");
+    expect(types).toContain("slider");
     expect(types).toContain("text");
     expect(types).toContain("separator");
     expect(types).toContain("image");
@@ -47,7 +70,7 @@ describe("Panel Registry", () => {
 
     const controls = getPanelsByCategory("control").map((p) => p.type);
     expect(controls).toEqual(
-      expect.arrayContaining(["button", "input", "cron", "toggle"]),
+      expect.arrayContaining(["button", "input", "cron", "toggle", "slider"]),
     );
     expect(controls).not.toContain("gauge");
     expect(controls).not.toContain("image");

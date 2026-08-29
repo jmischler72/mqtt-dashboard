@@ -7,6 +7,7 @@ import {
   inputPanelDefinition,
   cronPanelDefinition,
   togglePanelDefinition,
+  sliderPanelDefinition,
   textPanelDefinition,
   separatorPanelDefinition,
   imagePanelDefinition,
@@ -20,6 +21,7 @@ registerPanel(buttonPanelDefinition);
 registerPanel(inputPanelDefinition);
 registerPanel(cronPanelDefinition);
 registerPanel(togglePanelDefinition);
+registerPanel(sliderPanelDefinition);
 registerPanel(textPanelDefinition);
 registerPanel(separatorPanelDefinition);
 registerPanel(imagePanelDefinition);
