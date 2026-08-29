@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  describeTemplate,
   deriveReadPath,
   extractValue,
   matchTemplate,
@@ -162,5 +163,15 @@ describe("placing the token", () => {
     const placed = placeToken(`${T} C`, 3, 3, "20");
     expect(placed.template).toBe(`20 C${T}`);
     expect(placed.caret).toBe(placed.template.length);
+  });
+});
+
+describe("describeTemplate", () => {
+  it("says the payload the way the editor draws it", () => {
+    expect(describeTemplate(`{"brightness":${VALUE_TOKEN}}`)).toBe(
+      `{"brightness":${TOKEN_LABEL}}`,
+    );
+    expect(describeTemplate(VALUE_TOKEN)).toBe(TOKEN_LABEL);
+    expect(describeTemplate("RESET")).toBe("RESET");
   });
 });

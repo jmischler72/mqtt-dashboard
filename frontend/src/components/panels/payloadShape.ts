@@ -488,6 +488,11 @@ export function clearToken(template: string, restore: string): string {
   return template.split(VALUE_TOKEN).join(restore);
 }
 
+/** The template as the interface says it, with the token under its label. */
+export function describeTemplate(template: string): string {
+  return template.split(VALUE_TOKEN).join(TOKEN_LABEL);
+}
+
 /**
  * Put the token at a place the user picked, replacing whatever they had
  * selected. A selection of zero width is a caret, so this both inserts and

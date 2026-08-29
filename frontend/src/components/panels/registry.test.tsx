@@ -21,6 +21,28 @@ afterEach(() => {
   cleanup();
 });
 
+describe("Slider header meta", () => {
+  const slider = () => getPanelDefinition("slider");
+
+  it("shows the payload, as the config modal does", () => {
+    expect(
+      slider()?.getHeaderMeta?.({ topic: "lamp", payloadTemplate: '{"b":◆}' })
+        ?.payloadPreview,
+    ).toBe('{"b":value}');
+  });
+
+  it("shows both shapes when the panel reads from elsewhere", () => {
+    expect(
+      slider()?.getHeaderMeta?.({
+        topic: "lamp",
+        payloadTemplate: "◆",
+        separateRead: true,
+        readTemplate: '{"bri":◆}',
+      })?.payloadPreview,
+    ).toBe('sends  value\nreads  {"bri":value}');
+  });
+});
+
 describe("Panel Registry", () => {
   it("registers all 11 built-in panels by default", () => {
     const panels = getAllPanels();

@@ -39,8 +39,8 @@ import SliderPanel, {
   SliderConfigModal,
   type SliderConfig,
 } from "./SliderPanel";
-import { normalizeRange, DEFAULT_MAX, DEFAULT_MIN } from "./sliderUtils";
-import { VALUE_TOKEN, payloadIssue } from "./payloadShape";
+import { DEFAULT_MAX, DEFAULT_MIN } from "./sliderUtils";
+import { VALUE_TOKEN, describeTemplate, payloadIssue } from "./payloadShape";
 
 /**
  * The command topic of a publishing panel: it has to exist, and it cannot carry
@@ -410,14 +410,19 @@ export const sliderPanelDefinition: PanelDefinition<SliderConfig> = {
     const topic = (config?.topic ?? "").trim();
     const stateTopic = config?.stateTopic?.trim();
     if (!topic) return { topicSummary: "not configured" };
-    const range = normalizeRange(config ?? {});
-    const unit = config?.unit?.trim() ?? "";
+    // The payload as the config modal shows it, so the two describe the panel
+    // the same way. The range is already on the panel's own face.
+    const sends = describeTemplate(config?.payloadTemplate ?? VALUE_TOKEN);
+    const reads =
+      config?.separateRead && config?.readTemplate
+        ? describeTemplate(config.readTemplate)
+        : null;
     return {
       topicSummary: stateTopic ? `${topic} ⇄ ${stateTopic}` : topic,
       topicDetail: stateTopic
         ? `command → ${topic} · value ← ${stateTopic}`
         : `command and value → ${topic}`,
-      payloadPreview: `${range.min}–${range.max}${unit ? ` ${unit}` : ""}`,
+      payloadPreview: reads ? `sends  ${sends}\nreads  ${reads}` : sends,
     };
   },
   preview: (
