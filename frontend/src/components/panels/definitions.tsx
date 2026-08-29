@@ -9,6 +9,7 @@ import {
   MdHorizontalRule,
   MdImage,
   MdToggleOn,
+  MdTune,
 } from "react-icons/md";
 import { api } from "../../api/client";
 import type { PanelDefinition, ValidationResult } from "./types";
@@ -34,6 +35,44 @@ import TogglePanel, {
   ToggleConfigModal,
   type ToggleConfig,
 } from "./TogglePanel";
+import SliderPanel, {
+  SliderConfigModal,
+  type SliderConfig,
+} from "./SliderPanel";
+import { normalizeRange, DEFAULT_MAX, DEFAULT_MIN } from "./sliderUtils";
+import { VALUE_TOKEN, payloadIssue } from "./payloadShape";
+
+/**
+ * The command topic of a publishing panel: it has to exist, and it cannot carry
+ * wildcards (they are legal on a state topic, which is only read).
+ */
+function commandTopicIssue(topic: string | undefined): string | null {
+  const trimmed = (topic ?? "").trim();
+  if (!trimmed) return "No topic configured";
+  if (trimmed.includes("+") || trimmed.includes("#")) {
+    return "Cannot publish to wildcard topics (+ or #)";
+  }
+  return null;
+}
+
+/** Both halves of "can this panel publish at all?", as one validation result. */
+function publishIssueResult(
+  topic: string | undefined,
+  payload: string | null,
+): ValidationResult | null {
+  const topicProblem = commandTopicIssue(topic);
+  if (topicProblem) {
+    return {
+      isValid: false,
+      warning: topicProblem,
+      errors: { topic: topicProblem },
+    };
+  }
+  if (payload) {
+    return { isValid: false, warning: payload, errors: { payload } };
+  }
+  return null;
+}
 
 export const gaugePanelDefinition: PanelDefinition<GaugeConfig> = {
   type: "gauge",
@@ -326,6 +365,76 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
   Component: TogglePanel,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConfigModal: ToggleConfigModal as any,
+};
+
+export const sliderPanelDefinition: PanelDefinition<SliderConfig> = {
+  type: "slider",
+  label: "Slider",
+  category: "control",
+  icon: MdTune,
+  description: "Set a numeric value on a device and reflect its real position",
+  resolvePickedTopic: (_existing, picked) => picked,
+  isEmpty: (config) =>
+    !config?.topic?.trim()
+      ? {
+          message: "No topic configured — open settings to add topic",
+          actionLabel: "Configure Topic",
+        }
+      : null,
+  // Same split as the toggle: wildcards are illegal on the command topic (it is
+  // published to) but fine on the state topic, which is only read.
+  validateConfig: (config): ValidationResult => {
+    const min = config?.min ?? DEFAULT_MIN;
+    const max = config?.max ?? DEFAULT_MAX;
+    const problem = publishIssueResult(
+      config?.topic,
+      payloadIssue({ template: config?.payloadTemplate ?? VALUE_TOKEN }) ??
+        (config?.separateRead
+          ? payloadIssue({
+              template: config?.readTemplate ?? VALUE_TOKEN,
+              mode: "read",
+            })
+          : null),
+    );
+    if (problem) return problem;
+    if (!(max > min)) {
+      return {
+        isValid: false,
+        warning: "High limit must be greater than Low limit",
+        errors: { range: "High limit must be greater than Low limit" },
+      };
+    }
+    return { isValid: true };
+  },
+  getHeaderMeta: (config) => {
+    const topic = (config?.topic ?? "").trim();
+    const stateTopic = config?.stateTopic?.trim();
+    if (!topic) return { topicSummary: "not configured" };
+    const range = normalizeRange(config ?? {});
+    const unit = config?.unit?.trim() ?? "";
+    return {
+      topicSummary: stateTopic ? `${topic} ⇄ ${stateTopic}` : topic,
+      topicDetail: stateTopic
+        ? `command → ${topic} · value ← ${stateTopic}`
+        : `command and value → ${topic}`,
+      payloadPreview: `${range.min}–${range.max}${unit ? ` ${unit}` : ""}`,
+    };
+  },
+  preview: (
+    <div className="flex flex-col items-center justify-center h-full gap-2 p-2">
+      <span className="text-sm font-bold font-mono text-base-content">60%</span>
+      <div className="relative w-20 h-1.5 rounded-full bg-base-content/15">
+        <div className="absolute inset-y-0 left-0 w-3/5 rounded-full bg-primary" />
+        <span className="absolute -top-1 left-3/5 -ml-2 w-4 h-4 rounded-full bg-primary shadow-md" />
+      </div>
+      <span className="text-[10px] text-base-content/50 font-mono">
+        home/lamp/brightness
+      </span>
+    </div>
+  ),
+  Component: SliderPanel,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConfigModal: SliderConfigModal as any,
 };
 
 export const textPanelDefinition: PanelDefinition<TextConfig> = {

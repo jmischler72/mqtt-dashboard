@@ -34,3 +34,43 @@
 .status-dot-hover-hint {
   animation: status-dot-hover-hint 2.2s ease-out infinite;
 }
+
+/*
+ * A range whose handle is a circle riding a hairline.
+ *
+ * daisyUI ties the track to half the thumb, and paints the filled part as a
+ * box-shadow spreading out of the thumb itself — so the "track" is really
+ * thumb-height whatever the track rule says. Turning `--range-fill` off drops
+ * that shadow, and the progress is painted on the track instead, as a gradient
+ * stopping at `--range-progress-x`.
+ *
+ * Deliberately unlayered: daisyUI's own rules sit in a cascade layer, and
+ * unlayered styles outrank every layer regardless of order.
+ */
+.range-hairline::-webkit-slider-runnable-track {
+  height: var(--track-size, 4px);
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    currentColor 0 var(--range-progress-x, 0%),
+    var(--range-bg) var(--range-progress-x, 0%) 100%
+  );
+}
+
+.range-hairline::-moz-range-track {
+  height: var(--track-size, 4px);
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    currentColor 0 var(--range-progress-x, 0%),
+    var(--range-bg) var(--range-progress-x, 0%) 100%
+  );
+}
+
+.range-hairline::-webkit-slider-thumb {
+  border-radius: 9999px;
+}
+
+.range-hairline::-moz-range-thumb {
+  border-radius: 9999px;
+}
