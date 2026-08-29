@@ -12,8 +12,6 @@ services:
       context: ../..
     volumes:
       - ../..:/app
-      # Shadow host node_modules with container-built Linux binaries
-      - frontend_node_modules:/app/frontend/node_modules
     environment:
       - APP_ENV=development
       - LOG_LEVEL=debug
@@ -85,9 +83,6 @@ services:
       - TLS_CA_CERT=/certs/ca.crt
       - TLS_CLIENT_CERT=/certs/client.crt
       - TLS_CLIENT_KEY=/certs/client.key
-
-volumes:
-  frontend_node_modules:
 
 networks:
   # Implicit per-project bridge: brokers + worker + app, isolated per worktree

@@ -5,18 +5,28 @@ RUN apk add --no-cache git curl nodejs npm
 # Install air for hot reload
 RUN go install github.com/air-verse/air@latest
 
-WORKDIR /app
-
 # Copy go mod files and download deps
+WORKDIR /app
 COPY ./backend/go.mod ./backend/go.sum ./backend/
 RUN cd backend && go mod download
 
-# Copy frontend package files and install
-COPY ./frontend/package*.json ./frontend/
-RUN cd frontend && npm ci
+# Frontend deps live in /node_modules, outside the /app bind mount: Node walks
+# up from /app/frontend and finds them there. Keeping them off the mounted tree
+# means the host worktree never gets a node_modules directory (so `git worktree
+# remove` stays clean) and there is no named volume to go stale when the
+# lockfile changes.
+WORKDIR /
+COPY ./frontend/package.json ./frontend/package-lock.json /
+RUN npm ci --no-audit --no-fund && md5sum < /package-lock.json > /node_modules/.lock-hash
+ENV PATH="/node_modules/.bin:${PATH}"
+# Vite defaults its cache to <root>/node_modules/.vite, which would recreate the
+# directory we just moved away; entrypoint.sh points it at /node_modules/.vite.
+ENV VITE_CACHE_DIR=/node_modules/.vite
 
+WORKDIR /app
 COPY . .
 
 EXPOSE 8080 5173
 
-CMD ["sh", "-c", "cd frontend && npm run dev -- --host & cd backend && air"]
+COPY ./docker/dev/entrypoint.sh /entrypoint.sh
+CMD ["/entrypoint.sh"]
