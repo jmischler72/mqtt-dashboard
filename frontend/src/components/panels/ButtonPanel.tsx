@@ -124,7 +124,13 @@ export function ButtonConfigModal({
 
         <DisclosureCard
           title="Message"
-          summary={<PayloadSummary value={payload} empty="empty message" />}
+          summary={
+            <PayloadSummary
+              value={payload}
+              empty="empty message"
+              chips={false}
+            />
+          }
           defaultOpen={payload.trim() === ""}
           invalid={Boolean(fieldErrors.payload)}
         >

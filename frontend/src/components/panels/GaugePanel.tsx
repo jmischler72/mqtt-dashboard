@@ -17,6 +17,7 @@ import {
   brokerPresence,
   brokerRules,
   defaultBrokerId,
+  payloadRules,
   rangeRules,
   topicRules,
   useConfigValidation,
@@ -129,6 +130,15 @@ export function GaugeConfigModal({
   const { fieldErrors, blockerReason } = useConfigValidation([
     ...brokerRules(brokerStatuses.length),
     ...topicRules({ topic, allowWildcards: true }),
+    // Blank is a real answer — a gauge reads the whole payload by default — but
+    // bytes with nothing marked in them are a shape the panel cannot use, and
+    // it would quietly read the whole payload instead of saying so.
+    ...payloadRules({
+      field: "readShape",
+      value: readTemplate,
+      mode: "read",
+      allowEmpty: true,
+    }),
     ...(scaleUsed
       ? rangeRules({
           field: "scale",
@@ -219,6 +229,7 @@ export function GaugeConfigModal({
         <ConfigCard
           title="Value"
           summary="the chip marks the value to pull out"
+          invalid={Boolean(fieldErrors.readShape)}
         >
           <PayloadBuilder
             mode="read"
@@ -233,6 +244,11 @@ export function GaugeConfigModal({
             unit={unit}
             placeholder="whole payload"
           />
+          {fieldErrors.readShape && (
+            <span className="text-[11px] text-warning">
+              {fieldErrors.readShape}
+            </span>
+          )}
         </ConfigCard>
       </ConfigGroup>
 

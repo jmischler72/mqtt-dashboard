@@ -7,6 +7,7 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   hasToken,
+  keepOneToken,
   readShape,
   renderPayload,
 } from "../payloadShape";
@@ -145,7 +146,7 @@ export default function PayloadBuilder({
     if (!host) return;
     if (painted.current === value) return;
 
-    paintTemplate(host, value);
+    paintTemplate(host, value, acceptsChip);
     painted.current = value;
 
     const caret = pendingCaret.current;
@@ -154,7 +155,7 @@ export default function PayloadBuilder({
       host.focus();
       setCaret(host, caret);
     }
-  }, [value]);
+  }, [value, acceptsChip]);
 
   return (
     <div className="flex flex-col gap-2.5 min-w-0">
@@ -190,8 +191,25 @@ export default function PayloadBuilder({
         data-placeholder={placeholder}
         spellCheck={false}
         onInput={(e) => {
-          const next = readTemplate(e.currentTarget);
-          painted.current = next;
+          const host = e.currentTarget;
+          const raw = readTemplate(host);
+          const next = acceptsChip ? keepOneToken(raw) : raw;
+
+          if (next === raw) {
+            painted.current = next;
+          } else {
+            // A second chip was spelled out and has been dropped. The box still
+            // shows it, so leave `painted` on what is there and let the repaint
+            // run; the caret sits just past what was written, which is what the
+            // removal took away.
+            painted.current = raw;
+            const at = readSelectionOffsets(host)?.start ?? next.length;
+            pendingCaret.current = Math.max(
+              0,
+              Math.min(next.length, at - (raw.length - next.length)),
+            );
+          }
+
           onChange(next);
           setUsedIndex(null);
         }}
@@ -261,10 +279,13 @@ export function PayloadSummary({
   value,
   empty = "not configured",
   max = 34,
+  chips = true,
 }: {
   value: string;
   empty?: string;
   max?: number;
+  /** False where the token's characters are literal bytes, not a chip. */
+  chips?: boolean;
 }) {
   const oneLine = value.replace(/\s+/g, " ").trim();
   if (oneLine === "")
@@ -272,6 +293,8 @@ export function PayloadSummary({
 
   const clipped =
     oneLine.length > max ? `${oneLine.slice(0, max - 2)}…` : oneLine;
+
+  if (!chips) return <span className="font-mono">{clipped}</span>;
 
   return (
     <span className="font-mono">

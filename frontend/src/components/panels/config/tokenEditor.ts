@@ -17,8 +17,25 @@ const CHIP_CLASS =
   "border border-primary bg-primary/15 text-primary font-mono text-[11px] " +
   "select-none";
 
-/** Replace the host's content with the template, token rendered as a chip. */
-export function paintTemplate(host: HTMLElement, template: string): void {
+/**
+ * Replace the host's content with the template, token rendered as a chip.
+ *
+ * `chips` is false for a panel with no value to substitute (button, cron): the
+ * same characters are then ordinary text the device asked for, and painting
+ * them as a chip would leave bytes the caret cannot get into.
+ */
+export function paintTemplate(
+  host: HTMLElement,
+  template: string,
+  chips = true,
+): void {
+  if (!chips) {
+    host.replaceChildren(
+      ...(template ? [host.ownerDocument.createTextNode(template)] : []),
+    );
+    return;
+  }
+
   const nodes: Node[] = [];
 
   template.split(VALUE_TOKEN).forEach((chunk, index) => {

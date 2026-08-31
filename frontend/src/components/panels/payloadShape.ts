@@ -47,7 +47,11 @@ export function resolvePath(
   // taken before it is split up.
   if (typeof root === "object" && root !== null && !Array.isArray(root)) {
     const flat = root as Record<string, unknown>;
-    if (path in flat) return { found: true, value: flat[path] };
+    // Own keys only: `toString` is on every object, and a shape naming one of
+    // those would report a fit on any message and hand back a function.
+    if (Object.prototype.hasOwnProperty.call(flat, path)) {
+      return { found: true, value: flat[path] };
+    }
   }
 
   const segments = path
@@ -74,7 +78,9 @@ export function resolvePath(
 
     if (typeof current === "object") {
       const obj = current as Record<string, unknown>;
-      if (!(segment in obj)) return { found: false, value: undefined };
+      if (!Object.prototype.hasOwnProperty.call(obj, segment)) {
+        return { found: false, value: undefined };
+      }
       current = obj[segment];
       continue;
     }
@@ -454,16 +460,25 @@ export function readShape(template: string, message: string): ShapeRead {
  * Panels saved before templates existed have no token to mirror, so their
  * stored key still applies.
  */
+function storedReadTemplate(config: {
+  payloadTemplate?: string;
+  readTemplate?: string;
+  separateRead?: boolean;
+}): string | undefined {
+  // An empty shape is an answer, not a gap: it means "the whole payload", which
+  // is what a device echoing `ON` on its own state topic sends. Only a panel
+  // that has never been given one falls back to the shape it publishes.
+  return config.separateRead && config.readTemplate !== undefined
+    ? config.readTemplate
+    : config.payloadTemplate;
+}
+
 export function effectiveReadTemplate(config: {
   payloadTemplate?: string;
   readTemplate?: string;
   separateRead?: boolean;
 }): string | undefined {
-  const stored =
-    config.separateRead && config.readTemplate
-      ? config.readTemplate
-      : config.payloadTemplate;
-  return migrateTemplate(stored);
+  return migrateTemplate(storedReadTemplate(config));
 }
 
 export function effectiveReadPath(config: {
@@ -472,11 +487,7 @@ export function effectiveReadPath(config: {
   separateRead?: boolean;
   valueKey?: string;
 }): string | undefined {
-  const source = migrateTemplate(
-    config.separateRead && config.readTemplate
-      ? config.readTemplate
-      : config.payloadTemplate,
-  );
+  const source = migrateTemplate(storedReadTemplate(config));
 
   const derived = source ? deriveReadPath(source) : null;
 
@@ -571,6 +582,25 @@ export interface TemplateLiteral {
   end: number;
 }
 
+/**
+ * The template with at most one token in it.
+ *
+ * The token is ordinary characters now, so a payload can be typed or pasted
+ * that spells a second one. Two would publish the value twice, leave
+ * `matchTemplate` reading the rest of the shape as a tail it can never line up,
+ * and put `placeToken`'s offsets out by a token's width. The first mark is the
+ * one the user made; later spellings are dropped.
+ */
+export function keepOneToken(template: string): string {
+  const at = template.indexOf(VALUE_TOKEN);
+  if (at === -1) return template;
+
+  const upto = at + VALUE_TOKEN.length;
+  return (
+    template.slice(0, upto) + template.slice(upto).split(VALUE_TOKEN).join("")
+  );
+}
+
 /** Punctuation that means the payload is a document, not a lone value. */
 const STRUCTURED = /[{}[\]:,]/;
 
@@ -590,10 +620,12 @@ export function findLiterals(template: string): TemplateLiteral[] {
   let match: RegExpExecArray | null;
   while ((match = re.exec(template)) !== null && out.length < 4) {
     const text = match[0];
-    // A quoted string followed by a colon is a JSON key, not a value — offering
-    // it would fill the row with `"temp"` and hide the 21.4 next to it.
+    // A string followed by a colon is a JSON key, not a value — offering it
+    // would fill the row with `"temp"` and hide the 21.4 next to it. Keys are
+    // not always quoted (`parseLooseJson` reads `{ch1:5}`), so what follows the
+    // *word* the match sits in decides it: the `1` of `ch1` names the field.
     const rest = template.slice(match.index + text.length);
-    if (text.startsWith('"') && /^\s*:/.test(rest)) continue;
+    if (/^[^\s"',{}[\]]*\s*:/.test(rest)) continue;
     if (seen.has(text) || text.includes(VALUE_TOKEN)) continue;
     seen.add(text);
     out.push({ text, start: match.index, end: match.index + text.length });

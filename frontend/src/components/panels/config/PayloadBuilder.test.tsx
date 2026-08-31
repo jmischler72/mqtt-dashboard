@@ -81,6 +81,27 @@ describe("starting from a message", () => {
   });
 });
 
+describe("a payload that spells the chip out", () => {
+  it("keeps one chip when the bytes typed in name a second", () => {
+    render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
+    const box = screen.getByRole("textbox");
+    box.append(document.createTextNode(VALUE_TOKEN));
+    fireEvent.input(box);
+    // Two would publish the value twice and read nothing back
+    expect(template()).toBe(`{"a":${VALUE_TOKEN}}`);
+  });
+
+  it("leaves those characters alone for a panel that publishes them", () => {
+    render(<Builder initial="" payloads={[]} acceptsChip={false} />);
+    const box = screen.getByRole("textbox");
+    box.append(document.createTextNode(`{"cmd":"${VALUE_TOKEN}"}`));
+    fireEvent.input(box);
+    expect(template()).toBe(`{"cmd":"${VALUE_TOKEN}"}`);
+    // …and they are text the caret can get into, not an atomic chip
+    expect(box.querySelector("[data-value-token]")).toBeNull();
+  });
+});
+
 describe("the literals offered as one-tap chip targets", () => {
   it("offers a boolean value rather than the whole message", () => {
     // The payload has no quoted value and no number: the fallback that offers

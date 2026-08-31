@@ -4,7 +4,11 @@ import {
   VALUE_TOKEN,
   describeTemplate,
   deriveReadPath,
+  effectiveReadPath,
+  effectiveReadTemplate,
   extractValue,
+  findLiterals,
+  keepOneToken,
   matchTemplate,
   payloadIssue,
   placeToken,
@@ -254,7 +258,80 @@ describe("readShape", () => {
   });
 });
 
+describe("keepOneToken", () => {
+  it("keeps the mark the user made and drops a second spelling of it", () => {
+    expect(keepOneToken(`{"a":${VALUE_TOKEN},"b":${VALUE_TOKEN}}`)).toBe(
+      `{"a":${VALUE_TOKEN},"b":}`,
+    );
+  });
+
+  it("leaves a template with one mark, or none, exactly as it is", () => {
+    expect(keepOneToken(`{"a":${VALUE_TOKEN}}`)).toBe(`{"a":${VALUE_TOKEN}}`);
+    expect(keepOneToken("RESET")).toBe("RESET");
+  });
+});
+
+describe("findLiterals", () => {
+  it("offers the values, never the keys naming them", () => {
+    expect(findLiterals('{"temp":21.4}').map((l) => l.text)).toEqual(["21.4"]);
+    // Keys are not always quoted — `parseLooseJson` reads this too, and the
+    // `1` of `ch1` is half a field name, not a reading
+    expect(findLiterals("{ch1:5}").map((l) => l.text)).toEqual(["5"]);
+  });
+
+  it("offers a value that is a bare word rather than the whole document", () => {
+    expect(findLiterals('{"cmd":true}').map((l) => l.text)).toEqual(["true"]);
+  });
+
+  it("offers a lone payload, which is its own value", () => {
+    expect(findLiterals("RESET").map((l) => l.text)).toEqual(["RESET"]);
+  });
+
+  it("still offers a value that merely sits next to punctuation", () => {
+    expect(findLiterals("random: 21.4 (ok)").map((l) => l.text)).toEqual([
+      "21.4",
+    ]);
+  });
+});
+
+describe("effectiveReadTemplate", () => {
+  it("mirrors the write shape when no read shape was ever set", () => {
+    expect(
+      effectiveReadTemplate({ payloadTemplate: `{"state":"${VALUE_TOKEN}"}` }),
+    ).toBe(`{"state":"${VALUE_TOKEN}"}`);
+  });
+
+  it("keeps a blank read shape, which means the whole payload", () => {
+    // The modal offers the empty box as an answer and previews it that way; a
+    // fallback here would have the panel read by different rules
+    expect(
+      effectiveReadTemplate({
+        payloadTemplate: `{"state":"${VALUE_TOKEN}"}`,
+        readTemplate: "",
+        separateRead: true,
+      }),
+    ).toBe("");
+    expect(
+      effectiveReadPath({
+        payloadTemplate: `{"state":"${VALUE_TOKEN}"}`,
+        readTemplate: "",
+        separateRead: true,
+      }),
+    ).toBeUndefined();
+  });
+});
+
 describe("resolvePath", () => {
+  it("does not resolve a key every object inherits", () => {
+    // `{"toString":{value}}` would otherwise fit any message at all, and hand
+    // the panel a function's source to draw
+    expect(resolvePath({ a: 1 }, "toString").found).toBe(false);
+    expect(resolvePath({ a: { b: 1 } }, "a.constructor").found).toBe(false);
+    expect(readShape(`{"toString":${VALUE_TOKEN}}`, '{"a":1}').found).toBe(
+      false,
+    );
+  });
+
   it("takes a key containing a dot as one field before splitting it", () => {
     // How a panel saved before paths existed stored its key
     expect(resolvePath({ "sensor.temp": 21 }, "sensor.temp")).toEqual({
