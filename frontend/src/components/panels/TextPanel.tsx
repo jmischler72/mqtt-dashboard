@@ -1,6 +1,12 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import PanelModalFrame from "./PanelModalFrame";
+import { MdNotes } from "react-icons/md";
+import {
+  ConfigCard,
+  ConfigGroup,
+  DisclosureCard,
+  PanelConfigModal,
+} from "./config";
 
 export interface TextConfig {
   markdown?: string;
@@ -17,59 +23,47 @@ interface ModalProps {
 
 export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
   const [markdown, setMarkdown] = useState(config.markdown ?? "");
-  const [tab, setTab] = useState<"edit" | "preview">("edit");
 
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdNotes}
       title="Text Configuration"
-      onClose={onClose}
+      onCancel={onClose}
       onSave={() => onSave({ markdown }, "")}
-      maxWidthClass="w-1/3 min-w-96 max-w-none"
-      headerAction={
-        <button
-          type="button"
-          className="btn btn-xs btn-outline"
-          onClick={() => setMarkdown(TEMPLATE_MARKDOWN)}
-        >
-          Start with a template
-        </button>
-      }
     >
-      <div role="tablist" className="tabs tabs-box mb-3">
-        <button
-          type="button"
-          role="tab"
-          className={`tab flex-1 ${tab === "edit" ? "tab-active" : ""}`}
-          onClick={() => setTab("edit")}
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={`tab flex-1 ${tab === "preview" ? "tab-active" : ""}`}
-          onClick={() => setTab("preview")}
-        >
-          Preview
-        </button>
-      </div>
+      {/* Nothing here touches a broker, so Appearance is the only group. */}
+      <ConfigGroup heading="Appearance">
+        <ConfigCard title="Markdown">
+          <textarea
+            className="w-full rounded-lg border border-base-300 dark:border-base-100 bg-base-300 px-2.5 py-2 font-mono text-xs leading-relaxed resize-y"
+            aria-label="Markdown"
+            rows={12}
+            spellCheck={false}
+            placeholder="# Hello&#10;&#10;Write **Markdown** here…"
+            value={markdown}
+            onChange={(e) => setMarkdown(e.target.value)}
+          />
+          <button
+            type="button"
+            className="self-start inline-flex items-center h-6 px-2.5 rounded-full border border-base-300 dark:border-base-100 bg-base-100 text-[11px] font-medium text-base-content/70 cursor-pointer hover:border-primary"
+            onClick={() => setMarkdown(TEMPLATE_MARKDOWN)}
+          >
+            start from a template
+          </button>
+        </ConfigCard>
 
-      {tab === "edit" ? (
-        <textarea
-          className="textarea textarea-bordered w-full font-mono text-sm"
-          rows={12}
-          placeholder="# Hello&#10;&#10;Write **Markdown** here…"
-          value={markdown}
-          onChange={(e) => setMarkdown(e.target.value)}
-        />
-      ) : (
-        <div className="border border-base-300 rounded-box p-3 min-h-48 overflow-auto">
-          <div className="prose max-w-none prose-base">
-            <ReactMarkdown>{markdown}</ReactMarkdown>
+        <DisclosureCard
+          title="Preview"
+          summary={`${markdown.trim() ? markdown.trim().split(/\s+/).length : 0} words`}
+        >
+          <div className="rounded-lg border border-base-300 dark:border-base-100 bg-base-100 p-3 min-w-0 overflow-x-auto">
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown>{markdown}</ReactMarkdown>
+            </div>
           </div>
-        </div>
-      )}
-    </PanelModalFrame>
+        </DisclosureCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 

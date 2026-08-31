@@ -1,58 +1,58 @@
+import {
+  VALUE_TOKEN,
+  migrateTemplate,
+  readValue,
+  templateFromValueKey,
+} from "./payloadShape";
+import type { PayloadDataType } from "./payloadShape";
+
 export interface ParsedResult {
   parsedValue: string | number | boolean;
-  dataType: "number" | "boolean" | "string";
+  dataType: PayloadDataType;
   raw: string;
 }
 
+export interface GaugeShape {
+  /** The read shape, with `{value}` marking the part to pull out. */
+  template?: string;
+  /** Legacy dot path, still honoured for panels saved before shapes existed. */
+  path?: string;
+}
+
+/**
+ * Read a displayable value out of a payload.
+ *
+ * Thin wrapper over the shared extractor: the shape's chip marks the value, and
+ * a blank shape reads the whole payload.
+ */
 export function parseGaugePayload(
   payload: string,
-  valueKey?: string,
+  shape: GaugeShape = {},
 ): ParsedResult {
-  const raw = payload;
-  let target: unknown = payload;
+  const { value, dataType, raw } = readValue(
+    shape.template?.trim() || undefined,
+    payload,
+    shape.path?.trim() || undefined,
+  );
+  return { parsedValue: value, dataType, raw };
+}
 
-  try {
-    const json = JSON.parse(payload);
-    if (typeof json === "object" && json !== null && !Array.isArray(json)) {
-      if (valueKey && valueKey in json) {
-        target = (json as Record<string, unknown>)[valueKey];
-      }
-    } else {
-      target = json;
-    }
-  } catch {
-    // Ignore JSON parse error, treat as raw payload
-    target = payload;
-  }
-
-  if (typeof target === "number") {
-    return { parsedValue: target, dataType: "number", raw };
-  }
-
-  if (typeof target === "boolean") {
-    return { parsedValue: target, dataType: "boolean", raw };
-  }
-
-  if (typeof target === "string") {
-    const trimmed = target.trim();
-
-    const lower = trimmed.toLowerCase();
-    if (
-      ["true", "false", "on", "off", "yes", "no", "online", "offline"].includes(
-        lower,
-      )
-    ) {
-      const isTrue = ["true", "on", "yes", "online"].includes(lower);
-      return { parsedValue: isTrue, dataType: "boolean", raw };
-    }
-
-    const num = Number(trimmed);
-    if (!isNaN(num) && trimmed !== "") {
-      return { parsedValue: num, dataType: "number", raw };
-    }
-
-    return { parsedValue: trimmed, dataType: "string", raw };
-  }
-
-  return { parsedValue: String(target), dataType: "string", raw };
+/**
+ * The read shape a stored gauge should open with. A panel saved with only a dot
+ * path is drawn as the shape it was really describing, so the one chip explains
+ * both the old config and the new one.
+ *
+ * Nothing stored at all falls back to the bare chip rather than an empty box:
+ * "read the whole payload" is what a fresh gauge does, and the chip says so in
+ * the same terms every other shape is written in.
+ */
+export function gaugeReadTemplate(config: {
+  readTemplate?: string;
+  valueKey?: string;
+}): string {
+  const stored =
+    config.readTemplate !== undefined
+      ? migrateTemplate(config.readTemplate)
+      : templateFromValueKey(config.valueKey);
+  return stored.trim() || VALUE_TOKEN;
 }

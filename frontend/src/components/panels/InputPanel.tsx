@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from "react";
+import { MdInput } from "react-icons/md";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import MqttOptionsSection from "./MqttOptionsSection";
-import PanelModalFrame from "./PanelModalFrame";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  FieldRow,
+  PanelConfigModal,
+  PublishOptionsCard,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  topicRules,
+  useConfigValidation,
+} from "./config";
 
 export interface InputConfig {
   topic?: string;
+  /** Placeholder inside the field. Display only. */
+  placeholder?: string;
   qos?: number;
   retain?: boolean;
 }
@@ -20,6 +33,7 @@ interface ModalProps {
   onPickTopic?: (data: {
     currentTopic: string;
     selectedBrokerId: string;
+    draftConfig?: InputConfig;
   }) => void;
   initialTopic?: string;
   initialBrokerId?: string;
@@ -35,49 +49,102 @@ export function InputConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
+
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
+  const [placeholder, setPlaceholder] = useState(config.placeholder ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
+  );
+  const [touched, setTouched] = useState(Boolean(config.topic));
+
+  const draft = (): InputConfig => ({
+    topic,
+    placeholder,
+    qos,
+    retain,
+  });
+
+  const { fieldErrors, blockerReason } = useConfigValidation(
+    [...brokerRules(brokerStatuses.length), ...topicRules({ topic })],
+    { touched },
   );
 
-  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
+  const topicCount = topic.split(",").filter((t) => t.trim()).length;
 
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdInput}
       title="Input Configuration"
-      onClose={onClose}
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
-        onSave({ topic, qos, retain }, selectedBrokerId || defaultBrokerId)
+        onSave(
+          {
+            topic,
+            placeholder,
+            qos,
+            retain,
+          },
+          selectedBrokerId || fallbackBroker,
+        )
       }
-      saveDisabled={
-        brokerStatuses.length === 0 || !topic.trim() || hasWildcardWarning
-      }
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        onPickTopic={
-          onPickTopic
-            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-            : undefined
-        }
-      />
+      <ConfigGroup heading="Publish">
+        <BrokerTopicCard
+          title="Publishes to"
+          summary={topicCount > 1 ? `${topicCount} topics` : undefined}
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={(next) => {
+            setTopic(next);
+            setTouched(true);
+          }}
+          topicPlaceholder="home/display/text"
+          topicError={fieldErrors.topic}
+          help="Comma-separate to publish to several topics."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: topic,
+                    selectedBrokerId,
+                    draftConfig: draft(),
+                  })
+              : undefined
+          }
+        />
 
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
-    </PanelModalFrame>
+        <PublishOptionsCard
+          qos={qos}
+          onQosChange={setQos}
+          retain={retain}
+          onRetainChange={setRetain}
+          retainNote="Last text kept for new subscribers"
+        />
+      </ConfigGroup>
+
+      <ConfigGroup heading="Appearance">
+        <ConfigCard>
+          <FieldRow
+            label="Hint"
+            help="Placeholder shown inside the empty field."
+          >
+            <input
+              className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              value={placeholder}
+              onChange={(e) => setPlaceholder(e.target.value)}
+              placeholder="Enter payload…"
+            />
+          </FieldRow>
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 
@@ -152,7 +219,7 @@ export default function InputPanel({
     <div className="flex flex-col h-full gap-2 p-1">
       <textarea
         className="textarea textarea-bordered font-mono flex-1 resize-none w-full"
-        placeholder="Enter payload…"
+        placeholder={config.placeholder || "Enter payload…"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {

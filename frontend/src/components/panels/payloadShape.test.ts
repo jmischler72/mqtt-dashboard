@@ -8,6 +8,7 @@ import {
   matchTemplate,
   payloadIssue,
   placeToken,
+  readShape,
   readValue,
 } from "./payloadShape";
 import { parseSliderValue } from "./sliderUtils";
@@ -28,7 +29,9 @@ describe("payloadIssue", () => {
   });
 
   it("flags an empty payload on a panel that has a value", () => {
-    expect(payloadIssue({ template: "" })).toBe("No payload configured");
+    expect(payloadIssue({ template: "" })).toBe(
+      "No message configured — this panel has nothing to publish.",
+    );
   });
 
   it("does not judge the bytes — quoted or not, JSON or not", () => {
@@ -113,6 +116,26 @@ describe("reading by stencil", () => {
     ).toBe(50);
   });
 
+  it("treats the template's tail as optional, so extra fields still read", () => {
+    // The user described the field they care about, not the whole document
+    expect(
+      readValue(`{"temp":${VALUE_TOKEN}}`, '{"temp":21.4,"battery":{"pct":92}}')
+        .value,
+    ).toBe(21.4);
+    expect(
+      readValue(`random: ${VALUE_TOKEN} (ok)`, "random: 21.4 (ok)").value,
+    ).toBe(21.4);
+  });
+
+  it("reads a quoted value without dragging its closing quote along", () => {
+    expect(
+      readValue(
+        `{"room":"${VALUE_TOKEN}"}`,
+        '{"value":37,"room":"bathroom","src":"esp32"}',
+      ).value,
+    ).toBe("bathroom");
+  });
+
   it("does not stencil a bare token, which anchors on nothing", () => {
     expect(matchTemplate(VALUE_TOKEN, "anything")).toBeNull();
     // It still reads as the whole message, via the path branch
@@ -144,7 +167,9 @@ describe("placing the token", () => {
   });
 
   it("moves an existing token rather than adding a second", () => {
-    const placed = placeToken(`{"a":${T},"b":9}`, 11, 12, "1");
+    const template = `{"a":${T},"b":9}`;
+    const nine = template.indexOf("9");
+    const placed = placeToken(template, nine, nine + 1, "1");
     expect(placed.template).toBe(`{"a":1,"b":${T}}`);
     expect(placed.template.split(T)).toHaveLength(2);
   });
@@ -153,14 +178,15 @@ describe("placing the token", () => {
     // Repeated taps of the button: the caret sits just past the chip each time
     let template = `{"b":${T}}`;
     for (let i = 0; i < 3; i++) {
-      const placed = placeToken(template, 6, 6);
+      // The caret sits just past the chip after each tap
+      const placed = placeToken(template, 5 + T.length, 5 + T.length);
       expect(placed.template).toBe(`{"b":${T}}`);
       template = placed.template;
     }
   });
 
   it("accounts for the restored constant when placing the caret", () => {
-    const placed = placeToken(`${T} C`, 3, 3, "20");
+    const placed = placeToken(`${T} C`, T.length + 2, T.length + 2, "20");
     expect(placed.template).toBe(`20 C${T}`);
     expect(placed.caret).toBe(placed.template.length);
   });
@@ -173,5 +199,23 @@ describe("describeTemplate", () => {
     );
     expect(describeTemplate(VALUE_TOKEN)).toBe(TOKEN_LABEL);
     expect(describeTemplate("RESET")).toBe("RESET");
+  });
+});
+
+describe("readShape", () => {
+  it("reads the whole payload through a bare chip, and calls it a fit", () => {
+    // The gauge opens on this shape, so it must never read as "does not match"
+    expect(readShape(VALUE_TOKEN, "21.4")).toMatchObject({
+      value: 21.4,
+      found: true,
+    });
+    expect(readShape(VALUE_TOKEN, '{"t":21.4}')).toMatchObject({
+      value: '{"t":21.4}',
+      found: true,
+    });
+  });
+
+  it("still reports a shape that does not fit the message", () => {
+    expect(readShape(`{"t":${VALUE_TOKEN}}`, '{"h":60}').found).toBe(false);
   });
 });

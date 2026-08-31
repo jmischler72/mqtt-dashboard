@@ -2,15 +2,36 @@ import { useState, useEffect } from "react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import PanelModalFrame from "./PanelModalFrame";
 import { MdSpeed } from "react-icons/md";
 import { RiTimeLine } from "react-icons/ri";
-import { parseGaugePayload } from "./gaugeUtils";
+import { gaugeReadTemplate, parseGaugePayload } from "./gaugeUtils";
+import {
+  BrokerTopicCard,
+  ChoiceCards,
+  ConfigCard,
+  ConfigGroup,
+  FieldRow,
+  NumberRangeRow,
+  PanelConfigModal,
+  PayloadBuilder,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  rangeRules,
+  topicRules,
+  useConfigValidation,
+} from "./config";
+import { readShape } from "./payloadShape";
+import { usePayloadSample } from "../../hooks/usePayloadSample";
 import { usePanelSize } from "../../hooks/usePanelSize";
+
+export type GaugeType = "radial" | "bar" | "value";
 
 export interface GaugeConfig {
   topic?: string;
+  /** Shape of incoming messages, with `{value}` marking the part to read. */
+  readTemplate?: string;
+  /** Legacy dot path, kept so panels saved before shapes existed still read. */
   valueKey?: string;
   unit?: string;
   min?: number;
@@ -24,7 +45,7 @@ export interface GaugeConfig {
     | "warning"
     | "error"
     | "info";
-  gaugeType?: "radial" | "bar" | "value";
+  gaugeType?: GaugeType;
 }
 
 interface ModalProps {
@@ -52,153 +73,112 @@ export function GaugeConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  const [valueKey, setValueKey] = useState(config.valueKey ?? "");
+  const [readTemplate, setReadTemplate] = useState(gaugeReadTemplate(config));
   const [unit, setUnit] = useState(config.unit ?? "");
-  const [min, setMin] = useState(config.min ?? 0);
-  const [max, setMax] = useState(config.max ?? 100);
-  const [gaugeType, setGaugeType] = useState<GaugeConfig["gaugeType"]>(
+  const [min, setMin] = useState(String(config.min ?? 0));
+  const [max, setMax] = useState(String(config.max ?? 100));
+  const [gaugeType, setGaugeType] = useState<GaugeType>(
     config.gaugeType ?? "radial",
   );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
+  );
+  const [touched, setTouched] = useState(Boolean(config.topic));
+
+  const { recent, loading } = usePayloadSample(selectedBrokerId, topic);
+  const latest = recent[0]?.payload ?? null;
+
+  // Derived from the sample rather than mirrored into state, so changing the
+  // shape or the topic can never leave a stale reading on screen.
+  const reading = latest ? readShape(readTemplate, latest) : null;
+  const numeric = reading?.dataType === "number";
+  // "Nothing published yet" and "the shape does not fit this message" are
+  // different problems: neither is a reason to disable a style, but only a
+  // shape that actually resolved can say the payload is not a number.
+  const matched = reading?.found ?? false;
+
+  // Radial and bar need a number to fill against. The stored pick is never
+  // overwritten — only the drawn style falls back — so it returns the moment
+  // the payload is numeric again.
+  const numericOnly = gaugeType === "radial" || gaugeType === "bar";
+  const nonNumeric = matched && !numeric;
+  const effectiveType: GaugeType =
+    nonNumeric && numericOnly ? "value" : gaugeType;
+  const fellBack = nonNumeric && numericOnly;
+
+  const minNum = Number(min);
+  const maxNum = Number(max);
+  const scaleUsed = effectiveType !== "value";
+
+  const { fieldErrors, blockerReason } = useConfigValidation(
+    [
+      ...brokerRules(brokerStatuses.length),
+      ...topicRules({ topic, allowWildcards: true }),
+      ...(scaleUsed
+        ? rangeRules({
+            field: "scale",
+            low: min,
+            high: max,
+            lowLabel: "Min",
+            highLabel: "Max",
+          })
+        : []),
+    ],
+    { touched },
   );
 
-  const [detectedType, setDetectedType] = useState<
-    "number" | "boolean" | "string" | null
-  >(null);
-  const [sampleValue, setSampleValue] = useState<
-    string | number | boolean | null
-  >(null);
-  const [detectedKey, setDetectedKey] = useState<string | null>(null);
-  const [isLoadingSample, setIsLoadingSample] = useState(false);
-
-  useEffect(() => {
-    const singleTopic = topic.split(",")[0]?.trim();
-    if (!selectedBrokerId || !singleTopic) {
-      const id = setTimeout(() => {
-        setDetectedType(null);
-        setSampleValue(null);
-        setDetectedKey(null);
-        setIsLoadingSample(false);
-      }, 0);
-      return () => clearTimeout(id);
-    }
-
-    let cancelled = false;
-    const startTimer = setTimeout(() => {
-      if (!cancelled) setIsLoadingSample(true);
-    }, 0);
-
-    api
-      .getExplorerHistory(selectedBrokerId, singleTopic)
-      .then((records) => {
-        if (cancelled) return;
-        if (records && records.length > 0) {
-          const sorted = [...records].sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-          );
-          const latest = sorted[0];
-          if (latest?.payload) {
-            let keyCandidate: string | null = null;
-            try {
-              const json = JSON.parse(latest.payload);
-              if (
-                typeof json === "object" &&
-                json !== null &&
-                !Array.isArray(json)
-              ) {
-                const commonKeys = [
-                  "val",
-                  "value",
-                  "temp",
-                  "temperature",
-                  "reading",
-                  "status",
-                  "state",
-                  "data",
-                ];
-                const found = commonKeys.find((k) => k in json);
-                if (found) {
-                  keyCandidate = found;
-                } else {
-                  const keys = Object.keys(json);
-                  if (keys.length > 0) keyCandidate = keys[0];
-                }
-              }
-            } catch {
-              // Ignore non-JSON payload
-            }
-            setDetectedKey(keyCandidate);
-
-            const parsed = parseGaugePayload(latest.payload, valueKey);
-            setDetectedType(parsed.dataType);
-            setSampleValue(parsed.parsedValue);
-            setIsLoadingSample(false);
-
-            if (
-              parsed.dataType !== "number" &&
-              (gaugeType === "radial" || gaugeType === "bar")
-            ) {
-              setGaugeType("value");
-            }
-            return;
-          }
-        }
-        setDetectedType(null);
-        setSampleValue(null);
-        setDetectedKey(null);
-        setIsLoadingSample(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDetectedType(null);
-          setSampleValue(null);
-          setDetectedKey(null);
-          setIsLoadingSample(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      clearTimeout(startTimer);
-    };
-  }, [selectedBrokerId, topic, valueKey, gaugeType]);
+  const shown = reading === null ? "—" : String(reading.value);
+  const withUnit = reading === null ? "—" : `${shown}${unit ? ` ${unit}` : ""}`;
+  const pct =
+    numeric && maxNum > minNum
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            ((Number(reading?.value) - minNum) / (maxNum - minNum)) * 100,
+          ),
+        )
+      : 0;
 
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdSpeed}
       title="Gauge Configuration"
-      onClose={onClose}
-      onSave={() => {
-        const singleTopic = topic.split(",")[0]?.trim() ?? "";
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
+      onSave={() =>
         onSave(
-          { topic: singleTopic, valueKey, unit, min, max, gaugeType },
-          selectedBrokerId || defaultBrokerId,
-        );
-      }}
-      saveDisabled={brokerStatuses.length === 0}
-      headerAction={
-        isLoadingSample ? (
-          <span className="loading loading-spinner loading-xs text-primary" />
-        ) : undefined
+          {
+            topic: topic.split(",")[0]?.trim() ?? "",
+            readTemplate,
+            valueKey: undefined,
+            unit,
+            min: minNum,
+            max: maxNum,
+            gaugeType,
+          },
+          selectedBrokerId || fallbackBroker,
+        )
       }
     >
-      <div className="flex flex-col gap-4">
-        <BrokerTopicSection
-          selectedBrokerId={selectedBrokerId}
+      <ConfigGroup heading="Read">
+        <BrokerTopicCard
+          title="Reads from"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}
-          brokerStatuses={brokerStatuses}
           topic={topic}
-          onTopicChange={setTopic}
-          allowWildcards={true}
-          allowMultiple={false}
-          topicLabel="Topic"
-          placeholder="e.g. sensor/temperature"
-          helpText="Single topic to monitor for live data values (wildcards supported)."
-          onPickTopic={
+          onTopicChange={(next) => {
+            setTopic(next);
+            setTouched(true);
+          }}
+          topicPlaceholder="sensors/attic/temp"
+          topicError={fieldErrors.topic}
+          help="One topic to watch. Read-only, so wildcards (+ and #) are fine."
+          onExplore={
             onPickTopic
               ? () =>
                   onPickTopic({
@@ -206,10 +186,10 @@ export function GaugeConfigModal({
                     selectedBrokerId,
                     draftConfig: {
                       topic,
-                      valueKey,
+                      readTemplate,
                       unit,
-                      min,
-                      max,
+                      min: minNum,
+                      max: maxNum,
                       gaugeType,
                     },
                   })
@@ -217,178 +197,150 @@ export function GaugeConfigModal({
           }
         />
 
-        {/* Payload Detection Banner */}
-        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-base-200/60 rounded-lg text-xs border border-base-300">
-          <span className="font-medium text-base-content/70 shrink-0">
-            Detected Payload Type:
-          </span>
-
-          <div className="flex items-center gap-2 min-w-0">
-            {sampleValue !== null && (
-              <>
-                <span
-                  className="font-mono text-[11px] text-base-content/80 truncate max-w-[180px] bg-base-100 px-2 py-0.5 rounded border border-base-300"
-                  title={String(sampleValue)}
-                >
-                  {String(sampleValue)}
-                </span>
-                <span className="text-base-content/40 font-mono text-xs font-semibold shrink-0">
-                  →
-                </span>
-              </>
-            )}
-
-            {detectedType === "number" && (
-              <span className="badge badge-info badge-sm font-semibold shrink-0">
-                Number
-              </span>
-            )}
-            {detectedType === "boolean" && (
-              <span className="badge badge-success badge-sm font-semibold shrink-0">
-                Boolean
-              </span>
-            )}
-            {detectedType === "string" && (
-              <span className="badge badge-accent badge-sm font-semibold shrink-0">
-                String
-              </span>
-            )}
-            {!detectedType && !isLoadingSample && (
-              <span className="badge badge-ghost badge-sm text-base-content/50 shrink-0">
-                No sample data
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* JSON Key Section */}
-        <fieldset className="fieldset w-full">
-          <div className="flex items-center justify-between">
-            <legend className="fieldset-legend font-semibold">
-              JSON Key (Optional)
-            </legend>
-            {detectedKey && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-base-content/70">
-                  Detected:
-                </span>
-                <button
-                  type="button"
-                  className="font-mono text-[11px] text-primary hover:text-primary-focus bg-base-100 hover:bg-base-200/80 px-2 py-0.5 rounded border border-base-300 transition-colors gap-1 inline-flex items-center cursor-pointer"
-                  title={`Click to use detected key "${detectedKey}"`}
-                  onClick={() => setValueKey(detectedKey)}
-                >
-                  <span>"{detectedKey}"</span>
-                  <span className="badge badge-primary badge-xs ml-0.5 font-sans font-normal text-[10px]">
-                    Use
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="relative w-full">
-            <input
-              className="input input-bordered input-sm w-full font-mono text-xs pr-8"
-              placeholder="e.g. temp or data.value"
-              value={valueKey}
-              onChange={(e) => setValueKey(e.target.value)}
-            />
-            {valueKey && (
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-xs btn-ghost btn-circle text-base-content/50 hover:text-base-content"
-                title="Clear JSON Key"
-                onClick={() => setValueKey("")}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-          <p className="text-[11px] text-base-content/60 mt-1">
-            Field name to extract if payload is JSON. Leave blank to display the
-            raw payload.
-          </p>
-        </fieldset>
-
-        {/* Full-width Gauge Style Selector */}
-        <fieldset className="fieldset w-full">
-          <legend className="fieldset-legend font-semibold">Gauge Style</legend>
-          <select
-            className="select select-bordered select-sm w-full font-medium"
-            value={gaugeType}
-            onChange={(e) =>
-              setGaugeType(e.target.value as GaugeConfig["gaugeType"])
-            }
-          >
-            <option
-              value="radial"
-              disabled={detectedType !== null && detectedType !== "number"}
-            >
-              Radial Ring Dial{" "}
-              {detectedType !== null && detectedType !== "number"
-                ? "(Disabled: Requires numeric data)"
-                : ""}
-            </option>
-            <option
-              value="bar"
-              disabled={detectedType !== null && detectedType !== "number"}
-            >
-              Progress Bar Meter{" "}
-              {detectedType !== null && detectedType !== "number"
-                ? "(Disabled: Requires numeric data)"
-                : ""}
-            </option>
-            <option value="value">
-              Big Value Card (Compatible with Numbers, Booleans & Strings)
-            </option>
-          </select>
-          {detectedType !== null && detectedType !== "number" && (
-            <p className="text-[11px] text-warning mt-1">
-              Radial and Progress Bar gauges require numeric payloads to
-              calculate min/max percentages. "Big Value Card" has been
-              auto-selected.
-            </p>
-          )}
-        </fieldset>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Min Value</legend>
-            <input
-              className="input input-bordered input-sm w-full"
-              type="number"
-              value={min}
-              onChange={(e) => setMin(Number(e.target.value))}
-            />
-          </fieldset>
-
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend">Max Value</legend>
-            <input
-              className="input input-bordered input-sm w-full"
-              type="number"
-              value={max}
-              onChange={(e) => setMax(Number(e.target.value))}
-            />
-          </fieldset>
-        </div>
-
-        <fieldset className="fieldset w-full">
-          <legend className="fieldset-legend font-semibold">
-            Unit / Suffix
-          </legend>
-          <input
-            className="input input-bordered input-sm w-full text-xs"
-            placeholder="e.g. °C, %, V, kW"
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
+        <ConfigCard
+          title="Value"
+          summary="the chip marks the value to pull out"
+        >
+          <PayloadBuilder
+            mode="read"
+            value={readTemplate}
+            onChange={(next) => {
+              setReadTemplate(next);
+              setTouched(true);
+            }}
+            history={{ messages: recent, loading }}
+            brokerId={selectedBrokerId}
+            topic={topic}
+            allowBlankShape
+            unit={unit}
+            placeholder="whole payload"
           />
-          <p className="text-[11px] text-base-content/60 mt-1">
-            Displayed next to the value.
-          </p>
-        </fieldset>
+        </ConfigCard>
+      </ConfigGroup>
+
+      <ConfigGroup heading="Appearance">
+        <ConfigCard title="Style" summary="Drawn with the value above">
+          <ChoiceCards<GaugeType>
+            value={gaugeType}
+            effective={effectiveType}
+            onChange={setGaugeType}
+            options={[
+              {
+                id: "radial",
+                label: "Radial",
+                disabled: nonNumeric,
+                disabledNote: "needs a number",
+                preview: <RadialPreview pct={pct} text={clip(shown, 6)} />,
+              },
+              {
+                id: "bar",
+                label: "Bar",
+                disabled: nonNumeric,
+                disabledNote: "needs a number",
+                preview: <BarPreview pct={pct} text={clip(shown, 8)} />,
+              },
+              {
+                id: "value",
+                label: "Big value",
+                preview: (
+                  <span className="text-xl font-semibold text-primary truncate">
+                    {clip(withUnit, 9)}
+                  </span>
+                ),
+              },
+            ]}
+          />
+          {fellBack && (
+            <span className="text-[11px] leading-relaxed text-warning">
+              Radial and Bar need a number to fill against. Showing Big value
+              for now — your pick comes back when the payload is numeric again.
+            </span>
+          )}
+        </ConfigCard>
+
+        {scaleUsed && (
+          <ConfigCard
+            title="Scale"
+            summary="Where the fill starts and ends"
+            invalid={Boolean(fieldErrors.scale)}
+          >
+            <NumberRangeRow
+              fields={[
+                {
+                  label: "Min",
+                  value: min,
+                  placeholder: "0",
+                  invalid: Boolean(fieldErrors.scale),
+                  onChange: (next) => {
+                    setMin(next);
+                    setTouched(true);
+                  },
+                },
+                {
+                  label: "Max",
+                  value: max,
+                  placeholder: "100",
+                  invalid: Boolean(fieldErrors.scale),
+                  onChange: (next) => {
+                    setMax(next);
+                    setTouched(true);
+                  },
+                },
+              ]}
+            />
+            {fieldErrors.scale && (
+              <span className="text-[11px] text-warning">
+                {fieldErrors.scale}
+              </span>
+            )}
+          </ConfigCard>
+        )}
+
+        <ConfigCard>
+          <FieldRow
+            label="Unit"
+            help="Shown next to the value. Display only — never sent to the broker."
+          >
+            <input
+              className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              placeholder="e.g. °C, %, V, kW"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            />
+          </FieldRow>
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
+  );
+}
+
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function RadialPreview({ pct, text }: { pct: number; text: string }) {
+  return (
+    <div
+      className="relative w-[54px] h-[54px] rounded-full"
+      style={{
+        background: `conic-gradient(var(--color-primary) 0turn ${pct / 100}turn, var(--color-base-300) ${pct / 100}turn 1turn)`,
+      }}
+    >
+      <div className="absolute inset-[6px] rounded-full bg-base-100 flex items-center justify-center text-xs font-semibold overflow-hidden">
+        {text}
       </div>
-    </PanelModalFrame>
+    </div>
+  );
+}
+
+function BarPreview({ pct, text }: { pct: number; text: string }) {
+  return (
+    <div className="w-full flex flex-col justify-center gap-1.5 px-1">
+      <span className="text-[13px] font-semibold truncate">{text}</span>
+      <div className="h-2 rounded-full bg-base-300 overflow-hidden">
+        <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -436,7 +388,8 @@ export default function GaugePanel({
   const max = config.max ?? 100;
   const unit = config.unit ?? "";
   const gaugeType = config.gaugeType ?? "radial";
-  const valueKey = config.valueKey;
+  const readTemplate = gaugeReadTemplate(config);
+  const readPath = config.valueKey;
 
   // Clear data when topic or broker changes
   useEffect(() => {
@@ -459,7 +412,10 @@ export default function GaugePanel({
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
         );
         const last = sorted[0];
-        const res = parseGaugePayload(last.payload, valueKey);
+        const res = parseGaugePayload(last.payload, {
+          template: readTemplate,
+          path: readPath,
+        });
         setData({
           ...res,
           receivedAt: normalizeTimestamp(last.timestamp),
@@ -471,7 +427,7 @@ export default function GaugePanel({
     return () => {
       cancelled = true;
     };
-  }, [brokerId, topic, valueKey]);
+  }, [brokerId, topic, readTemplate, readPath]);
 
   // Live WebSocket updates
   const { subscribe } = useWebSocket({
@@ -482,7 +438,10 @@ export default function GaugePanel({
           payload: string;
           timestamp?: string;
         };
-        const res = parseGaugePayload(msg.payload, valueKey);
+        const res = parseGaugePayload(msg.payload, {
+          template: readTemplate,
+          path: readPath,
+        });
         setData({
           ...res,
           receivedAt: normalizeTimestamp(msg.timestamp),

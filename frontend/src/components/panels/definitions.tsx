@@ -40,7 +40,13 @@ import SliderPanel, {
   type SliderConfig,
 } from "./SliderPanel";
 import { DEFAULT_MAX, DEFAULT_MIN } from "./sliderUtils";
-import { VALUE_TOKEN, describeTemplate, payloadIssue } from "./payloadShape";
+import {
+  VALUE_TOKEN,
+  describeTemplate,
+  migrateTemplate,
+  payloadIssue,
+} from "./payloadShape";
+import { toggleWritePayloads } from "./toggleUtils";
 
 /**
  * The command topic of a publishing panel: it has to exist, and it cannot carry
@@ -325,14 +331,19 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
         errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
       };
     }
-    if (
-      !(config?.onPayload ?? "ON").trim() ||
-      !(config?.offPayload ?? "OFF").trim()
-    ) {
+    const states = toggleWritePayloads(config ?? {});
+    if (!states.on.trim() || !states.off.trim()) {
       return {
         isValid: false,
-        warning: "On and Off payloads are required",
-        errors: { payload: "On and Off payloads are required" },
+        warning: "On and Off messages are required",
+        errors: { payload: "On and Off messages are required" },
+      };
+    }
+    if (states.on.trim() === states.off.trim()) {
+      return {
+        isValid: false,
+        warning: "On and Off publish the same bytes",
+        errors: { payload: "On and Off publish the same bytes" },
       };
     }
     return { isValid: true };
@@ -346,7 +357,10 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
       topicDetail: stateTopic
         ? `command → ${topic} · state ← ${stateTopic}`
         : `command and state → ${topic}`,
-      payloadPreview: `${(config?.onPayload ?? "ON").trim()} / ${(config?.offPayload ?? "OFF").trim()}`,
+      payloadPreview: (() => {
+        const states = toggleWritePayloads(config ?? {});
+        return `${states.on.trim()} / ${states.off.trim()}`;
+      })(),
     };
   },
   preview: (
@@ -388,10 +402,12 @@ export const sliderPanelDefinition: PanelDefinition<SliderConfig> = {
     const max = config?.max ?? DEFAULT_MAX;
     const problem = publishIssueResult(
       config?.topic,
-      payloadIssue({ template: config?.payloadTemplate ?? VALUE_TOKEN }) ??
+      payloadIssue({
+        template: migrateTemplate(config?.payloadTemplate ?? VALUE_TOKEN),
+      }) ??
         (config?.separateRead
           ? payloadIssue({
-              template: config?.readTemplate ?? VALUE_TOKEN,
+              template: migrateTemplate(config?.readTemplate ?? VALUE_TOKEN),
               mode: "read",
             })
           : null),

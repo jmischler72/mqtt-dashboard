@@ -5,16 +5,31 @@ import { useWebSocket } from "../../hooks/useWebSocket";
 import { usePanelSize } from "../../hooks/usePanelSize";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import MqttOptionsSection from "./MqttOptionsSection";
-import PanelModalFrame from "./PanelModalFrame";
-import PayloadBuilder from "./PayloadBuilder";
-import ReadBackSection from "./ReadBackSection";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  DisclosureCard,
+  FieldRow,
+  NumberRangeRow,
+  PanelConfigModal,
+  PayloadBuilder,
+  PayloadSummary,
+  PublishOptionsCard,
+  ReadBackSwitch,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  payloadRules,
+  rangeRules,
+  topicRules,
+  useConfigValidation,
+} from "./config";
 import {
   VALUE_TOKEN,
   effectiveReadPath,
   effectiveReadTemplate,
-  payloadIssue,
+  migrateTemplate,
   renderPayload,
 } from "./payloadShape";
 import {
@@ -39,7 +54,7 @@ export interface SliderConfig {
   stateTopic?: string;
   /** Broker the state topic lives on; defaults to the command broker. */
   stateBrokerId?: string;
-  /** Shape of incoming messages, with `◆` marking the value to read. */
+  /** Shape of incoming messages, with `{value}` marking the value to read. */
   readTemplate?: string;
   min?: number;
   max?: number;
@@ -57,8 +72,8 @@ export interface SliderConfig {
   /** Command broker carried across the picker round-trip. */
   commandBrokerId?: string;
   /**
-   * The literal payload published, with `◆` marking where the position drops
-   * in. Absent means the position is published on its own.
+   * The literal payload published, with `{value}` marking where the position
+   * drops in. Absent means the position is published on its own.
    */
   payloadTemplate?: string;
   qos?: number;
@@ -90,10 +105,10 @@ export function SliderConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   // A topic picked for the state field must not overwrite the command topic
   const pickedForState = config.pickTarget === "stateTopic";
+
   const [topic, setTopic] = useState(
     (pickedForState ? config.topic : initialTopic) ?? config.topic ?? "",
   );
@@ -111,24 +126,28 @@ export function SliderConfigModal({
       "",
   );
   const [readTemplate, setReadTemplate] = useState(
-    config.readTemplate ?? config.payloadTemplate ?? VALUE_TOKEN,
+    migrateTemplate(
+      config.readTemplate ?? config.payloadTemplate ?? VALUE_TOKEN,
+    ),
   );
   const [min, setMin] = useState(String(config.min ?? DEFAULT_MIN));
   const [max, setMax] = useState(String(config.max ?? DEFAULT_MAX));
   const [step, setStep] = useState(String(config.step ?? DEFAULT_STEP));
   const [unit, setUnit] = useState(config.unit ?? "");
   const [payloadTemplate, setPayloadTemplate] = useState(
-    config.payloadTemplate ?? VALUE_TOKEN,
+    migrateTemplate(config.payloadTemplate ?? VALUE_TOKEN),
   );
-  // Lets the user sweep the range and watch the bytes change
-  const [demoPosition, setDemoPosition] = useState<number | null>(null);
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     (pickedForState ? config.commandBrokerId : initialBrokerId) ||
       brokerId ||
-      defaultBrokerId,
+      fallbackBroker,
   );
+  const [touched, setTouched] = useState(Boolean(config.topic));
+
+  const effectiveStateBroker =
+    (separateRead && stateBrokerId) || selectedBrokerId;
 
   // Everything the user has typed so far, carried through the picker so a trip
   // to the explorer does not discard in-progress edits.
@@ -150,53 +169,53 @@ export function SliderConfigModal({
     commandBrokerId: selectedBrokerId,
   });
 
-  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
-  const effectiveStateTopic = separateRead ? stateTopic.trim() : "";
-  const effectiveStateBroker =
-    (separateRead && stateBrokerId) || selectedBrokerId;
+  const { fieldErrors, blockerReason } = useConfigValidation(
+    [
+      ...brokerRules(brokerStatuses.length),
+      ...topicRules({ topic, subject: "A command topic" }),
+      ...rangeRules({ low: min, high: max, step }),
+      ...payloadRules({
+        value: payloadTemplate,
+        mode: "write",
+        subject: "the slider has",
+      }),
+      ...(separateRead
+        ? [
+            ...topicRules({
+              field: "stateTopic",
+              topic: stateTopic,
+              allowWildcards: true,
+              subject: "A state topic",
+            }),
+            ...payloadRules({
+              field: "readShape",
+              value: readTemplate,
+              mode: "read",
+            }),
+          ]
+        : []),
+    ],
+    { touched },
+  );
 
-  // `Number("")` is 0, which would let a cleared Low save as a silent zero, so
-  // a blank field parses as NaN and fails the checks below like any other
-  // unusable entry.
-  const parseField = (raw: string) => (raw.trim() === "" ? NaN : Number(raw));
-
-  const minNum = parseField(min);
-  const maxNum = parseField(max);
-  const stepNum = parseField(step);
-  const rangeBlank = !Number.isFinite(minNum) || !Number.isFinite(maxNum);
-  const rangeInvalid = rangeBlank || maxNum <= minNum;
-  const stepInvalid = !Number.isFinite(stepNum) || stepNum <= 0;
-
-  // Show the user what actually goes on the wire, using the midpoint so the
-  // example is representative rather than always the minimum.
-  const exampleValue = rangeInvalid
-    ? DEFAULT_MAX / 2
-    : clampToRange(
-        (minNum + maxNum) / 2,
-        normalizeRange({ min: minNum, max: maxNum, step: stepNum }),
-      );
-
-  const previewPosition = demoPosition ?? exampleValue;
-
-  // A payload with nowhere for the position to go publishes the same bytes on
-  // every move, so it blocks Save the way a missing topic does.
-  const payloadProblem =
-    payloadIssue({ template: payloadTemplate }) ??
-    (separateRead
-      ? payloadIssue({ template: readTemplate, mode: "read" })
-      : null);
+  const minNum = Number(min);
+  const maxNum = Number(max);
+  const stepNum = Number(step);
+  const rangeUsable = !fieldErrors.range && maxNum > minNum && stepNum > 0;
 
   return (
-    <PanelModalFrame
-      title="Slider Configuration"
+    <PanelConfigModal
       icon={MdTune}
-      onClose={onClose}
+      title="Slider Configuration"
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
           {
             topic,
             separateRead,
-            stateTopic: effectiveStateTopic,
+            stateTopic: separateRead ? stateTopic.trim() : "",
             stateBrokerId: separateRead ? effectiveStateBroker : undefined,
             readTemplate: separateRead ? readTemplate : undefined,
             min: minNum,
@@ -208,162 +227,210 @@ export function SliderConfigModal({
             qos,
             retain,
           },
-          selectedBrokerId || defaultBrokerId,
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={
-        brokerStatuses.length === 0 ||
-        !topic.trim() ||
-        hasWildcardWarning ||
-        rangeInvalid ||
-        stepInvalid ||
-        Boolean(payloadProblem)
-      }
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        onPickTopic={
-          onPickTopic
-            ? () =>
-                onPickTopic({
-                  currentTopic: topic,
-                  selectedBrokerId,
-                  draftConfig: draft("topic"),
-                })
-            : undefined
-        }
-        topicLabel="Command topic"
-        allowWildcards={false}
-        allowMultiple={false}
-        helpText="The topic the slider publishes to. Also used to read the value back unless a separate state topic is set below."
-      />
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Range
-        </legend>
-        <div className="grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">Low</span>
-            <input
-              type="number"
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                rangeInvalid ? "input-warning" : ""
-              }`}
-              value={min}
-              onChange={(e) => setMin(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">High</span>
-            <input
-              type="number"
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                rangeInvalid ? "input-warning" : ""
-              }`}
-              value={max}
-              onChange={(e) => setMax(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">Step</span>
-            <input
-              type="number"
-              min="0"
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                stepInvalid ? "input-warning" : ""
-              }`}
-              value={step}
-              onChange={(e) => setStep(e.target.value)}
-            />
-          </label>
-        </div>
-        {rangeInvalid && (
-          <p className="text-[11px] text-warning mt-1.5 leading-normal">
-            {rangeBlank
-              ? "Low and High are both required."
-              : "High must be greater than Low."}
-          </p>
-        )}
-        {!rangeInvalid && stepInvalid && (
-          <p className="text-[11px] text-warning mt-1.5 leading-normal">
-            Step must be greater than 0.
-          </p>
-        )}
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Unit <span className="opacity-60 font-normal">(optional)</span>
-        </legend>
-        <input
-          className="input input-bordered input-sm w-full font-mono text-xs"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-          placeholder="e.g. %"
+      <ConfigGroup heading="Publish">
+        <BrokerTopicCard
+          title="Publishes to"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={(next) => {
+            setTopic(next);
+            setTouched(true);
+          }}
+          topicPlaceholder="home/light/brightness/set"
+          topicError={fieldErrors.topic}
+          help="Publishes here, and reads the value back from here unless you turn on Read below."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: topic,
+                    selectedBrokerId,
+                    draftConfig: draft("topic"),
+                  })
+              : undefined
+          }
         />
-        <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-          Shown next to the value. Display only — never sent to the broker.
-        </p>
-      </fieldset>
 
-      <PayloadBuilder
-        template={payloadTemplate}
-        onTemplateChange={setPayloadTemplate}
-        previews={[{ key: "", value: String(previewPosition) }]}
-        brokerId={selectedBrokerId}
-        topic={topic}
-        previewNote="Move the handle: this is what the slider publishes at that position."
-      >
-        {/* Sweep the range and watch the bytes underneath follow. The position
-            is not repeated as a number — the payload line below is the value. */}
-        <input
-          type="range"
-          aria-label="Preview position"
-          className="range range-primary range-xs w-full"
-          min={rangeInvalid ? 0 : minNum}
-          max={rangeInvalid ? 100 : maxNum}
-          step={stepInvalid ? 1 : stepNum}
-          value={previewPosition}
-          onChange={(e) => setDemoPosition(Number(e.target.value))}
+        {/* The range decides which numbers are legal on the wire, so it belongs
+            to Publish even though it also draws the handle. */}
+        <ConfigCard
+          title="Value range"
+          summary={rangeUsable ? `${minNum} – ${maxNum} · step ${stepNum}` : ""}
+          invalid={Boolean(fieldErrors.range)}
+        >
+          <NumberRangeRow
+            fields={[
+              {
+                label: "Low",
+                value: min,
+                placeholder: "0",
+                invalid: Boolean(fieldErrors.range),
+                onChange: (next) => {
+                  setMin(next);
+                  setTouched(true);
+                },
+              },
+              {
+                label: "High",
+                value: max,
+                placeholder: "100",
+                invalid: Boolean(fieldErrors.range),
+                onChange: (next) => {
+                  setMax(next);
+                  setTouched(true);
+                },
+              },
+              {
+                label: "Step",
+                value: step,
+                placeholder: "1",
+                invalid: Boolean(fieldErrors.range),
+                onChange: (next) => {
+                  setStep(next);
+                  setTouched(true);
+                },
+              },
+            ]}
+          />
+          {fieldErrors.range && (
+            <span className="text-[11px] text-warning">
+              {fieldErrors.range}
+            </span>
+          )}
+        </ConfigCard>
+
+        <DisclosureCard
+          title="Message"
+          summary={<PayloadSummary value={payloadTemplate} />}
+          defaultOpen
+          invalid={Boolean(fieldErrors.payload)}
+        >
+          <PayloadBuilder
+            mode="write"
+            value={payloadTemplate}
+            onChange={(next) => {
+              setPayloadTemplate(next);
+              setTouched(true);
+            }}
+            brokerId={selectedBrokerId}
+            topic={topic}
+            range={
+              rangeUsable ? { min: minNum, max: maxNum, step: stepNum } : null
+            }
+            placeholder={`{"brightness":${VALUE_TOKEN}}`}
+          />
+          {fieldErrors.payload && (
+            <span className="text-[11px] text-warning">
+              {fieldErrors.payload}
+            </span>
+          )}
+        </DisclosureCard>
+
+        <PublishOptionsCard
+          qos={qos}
+          onQosChange={setQos}
+          retain={retain}
+          onRetainChange={setRetain}
+          retainNote="Last position kept for new subscribers"
         />
-      </PayloadBuilder>
+      </ConfigGroup>
 
-      <ReadBackSection
-        enabled={separateRead}
-        onEnabledChange={setSeparateRead}
-        brokerStatuses={brokerStatuses}
-        brokerId={effectiveStateBroker}
-        onBrokerChange={setStateBrokerId}
-        topic={stateTopic}
-        onTopicChange={setStateTopic}
-        onPickTopic={
-          onPickTopic
-            ? () =>
-                onPickTopic({
-                  currentTopic: stateTopic,
-                  selectedBrokerId: effectiveStateBroker,
-                  draftConfig: draft("stateTopic"),
-                })
-            : undefined
-        }
-        readTemplate={readTemplate}
-        onReadTemplateChange={setReadTemplate}
-        noun="value"
-      />
+      <ConfigGroup heading="Read">
+        <ReadBackSwitch
+          on={separateRead}
+          onToggle={(next) => {
+            setSeparateRead(next);
+            setTouched(true);
+          }}
+          title="A different topic reports the value"
+          offExplanation="Off: the device reports on the command topic, in the same shape the panel publishes."
+          onExplanation="The panel listens here instead of on the command topic."
+          invalid={Boolean(fieldErrors.stateTopic || fieldErrors.readShape)}
+        >
+          <BrokerTopicCard
+            bare
+            brokers={brokerStatuses}
+            brokerId={effectiveStateBroker}
+            onBrokerChange={setStateBrokerId}
+            topic={stateTopic}
+            onTopicChange={(next) => {
+              setStateTopic(next);
+              setTouched(true);
+            }}
+            topicPlaceholder="home/light/brightness"
+            topicError={fieldErrors.stateTopic}
+            help="Read-only, so wildcards (+ and #) are fine here."
+            onExplore={
+              onPickTopic
+                ? () =>
+                    onPickTopic({
+                      currentTopic: stateTopic,
+                      selectedBrokerId: effectiveStateBroker,
+                      draftConfig: draft("stateTopic"),
+                    })
+                : undefined
+            }
+          />
 
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
-    </PanelModalFrame>
+          <div className="flex flex-col gap-2.5 pt-2.5 border-t border-base-300 dark:border-base-100 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold">
+                Shape it arrives in
+              </span>
+              <span className="ml-auto text-[10.5px] text-base-content/50 truncate">
+                the chip marks the value to pull out
+              </span>
+            </div>
+            <PayloadBuilder
+              mode="read"
+              value={readTemplate}
+              onChange={(next) => {
+                setReadTemplate(next);
+                setTouched(true);
+              }}
+              brokerId={effectiveStateBroker}
+              topic={stateTopic}
+              unit={unit}
+              placeholder={`{"brightness":${VALUE_TOKEN}}`}
+            />
+            <button
+              type="button"
+              onClick={() => setReadTemplate(payloadTemplate)}
+              className="self-start inline-flex items-center h-6 px-2.5 rounded-full border border-base-300 dark:border-base-100 bg-base-100 text-[11px] font-medium text-base-content/70 cursor-pointer hover:border-primary"
+            >
+              same as Message
+            </button>
+            {fieldErrors.readShape && (
+              <span className="text-[11px] text-warning">
+                {fieldErrors.readShape}
+              </span>
+            )}
+          </div>
+        </ReadBackSwitch>
+      </ConfigGroup>
+
+      <ConfigGroup heading="Appearance">
+        <ConfigCard>
+          <FieldRow
+            label="Unit"
+            help="Shown next to the value. Display only — never sent to the broker."
+          >
+            <input
+              className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              placeholder="e.g. %"
+            />
+          </FieldRow>
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 
@@ -557,7 +624,10 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: renderPayload(config.payloadTemplate ?? VALUE_TOKEN, value),
+        payload: renderPayload(
+          migrateTemplate(config.payloadTemplate ?? VALUE_TOKEN),
+          value,
+        ),
         qos,
         retain,
       });

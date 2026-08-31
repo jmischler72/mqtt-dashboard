@@ -13,9 +13,10 @@ import {
   defaultResolvePickedTopic,
   PanelPreviewCard,
   PanelEmptyState,
-  PanelModalFrame,
+  PanelConfigModal,
   type PanelDefinition,
 } from "./index";
+import { VALUE_TOKEN } from "./payloadShape";
 
 afterEach(() => {
   cleanup();
@@ -26,8 +27,10 @@ describe("Slider header meta", () => {
 
   it("shows the payload, as the config modal does", () => {
     expect(
-      slider()?.getHeaderMeta?.({ topic: "lamp", payloadTemplate: '{"b":◆}' })
-        ?.payloadPreview,
+      slider()?.getHeaderMeta?.({
+        topic: "lamp",
+        payloadTemplate: `{"b":${VALUE_TOKEN}}`,
+      })?.payloadPreview,
     ).toBe('{"b":value}');
   });
 
@@ -35,9 +38,9 @@ describe("Slider header meta", () => {
     expect(
       slider()?.getHeaderMeta?.({
         topic: "lamp",
-        payloadTemplate: "◆",
+        payloadTemplate: VALUE_TOKEN,
         separateRead: true,
-        readTemplate: '{"bri":◆}',
+        readTemplate: `{"bri":${VALUE_TOKEN}}`,
       })?.payloadPreview,
     ).toBe('sends  value\nreads  {"bri":value}');
   });
@@ -381,60 +384,65 @@ describe("PanelEmptyState", () => {
   });
 });
 
-describe("PanelModalFrame", () => {
-  it("renders title, content, and handles save/close events", () => {
-    const onClose = vi.fn();
+describe("PanelConfigModal", () => {
+  it("renders title, content, and handles save/cancel events", () => {
+    const onCancel = vi.fn();
     const onSave = vi.fn();
 
     render(
-      <PanelModalFrame
+      <PanelConfigModal
         title="Test Modal"
-        onClose={onClose}
+        onCancel={onCancel}
         onSave={onSave}
-        headerAction={<button type="button">Action</button>}
+        brokerStatus="connected"
       >
         <div>Modal Body Content</div>
-      </PanelModalFrame>,
+      </PanelConfigModal>,
     );
 
     expect(screen.getByText("Test Modal")).toBeInTheDocument();
     expect(screen.getByText("Modal Body Content")).toBeInTheDocument();
-    expect(screen.getByText("Action")).toBeInTheDocument();
+    expect(screen.getByText("CONNECTED")).toBeInTheDocument();
 
-    const saveBtn = screen.getByRole("button", { name: "Save" });
-    fireEvent.click(saveBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledTimes(1);
 
-    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
-    fireEvent.click(cancelBtn);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it("handles Escape key dismissal", () => {
-    const onClose = vi.fn();
+    const onCancel = vi.fn();
     render(
-      <PanelModalFrame title="Escape Test" onClose={onClose}>
+      <PanelConfigModal
+        title="Escape Test"
+        onCancel={onCancel}
+        onSave={() => {}}
+      >
         <div>Body</div>
-      </PanelModalFrame>,
+      </PanelConfigModal>,
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it("disables save button when saveDisabled is true", () => {
+  it("disables save and shows the reason when one is given", () => {
     const onSave = vi.fn();
     render(
-      <PanelModalFrame
+      <PanelConfigModal
         title="Disabled Save"
-        onClose={() => {}}
+        onCancel={() => {}}
         onSave={onSave}
-        saveDisabled={true}
+        blockerReason="A topic is needed before this can save."
       >
         <div>Body</div>
-      </PanelModalFrame>,
+      </PanelConfigModal>,
     );
 
+    expect(
+      screen.getByText("A topic is needed before this can save."),
+    ).toBeInTheDocument();
     const saveBtn = screen.getByRole("button", { name: "Save" });
     expect(saveBtn).toBeDisabled();
     fireEvent.click(saveBtn);

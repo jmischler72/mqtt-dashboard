@@ -2,8 +2,19 @@ import { useState, useEffect, useRef } from "react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import PanelModalFrame from "./PanelModalFrame";
+import { MdBarChart } from "react-icons/md";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  FieldRow,
+  PanelConfigModal,
+  SwitchRow,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  useConfigValidation,
+} from "./config";
 
 type TimeRange = 60 | 300 | 900 | 3600;
 
@@ -67,14 +78,13 @@ export function BrokerStatsConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [defaultRange, setDefaultRange] = useState<TimeRange>(
     config.defaultRange ?? 60,
   );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
   );
   const [showStatTiles, setShowStatTiles] = useState(
     config.showStatTiles !== false,
@@ -84,10 +94,19 @@ export function BrokerStatsConfigModal({
     config.showTopicBreakdown !== false,
   );
 
+  // An empty filter is the honest default here — it means "everything this
+  // broker carries" — so the topic is never a reason Save is off.
+  const { blockerReason } = useConfigValidation(
+    brokerRules(brokerStatuses.length),
+  );
+
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdBarChart}
       title="Stats Configuration"
-      onClose={onClose}
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
           {
@@ -97,77 +116,78 @@ export function BrokerStatsConfigModal({
             showChart,
             showTopicBreakdown,
           },
-          selectedBrokerId || defaultBrokerId,
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={brokerStatuses.length === 0}
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        allowWildcards={true}
-        onPickTopic={
-          onPickTopic
-            ? () =>
-                onPickTopic({
-                  currentTopic: "",
-                  selectedBrokerId,
-                  draftConfig: { topic, defaultRange },
-                })
-            : undefined
-        }
-      />
+      <ConfigGroup heading="Read">
+        <BrokerTopicCard
+          title="Counts traffic on"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={setTopic}
+          topicPlaceholder="# (everything)"
+          help="Read-only, so wildcards (+ and #) are fine. Leave blank to count everything."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: "",
+                    selectedBrokerId,
+                    draftConfig: { topic, defaultRange },
+                  })
+              : undefined
+          }
+        />
+      </ConfigGroup>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Default Time Range
-        </legend>
-        <select
-          className="select select-bordered select-sm w-full font-medium"
-          value={defaultRange}
-          onChange={(e) => setDefaultRange(Number(e.target.value) as TimeRange)}
-        >
-          <option value={60}>1 minute</option>
-          <option value={300}>5 minutes</option>
-          <option value={900}>15 minutes</option>
-          <option value={3600}>1 hour</option>
-        </select>
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
-          Visible Sections
-        </legend>
-        <div className="flex flex-col gap-2">
-          {(
-            [
-              [showStatTiles, setShowStatTiles, "Stat tiles"],
-              [showChart, setShowChart, "Chart"],
-              [showTopicBreakdown, setShowTopicBreakdown, "Topic breakdown"],
-            ] as [boolean, (v: boolean) => void, string][]
-          ).map(([value, setter, label]) => (
-            <label
-              key={label}
-              className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
+      <ConfigGroup heading="Appearance">
+        <ConfigCard title="Window" summary={RANGE_LABELS[defaultRange]}>
+          <FieldRow
+            label="Opens"
+            help="The span the panel shows before anyone touches it."
+          >
+            <select
+              className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              aria-label="Default time range"
+              value={defaultRange}
+              onChange={(e) =>
+                setDefaultRange(Number(e.target.value) as TimeRange)
+              }
             >
-              <span className="text-xs font-medium text-base-content/80">
-                {label}
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-xs toggle-primary"
-                checked={value}
-                onChange={(e) => setter(e.target.checked)}
-              />
-            </label>
-          ))}
-        </div>
-      </fieldset>
-    </PanelModalFrame>
+              {RANGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {RANGE_LABELS[option.value]}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
+        </ConfigCard>
+
+        <ConfigCard title="Sections">
+          <SwitchRow
+            name="Stat tiles"
+            note="Off: the headline numbers are hidden"
+            on={showStatTiles}
+            onToggle={setShowStatTiles}
+          />
+          <SwitchRow
+            name="Chart"
+            note="Off: no traffic graph is drawn"
+            on={showChart}
+            onToggle={setShowChart}
+          />
+          <SwitchRow
+            name="Topic breakdown"
+            note="Off: the busiest-topics list is hidden"
+            on={showTopicBreakdown}
+            onToggle={setShowTopicBreakdown}
+          />
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 

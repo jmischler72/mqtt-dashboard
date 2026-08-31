@@ -7,28 +7,32 @@ describe("extractPayloadValue", () => {
   });
 
   it("unwraps the configured key from a JSON object", () => {
-    expect(extractPayloadValue('{"state":"ON","rssi":-40}', "state")).toBe(
-      "ON",
-    );
+    expect(
+      extractPayloadValue('{"state":"ON","rssi":-40}', { valueKey: "state" }),
+    ).toBe("ON");
   });
 
   it("stringifies non-string JSON values", () => {
-    expect(extractPayloadValue('{"state":true}', "state")).toBe("true");
-    expect(extractPayloadValue('{"state":1}', "state")).toBe("1");
+    expect(extractPayloadValue('{"state":true}', { valueKey: "state" })).toBe(
+      "true",
+    );
+    expect(extractPayloadValue('{"state":1}', { valueKey: "state" })).toBe("1");
   });
 
   it("falls back to the raw payload when the key is missing", () => {
-    expect(extractPayloadValue('{"other":"ON"}', "state")).toBe(
+    expect(extractPayloadValue('{"other":"ON"}', { valueKey: "state" })).toBe(
       '{"other":"ON"}',
     );
   });
 
   it("falls back to the raw payload when the payload is not JSON", () => {
-    expect(extractPayloadValue("ON", "state")).toBe("ON");
+    expect(extractPayloadValue("ON", { valueKey: "state" })).toBe("ON");
   });
 
   it("returns an empty string for null values", () => {
-    expect(extractPayloadValue('{"state":null}', "state")).toBe("");
+    expect(extractPayloadValue('{"state":null}', { valueKey: "state" })).toBe(
+      "",
+    );
   });
 });
 

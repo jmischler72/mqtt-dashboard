@@ -4,11 +4,28 @@ import { RiErrorWarningLine, RiLoader4Line, RiTimeLine } from "react-icons/ri";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import MqttOptionsSection from "./MqttOptionsSection";
-import PanelModalFrame from "./PanelModalFrame";
+import { usePayloadSample } from "../../hooks/usePayloadSample";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  FieldRow,
+  MessageHistory,
+  PanelConfigModal,
+  PayloadBuilder,
+  PublishOptionsCard,
+  ReadBackSwitch,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  payloadRules,
+  topicRules,
+  useConfigValidation,
+} from "./config";
+import { migrateTemplate } from "./payloadShape";
 import {
   parseToggleState,
+  toggleWritePayloads,
   DEFAULT_ON_PAYLOAD,
   DEFAULT_OFF_PAYLOAD,
 } from "./toggleUtils";
@@ -19,12 +36,35 @@ const CONFIRM_TIMEOUT_MS = 5000;
 export interface ToggleConfig {
   /** Command topic — the toggle publishes here. */
   topic?: string;
-  /** Optional state/telemetry topic. When empty, the command topic is used. */
+  /** Reads back from its own broker/topic/shape rather than the command one. */
+  separateRead?: boolean;
+  /** State/telemetry topic, used when separateRead is set. */
   stateTopic?: string;
+  /** Broker the state topic lives on; defaults to the command broker. */
+  stateBrokerId?: string;
+  /** Shape of incoming messages, with `{value}` marking the value to compare. */
+  readTemplate?: string;
+  /** The exact bytes published to turn the device on. */
   onPayload?: string;
+  /** The exact bytes published to turn it off. */
   offPayload?: string;
-  /** Optional JSON key to read the state from. */
+  /**
+   * Legacy shape: the value used to sit inside a template. Folded into the two
+   * payloads above on load; see `toggleWritePayloads`.
+   */
+  payloadTemplate?: string;
+  /** Legacy read path, still honoured when no shape marks the value. */
   valueKey?: string;
+  /** Caption drawn above the switch. Display only. */
+  label?: string;
+  /**
+   * Which field sent the user to the topic picker. The picker round-trips the
+   * draft config and hands the chosen topic back as `initialTopic`, which would
+   * otherwise always land in the command topic — this says where it belongs.
+   */
+  pickTarget?: "topic" | "stateTopic";
+  /** Command broker carried across the picker round-trip. */
+  commandBrokerId?: string;
   qos?: number;
   retain?: boolean;
 }
@@ -54,165 +94,351 @@ export function ToggleConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  const [separateStateTopic, setSeparateStateTopic] = useState(
-    Boolean(config.stateTopic?.trim()),
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
+  // A topic picked for the state field must not overwrite the command topic
+  const pickedForState = config.pickTarget === "stateTopic";
+  const stored = toggleWritePayloads(config);
+
+  const [topic, setTopic] = useState(
+    (pickedForState ? config.topic : initialTopic) ?? config.topic ?? "",
   );
-  const [stateTopic, setStateTopic] = useState(config.stateTopic ?? "");
-  const [onPayload, setOnPayload] = useState(
-    config.onPayload ?? DEFAULT_ON_PAYLOAD,
+  const [onPayload, setOnPayload] = useState(stored.on);
+  const [offPayload, setOffPayload] = useState(stored.off);
+  const [separateRead, setSeparateRead] = useState(
+    config.separateRead ?? Boolean(config.stateTopic?.trim()),
   );
-  const [offPayload, setOffPayload] = useState(
-    config.offPayload ?? DEFAULT_OFF_PAYLOAD,
+  const [stateTopic, setStateTopic] = useState(
+    (pickedForState ? initialTopic : config.stateTopic) ??
+      config.stateTopic ??
+      "",
   );
-  const [valueKey, setValueKey] = useState(config.valueKey ?? "");
+  const [stateBrokerId, setStateBrokerId] = useState(
+    (pickedForState ? initialBrokerId : config.stateBrokerId) ??
+      config.stateBrokerId ??
+      "",
+  );
+  const [readTemplate, setReadTemplate] = useState(
+    migrateTemplate(config.readTemplate ?? ""),
+  );
+  const [label, setLabel] = useState(config.label ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    (pickedForState ? config.commandBrokerId : initialBrokerId) ||
+      brokerId ||
+      fallbackBroker,
+  );
+  const [touched, setTouched] = useState(Boolean(config.topic));
+  const [usedKey, setUsedKey] = useState<string | null>(null);
+
+  const effectiveStateBroker =
+    (separateRead && stateBrokerId) || selectedBrokerId;
+
+  // One fetch, one list: both payload boxes are filled from the same messages,
+  // so the disclosure above them is shared rather than drawn twice.
+  const commandHistory = usePayloadSample(selectedBrokerId, topic);
+
+  const draft = (pickTarget: "topic" | "stateTopic"): ToggleConfig => ({
+    topic,
+    separateRead,
+    stateTopic,
+    stateBrokerId,
+    readTemplate,
+    onPayload,
+    offPayload,
+    label,
+    valueKey: config.valueKey,
+    qos,
+    retain,
+    pickTarget,
+    commandBrokerId: selectedBrokerId,
+  });
+
+  const { fieldErrors, blockerReason } = useConfigValidation(
+    [
+      ...brokerRules(brokerStatuses.length),
+      ...topicRules({ topic, subject: "A command topic" }),
+      {
+        field: "onPayload",
+        when: onPayload.trim() === "",
+        message: "The On message is empty — there would be nothing to publish.",
+      },
+      {
+        field: "offPayload",
+        when: offPayload.trim() === "",
+        message:
+          "The Off message is empty — there would be nothing to publish.",
+      },
+      {
+        field: "onPayload",
+        when: onPayload.trim() !== "" && onPayload.trim() === offPayload.trim(),
+        message: "On and Off publish the same bytes, so the toggle can't flip.",
+      },
+      ...(separateRead
+        ? [
+            ...topicRules({
+              field: "stateTopic",
+              topic: stateTopic,
+              allowWildcards: true,
+              subject: "A state topic",
+            }),
+            ...payloadRules({
+              field: "readShape",
+              value: readTemplate,
+              mode: "read",
+            }),
+          ]
+        : []),
+    ],
+    { touched },
   );
 
-  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
-  const effectiveStateTopic = separateStateTopic ? stateTopic.trim() : "";
-
   return (
-    <PanelModalFrame
-      title="Toggle Configuration"
+    <PanelConfigModal
       icon={MdToggleOn}
-      onClose={onClose}
+      title="Toggle Configuration"
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
           {
             topic,
-            stateTopic: effectiveStateTopic,
+            separateRead,
+            stateTopic: separateRead ? stateTopic.trim() : "",
+            stateBrokerId: separateRead ? effectiveStateBroker : undefined,
+            readTemplate: separateRead ? readTemplate : undefined,
             onPayload,
             offPayload,
-            valueKey: valueKey.trim(),
+            // Folded into the two payloads above; never written again.
+            payloadTemplate: undefined,
+            valueKey: config.valueKey,
+            label,
             qos,
             retain,
           },
-          selectedBrokerId,
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={
-        brokerStatuses.length === 0 ||
-        !topic.trim() ||
-        hasWildcardWarning ||
-        !onPayload.trim() ||
-        !offPayload.trim()
-      }
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        onPickTopic={
-          onPickTopic
-            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-            : undefined
-        }
-        topicLabel="Command topic"
-        allowWildcards={false}
-        allowMultiple={false}
-        helpText="The topic the toggle publishes to. Also used to read the state unless a separate state topic is set below."
-      />
-
-      <fieldset className="fieldset p-0 border-0">
-        <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg border border-base-300 bg-base-200/40">
-          <span className="text-xs font-medium text-base-content/80">
-            State topic is different
-          </span>
-          <input
-            type="checkbox"
-            className="toggle toggle-xs toggle-primary"
-            checked={separateStateTopic}
-            onChange={(e) => setSeparateStateTopic(e.target.checked)}
-          />
-        </label>
-
-        {separateStateTopic && (
-          <div className="mt-2">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              State topic
-            </legend>
-            <input
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                !stateTopic.trim() ? "input-warning" : ""
-              }`}
-              value={stateTopic}
-              onChange={(e) => setStateTopic(e.target.value)}
-              placeholder="e.g. home/lamp/state"
-            />
-            <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-              The topic the device reports its actual state on. Read-only, so
-              wildcards are allowed here.
-            </p>
-          </div>
-        )}
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Payloads
-        </legend>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">On</span>
-            <input
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                !onPayload.trim() ? "input-warning" : ""
-              }`}
-              value={onPayload}
-              onChange={(e) => setOnPayload(e.target.value)}
-              placeholder={DEFAULT_ON_PAYLOAD}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">Off</span>
-            <input
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                !offPayload.trim() ? "input-warning" : ""
-              }`}
-              value={offPayload}
-              onChange={(e) => setOffPayload(e.target.value)}
-              placeholder={DEFAULT_OFF_PAYLOAD}
-            />
-          </label>
-        </div>
-        <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-          Sent when the toggle is flipped, and matched against incoming messages
-          to read the state back.
-        </p>
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          JSON key <span className="opacity-60 font-normal">(optional)</span>
-        </legend>
-        <input
-          className="input input-bordered input-sm w-full font-mono text-xs"
-          value={valueKey}
-          onChange={(e) => setValueKey(e.target.value)}
-          placeholder="e.g. state"
+      <ConfigGroup heading="Publish">
+        <BrokerTopicCard
+          title="Publishes to"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={(next) => {
+            setTopic(next);
+            setTouched(true);
+          }}
+          topicPlaceholder="home/light/set"
+          topicError={fieldErrors.topic}
+          help="Publishes here, and reads the state back from here unless you turn on Read below."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: topic,
+                    selectedBrokerId,
+                    draftConfig: draft("topic"),
+                  })
+              : undefined
+          }
         />
-        <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-          Read the state from this key when the device publishes JSON, e.g.{" "}
-          <code className="font-mono">{`{"state":"ON"}`}</code>.
-        </p>
-      </fieldset>
 
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
+        <ConfigCard
+          title="Message"
+          summary="two states, two sets of bytes"
+          invalid={Boolean(fieldErrors.onPayload || fieldErrors.offPayload)}
+        >
+          <MessageHistory
+            topic={topic}
+            messages={commandHistory.recent}
+            loading={commandHistory.loading}
+            usedKey={usedKey}
+            footnote="Fills the box you pick. You can edit it afterwards."
+            actions={[
+              {
+                key: "on",
+                label: "use as On",
+                onUse: (payload, index) => {
+                  setOnPayload(payload);
+                  setUsedKey(`${index}:on`);
+                  setTouched(true);
+                },
+              },
+              {
+                key: "off",
+                label: "use as Off",
+                onUse: (payload, index) => {
+                  setOffPayload(payload);
+                  setUsedKey(`${index}:off`);
+                  setTouched(true);
+                },
+              },
+            ]}
+          />
+
+          <StateBox
+            caption="On sends"
+            error={fieldErrors.onPayload}
+            value={onPayload}
+            onChange={(next) => {
+              setOnPayload(next);
+              setTouched(true);
+            }}
+            placeholder={DEFAULT_ON_PAYLOAD}
+            brokerId={selectedBrokerId}
+            topic={topic}
+          />
+
+          <StateBox
+            caption="Off sends"
+            error={fieldErrors.offPayload}
+            value={offPayload}
+            onChange={(next) => {
+              setOffPayload(next);
+              setTouched(true);
+            }}
+            placeholder={DEFAULT_OFF_PAYLOAD}
+            brokerId={selectedBrokerId}
+            topic={topic}
+          />
+
+          <span className="text-[11px] text-base-content/50">
+            Both are sent verbatim, exactly these bytes.
+          </span>
+        </ConfigCard>
+
+        <PublishOptionsCard
+          qos={qos}
+          onQosChange={setQos}
+          retain={retain}
+          onRetainChange={setRetain}
+          retainNote="Last state kept for new subscribers"
+        />
+      </ConfigGroup>
+
+      <ConfigGroup heading="Read">
+        <ReadBackSwitch
+          on={separateRead}
+          onToggle={(next) => {
+            setSeparateRead(next);
+            setTouched(true);
+          }}
+          title="A different topic reports the state"
+          offExplanation="Off: the device reports on the command topic, in the same shape the panel publishes."
+          onExplanation="The panel listens here instead of on the command topic."
+          invalid={Boolean(fieldErrors.stateTopic || fieldErrors.readShape)}
+        >
+          <BrokerTopicCard
+            bare
+            brokers={brokerStatuses}
+            brokerId={effectiveStateBroker}
+            onBrokerChange={setStateBrokerId}
+            topic={stateTopic}
+            onTopicChange={(next) => {
+              setStateTopic(next);
+              setTouched(true);
+            }}
+            topicPlaceholder="home/light/state"
+            topicError={fieldErrors.stateTopic}
+            help="Read-only, so wildcards (+ and #) are fine here."
+            onExplore={
+              onPickTopic
+                ? () =>
+                    onPickTopic({
+                      currentTopic: stateTopic,
+                      selectedBrokerId: effectiveStateBroker,
+                      draftConfig: draft("stateTopic"),
+                    })
+                : undefined
+            }
+          />
+
+          <div className="flex flex-col gap-2.5 pt-2.5 border-t border-base-300 dark:border-base-100 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold">
+                Shape it arrives in
+              </span>
+              <span className="ml-auto text-[10.5px] text-base-content/50 truncate">
+                the chip marks the value compared against On
+              </span>
+            </div>
+            <PayloadBuilder
+              mode="read"
+              value={readTemplate}
+              onChange={(next) => {
+                setReadTemplate(next);
+                setTouched(true);
+              }}
+              brokerId={effectiveStateBroker}
+              topic={stateTopic}
+              placeholder={`{"state":${DEFAULT_ON_PAYLOAD}}`}
+            />
+            {fieldErrors.readShape && (
+              <span className="text-[11px] text-warning">
+                {fieldErrors.readShape}
+              </span>
+            )}
+          </div>
+        </ReadBackSwitch>
+      </ConfigGroup>
+
+      <ConfigGroup heading="Appearance">
+        <ConfigCard>
+          <FieldRow
+            label="Label"
+            help="Caption above the switch. Leave blank for none."
+          >
+            <input
+              className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. Porch light"
+            />
+          </FieldRow>
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
+  );
+}
+
+/** One of the toggle's two verbatim payloads, under its own caption. */
+function StateBox({
+  caption,
+  error,
+  value,
+  onChange,
+  placeholder,
+  brokerId,
+  topic,
+}: {
+  caption: string;
+  error?: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  brokerId: string;
+  topic: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <span className="text-[10.5px] text-base-content/70">{caption}</span>
+      <PayloadBuilder
+        mode="write"
+        value={value}
+        onChange={onChange}
+        acceptsChip={false}
+        showHistory={false}
+        note={null}
+        brokerId={brokerId}
+        topic={topic}
+        placeholder={placeholder}
       />
-    </PanelModalFrame>
+      {error && <span className="text-[11px] text-warning">{error}</span>}
+    </div>
   );
 }
 
@@ -247,9 +473,13 @@ export default function TogglePanel(props: TogglePanelProps) {
     brokerId,
     config.topic ?? "",
     config.stateTopic ?? "",
+    config.stateBrokerId ?? "",
+    config.readTemplate ?? "",
     config.onPayload ?? DEFAULT_ON_PAYLOAD,
     config.offPayload ?? DEFAULT_OFF_PAYLOAD,
     config.valueKey ?? "",
+    config.payloadTemplate ?? "",
+    config.label ?? "",
   ].join("\u0000");
 
   return <ToggleRuntime key={identity} {...props} />;
@@ -270,10 +500,19 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   const resizeIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const commandTopic = (config.topic ?? "").split(",")[0]?.trim() ?? "";
-  const stateTopic = config.stateTopic?.trim() || commandTopic;
-  const onPayload = config.onPayload ?? DEFAULT_ON_PAYLOAD;
-  const offPayload = config.offPayload ?? DEFAULT_OFF_PAYLOAD;
+  const separateRead =
+    config.separateRead ?? Boolean(config.stateTopic?.trim());
+  const stateTopic =
+    (separateRead && config.stateTopic?.trim()) || commandTopic;
+  // The state topic may live on another broker entirely
+  const stateBrokerId =
+    (separateRead && config.stateBrokerId?.trim()) || brokerId;
+  const { on: onPayload, off: offPayload } = toggleWritePayloads(config);
+  const readTemplate = separateRead
+    ? migrateTemplate(config.readTemplate ?? "")
+    : "";
   const valueKey = config.valueKey;
+  const label = config.label ?? "";
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
   const hasWildcard = commandTopic.includes("+") || commandTopic.includes("#");
@@ -288,7 +527,12 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   // A message from the state topic is the source of truth: it resolves any
   // pending flip and replaces the optimistic position.
   const applyIncomingState = (payload: string, receivedAt: number) => {
-    const next = parseToggleState(payload, { onPayload, offPayload, valueKey });
+    const next = parseToggleState(payload, {
+      onPayload,
+      offPayload,
+      readTemplate,
+      valueKey,
+    });
     setState(next);
     setUpdatedAt(receivedAt);
 
@@ -305,11 +549,11 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
 
   // Seed the last known state from history so a reload isn't blank
   useEffect(() => {
-    if (!brokerId || !stateTopic) return;
+    if (!stateBrokerId || !stateTopic) return;
 
     let cancelled = false;
     api
-      .getExplorerHistory(brokerId, stateTopic)
+      .getExplorerHistory(stateBrokerId, stateTopic)
       .then((records) => {
         if (cancelled || !records || records.length === 0) return;
         const sorted = [...records].sort(
@@ -329,7 +573,14 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brokerId, stateTopic, onPayload, offPayload, valueKey]);
+  }, [
+    stateBrokerId,
+    stateTopic,
+    onPayload,
+    offPayload,
+    readTemplate,
+    valueKey,
+  ]);
 
   // Live updates
   const { subscribe } = useWebSocket({
@@ -355,8 +606,12 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
 
   useEffect(() => {
     if (!stateTopic) return;
-    subscribe({ panel_id: panelId, broker_id: brokerId, topics: [stateTopic] });
-  }, [panelId, brokerId, stateTopic, subscribe]);
+    subscribe({
+      panel_id: panelId,
+      broker_id: stateBrokerId,
+      topics: [stateTopic],
+    });
+  }, [panelId, stateBrokerId, stateTopic, subscribe]);
 
   // Scale the switch with the panel. Every animated property is derived from
   // these dimensions, so transitions are suppressed until resizing settles —
@@ -455,7 +710,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   // Height drives the switch so it never outgrows a short panel; width only
   // caps it further on narrow ones.
   const availW = Math.max(40, (dimensions.width || 240) - 16);
-  const availH = Math.max(40, (dimensions.height || 200) - 34);
+  const availH = Math.max(40, (dimensions.height || 200) - (label ? 52 : 34));
   const trackH = Math.round(
     Math.max(18, Math.min(availH * 0.72, availW * 0.3, 150)),
   );
@@ -520,6 +775,11 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       ref={containerRef}
       className="flex flex-col h-full justify-between p-2 overflow-hidden"
     >
+      {label && (
+        <div className="shrink-0 text-center text-xs font-medium truncate pb-1">
+          {label}
+        </div>
+      )}
       <div className="flex flex-1 items-center justify-center min-h-0">
         <button
           type="button"

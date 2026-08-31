@@ -1,4 +1,4 @@
-import { TOKEN_LABEL, VALUE_TOKEN } from "./payloadShape";
+import { TOKEN_LABEL, VALUE_TOKEN } from "../payloadShape";
 
 /**
  * The payload editor is a contenteditable rather than a textarea, so the token
@@ -128,8 +128,10 @@ export function readSelectionOffsets(
 }
 
 /**
- * Put the caret at a payload offset. Only valid on a freshly painted box, whose
- * children are a flat run of text nodes and chips.
+ * Put the caret at a payload offset — the same offsets `readTemplate` and
+ * `readSelectionOffsets` count in, where a chip is as wide as the token it
+ * stands for. Only valid on a freshly painted box, whose children are a flat
+ * run of text nodes and chips.
  */
 export function setCaret(host: HTMLElement, offset: number): void {
   const selection = host.ownerDocument.getSelection();
@@ -153,14 +155,15 @@ export function setCaret(host: HTMLElement, offset: number): void {
       continue;
     }
 
-    // A chip is one character wide, and the caret can only sit beside it: on
-    // its leading edge that means before it, past it means after.
+    // A chip stands for the whole token and the caret can only sit beside it:
+    // on its leading edge that means before it, anywhere else in its span —
+    // including the offset `placeToken` hands back — means after.
     if (offset <= seen) {
       range.setStart(host, index);
       placed = true;
       break;
     }
-    seen += 1;
+    seen += VALUE_TOKEN.length;
     if (offset <= seen) {
       range.setStart(host, index + 1);
       placed = true;
