@@ -90,7 +90,9 @@ export function LogConfigModal({
 
   const draft = (): LogConfig => ({
     topics,
-    maxMessages: rowsNum,
+    // A half-typed or cleared box comes back as it was left, not as the text
+    // `NaN` for the user to clear again.
+    maxMessages: Number.isFinite(rowsNum) ? rowsNum : config.maxMessages,
     dateFormat,
     showQos,
     showRetained,

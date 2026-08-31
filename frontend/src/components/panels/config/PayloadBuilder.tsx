@@ -6,6 +6,7 @@ import {
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  findLiterals,
   hasToken,
   keepOneToken,
   readShape,
@@ -466,31 +467,31 @@ function PreviewLine({ label, bytes }: { label: string; bytes: string }) {
 }
 
 /**
- * The first plain number in a payload — what picking a message turns into the
- * chip — reported with where it sits, so the mark lands on the digits that were
- * found rather than on the first place those characters happen to occur.
+ * The first number a payload actually *carries* — what picking a message turns
+ * into the chip — reported with where it sits, so the mark lands on the digits
+ * that were found rather than on the first place those characters occur.
  *
- * Digits inside a quoted key (`{"relay2":21.5}`) name the field; they are not
- * the value the panel reads, so they are stepped over and the chip lands on
- * 21.5. Numbered keys are ordinary in MQTT, and a shape built on one reads a
- * number that has nothing to do with the reading.
+ * `findLiterals` already knows a value from the key naming it, quoted or not,
+ * and never looks inside a quoted run — so `{"ts":"2026-08-31T14:32:07Z",
+ * "temp":21.5}` marks 21.5 rather than the year, and `{ch1:5}` marks 5 rather
+ * than half a field name. Keeping that judgement in one place is the point: a
+ * second opinion here is how the timestamp case survived the first fix.
  */
 function firstNumber(payload: string): { text: string; start: number } | null {
-  const keys: Array<[number, number]> = [];
-  const strings = /"(?:[^"\\]|\\.)*"/g;
-  let quoted: RegExpExecArray | null;
-  while ((quoted = strings.exec(payload)) !== null) {
-    const end = quoted.index + quoted[0].length;
-    if (/^\s*:/.test(payload.slice(end))) keys.push([quoted.index, end]);
-  }
+  const plain = /^-?\d+(?:\.\d+)?$/;
 
-  const numbers = /-?\d+(?:\.\d+)?/g;
-  let match: RegExpExecArray | null;
-  while ((match = numbers.exec(payload)) !== null) {
-    const inKey = keys.some(
-      ([from, to]) => match!.index >= from && match!.index < to,
-    );
-    if (!inKey) return { text: match[0], start: match.index };
+  // No cap: the row of chips shows four, but the number worth marking can sit
+  // behind any amount of text the device sends alongside it.
+  for (const { text, start } of findLiterals(payload, Infinity)) {
+    if (plain.test(text)) return { text, start };
+
+    // A number the device quotes is still the reading. The chip goes inside the
+    // quotes, so the shape it builds keeps them.
+    const quoted = text.startsWith('"') && text.endsWith('"');
+    const inner = quoted ? text.slice(1, -1) : null;
+    if (inner !== null && plain.test(inner)) {
+      return { text: inner, start: start + 1 };
+    }
   }
 
   return null;

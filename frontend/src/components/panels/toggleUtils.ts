@@ -7,6 +7,7 @@ import {
   parseLooseJson,
   renderPayload,
   resolvePath,
+  templateFromValueKey,
 } from "./payloadShape";
 
 export interface ToggleShape {
@@ -48,6 +49,23 @@ export function toggleWritePayloads(config: {
     on: renderPayload(template, on),
     off: renderPayload(template, off),
   };
+}
+
+/**
+ * The read shape a stored toggle should open with. A panel saved with only a
+ * dot path is drawn as the shape it was really describing, so the box says what
+ * the panel actually reads — the gauge opens the same way.
+ *
+ * Blank stays blank: for a toggle that is a real answer, the whole payload,
+ * which is what a device echoing `ON` on its state topic sends.
+ */
+export function toggleReadTemplate(config: {
+  readTemplate?: string;
+  valueKey?: string;
+}): string {
+  return config.readTemplate !== undefined
+    ? migrateTemplate(config.readTemplate)
+    : templateFromValueKey(config.valueKey);
 }
 
 /**

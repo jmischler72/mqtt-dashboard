@@ -610,15 +610,16 @@ const STRUCTURED = /[{}[\]:,]/;
  * not only JSON values after a colon — because the box holds whatever the
  * device speaks, and `random: 21.4 (ok)` has a value worth marking too.
  *
- * Capped and de-duplicated: the chips are a shortcut, not an index.
+ * Capped and de-duplicated: the chips are a shortcut, not an index. A caller
+ * looking for one particular literal rather than drawing the row raises the cap.
  */
-export function findLiterals(template: string): TemplateLiteral[] {
+export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
   const out: TemplateLiteral[] = [];
   const re = /"[^"]*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
   const seen = new Set<string>();
 
   let match: RegExpExecArray | null;
-  while ((match = re.exec(template)) !== null && out.length < 4) {
+  while ((match = re.exec(template)) !== null && out.length < limit) {
     const text = match[0];
     // A string followed by a colon is a JSON key, not a value — offering it
     // would fill the row with `"temp"` and hide the 21.4 next to it. Keys are

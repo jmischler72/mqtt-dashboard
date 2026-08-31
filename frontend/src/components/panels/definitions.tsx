@@ -46,7 +46,11 @@ import {
   migrateTemplate,
   payloadIssue,
 } from "./payloadShape";
-import { toggleWritePayloads } from "./toggleUtils";
+import {
+  DEFAULT_OFF_PAYLOAD,
+  DEFAULT_ON_PAYLOAD,
+  toggleWritePayloads,
+} from "./toggleUtils";
 
 /**
  * The command topic of a publishing panel: it has to exist, and it cannot carry
@@ -331,8 +335,13 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
         errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
       };
     }
+    // The stored values as well as the bytes: a config seeded from a file can
+    // hold an empty state inside a template, which renders as `{"v":}` — bytes
+    // that are not empty and say nothing.
     const states = toggleWritePayloads(config ?? {});
-    if (!states.on.trim() || !states.off.trim()) {
+    const on = config?.onPayload ?? DEFAULT_ON_PAYLOAD;
+    const off = config?.offPayload ?? DEFAULT_OFF_PAYLOAD;
+    if (!on.trim() || !off.trim() || !states.on.trim() || !states.off.trim()) {
       return {
         isValid: false,
         warning: "On and Off messages are required",

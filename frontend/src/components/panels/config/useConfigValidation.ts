@@ -63,6 +63,11 @@ export interface TopicRuleSpec {
   topic: string;
   /** Read-only topics may carry `+` and `#`; a topic published to may not. */
   allowWildcards?: boolean;
+  /**
+   * False for a panel that reads or publishes one topic and takes the first of
+   * a list — saying so beats dropping the rest without a word.
+   */
+  allowMultiple?: boolean;
   /** "A command topic", "A topic", "Read-back" — what the sentence is about. */
   subject?: string;
 }
@@ -71,6 +76,7 @@ export function topicRules({
   field = "topic",
   topic,
   allowWildcards = false,
+  allowMultiple = true,
   subject = "A topic",
 }: TopicRuleSpec): ConfigRule[] {
   const entries = topic
@@ -84,6 +90,11 @@ export function topicRules({
       field,
       when: entries.length === 0,
       message: `${subject} is needed before this can save.`,
+    },
+    {
+      field,
+      when: !allowMultiple && entries.length > 1,
+      message: `This panel works with one topic — remove the ${entries.length - 1} after ${entries[0]}.`,
     },
     {
       field,

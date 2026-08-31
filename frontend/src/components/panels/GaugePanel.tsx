@@ -129,7 +129,7 @@ export function GaugeConfigModal({
 
   const { fieldErrors, blockerReason } = useConfigValidation([
     ...brokerRules(brokerStatuses.length),
-    ...topicRules({ topic, allowWildcards: true }),
+    ...topicRules({ topic, allowMultiple: false, allowWildcards: true }),
     // Blank is a real answer — a gauge reads the whole payload by default — but
     // bytes with nothing marked in them are a shape the panel cannot use, and
     // it would quietly read the whole payload instead of saying so.
@@ -216,6 +216,10 @@ export function GaugeConfigModal({
                     draftConfig: {
                       topic,
                       readTemplate,
+                      // Carried through the round trip: a path no shape can
+                      // draw is only held by this field, and coming back
+                      // without it is how the next save drops it.
+                      valueKey: config.valueKey,
                       unit,
                       min: minNum,
                       max: maxNum,

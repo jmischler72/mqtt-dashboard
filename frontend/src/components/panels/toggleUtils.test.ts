@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   extractPayloadValue,
   parseToggleState,
+  toggleReadTemplate,
   toggleWritePayloads,
 } from "./toggleUtils";
+import { VALUE_TOKEN } from "./payloadShape";
 
 describe("extractPayloadValue", () => {
   it("returns the trimmed payload when no valueKey is set", () => {
@@ -138,6 +140,30 @@ describe("parseToggleState with a read shape of its own", () => {
         offPayload: '{"state":"OFF"}',
       }),
     ).toBe(true);
+  });
+});
+
+describe("toggleReadTemplate", () => {
+  it("draws a stored path as the shape it was describing", () => {
+    // What the box must show, or the preview and the panel read differently
+    expect(toggleReadTemplate({ valueKey: "state" })).toBe(
+      `{"state":${VALUE_TOKEN}}`,
+    );
+  });
+
+  it("keeps a blank shape blank, which means the whole payload", () => {
+    expect(toggleReadTemplate({ readTemplate: "", valueKey: "state" })).toBe(
+      "",
+    );
+  });
+
+  it("prefers a shape the panel already has", () => {
+    expect(
+      toggleReadTemplate({
+        readTemplate: `{"v":${VALUE_TOKEN}}`,
+        valueKey: "state",
+      }),
+    ).toBe(`{"v":${VALUE_TOKEN}}`);
   });
 });
 

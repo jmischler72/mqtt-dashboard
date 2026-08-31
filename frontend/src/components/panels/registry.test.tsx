@@ -296,6 +296,33 @@ describe("Registry Helper: defaultResolvePickedTopic & Custom Resolve", () => {
   });
 });
 
+describe("Toggle header validation", () => {
+  const toggleDef = getPanelDefinition("toggle")!;
+
+  it("refuses an empty state hidden inside a template", () => {
+    // `{"v":}` is bytes that are not empty and say nothing; a config seeded
+    // from a file can hold one, having never been through the modal
+    const result = toggleDef.validateConfig?.({
+      topic: "home/lamp/set",
+      payloadTemplate: '{"v":{value}}',
+      onPayload: "",
+      offPayload: "OFF",
+    });
+    expect(result?.isValid).toBe(false);
+  });
+
+  it("accepts a config whose states are both written out", () => {
+    expect(
+      toggleDef.validateConfig?.({
+        topic: "home/lamp/set",
+        payloadTemplate: '{"v":{value}}',
+        onPayload: "ON",
+        offPayload: "OFF",
+      })?.isValid,
+    ).toBe(true);
+  });
+});
+
 describe("Separator layout constraints", () => {
   const sepDef = getPanelDefinition("separator")!;
 

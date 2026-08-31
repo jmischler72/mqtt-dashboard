@@ -62,6 +62,39 @@ describe("starting from a message", () => {
     expect(template()).toBe(`{"ch1":{"v":${VALUE_TOKEN}}}`);
   });
 
+  it("steps over a number inside a value the device quotes", () => {
+    // A timestamp beside the reading is the commonest thing in MQTT JSON
+    render(
+      <Builder payloads={['{"ts":"2026-08-31T14:32:07Z","temp":21.5}']} />,
+    );
+    useFirstMessage();
+    expect(template()).toBe(
+      `{"ts":"2026-08-31T14:32:07Z","temp":${VALUE_TOKEN}}`,
+    );
+  });
+
+  it("steps over a digit in an unquoted key too", () => {
+    render(<Builder payloads={["{ch1:5}"]} />);
+    useFirstMessage();
+    expect(template()).toBe(`{ch1:${VALUE_TOKEN}}`);
+  });
+
+  it("marks inside the quotes when the device quotes its number", () => {
+    render(<Builder payloads={['{"temp":"21.5"}']} />);
+    useFirstMessage();
+    expect(template()).toBe(`{"temp":"${VALUE_TOKEN}"}`);
+  });
+
+  it("finds the reading behind more text than the chip row shows", () => {
+    render(
+      <Builder payloads={['{"a":"w","b":"x","c":"y","d":"z","temp":21.5}']} />,
+    );
+    useFirstMessage();
+    expect(template()).toBe(
+      `{"a":"w","b":"x","c":"y","d":"z","temp":${VALUE_TOKEN}}`,
+    );
+  });
+
   it("marks the first number of a plain payload", () => {
     render(<Builder payloads={["21.5"]} />);
     useFirstMessage();

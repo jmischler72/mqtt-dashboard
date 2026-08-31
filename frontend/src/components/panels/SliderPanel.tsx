@@ -182,7 +182,7 @@ export function SliderConfigModal({
 
   const { fieldErrors, blockerReason } = useConfigValidation([
     ...brokerRules(brokerStatuses.length),
-    ...topicRules({ topic, subject: "A command topic" }),
+    ...topicRules({ topic, allowMultiple: false, subject: "A command topic" }),
     ...rangeRules({ low: min, high: max, step }),
     ...payloadRules({
       value: payloadTemplate,

@@ -27,9 +27,11 @@ import {
   effectiveReadTemplate,
   migrateTemplate,
   renderPayload,
+  templateFromValueKey,
 } from "./payloadShape";
 import {
   parseToggleState,
+  toggleReadTemplate,
   toggleWritePayloads,
   DEFAULT_ON_PAYLOAD,
   DEFAULT_OFF_PAYLOAD,
@@ -129,9 +131,7 @@ export function ToggleConfigModal({
       config.stateBrokerId ??
       "",
   );
-  const [readTemplate, setReadTemplate] = useState(
-    migrateTemplate(config.readTemplate ?? ""),
-  );
+  const [readTemplate, setReadTemplate] = useState(toggleReadTemplate(config));
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
@@ -165,7 +165,7 @@ export function ToggleConfigModal({
 
   const { fieldErrors, blockerReason } = useConfigValidation([
     ...brokerRules(brokerStatuses.length),
-    ...topicRules({ topic, subject: "A command topic" }),
+    ...topicRules({ topic, allowMultiple: false, subject: "A command topic" }),
     ...payloadRules({
       field: "payload",
       value: payloadTemplate,
@@ -231,7 +231,16 @@ export function ToggleConfigModal({
             payloadTemplate,
             onPayload,
             offPayload,
-            valueKey: config.valueKey,
+            // A stored path opens the read box as the shape it was describing,
+            // so once that box is saved it says everything the path did — and
+            // the path has to go, or blanking the box could never clear it.
+            // It survives where the box cannot speak for it: a panel reading
+            // its command topic saves no shape at all, and an array index is a
+            // path no shape can draw.
+            valueKey:
+              separateRead && templateFromValueKey(config.valueKey)
+                ? undefined
+                : config.valueKey,
             qos,
             retain,
           },
