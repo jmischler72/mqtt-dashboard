@@ -59,7 +59,7 @@ export default function MessageHistory({
       <span className="text-[11px] text-base-content/50">
         {topic.trim()
           ? `Nothing heard on ${topic.trim()} yet — type the bytes your device sends.`
-          : "Pick a topic and the last few messages show up here."}
+          : "Set a topic to see recent messages."}
       </span>
     );
   }

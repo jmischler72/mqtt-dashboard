@@ -149,6 +149,18 @@ export function SliderConfigModal({
   const effectiveStateBroker =
     (separateRead && stateBrokerId) || selectedBrokerId;
 
+  // `Number("")` is 0 and `Number("ab")` is NaN, either of which would turn a
+  // field the user has not finished into a value they never chose — and NaN
+  // reaches the stored config as null. A field that is not a usable number
+  // falls back to the default it started from instead.
+  const asNumber = (raw: string, fallback: number) => {
+    const value = Number(raw);
+    return raw.trim() !== "" && Number.isFinite(value) ? value : fallback;
+  };
+  const minNum = asNumber(min, DEFAULT_MIN);
+  const maxNum = asNumber(max, DEFAULT_MAX);
+  const stepNum = asNumber(step, DEFAULT_STEP);
+
   // Everything the user has typed so far, carried through the picker so a trip
   // to the explorer does not discard in-progress edits.
   const draft = (pickTarget: "topic" | "stateTopic"): SliderConfig => ({
@@ -157,9 +169,9 @@ export function SliderConfigModal({
     stateTopic,
     stateBrokerId,
     readTemplate,
-    min: Number(min),
-    max: Number(max),
-    step: Number(step),
+    min: minNum,
+    max: maxNum,
+    step: stepNum,
     unit,
     payloadTemplate,
     valueKey: config.valueKey,
@@ -198,9 +210,6 @@ export function SliderConfigModal({
     { touched },
   );
 
-  const minNum = Number(min);
-  const maxNum = Number(max);
-  const stepNum = Number(step);
   const rangeUsable = !fieldErrors.range && maxNum > minNum && stepNum > 0;
 
   return (
@@ -308,7 +317,7 @@ export function SliderConfigModal({
         <DisclosureCard
           title="Message"
           summary={<PayloadSummary value={payloadTemplate} />}
-          defaultOpen
+          defaultOpen={payloadTemplate.trim() === ""}
           invalid={Boolean(fieldErrors.payload)}
         >
           <PayloadBuilder
@@ -349,7 +358,7 @@ export function SliderConfigModal({
             setTouched(true);
           }}
           title="A different topic reports the value"
-          offExplanation="Off: the device reports on the command topic, in the same shape the panel publishes."
+          offExplanation="The device reports on the command topic, in the same shape the panel publishes."
           onExplanation="The panel listens here instead of on the command topic."
           invalid={Boolean(fieldErrors.stateTopic || fieldErrors.readShape)}
         >

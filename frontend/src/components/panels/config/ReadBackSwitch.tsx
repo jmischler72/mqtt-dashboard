@@ -6,9 +6,9 @@ export interface ReadBackSwitchProps {
   onToggle: (next: boolean) => void;
   /** "A different topic reports the value" — what turning it on means. */
   title: string;
-  /** What happens while it is off, so the default is never a mystery. */
+  /** What the panel does while it is off, so the default is never a mystery. */
   offExplanation: string;
-  /** What happens once it is on. */
+  /** What it does once it is on. */
   onExplanation: string;
   invalid?: boolean;
   children?: ReactNode;

@@ -33,6 +33,64 @@ describe("paintTemplate / readTemplate", () => {
   });
 });
 
+describe("readSelectionOffsets", () => {
+  /** The [text, <br>, text] shape browsers that use <br> for Enter produce. */
+  function twoLines(): HTMLElement {
+    const host = document.createElement("div");
+    host.contentEditable = "true";
+    host.append(
+      document.createTextNode("a"),
+      document.createElement("br"),
+      document.createTextNode("b"),
+    );
+    document.body.append(host);
+    return host;
+  }
+
+  function caretAt(container: Node, offset: number) {
+    const range = document.createRange();
+    range.setStart(container, offset);
+    range.collapse(true);
+    const selection = document.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  it("counts a line break the user typed", () => {
+    const host = twoLines();
+    expect(readTemplate(host)).toBe("a\nb");
+
+    // Start of the second line. Measuring a clone of the content up to here
+    // made the <br> look like the browser's trailing filler and dropped it,
+    // leaving every offset past a line break one short.
+    caretAt(host.childNodes[2], 0);
+    expect(readSelectionOffsets(host)).toEqual({ start: 2, end: 2 });
+  });
+
+  it("still ignores the filler break at the end of the box", () => {
+    const host = document.createElement("div");
+    host.contentEditable = "true";
+    host.append(document.createTextNode("a"), document.createElement("br"));
+    document.body.append(host);
+
+    expect(readTemplate(host)).toBe("a");
+    caretAt(host, host.childNodes.length);
+    expect(readSelectionOffsets(host)).toEqual({ start: 1, end: 1 });
+  });
+
+  it("reports a selection, not just a caret", () => {
+    const host = twoLines();
+    const range = document.createRange();
+    range.setStart(host.childNodes[0], 0);
+    range.setEnd(host.childNodes[2], 1);
+    const selection = document.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    expect(readSelectionOffsets(host)).toEqual({ start: 0, end: 3 });
+  });
+});
+
 describe("setCaret", () => {
   // The offsets `readTemplate`, `readSelectionOffsets` and `placeToken` all
   // count in are payload offsets, where the chip is as wide as the token it

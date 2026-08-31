@@ -168,13 +168,13 @@ export function LogConfigModal({
           />
           <SwitchRow
             name="QoS badge"
-            note="Off: the delivery level is not printed on the line"
+            note="Prints the delivery level on each line"
             on={showQos}
             onToggle={setShowQos}
           />
           <SwitchRow
             name="Retain badge"
-            note="Off: retained messages look like any other line"
+            note="Marks messages the broker had kept"
             on={showRetained}
             onToggle={setShowRetained}
           />

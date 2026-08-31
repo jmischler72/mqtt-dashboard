@@ -21,7 +21,6 @@ import {
   topicRules,
   useConfigValidation,
 } from "./config";
-import { migrateTemplate } from "./payloadShape";
 import { usePanelSize } from "../../hooks/usePanelSize";
 import {
   PRESETS,
@@ -72,7 +71,9 @@ export function CronConfigModal({
   }, [config.cron_expr]);
 
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  const [payload, setPayload] = useState(migrateTemplate(config.payload ?? ""));
+  // Not run through `migrateTemplate`: a schedule publishes a literal, so a
+  // `\u25c6` in it is a character the device asked for, not an old chip.
+  const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
@@ -179,7 +180,7 @@ export function CronConfigModal({
 
           <SwitchRow
             name="Run this schedule"
-            note="Off: the panel keeps its schedule but publishes nothing"
+            note="Publishes on the schedule above. The schedule is kept either way."
             on={enabled}
             onToggle={setEnabled}
           />
@@ -209,7 +210,7 @@ export function CronConfigModal({
         <DisclosureCard
           title="Message"
           summary={<PayloadSummary value={payload} empty="empty message" />}
-          defaultOpen
+          defaultOpen={payload.trim() === ""}
           invalid={Boolean(fieldErrors.payload)}
         >
           <PayloadBuilder

@@ -7,7 +7,6 @@ import {
   BrokerTopicCard,
   ConfigCard,
   ConfigGroup,
-  FieldRow,
   PanelConfigModal,
   SwitchRow,
   brokerPresence,
@@ -144,44 +143,38 @@ export function BrokerStatsConfigModal({
       </ConfigGroup>
 
       <ConfigGroup heading="Appearance">
-        <ConfigCard title="Window" summary={RANGE_LABELS[defaultRange]}>
-          <FieldRow
-            label="Opens"
-            help="The span the panel shows before anyone touches it."
+        <ConfigCard title="Default Time Range">
+          <select
+            className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+            aria-label="Default time range"
+            value={defaultRange}
+            onChange={(e) =>
+              setDefaultRange(Number(e.target.value) as TimeRange)
+            }
           >
-            <select
-              className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"
-              aria-label="Default time range"
-              value={defaultRange}
-              onChange={(e) =>
-                setDefaultRange(Number(e.target.value) as TimeRange)
-              }
-            >
-              {RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {RANGE_LABELS[option.value]}
-                </option>
-              ))}
-            </select>
-          </FieldRow>
+            <option value={60}>1 minute</option>
+            <option value={300}>5 minutes</option>
+            <option value={900}>15 minutes</option>
+            <option value={3600}>1 hour</option>
+          </select>
         </ConfigCard>
 
-        <ConfigCard title="Sections">
+        <ConfigCard title="Visible Sections">
           <SwitchRow
             name="Stat tiles"
-            note="Off: the headline numbers are hidden"
+            note="The headline numbers across the top of the panel"
             on={showStatTiles}
             onToggle={setShowStatTiles}
           />
           <SwitchRow
             name="Chart"
-            note="Off: no traffic graph is drawn"
+            note="The message-rate graph"
             on={showChart}
             onToggle={setShowChart}
           />
           <SwitchRow
             name="Topic breakdown"
-            note="Off: the busiest-topics list is hidden"
+            note="The busiest topics, counted over the same window"
             on={showTopicBreakdown}
             onToggle={setShowTopicBreakdown}
           />
@@ -257,9 +250,18 @@ export default function BrokerStatsPanel({
   const showStatTiles = config.showStatTiles !== false;
   const showChart = config.showChart !== false;
   const showTopicBreakdown = config.showTopicBreakdown !== false;
-  const [currentRange, setCurrentRange] = useState<TimeRange>(
-    config.defaultRange ?? 60,
-  );
+  // The pills change the window live, so it is state — but the panel is never
+  // remounted when its config is saved, and reading the setting only at mount
+  // left a freshly saved window invisible until a reload. Tracking the saved
+  // value alongside it means a save resets the view, while a pill the user
+  // pressed still wins until the setting itself changes again.
+  const savedRange = config.defaultRange ?? 60;
+  const [seenSavedRange, setSeenSavedRange] = useState<TimeRange>(savedRange);
+  const [currentRange, setCurrentRange] = useState<TimeRange>(savedRange);
+  if (seenSavedRange !== savedRange) {
+    setSeenSavedRange(savedRange);
+    setCurrentRange(savedRange);
+  }
   const [activity, setActivity] = useState<ActivityData | null>(null);
   const [liveRate, setLiveRate] = useState<LiveRate>(() => ({
     rate: 0,

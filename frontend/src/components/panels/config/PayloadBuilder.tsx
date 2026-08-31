@@ -51,6 +51,11 @@ export interface PayloadBuilderProps {
   /** False when the caller draws the shared history itself. */
   showHistory?: boolean;
   /**
+   * False when the caller previews the bytes itself, e.g. the toggle, which
+   * has two of them and would otherwise repeat one of the two right here.
+   */
+  showPreview?: boolean;
+  /**
    * False for a panel with no runtime value (button, cron): the chip would
    * publish an empty hole, so it is never offered.
    */
@@ -96,13 +101,14 @@ export default function PayloadBuilder({
   brokerId,
   history,
   showHistory = true,
+  showPreview = true,
   acceptsChip = true,
   allowBlankShape = false,
   placeholder,
   range,
   previewValue,
   unit,
-  note = "Sent verbatim, exactly these bytes. Empty publishes an empty message.",
+  note = "Published exactly as written. Empty sends an empty message.",
 }: PayloadBuilderProps) {
   const [covered, setCovered] = useState("");
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
@@ -219,7 +225,7 @@ export default function PayloadBuilder({
         note && <span className="text-[11px] text-base-content/50">{note}</span>
       )}
 
-      {reading ? (
+      {!showPreview ? null : reading ? (
         <ReadPreview
           value={value}
           latest={latest}

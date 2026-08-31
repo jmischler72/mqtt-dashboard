@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { extractPayloadValue, parseToggleState } from "./toggleUtils";
+import {
+  extractPayloadValue,
+  parseToggleState,
+  toggleWritePayloads,
+} from "./toggleUtils";
 
 describe("extractPayloadValue", () => {
   it("returns the trimmed payload when no valueKey is set", () => {
@@ -94,5 +98,41 @@ describe("parseToggleState", () => {
     expect(
       parseToggleState("whatever", { onPayload: "", offPayload: "" }),
     ).toBeNull();
+  });
+});
+
+describe("toggleWritePayloads", () => {
+  it("drops each value into the shared template", () => {
+    expect(
+      toggleWritePayloads({
+        payloadTemplate: '{"state":"{value}"}',
+        onPayload: "ON",
+        offPayload: "OFF",
+      }),
+    ).toEqual({ on: '{"state":"ON"}', off: '{"state":"OFF"}' });
+  });
+
+  it("publishes the value on its own for a bare chip", () => {
+    expect(
+      toggleWritePayloads({
+        payloadTemplate: "{value}",
+        onPayload: "1",
+        offPayload: "0",
+      }),
+    ).toEqual({ on: "1", off: "0" });
+  });
+
+  it("leaves a config with no template publishing its values verbatim", () => {
+    // What a toggle saved with its two states written out in full amounts to
+    expect(
+      toggleWritePayloads({
+        onPayload: '{"state":"ON"}',
+        offPayload: '{"state":"OFF"}',
+      }),
+    ).toEqual({ on: '{"state":"ON"}', off: '{"state":"OFF"}' });
+  });
+
+  it("defaults to ON and OFF", () => {
+    expect(toggleWritePayloads({})).toEqual({ on: "ON", off: "OFF" });
   });
 });

@@ -106,7 +106,11 @@ export interface PayloadRuleSpec {
    * publish an empty hole, so it is refused rather than required.
    */
   acceptsChip?: boolean;
-  /** Write mode: whether an empty box is a problem. */
+  /**
+   * Whether an empty box is a problem. In read mode a blank shape means "the
+   * whole payload", which is exactly right for a device that publishes its
+   * value on its own — so a panel that can read that way says so here.
+   */
   allowEmpty?: boolean;
   /** "the slider has", "a button has" — completes the empty-box sentence. */
   subject?: string;
@@ -126,7 +130,9 @@ export function payloadRules({
     return [
       {
         field,
-        when: !chip,
+        // A blank box is only a problem when the panel cannot read the whole
+        // payload; bytes with no chip in them mark nothing either way.
+        when: allowEmpty ? value.trim() !== "" && !chip : !chip,
         message:
           "The read shape has no value chip, so nothing can be pulled out of it.",
       },

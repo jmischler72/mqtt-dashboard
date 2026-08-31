@@ -136,6 +136,24 @@ describe("reading by stencil", () => {
     ).toBe("bathroom");
   });
 
+  it("does not swallow a nested object when the tail lines up late", () => {
+    // The tail `}` matches the *outer* brace, so an unguarded stencil hands
+    // back the truncated fragment `{"temp":21.5` and calls it the value.
+    expect(
+      matchTemplate(`{"data":${VALUE_TOKEN}}`, '{"data":{"temp":21.5}}'),
+    ).toBeNull();
+    // …and the shape is reported as not fitting rather than as a match
+    expect(
+      readShape(`{"data":${VALUE_TOKEN}}`, '{"data":{"temp":21.5}}').found,
+    ).toBe(false);
+  });
+
+  it("still reads a value that merely contains colons", () => {
+    expect(
+      readValue(`{"time":"${VALUE_TOKEN}"}`, '{"time":"12:30:00"}').value,
+    ).toBe("12:30:00");
+  });
+
   it("does not stencil a bare token, which anchors on nothing", () => {
     expect(matchTemplate(VALUE_TOKEN, "anything")).toBeNull();
     // It still reads as the whole message, via the path branch

@@ -104,7 +104,24 @@ function coerceValue(target: unknown, raw: string): ExtractedValue {
     return { value: trimmed, dataType: "string", raw };
   }
 
-  return { value: String(target), dataType: "string", raw };
+  // An object or an array reached through a path is not a value a panel can
+  // draw, but `String(...)` would render it as the useless `[object Object]`.
+  // Its own JSON at least shows what the device actually sent.
+  return { value: jsonish(target), dataType: "string", raw };
+}
+
+/** True for something a panel can show as-is: not an object, not an array. */
+function isScalar(value: unknown): boolean {
+  return value === null || typeof value !== "object";
+}
+
+/** A value's own JSON, falling back to `String` for anything unserialisable. */
+function jsonish(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 /**
@@ -272,6 +289,19 @@ export function deriveReadPath(template: string): string | null {
   return find(json, "");
 }
 
+/** A number, the commonest thing a device puts where the chip sits. */
+const NUMBER = "-?\\d+(?:\\.\\d+)?";
+
+/**
+ * An unquoted run of value characters. It stops at anything that carries
+ * structure — a brace, a bracket, a quote, a comma — because a value that
+ * appears to contain those is not a value: it is the stencil having slid over
+ * a nested object, and `{"data":{"temp":21.5}}` read through `{"data":<chip>}`
+ * would otherwise come back as the truncated fragment `{"temp":21.5`. Colons
+ * stay legal so a time like `12:30:00` still reads as one value.
+ */
+const BARE = '[^,{}\\[\\]"\\s]+';
+
 /** Escape a literal so it can be spliced into a regular expression. */
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -314,7 +344,7 @@ export function matchTemplate(
     const strict = text.match(
       new RegExp(
         escapeRegExp(head) +
-          '("[^"]*"|-?\\d+(?:\\.\\d+)?|[^,}\\s]+?)' +
+          `("[^"]*"|${NUMBER}|${BARE}?)` +
           escapeRegExp(tail),
       ),
     );
@@ -323,10 +353,10 @@ export function matchTemplate(
 
   // The tail did not line up — the device appended fields the shape does not
   // describe — so anchor on the head alone and take the value sitting there.
-  // Quotes are excluded here because without a tail there is nothing to tell a
-  // closing quote apart from part of the value.
+  // The bare run is greedy here: with no tail to stop at, the value is however
+  // far it runs before the next structural character.
   const loose = text.match(
-    new RegExp(escapeRegExp(head) + '("[^"]*"|-?\\d+(?:\\.\\d+)?|[^,}"\\s]+)'),
+    new RegExp(escapeRegExp(head) + `("[^"]*"|${NUMBER}|${BARE})`),
   );
   return loose ? unquote(loose[1]) : null;
 }
@@ -389,7 +419,10 @@ export function readShape(template: string, message: string): ShapeRead {
       json === undefined
         ? { found: false, value: undefined }
         : resolvePath(json, path);
-    if (resolved.found) {
+    // A path that lands on an object or an array has not found a value: the
+    // chip marks one scalar, and reporting a whole subtree as a fit would tell
+    // the user their shape works when the panel has nothing to draw.
+    if (resolved.found && isScalar(resolved.value)) {
       return { ...coerceValue(resolved.value, message), found: true };
     }
   }

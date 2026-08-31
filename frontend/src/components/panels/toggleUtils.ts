@@ -23,12 +23,12 @@ export const DEFAULT_ON_PAYLOAD = "ON";
 export const DEFAULT_OFF_PAYLOAD = "OFF";
 
 /**
- * The two payloads a stored toggle should publish.
+ * The two payloads a stored toggle publishes: each state's value dropped into
+ * the shared message template.
  *
- * Toggles used to hold a value (`ON`) plus a template saying where it sat
- * inside the message. The two states are now written out in full, one box each,
- * because that is what actually goes on the wire — so an older config is folded
- * together here rather than being carried in two halves forever.
+ * A template of nothing but the chip publishes the value on its own, which is
+ * both the default and what a config saved with its states written out in full
+ * amounts to — so those keep publishing exactly the bytes they always did.
  */
 export function toggleWritePayloads(config: {
   onPayload?: string;

@@ -20,7 +20,6 @@ import {
   topicRules,
   useConfigValidation,
 } from "./config";
-import { migrateTemplate } from "./payloadShape";
 import { usePanelSize } from "../../hooks/usePanelSize";
 
 export interface ButtonConfig {
@@ -59,7 +58,9 @@ export function ButtonConfigModal({
   const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [label, setLabel] = useState(config.label ?? "Click");
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  const [payload, setPayload] = useState(migrateTemplate(config.payload ?? ""));
+  // Not run through `migrateTemplate`: a button publishes a literal, so a
+  // `\u25c6` in it is a character the device asked for, not an old chip.
+  const [payload, setPayload] = useState(config.payload ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [requireConfirm, setRequireConfirm] = useState(
@@ -129,7 +130,7 @@ export function ButtonConfigModal({
         <DisclosureCard
           title="Message"
           summary={<PayloadSummary value={payload} empty="empty message" />}
-          defaultOpen
+          defaultOpen={payload.trim() === ""}
           invalid={Boolean(fieldErrors.payload)}
         >
           <PayloadBuilder

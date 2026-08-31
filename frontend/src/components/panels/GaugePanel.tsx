@@ -25,6 +25,10 @@ import { readShape } from "./payloadShape";
 import { usePayloadSample } from "../../hooks/usePayloadSample";
 import { usePanelSize } from "../../hooks/usePanelSize";
 
+/** The scale a gauge falls back on when none is usable. */
+const DEFAULT_MIN = 0;
+const DEFAULT_MAX = 100;
+
 export type GaugeType = "radial" | "bar" | "value";
 
 export interface GaugeConfig {
@@ -77,8 +81,8 @@ export function GaugeConfigModal({
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [readTemplate, setReadTemplate] = useState(gaugeReadTemplate(config));
   const [unit, setUnit] = useState(config.unit ?? "");
-  const [min, setMin] = useState(String(config.min ?? 0));
-  const [max, setMax] = useState(String(config.max ?? 100));
+  const [min, setMin] = useState(String(config.min ?? DEFAULT_MIN));
+  const [max, setMax] = useState(String(config.max ?? DEFAULT_MAX));
   const [gaugeType, setGaugeType] = useState<GaugeType>(
     config.gaugeType ?? "radial",
   );
@@ -108,9 +112,20 @@ export function GaugeConfigModal({
     nonNumeric && numericOnly ? "value" : gaugeType;
   const fellBack = nonNumeric && numericOnly;
 
-  const minNum = Number(min);
-  const maxNum = Number(max);
-  const scaleUsed = effectiveType !== "value";
+  // The scale belongs to the style the user *picked*, not to the one currently
+  // drawn: a radial gauge whose device happens to be publishing text right now
+  // still has a scale, and hiding it would take its validation with it and let
+  // an unusable Min or Max save behind the fallback.
+  const scaleUsed = numericOnly;
+
+  // A field that never passed the rules below cannot reach the wire as NaN,
+  // which `JSON.stringify` would write as null.
+  const asNumber = (raw: string, fallback: number) => {
+    const value = Number(raw);
+    return raw.trim() !== "" && Number.isFinite(value) ? value : fallback;
+  };
+  const minNum = asNumber(min, DEFAULT_MIN);
+  const maxNum = asNumber(max, DEFAULT_MAX);
 
   const { fieldErrors, blockerReason } = useConfigValidation(
     [
@@ -384,8 +399,8 @@ export default function GaugePanel({
     usePanelSize<HTMLDivElement>();
 
   const topic = (config.topic ?? "").split(",")[0]?.trim() ?? "";
-  const min = config.min ?? 0;
-  const max = config.max ?? 100;
+  const min = config.min ?? DEFAULT_MIN;
+  const max = config.max ?? DEFAULT_MAX;
   const unit = config.unit ?? "";
   const gaugeType = config.gaugeType ?? "radial";
   const readTemplate = gaugeReadTemplate(config);
