@@ -162,9 +162,16 @@ export default function PanelWrapper({
           ? { header_meta_pinned: currentCfg.header_meta_pinned }
           : {}),
       };
+      // A config can change the shape the panel is allowed to have; the grid
+      // never revisits a stored size on its own, so resize with the same PUT.
+      const nextSize = def?.adjustSizeForConfig?.(nextCfg, {
+        w: panel.w,
+        h: panel.h,
+      });
       const updated = await api.put<Panel>(`/api/layouts/${panel.id}`, {
         config_json: nextCfg,
         broker_id: brokerId,
+        ...(nextSize ?? {}),
       });
       onUpdate(updated);
 

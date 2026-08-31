@@ -58,7 +58,6 @@ export function InputConfigModal({
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topic));
 
   const draft = (): InputConfig => ({
     topic,
@@ -67,10 +66,10 @@ export function InputConfigModal({
     retain,
   });
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [...brokerRules(brokerStatuses.length), ...topicRules({ topic })],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic }),
+  ]);
 
   const topicCount = topic.split(",").filter((t) => t.trim()).length;
 
@@ -103,7 +102,6 @@ export function InputConfigModal({
           topic={topic}
           onTopicChange={(next) => {
             setTopic(next);
-            setTouched(true);
           }}
           topicPlaceholder="home/display/text"
           topicError={fieldErrors.topic}

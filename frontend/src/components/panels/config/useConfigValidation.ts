@@ -24,23 +24,19 @@ export interface ConfigValidation {
  * broken rule is what the footer says. The field borders and the footer line
  * therefore come from the same source and can never contradict each other.
  *
- * `touched` only gates the inline markings — a brand-new panel should not open
- * covered in warnings — while the footer explains a dead Save immediately,
- * since a Save the user cannot press needs a reason from the first frame.
+ * Marks show from the first frame rather than waiting on an edit: a modal that
+ * opens with a dead Save has to point at the control responsible for it, and a
+ * mark that only appears once the box has been typed in and cleared again reads
+ * as a glitch.
  */
-export function useConfigValidation(
-  rules: ConfigRule[],
-  { touched = true }: { touched?: boolean } = {},
-): ConfigValidation {
+export function useConfigValidation(rules: ConfigRule[]): ConfigValidation {
   const broken = rules.filter((r) => r.when);
   const blockerReason = broken[0]?.message ?? null;
 
   const fieldErrors: Record<string, string> = {};
-  if (touched) {
-    for (const rule of broken) {
-      if (rule.field && !(rule.field in fieldErrors)) {
-        fieldErrors[rule.field] = rule.message;
-      }
+  for (const rule of broken) {
+    if (rule.field && !(rule.field in fieldErrors)) {
+      fieldErrors[rule.field] = rule.message;
     }
   }
 

@@ -312,6 +312,30 @@ describe("Separator layout constraints", () => {
     });
     expect(constraints).toEqual({ minW: 1, minH: 1, maxW: 1 });
   });
+
+  it("collapses to the smallest legal size when orientation flips", () => {
+    expect(
+      sepDef.adjustSizeForConfig?.({ orientation: "vertical" }, { w: 6, h: 1 }),
+    ).toEqual({ w: 1, h: 1 });
+    expect(
+      sepDef.adjustSizeForConfig?.(
+        { orientation: "horizontal" },
+        { w: 1, h: 4 },
+      ),
+    ).toEqual({ w: 1, h: 1 });
+  });
+
+  it("leaves a size that already fits the orientation alone", () => {
+    expect(
+      sepDef.adjustSizeForConfig?.(
+        { orientation: "horizontal" },
+        { w: 6, h: 1 },
+      ),
+    ).toBeNull();
+    expect(
+      sepDef.adjustSizeForConfig?.({ orientation: "vertical" }, { w: 1, h: 4 }),
+    ).toBeNull();
+  });
 });
 
 describe("PanelPreviewCard", () => {

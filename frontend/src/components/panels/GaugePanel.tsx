@@ -89,7 +89,6 @@ export function GaugeConfigModal({
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topic));
 
   const { recent, loading } = usePayloadSample(selectedBrokerId, topic);
   const latest = recent[0]?.payload ?? null;
@@ -127,22 +126,19 @@ export function GaugeConfigModal({
   const minNum = asNumber(min, DEFAULT_MIN);
   const maxNum = asNumber(max, DEFAULT_MAX);
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [
-      ...brokerRules(brokerStatuses.length),
-      ...topicRules({ topic, allowWildcards: true }),
-      ...(scaleUsed
-        ? rangeRules({
-            field: "scale",
-            low: min,
-            high: max,
-            lowLabel: "Min",
-            highLabel: "Max",
-          })
-        : []),
-    ],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic, allowWildcards: true }),
+    ...(scaleUsed
+      ? rangeRules({
+          field: "scale",
+          low: min,
+          high: max,
+          lowLabel: "Min",
+          highLabel: "Max",
+        })
+      : []),
+  ]);
 
   const shown = reading === null ? "—" : String(reading.value);
   const withUnit = reading === null ? "—" : `${shown}${unit ? ` ${unit}` : ""}`;
@@ -188,7 +184,6 @@ export function GaugeConfigModal({
           topic={topic}
           onTopicChange={(next) => {
             setTopic(next);
-            setTouched(true);
           }}
           topicPlaceholder="sensors/attic/temp"
           topicError={fieldErrors.topic}
@@ -221,7 +216,6 @@ export function GaugeConfigModal({
             value={readTemplate}
             onChange={(next) => {
               setReadTemplate(next);
-              setTouched(true);
             }}
             history={{ messages: recent, loading }}
             brokerId={selectedBrokerId}
@@ -288,7 +282,6 @@ export function GaugeConfigModal({
                   invalid: Boolean(fieldErrors.scale),
                   onChange: (next) => {
                     setMin(next);
-                    setTouched(true);
                   },
                 },
                 {
@@ -298,7 +291,6 @@ export function GaugeConfigModal({
                   invalid: Boolean(fieldErrors.scale),
                   onChange: (next) => {
                     setMax(next);
-                    setTouched(true);
                   },
                 },
               ]}

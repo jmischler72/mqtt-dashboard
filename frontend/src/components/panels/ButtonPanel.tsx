@@ -69,25 +69,21 @@ export function ButtonConfigModal({
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topic));
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [
-      ...brokerRules(brokerStatuses.length),
-      ...topicRules({ topic }),
-      // A button publishes a fixed message, so there is no runtime value for a
-      // chip to stand in for — an empty payload, on the other hand, is how a
-      // retained message gets cleared and is perfectly valid.
-      ...payloadRules({
-        value: payload,
-        mode: "write",
-        acceptsChip: false,
-        allowEmpty: true,
-        subject: "a button has",
-      }),
-    ],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic }),
+    // A button publishes a fixed message, so there is no runtime value for a
+    // chip to stand in for — an empty payload, on the other hand, is how a
+    // retained message gets cleared and is perfectly valid.
+    ...payloadRules({
+      value: payload,
+      mode: "write",
+      acceptsChip: false,
+      allowEmpty: true,
+      subject: "a button has",
+    }),
+  ]);
 
   const topicCount = topic.split(",").filter((t) => t.trim()).length;
 
@@ -115,7 +111,6 @@ export function ButtonConfigModal({
           topic={topic}
           onTopicChange={(next) => {
             setTopic(next);
-            setTouched(true);
           }}
           topicPlaceholder="home/light/set"
           topicError={fieldErrors.topic}

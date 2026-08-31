@@ -75,22 +75,18 @@ export function LogConfigModal({
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topics));
 
   const rowsNum = Number(maxMessages);
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [
-      ...brokerRules(brokerStatuses.length),
-      ...topicRules({ field: "topic", topic: topics, allowWildcards: true }),
-      {
-        field: "rows",
-        when: !Number.isFinite(rowsNum) || rowsNum < 1 || rowsNum > 1000,
-        message: "Rows must be a number between 1 and 1000.",
-      },
-    ],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ field: "topic", topic: topics, allowWildcards: true }),
+    {
+      field: "rows",
+      when: !Number.isFinite(rowsNum) || rowsNum < 1 || rowsNum > 1000,
+      message: "Rows must be a number between 1 and 1000.",
+    },
+  ]);
 
   const draft = (): LogConfig => ({
     topics,
@@ -118,7 +114,6 @@ export function LogConfigModal({
           topic={topics}
           onTopicChange={(next) => {
             setTopics(next);
-            setTouched(true);
           }}
           topicPlaceholder="sensors/#, home/+/status"
           topicError={fieldErrors.topic}
@@ -197,7 +192,6 @@ export function LogConfigModal({
               value={maxMessages}
               onChange={(e) => {
                 setMaxMessages(e.target.value);
-                setTouched(true);
               }}
             />
           </FieldRow>
@@ -220,7 +214,7 @@ function LinePreview({
   return (
     <div className="w-full px-1 font-mono text-[9px] leading-relaxed text-left truncate">
       <span className="opacity-60">[{stamp}]</span>{" "}
-      <span className="text-accent">sensors/attic/temp</span>
+      <span className="text-accent">attic/temp</span>
       {showQos && <span className="opacity-60"> Q0</span>}
       {showRetained && <span className="text-warning"> R</span>} 21.4
     </div>

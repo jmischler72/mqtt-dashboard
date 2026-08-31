@@ -144,7 +144,6 @@ export function SliderConfigModal({
       brokerId ||
       fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topic));
 
   const effectiveStateBroker =
     (separateRead && stateBrokerId) || selectedBrokerId;
@@ -181,34 +180,31 @@ export function SliderConfigModal({
     commandBrokerId: selectedBrokerId,
   });
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [
-      ...brokerRules(brokerStatuses.length),
-      ...topicRules({ topic, subject: "A command topic" }),
-      ...rangeRules({ low: min, high: max, step }),
-      ...payloadRules({
-        value: payloadTemplate,
-        mode: "write",
-        subject: "the slider has",
-      }),
-      ...(separateRead
-        ? [
-            ...topicRules({
-              field: "stateTopic",
-              topic: stateTopic,
-              allowWildcards: true,
-              subject: "A state topic",
-            }),
-            ...payloadRules({
-              field: "readShape",
-              value: readTemplate,
-              mode: "read",
-            }),
-          ]
-        : []),
-    ],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic, subject: "A command topic" }),
+    ...rangeRules({ low: min, high: max, step }),
+    ...payloadRules({
+      value: payloadTemplate,
+      mode: "write",
+      subject: "the slider has",
+    }),
+    ...(separateRead
+      ? [
+          ...topicRules({
+            field: "stateTopic",
+            topic: stateTopic,
+            allowWildcards: true,
+            subject: "A state topic",
+          }),
+          ...payloadRules({
+            field: "readShape",
+            value: readTemplate,
+            mode: "read",
+          }),
+        ]
+      : []),
+  ]);
 
   const rangeUsable = !fieldErrors.range && maxNum > minNum && stepNum > 0;
 
@@ -249,7 +245,6 @@ export function SliderConfigModal({
           topic={topic}
           onTopicChange={(next) => {
             setTopic(next);
-            setTouched(true);
           }}
           topicPlaceholder="home/light/brightness/set"
           topicError={fieldErrors.topic}
@@ -282,7 +277,6 @@ export function SliderConfigModal({
                 invalid: Boolean(fieldErrors.range),
                 onChange: (next) => {
                   setMin(next);
-                  setTouched(true);
                 },
               },
               {
@@ -292,7 +286,6 @@ export function SliderConfigModal({
                 invalid: Boolean(fieldErrors.range),
                 onChange: (next) => {
                   setMax(next);
-                  setTouched(true);
                 },
               },
               {
@@ -302,7 +295,6 @@ export function SliderConfigModal({
                 invalid: Boolean(fieldErrors.range),
                 onChange: (next) => {
                   setStep(next);
-                  setTouched(true);
                 },
               },
             ]}
@@ -325,7 +317,6 @@ export function SliderConfigModal({
             value={payloadTemplate}
             onChange={(next) => {
               setPayloadTemplate(next);
-              setTouched(true);
             }}
             brokerId={selectedBrokerId}
             topic={topic}
@@ -355,7 +346,6 @@ export function SliderConfigModal({
           on={separateRead}
           onToggle={(next) => {
             setSeparateRead(next);
-            setTouched(true);
           }}
           title="A different topic reports the value"
           offExplanation="The device reports on the command topic, in the same shape the panel publishes."
@@ -370,7 +360,6 @@ export function SliderConfigModal({
             topic={stateTopic}
             onTopicChange={(next) => {
               setStateTopic(next);
-              setTouched(true);
             }}
             topicPlaceholder="home/light/brightness"
             topicError={fieldErrors.stateTopic}
@@ -401,7 +390,6 @@ export function SliderConfigModal({
               value={readTemplate}
               onChange={(next) => {
                 setReadTemplate(next);
-                setTouched(true);
               }}
               brokerId={effectiveStateBroker}
               topic={stateTopic}

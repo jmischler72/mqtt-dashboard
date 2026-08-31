@@ -499,6 +499,14 @@ export const separatorPanelDefinition: PanelDefinition<SeparatorConfig> = {
     }
     return { minW: 1, minH: 1, maxW: 1 };
   },
+  // Orientation moves the bar to the other axis. The span it had on the axis it
+  // just left says nothing about the one it lands on, so it collapses to the
+  // smallest legal size and the user drags it to the length they want.
+  adjustSizeForConfig: (config, { w, h }) => {
+    const orient = config?.orientation ?? "horizontal";
+    const fits = orient === "horizontal" ? h <= 1 : w <= 1;
+    return fits ? null : { w: 1, h: 1 };
+  },
   preview: (
     <div className="flex items-center justify-center h-full px-2">
       <div className="w-full h-0.5 bg-base-content/40 rounded-full" />

@@ -82,7 +82,6 @@ export function CronConfigModal({
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topic));
 
   const isCustom = preset === "custom";
   const cronExpr = isCustom ? customExpr : preset;
@@ -92,27 +91,24 @@ export function CronConfigModal({
   const presetLabel =
     PRESETS.find((p) => p.value === preset)?.label ?? "Custom";
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [
-      ...brokerRules(brokerStatuses.length),
-      {
-        field: "schedule",
-        when: Boolean(cronError),
-        message: cronError ?? "",
-      },
-      ...topicRules({ topic }),
-      // The schedule supplies the moment, not a value, so the message is fixed
-      // bytes and a chip would publish an empty hole.
-      ...payloadRules({
-        value: payload,
-        mode: "write",
-        acceptsChip: false,
-        allowEmpty: true,
-        subject: "a schedule has",
-      }),
-    ],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    {
+      field: "schedule",
+      when: Boolean(cronError),
+      message: cronError ?? "",
+    },
+    ...topicRules({ topic }),
+    // The schedule supplies the moment, not a value, so the message is fixed
+    // bytes and a chip would publish an empty hole.
+    ...payloadRules({
+      value: payload,
+      mode: "write",
+      acceptsChip: false,
+      allowEmpty: true,
+      subject: "a schedule has",
+    }),
+  ]);
 
   const topicCount = topic.split(",").filter((t) => t.trim()).length;
 
@@ -145,7 +141,6 @@ export function CronConfigModal({
               value={preset}
               onChange={(e) => {
                 setPreset(e.target.value);
-                setTouched(true);
               }}
             >
               {PRESETS.map((p) => (
@@ -172,7 +167,6 @@ export function CronConfigModal({
                 value={customExpr}
                 onChange={(e) => {
                   setCustomExpr(e.target.value);
-                  setTouched(true);
                 }}
               />
             </FieldRow>
@@ -195,7 +189,6 @@ export function CronConfigModal({
           topic={topic}
           onTopicChange={(next) => {
             setTopic(next);
-            setTouched(true);
           }}
           topicPlaceholder="devices/hub/cmd"
           topicError={fieldErrors.topic}

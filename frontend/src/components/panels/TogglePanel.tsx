@@ -133,7 +133,6 @@ export function ToggleConfigModal({
       brokerId ||
       fallbackBroker,
   );
-  const [touched, setTouched] = useState(Boolean(config.topic));
 
   const effectiveStateBroker =
     (separateRead && stateBrokerId) || selectedBrokerId;
@@ -158,53 +157,55 @@ export function ToggleConfigModal({
     commandBrokerId: selectedBrokerId,
   });
 
-  const { fieldErrors, blockerReason } = useConfigValidation(
-    [
-      ...brokerRules(brokerStatuses.length),
-      ...topicRules({ topic, subject: "A command topic" }),
-      ...payloadRules({
-        field: "payload",
-        value: payloadTemplate,
-        mode: "write",
-        subject: "the toggle has",
-      }),
-      {
-        field: "onPayload",
-        when: onPayload.trim() === "",
-        message: "The On value is empty — there would be nothing to publish.",
-      },
-      {
-        field: "offPayload",
-        when: offPayload.trim() === "",
-        message: "The Off value is empty — there would be nothing to publish.",
-      },
-      {
-        field: "onPayload",
-        when: onPayload.trim() !== "" && onPayload.trim() === offPayload.trim(),
-        message: "On and Off publish the same bytes, so the toggle can't flip.",
-      },
-      ...(separateRead
-        ? [
-            ...topicRules({
-              field: "stateTopic",
-              topic: stateTopic,
-              allowWildcards: true,
-              subject: "A state topic",
-            }),
-            // Blank is a real answer here: a device echoing `ON` on its own
-            // state topic puts the value in the whole payload, and
-            // `extractPayloadValue` reads it that way.
-            ...payloadRules({
-              field: "readShape",
-              value: readTemplate,
-              mode: "read",
-              allowEmpty: true,
-            }),
-          ]
-        : []),
-    ],
-    { touched },
-  );
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic, subject: "A command topic" }),
+    ...payloadRules({
+      field: "payload",
+      value: payloadTemplate,
+      mode: "write",
+      subject: "the toggle has",
+    }),
+    {
+      field: "onPayload",
+      when: onPayload.trim() === "",
+      message: "The On value is empty — there would be nothing to publish.",
+    },
+    {
+      field: "offPayload",
+      when: offPayload.trim() === "",
+      message: "The Off value is empty — there would be nothing to publish.",
+    },
+    {
+      field: "onPayload",
+      when: onPayload.trim() !== "" && onPayload.trim() === offPayload.trim(),
+      message: "On and Off publish the same bytes, so the toggle can't flip.",
+    },
+    ...(separateRead
+      ? [
+          ...topicRules({
+            field: "stateTopic",
+            topic: stateTopic,
+            allowWildcards: true,
+            subject: "A state topic",
+          }),
+          // Blank is a real answer here: a device echoing `ON` on its own
+          // state topic puts the value in the whole payload, and
+          // `extractPayloadValue` reads it that way.
+          ...payloadRules({
+            field: "readShape",
+            value: readTemplate,
+            mode: "read",
+            allowEmpty: true,
+          }),
+        ]
+      : []),
+  ]);
+
+  // Rendered once here so the collapsed row can tell "nothing configured yet"
+  // from a payload that happens to be short.
+  const summaryOn = renderPayload(payloadTemplate, onPayload).trim();
+  const summaryOff = renderPayload(payloadTemplate, offPayload).trim();
 
   return (
     <PanelConfigModal
@@ -241,7 +242,6 @@ export function ToggleConfigModal({
           topic={topic}
           onTopicChange={(next) => {
             setTopic(next);
-            setTouched(true);
           }}
           topicPlaceholder="home/light/set"
           topicError={fieldErrors.topic}
@@ -262,12 +262,11 @@ export function ToggleConfigModal({
           title="Message"
           // Both states, because the difference between them is the point
           summary={
-            <span className="font-mono">
-              {`${renderPayload(payloadTemplate, onPayload)}  /  ${renderPayload(
-                payloadTemplate,
-                offPayload,
-              )}`}
-            </span>
+            summaryOn === "" && summaryOff === "" ? (
+              <span className="text-base-content/50">not configured</span>
+            ) : (
+              <span className="font-mono">{`${summaryOn}  /  ${summaryOff}`}</span>
+            )
           }
           defaultOpen={payloadTemplate.trim() === ""}
           invalid={Boolean(
@@ -281,7 +280,6 @@ export function ToggleConfigModal({
             value={payloadTemplate}
             onChange={(next) => {
               setPayloadTemplate(next);
-              setTouched(true);
             }}
             history={{
               messages: commandHistory.recent,
@@ -305,7 +303,6 @@ export function ToggleConfigModal({
               value={onPayload}
               onChange={(next) => {
                 setOnPayload(next);
-                setTouched(true);
               }}
               placeholder={DEFAULT_ON_PAYLOAD}
               template={payloadTemplate}
@@ -317,7 +314,6 @@ export function ToggleConfigModal({
               value={offPayload}
               onChange={(next) => {
                 setOffPayload(next);
-                setTouched(true);
               }}
               placeholder={DEFAULT_OFF_PAYLOAD}
               template={payloadTemplate}
@@ -339,7 +335,6 @@ export function ToggleConfigModal({
           on={separateRead}
           onToggle={(next) => {
             setSeparateRead(next);
-            setTouched(true);
           }}
           title="A different topic reports the state"
           offExplanation="The device reports on the command topic, in the same shape the panel publishes."
@@ -354,7 +349,6 @@ export function ToggleConfigModal({
             topic={stateTopic}
             onTopicChange={(next) => {
               setStateTopic(next);
-              setTouched(true);
             }}
             topicPlaceholder="home/light/state"
             topicError={fieldErrors.stateTopic}
@@ -385,7 +379,6 @@ export function ToggleConfigModal({
               value={readTemplate}
               onChange={(next) => {
                 setReadTemplate(next);
-                setTouched(true);
               }}
               brokerId={effectiveStateBroker}
               topic={stateTopic}
