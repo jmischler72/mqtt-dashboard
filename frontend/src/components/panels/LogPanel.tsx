@@ -221,10 +221,7 @@ function LinePreview({
   );
 }
 
-/**
- * What the panel prints for a message: the marked part of the payload, or the
- * whole payload when nothing is marked.
- */
+/** The stamp at the head of a line, in the format the panel is configured for. */
 function formatTimestamp(date: Date, format: LogDateFormat) {
   const pad2 = (n: number) => String(n).padStart(2, "0");
   if (format === "full") {

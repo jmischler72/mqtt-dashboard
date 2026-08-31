@@ -135,7 +135,7 @@ export default function PayloadBuilder({
 
   const useMessage = (payload: string, index: number) => {
     onChange(markFirstNumber(payload, acceptsChip));
-    setCovered(acceptsChip ? (firstNumber(payload) ?? "") : "");
+    setCovered(acceptsChip ? (firstNumber(payload)?.text ?? "") : "");
     setUsedIndex(index);
     setPosition(null);
   };
@@ -211,7 +211,13 @@ export default function PayloadBuilder({
         <ValueChipControls
           mode={mode}
           value={value}
-          onChange={onChange}
+          onChange={(next) => {
+            // A chip action that changes nothing repaints nothing, so the caret
+            // it asked for would sit in the ref and fire on some later,
+            // unrelated repaint.
+            if (next === value) pendingCaret.current = null;
+            onChange(next);
+          }}
           getSelection={() =>
             box.current ? readSelectionOffsets(box.current) : null
           }
@@ -436,12 +442,44 @@ function PreviewLine({ label, bytes }: { label: string; bytes: string }) {
   );
 }
 
-/** The first plain number in a payload — what picking a message turns into the chip. */
-function firstNumber(payload: string): string | null {
-  return payload.match(/-?\d+(?:\.\d+)?/)?.[0] ?? null;
+/**
+ * The first plain number in a payload — what picking a message turns into the
+ * chip — reported with where it sits, so the mark lands on the digits that were
+ * found rather than on the first place those characters happen to occur.
+ *
+ * Digits inside a quoted key (`{"relay2":21.5}`) name the field; they are not
+ * the value the panel reads, so they are stepped over and the chip lands on
+ * 21.5. Numbered keys are ordinary in MQTT, and a shape built on one reads a
+ * number that has nothing to do with the reading.
+ */
+function firstNumber(payload: string): { text: string; start: number } | null {
+  const keys: Array<[number, number]> = [];
+  const strings = /"(?:[^"\\]|\\.)*"/g;
+  let quoted: RegExpExecArray | null;
+  while ((quoted = strings.exec(payload)) !== null) {
+    const end = quoted.index + quoted[0].length;
+    if (/^\s*:/.test(payload.slice(end))) keys.push([quoted.index, end]);
+  }
+
+  const numbers = /-?\d+(?:\.\d+)?/g;
+  let match: RegExpExecArray | null;
+  while ((match = numbers.exec(payload)) !== null) {
+    const inKey = keys.some(
+      ([from, to]) => match!.index >= from && match!.index < to,
+    );
+    if (!inKey) return { text: match[0], start: match.index };
+  }
+
+  return null;
 }
 
 function markFirstNumber(payload: string, mark: boolean): string {
   const found = mark ? firstNumber(payload) : null;
-  return found === null ? payload : payload.replace(found, VALUE_TOKEN);
+  if (found === null) return payload;
+
+  return (
+    payload.slice(0, found.start) +
+    VALUE_TOKEN +
+    payload.slice(found.start + found.text.length)
+  );
 }

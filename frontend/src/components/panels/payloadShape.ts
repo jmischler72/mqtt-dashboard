@@ -571,6 +571,9 @@ export interface TemplateLiteral {
   end: number;
 }
 
+/** Punctuation that means the payload is a document, not a lone value. */
+const STRUCTURED = /[{}[\]:,]/;
+
 /**
  * Value literals in the template, each of which the user can move the token
  * onto with one tap. Numbers and quoted strings anywhere in the bytes count —
@@ -581,7 +584,7 @@ export interface TemplateLiteral {
  */
 export function findLiterals(template: string): TemplateLiteral[] {
   const out: TemplateLiteral[] = [];
-  const re = /"[^"]*"|-?\d+(?:\.\d+)?/g;
+  const re = /"[^"]*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
   const seen = new Set<string>();
 
   let match: RegExpExecArray | null;
@@ -598,8 +601,16 @@ export function findLiterals(template: string): TemplateLiteral[] {
 
   // A payload that is a single bare word — `ON`, `RESET` — has no literal the
   // pattern above can see, but it is exactly the thing a user wants to mark.
+  // Only when the whole payload is that word, though: offering a structured
+  // message as one literal would collapse the document the user is marking
+  // down to a bare chip.
   const trimmed = template.trim();
-  if (out.length === 0 && trimmed !== "" && !hasToken(template)) {
+  if (
+    out.length === 0 &&
+    trimmed !== "" &&
+    !hasToken(template) &&
+    !STRUCTURED.test(trimmed)
+  ) {
     const start = template.indexOf(trimmed);
     out.push({ text: trimmed, start, end: start + trimmed.length });
   }

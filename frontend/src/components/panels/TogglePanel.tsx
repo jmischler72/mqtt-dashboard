@@ -21,7 +21,13 @@ import {
   topicRules,
   useConfigValidation,
 } from "./config";
-import { VALUE_TOKEN, migrateTemplate, renderPayload } from "./payloadShape";
+import {
+  VALUE_TOKEN,
+  effectiveReadPath,
+  effectiveReadTemplate,
+  migrateTemplate,
+  renderPayload,
+} from "./payloadShape";
 import {
   parseToggleState,
   toggleWritePayloads,
@@ -514,10 +520,11 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   const { on: writeOn, off: writeOff } = toggleWritePayloads(config);
   const onPayload = config.onPayload ?? DEFAULT_ON_PAYLOAD;
   const offPayload = config.offPayload ?? DEFAULT_OFF_PAYLOAD;
-  const readTemplate = separateRead
-    ? migrateTemplate(config.readTemplate ?? "")
-    : "";
-  const valueKey = config.valueKey;
+  // Without a read topic of its own the toggle still reads through the write
+  // shape, the way every other panel does: a device that echoes the command
+  // topic with a timestamp beside the value is a shape, not an unknown state.
+  const readTemplate = effectiveReadTemplate({ ...config, separateRead }) ?? "";
+  const valueKey = effectiveReadPath({ ...config, separateRead });
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
   const hasWildcard = commandTopic.includes("+") || commandTopic.includes("#");
