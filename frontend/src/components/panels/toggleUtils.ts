@@ -1,5 +1,6 @@
 import { parseGaugePayload } from "./gaugeUtils";
 import {
+  deriveReadPath,
   hasToken,
   matchTemplate,
   migrateTemplate,
@@ -15,6 +16,8 @@ export interface ToggleShape {
   offPayload?: string;
   /** Read shape, with `{value}` marking the value to compare. */
   readTemplate?: string;
+  /** Write shape, needed to recognise a panel's own bytes echoed back. */
+  payloadTemplate?: string;
   /** Legacy dot path, honoured when no shape marks the value. */
   valueKey?: string;
 }
@@ -63,7 +66,12 @@ export function extractPayloadValue(
     if (marked !== null) return marked.trim();
   }
 
-  const path = shape.valueKey?.trim();
+  // Mirrors `readValue`: a stencil that did not line up still names the field
+  // it was describing, so the path it implies is tried before the stored key.
+  // Without this the panel and the modal's preview read the same message
+  // differently — the preview has always had this fallback.
+  const path =
+    (template ? deriveReadPath(template) : null) ?? shape.valueKey?.trim();
   if (path) {
     // Deliberately not the typed extractor: the value is compared as text
     // against the configured payloads, so "ON" must stay "ON" rather than
@@ -84,12 +92,33 @@ export function extractPayloadValue(
 }
 
 /**
+ * What an incoming value can equal for one state.
+ *
+ * Two things count, because a toggle is read in two situations. A panel with no
+ * read shape of its own sees the bytes it published come back, so the rendered
+ * message is the reference; a panel that reads a different shape gets the chip's
+ * contents, which is the configured value itself. Legacy configs stored the
+ * whole message in `onPayload`, so that is read through the shape as well.
+ *
+ * All three describe the same state, so testing them together cannot cross the
+ * two states' wires.
+ */
+function stateReferences(shape: ToggleShape, which: "on" | "off"): string[] {
+  const configured =
+    which === "on"
+      ? (shape.onPayload ?? DEFAULT_ON_PAYLOAD)
+      : (shape.offPayload ?? DEFAULT_OFF_PAYLOAD);
+  const written = toggleWritePayloads(shape)[which];
+
+  return [configured, extractPayloadValue(configured, shape), written]
+    .map((ref) => ref.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
  * Resolve an MQTT payload into a toggle position.
  *
- * The incoming value is compared against the same part of the configured on and
- * off payloads — read through the same shape — so a device reporting
- * `{"state":"ON","rssi":-60}` still matches an on payload of `{"state":"ON"}`.
- * Returns null when the payload maps to neither, so the panel can show
+ * Returns null when the payload maps to neither state, so the panel can show
  * "unknown" rather than guessing.
  */
 export function parseToggleState(
@@ -99,18 +128,12 @@ export function parseToggleState(
   const value = extractPayloadValue(payload, shape);
   if (value === "") return null;
 
-  const onRef = extractPayloadValue(
-    shape.onPayload ?? DEFAULT_ON_PAYLOAD,
-    shape,
-  );
-  const offRef = extractPayloadValue(
-    shape.offPayload ?? DEFAULT_OFF_PAYLOAD,
-    shape,
-  );
   const lower = value.toLowerCase();
+  const onRefs = stateReferences(shape, "on");
+  const offRefs = stateReferences(shape, "off");
 
-  if (onRef && lower === onRef.toLowerCase()) return true;
-  if (offRef && lower === offRef.toLowerCase()) return false;
+  if (onRefs.includes(lower)) return true;
+  if (offRefs.includes(lower)) return false;
 
   // Fall back to the shared truthiness table (true/on/yes/online, numbers, ...)
   const parsed = parseGaugePayload(value);

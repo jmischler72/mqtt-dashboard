@@ -38,6 +38,16 @@ describe("extractPayloadValue", () => {
       "",
     );
   });
+
+  it("reads by the path the shape implies when the stencil does not line up", () => {
+    // Same message, different key order: the modal's preview has always read
+    // this, and the panel now reads it the same way.
+    expect(
+      extractPayloadValue('{"rssi":-60,"state":"ON"}', {
+        readTemplate: '{"state":"{value}"}',
+      }),
+    ).toBe("ON");
+  });
 });
 
 describe("parseToggleState", () => {
@@ -98,6 +108,36 @@ describe("parseToggleState", () => {
     expect(
       parseToggleState("whatever", { onPayload: "", offPayload: "" }),
     ).toBeNull();
+  });
+});
+
+describe("parseToggleState with a read shape of its own", () => {
+  const shape = {
+    payloadTemplate: '{"cmd":"{value}"}',
+    readTemplate: '{"state":"{value}"}',
+    onPayload: "open",
+    offPayload: "close",
+  };
+
+  it("compares the read value against the configured states", () => {
+    expect(parseToggleState('{"state":"open"}', shape)).toBe(true);
+    expect(parseToggleState('{"state":"close"}', shape)).toBe(false);
+  });
+
+  it("still recognises the bytes it published, for a device that echoes them", () => {
+    expect(
+      parseToggleState('{"cmd":"open"}', { ...shape, readTemplate: "" }),
+    ).toBe(true);
+  });
+
+  it("reads a legacy config that stored whole messages as its states", () => {
+    expect(
+      parseToggleState('{"state":"ON","rssi":-40}', {
+        readTemplate: '{"state":"{value}"}',
+        onPayload: '{"state":"ON"}',
+        offPayload: '{"state":"OFF"}',
+      }),
+    ).toBe(true);
   });
 });
 

@@ -508,7 +508,12 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   // The state topic may live on another broker entirely
   const stateBrokerId =
     (separateRead && config.stateBrokerId?.trim()) || brokerId;
-  const { on: onPayload, off: offPayload } = toggleWritePayloads(config);
+  // The bytes published for each state, and the values those bytes were built
+  // from — a read shape yields the value, an echo of the command topic yields
+  // the whole message, and `parseToggleState` is given both.
+  const { on: writeOn, off: writeOff } = toggleWritePayloads(config);
+  const onPayload = config.onPayload ?? DEFAULT_ON_PAYLOAD;
+  const offPayload = config.offPayload ?? DEFAULT_OFF_PAYLOAD;
   const readTemplate = separateRead
     ? migrateTemplate(config.readTemplate ?? "")
     : "";
@@ -530,6 +535,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
     const next = parseToggleState(payload, {
       onPayload,
       offPayload,
+      payloadTemplate: config.payloadTemplate,
       readTemplate,
       valueKey,
     });
@@ -689,7 +695,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: desired ? onPayload : offPayload,
+        payload: desired ? writeOn : writeOff,
         qos,
         retain,
       });

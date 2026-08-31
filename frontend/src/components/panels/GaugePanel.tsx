@@ -21,7 +21,7 @@ import {
   topicRules,
   useConfigValidation,
 } from "./config";
-import { readShape } from "./payloadShape";
+import { VALUE_TOKEN, readShape, templateFromValueKey } from "./payloadShape";
 import { usePayloadSample } from "../../hooks/usePayloadSample";
 import { usePanelSize } from "../../hooks/usePanelSize";
 
@@ -165,7 +165,16 @@ export function GaugeConfigModal({
           {
             topic: topic.split(",")[0]?.trim() ?? "",
             readTemplate,
-            valueKey: undefined,
+            // A stored path the shape cannot draw — an array index — opens the
+            // modal as the bare chip, so saving would silently swap a working
+            // gauge onto the whole payload. It survives until the shape is
+            // given something of its own to say, and even then only applies
+            // when the shape reads nothing.
+            valueKey:
+              readTemplate.trim() === VALUE_TOKEN &&
+              !templateFromValueKey(config.valueKey)
+                ? config.valueKey
+                : undefined,
             unit,
             min: minNum,
             max: maxNum,

@@ -9,6 +9,7 @@ import {
   payloadIssue,
   placeToken,
   readShape,
+  resolvePath,
   readValue,
 } from "./payloadShape";
 import { parseSliderValue } from "./sliderUtils";
@@ -45,10 +46,11 @@ describe("payloadIssue", () => {
     expect(payloadIssue({ template: "RESET", acceptsToken: false })).toBeNull();
   });
 
-  it("flags a token on a panel with no value to put there", () => {
+  it("publishes the token's own text on a panel with no value to put there", () => {
+    // These panels send the box verbatim, so the characters are the payload.
     expect(
       payloadIssue({ template: VALUE_TOKEN, acceptsToken: false }),
-    ).toContain(TOKEN_LABEL);
+    ).toBeNull();
   });
 
   it("requires the read shape to mark where the value sits", () => {
@@ -154,6 +156,20 @@ describe("reading by stencil", () => {
     ).toBe("12:30:00");
   });
 
+  it("pins a token that leads the shape to the start of the message", () => {
+    // `{value} °C` has no head to anchor on. Free-floating it seizes the first
+    // string in any payload, so an unrelated message reads as a fit.
+    expect(
+      matchTemplate(`${VALUE_TOKEN} °C`, '{"error":"offline"}'),
+    ).toBeNull();
+    expect(readShape(`${VALUE_TOKEN} °C`, '{"error":"offline"}').found).toBe(
+      false,
+    );
+    // A message that really is the value still reads, unit or not
+    expect(matchTemplate(`${VALUE_TOKEN} °C`, "21.4 °C")).toBe("21.4");
+    expect(matchTemplate(`${VALUE_TOKEN} °C`, "21.4")).toBe("21.4");
+  });
+
   it("does not stencil a bare token, which anchors on nothing", () => {
     expect(matchTemplate(VALUE_TOKEN, "anything")).toBeNull();
     // It still reads as the whole message, via the path branch
@@ -235,5 +251,26 @@ describe("readShape", () => {
 
   it("still reports a shape that does not fit the message", () => {
     expect(readShape(`{"t":${VALUE_TOKEN}}`, '{"h":60}').found).toBe(false);
+  });
+});
+
+describe("resolvePath", () => {
+  it("takes a key containing a dot as one field before splitting it", () => {
+    // How a panel saved before paths existed stored its key
+    expect(resolvePath({ "sensor.temp": 21 }, "sensor.temp")).toEqual({
+      found: true,
+      value: 21,
+    });
+  });
+
+  it("still walks a real path", () => {
+    expect(resolvePath({ sensor: { temp: 21 } }, "sensor.temp")).toEqual({
+      found: true,
+      value: 21,
+    });
+    expect(resolvePath({ items: [{ t: 3 }] }, "items.0.t")).toEqual({
+      found: true,
+      value: 3,
+    });
   });
 });

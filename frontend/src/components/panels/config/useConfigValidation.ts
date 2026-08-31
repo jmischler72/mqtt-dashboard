@@ -1,4 +1,4 @@
-import { VALUE_TOKEN, hasToken } from "../payloadShape";
+import { hasToken } from "../payloadShape";
 
 export interface ConfigRule {
   /**
@@ -98,8 +98,10 @@ export interface PayloadRuleSpec {
   value: string;
   mode: "write" | "read";
   /**
-   * False for a panel with no runtime value (button, cron): the chip would
-   * publish an empty hole, so it is refused rather than required.
+   * False for a panel with no runtime value (button, cron): there is nothing
+   * for a chip to stand in for, so one is never asked for. Bytes that happen to
+   * contain the token's text are still fine — these panels publish the box
+   * verbatim, so `{value}` in it is characters the device asked for.
    */
   acceptsChip?: boolean;
   /**
@@ -146,11 +148,6 @@ export function payloadRules({
       when: acceptsChip && value.trim() !== "" && !chip,
       message:
         "Add the value chip to the message, or every publish sends the same bytes.",
-    },
-    {
-      field,
-      when: !acceptsChip && chip,
-      message: `Remove ${VALUE_TOKEN} from the message — ${subject} nothing to substitute.`,
     },
   ];
 }

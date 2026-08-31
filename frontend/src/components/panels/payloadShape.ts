@@ -42,6 +42,14 @@ export function resolvePath(
   root: unknown,
   path: string,
 ): { found: boolean; value: unknown } {
+  // A key that contains a dot is one field, not a path: panels saved before
+  // paths existed stored exactly that, so an exact hit on the whole string is
+  // taken before it is split up.
+  if (typeof root === "object" && root !== null && !Array.isArray(root)) {
+    const flat = root as Record<string, unknown>;
+    if (path in flat) return { found: true, value: flat[path] };
+  }
+
   const segments = path
     .split(".")
     .map((s) => s.trim())
@@ -355,8 +363,15 @@ export function matchTemplate(
   // describe — so anchor on the head alone and take the value sitting there.
   // The bare run is greedy here: with no tail to stop at, the value is however
   // far it runs before the next structural character.
+  //
+  // A shape whose token comes first (`{value} °C`) has no head to anchor on, so
+  // it is pinned to the start of the message instead. Free-floating, it would
+  // seize the first string or number anywhere in the payload and report that
+  // `{"error":"offline"}` fits a shape about degrees.
   const loose = text.match(
-    new RegExp(escapeRegExp(head) + `("[^"]*"|${NUMBER}|${BARE})`),
+    new RegExp(
+      (head ? "" : "^") + escapeRegExp(head) + `("[^"]*"|${NUMBER}|${BARE})`,
+    ),
   );
   return loose ? unquote(loose[1]) : null;
 }
@@ -503,10 +518,6 @@ export function payloadIssue({
     return template.trim()
       ? `Add the ${TOKEN_LABEL} chip to the message, or every publish sends the same bytes.`
       : "No message configured — this panel has nothing to publish.";
-  }
-
-  if (!acceptsToken && token) {
-    return `Remove ${VALUE_TOKEN} from the message — this panel has nothing to substitute.`;
   }
 
   // The bytes themselves are never judged: a payload that is not JSON, or is
