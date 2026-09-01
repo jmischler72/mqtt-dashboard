@@ -12,6 +12,8 @@ import {
   FieldRow,
   PanelConfigModal,
   PayloadBuilder,
+  PreviewBox,
+  PreviewLine,
   PublishOptionsCard,
   ReadBackSwitch,
   brokerPresence,
@@ -21,7 +23,12 @@ import {
   topicRules,
   useConfigValidation,
 } from "./config";
-import { VALUE_TOKEN, effectiveReadTemplate } from "./payloadShape";
+import {
+  TOKEN_LABEL,
+  VALUE_TOKEN,
+  effectiveReadTemplate,
+  hasToken,
+} from "./payloadShape";
 import {
   parseToggleState,
   toggleWritePayload,
@@ -203,6 +210,14 @@ export function ToggleConfigModal({
   // its own, and a preview saying otherwise would describe a panel that does not
   // exist. Rendered once here so the collapsed row can also tell "nothing
   // configured yet" from a payload that happens to be short.
+  // A message with nowhere to put the value is not a message this panel can
+  // send — the same thing the slider's collapsed row says by going blank, and
+  // what Save is refusing while the box is in that state. Showing the bare
+  // states instead would read as configured.
+  const configured =
+    hasToken(payloadTemplate) &&
+    onPayload.trim() !== "" &&
+    offPayload.trim() !== "";
   const summaryOn = toggleWritePayload(onPayload, payloadTemplate).trim();
   const summaryOff = toggleWritePayload(offPayload, payloadTemplate).trim();
 
@@ -266,13 +281,13 @@ export function ToggleConfigModal({
           title="Message"
           // Both states, because the difference between them is the point
           summary={
-            summaryOn === "" && summaryOff === "" ? (
-              <span className="text-base-content/50">not configured</span>
-            ) : (
+            configured ? (
               <span className="font-mono">{`${summaryOn}  /  ${summaryOff}`}</span>
+            ) : (
+              <span className="text-base-content/50">not configured</span>
             )
           }
-          defaultOpen={payloadTemplate.trim() === ""}
+          defaultOpen={!configured}
           invalid={Boolean(
             fieldErrors.payload ||
             fieldErrors.onPayload ||
@@ -309,7 +324,6 @@ export function ToggleConfigModal({
                 setOnPayload(next);
               }}
               placeholder={DEFAULT_ON_PAYLOAD}
-              template={payloadTemplate}
             />
 
             <StateValue
@@ -320,8 +334,23 @@ export function ToggleConfigModal({
                 setOffPayload(next);
               }}
               placeholder={DEFAULT_OFF_PAYLOAD}
-              template={payloadTemplate}
             />
+
+            {/* One preview for the pair, not a line under each field: what
+                matters is the two side by side, and it is the same box the
+                other panels show their bytes in. */}
+            <PreviewBox
+              problem={
+                payloadTemplate.trim() === ""
+                  ? "Nothing to send yet."
+                  : hasToken(payloadTemplate)
+                    ? null
+                    : `No ${TOKEN_LABEL} chip in the message.`
+              }
+            >
+              <PreviewLine label="On" bytes={summaryOn} />
+              <PreviewLine label="Off" bytes={summaryOff} />
+            </PreviewBox>
           </div>
         </DisclosureCard>
 
@@ -387,7 +416,7 @@ export function ToggleConfigModal({
               brokerId={effectiveStateBroker}
               topic={stateTopic}
               allowBlankShape
-              placeholder={`whole payload, or e.g. {"state":${DEFAULT_ON_PAYLOAD}}`}
+              placeholder={`whole payload, or {"state":"${VALUE_TOKEN}"}`}
             />
             {fieldErrors.readShape && (
               <span className="text-[11px] text-warning">
@@ -413,14 +442,12 @@ function StateValue({
   value,
   onChange,
   placeholder,
-  template,
 }: {
   caption: string;
   error?: string;
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
-  template: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
@@ -436,14 +463,6 @@ function StateValue({
           placeholder={placeholder}
         />
       </FieldRow>
-      <div className="flex items-baseline gap-2 min-w-0 pl-[54px]">
-        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.09em] text-base-content/50">
-          Sends
-        </span>
-        <span className="flex-1 min-w-0 font-mono text-[11px] break-all text-base-content/70">
-          {toggleWritePayload(value, template)}
-        </span>
-      </div>
     </div>
   );
 }

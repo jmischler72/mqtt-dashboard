@@ -10,10 +10,12 @@ import {
   ChoiceCards,
   ConfigCard,
   ConfigGroup,
+  DisclosureCard,
   FieldRow,
   NumberRangeRow,
   PanelConfigModal,
   PayloadBuilder,
+  PayloadSummary,
   brokerPresence,
   brokerRules,
   defaultBrokerId,
@@ -232,9 +234,12 @@ export function GaugeConfigModal({
           }
         />
 
-        <ConfigCard
+        <DisclosureCard
           title="Value"
-          summary="the chip marks the value to pull out"
+          // The shape itself, not a sentence about it: the chip in the row is
+          // what the panel reads, and a blank one reads the whole payload.
+          summary={<PayloadSummary value={readTemplate} empty="whole payload" />}
+          defaultOpen={Boolean(fieldErrors.readShape)}
           invalid={Boolean(fieldErrors.readShape)}
         >
           <PayloadBuilder
@@ -249,14 +254,14 @@ export function GaugeConfigModal({
             allowBlankShape
             readPath={legacyPath}
             unit={unit}
-            placeholder="whole payload"
+            placeholder={`whole payload, or {"temp":${VALUE_TOKEN}}`}
           />
           {fieldErrors.readShape && (
             <span className="text-[11px] text-warning">
               {fieldErrors.readShape}
             </span>
           )}
-        </ConfigCard>
+        </DisclosureCard>
       </ConfigGroup>
 
       <ConfigGroup heading="Appearance">

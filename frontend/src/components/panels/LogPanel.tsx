@@ -216,7 +216,7 @@ function LinePreview({
   return (
     <div className="w-full px-1 font-mono text-[9px] leading-relaxed text-left truncate">
       <span className="opacity-60">[{stamp}]</span>{" "}
-      <span className="text-accent">attic/temp</span>
+      <span className="text-accent">my-topic</span>
       {showQos && <span className="opacity-60"> Q0</span>}
       {showRetained && <span className="text-warning"> R</span>} 21.4
     </div>

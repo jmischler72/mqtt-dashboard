@@ -68,24 +68,17 @@ export default function ValueChipControls({
     onChange(placed.template);
   };
 
-  const hint = present
-    ? "Put the caret where the chip should go instead, then move it. Everything around it is ordinary text."
-    : mode === "read"
-      ? "Drop the value chip on the part of the message the panel should read — select text to replace it, or tap one of the values below."
-      : "Drop the value chip where the panel's value goes — select text to replace it, or tap one of the values below.";
-
   return (
     <div className="flex flex-col gap-[7px] min-w-0">
-      <span className="text-[11px] leading-relaxed text-base-content/70">
-        {hint}
-      </span>
       <div className="flex flex-wrap gap-1.5">
         <button
           type="button"
           title={
             present
-              ? "Move the value chip to the caret"
-              : "Drop the value chip at the caret"
+              ? "Move the mark to the caret, or onto the selected text"
+              : mode === "read"
+                ? "Mark the part of the message the panel reads: click where it sits, or select it first"
+                : "Mark where the panel's value goes: click the spot, or select the text it replaces"
           }
           // mousedown, not click: the default would move focus out of the box
           // and take the selection being aimed at with it.
@@ -101,7 +94,7 @@ export default function ValueChipControls({
         {present && (
           <button
             type="button"
-            title="Remove the value chip"
+            title="Remove the mark"
             onClick={() => {
               onChange(clearToken(value, covered));
               onCoveredChange("");
@@ -116,7 +109,7 @@ export default function ValueChipControls({
           <button
             key={`${literal.start}-${literal.text}`}
             type="button"
-            title={`Make ${literal.text} the value chip`}
+            title={`Mark ${literal.text}`}
             onClick={() => {
               const result = markLiteral(value, literal, covered);
               onCoveredChange(result.previous);

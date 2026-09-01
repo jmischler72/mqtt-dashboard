@@ -118,7 +118,7 @@ export default function PayloadBuilder({
   range,
   previewValue,
   unit,
-  note = "Published exactly as written. Empty sends an empty message.",
+  note = "Sent exactly as written.",
 }: PayloadBuilderProps) {
   const [covered, setCovered] = useState("");
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
@@ -177,11 +177,6 @@ export default function PayloadBuilder({
             { key: "use", label: "use this message", onUse: useMessage },
           ]}
           usedKey={usedIndex === null ? null : `${usedIndex}:use`}
-          footnote={
-            acceptsChip
-              ? "Click a message to fill the box below, and turn the number it finds into the value chip."
-              : "Click a message to fill the box below. You can edit it afterwards."
-          }
         />
       )}
 
@@ -344,7 +339,7 @@ function WritePreview({
         problem={
           value.trim() === ""
             ? "Nothing to send yet."
-            : `No ${TOKEN_LABEL} chip yet, so every publish would send these same bytes.`
+            : `No ${TOKEN_LABEL} chip — every publish sends these exact bytes.`
         }
       />
     );
@@ -421,7 +416,7 @@ function ReadPreview({
   if (blank && !allowBlankShape) {
     return (
       <PreviewBox
-        problem={`Nothing marked yet, so there's no value to read out. Add the ${TOKEN_LABEL} chip above.`}
+        problem="Nothing marked to read."
       />
     );
   }
@@ -429,7 +424,7 @@ function ReadPreview({
   if (!blank && !chip) {
     return (
       <PreviewBox
-        problem={`Nothing marked yet, so there's no value to read out. Add the ${TOKEN_LABEL} chip above.`}
+        problem="Nothing marked to read."
       />
     );
   }
@@ -465,7 +460,14 @@ function ReadPreview({
   );
 }
 
-function PreviewLine({ label, bytes }: { label: string; bytes: string }) {
+/** One labelled row of bytes inside a `PreviewBox`. */
+export function PreviewLine({
+  label,
+  bytes,
+}: {
+  label: string;
+  bytes: string;
+}) {
   return (
     <div className="flex items-start gap-2 min-w-0">
       <span className="shrink-0 w-[46px] pt-0.5 text-[9px] font-semibold uppercase tracking-[0.09em] text-base-content/50">

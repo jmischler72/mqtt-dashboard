@@ -17,8 +17,6 @@ export interface MessageHistoryProps {
   actions: HistoryAction[];
   /** `${index}:${action.key}` of the row last taken, or null. */
   usedKey?: string | null;
-  /** One line under the list saying what taking a message does. */
-  footnote: string;
 }
 
 const rowClass =
@@ -36,7 +34,6 @@ export default function MessageHistory({
   loading,
   actions,
   usedKey,
-  footnote,
 }: MessageHistoryProps) {
   // Closed until asked for: it is a shortcut past typing the bytes, not the
   // first thing to read, and an open list pushes the box itself off the card.
@@ -138,9 +135,6 @@ export default function MessageHistory({
               </div>
             );
           })}
-          <div className="px-2.5 pt-1.5 pb-2 border-t border-base-300 dark:border-base-100 text-[11px] text-base-content/60">
-            {footnote}
-          </div>
         </div>
       )}
     </div>
