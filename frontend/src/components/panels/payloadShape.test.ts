@@ -10,6 +10,7 @@ import {
   findLiterals,
   keepOneToken,
   matchTemplate,
+  offsetAfterKeepOneToken,
   payloadIssue,
   placeToken,
   readShape,
@@ -255,6 +256,58 @@ describe("readShape", () => {
 
   it("still reports a shape that does not fit the message", () => {
     expect(readShape(`{"t":${VALUE_TOKEN}}`, '{"h":60}').found).toBe(false);
+  });
+
+  it("reads a bare chip through the stored path the panel still uses", () => {
+    // A gauge saved with an array index opens on the bare chip, because no
+    // object literal can draw `items.0.temp`. The panel goes on reading that
+    // path, so the preview has to as well or the two describe different panels.
+    expect(
+      readShape(VALUE_TOKEN, '{"items":[{"temp":21.5}]}', "items.0.temp"),
+    ).toMatchObject({ value: 21.5, found: true });
+  });
+
+  it("falls back to the stored path when the shape marks nothing", () => {
+    expect(readShape("", '{"t":21.4}', "t")).toMatchObject({
+      value: 21.4,
+      found: true,
+    });
+  });
+
+  it("ignores a stored path that names nothing in this message", () => {
+    // Still the whole payload, still a fit: a blank shape says exactly that.
+    expect(readShape(VALUE_TOKEN, '{"h":60}', "t")).toMatchObject({
+      value: '{"h":60}',
+      found: true,
+    });
+  });
+});
+
+describe("offsetAfterKeepOneToken", () => {
+  it("moves the caret back past a duplicate that was before it", () => {
+    const template = `{"a":${VALUE_TOKEN},"b":${VALUE_TOKEN}}`;
+    // Caret just past the second spelling, which is the one that gets dropped
+    const at = template.lastIndexOf(VALUE_TOKEN) + VALUE_TOKEN.length;
+    expect(offsetAfterKeepOneToken(template, at)).toBe(at - VALUE_TOKEN.length);
+  });
+
+  it("leaves the caret alone when the dropped mark is after it", () => {
+    // The first mark survives, so a chip typed ahead of an existing one keeps
+    // its place and the older one behind the caret is what goes.
+    const template = `{"a":${VALUE_TOKEN},"b":${VALUE_TOKEN}}`;
+    const at = template.indexOf(VALUE_TOKEN) + VALUE_TOKEN.length;
+    expect(offsetAfterKeepOneToken(template, at)).toBe(at);
+  });
+
+  it("collapses a caret inside a dropped mark onto where it began", () => {
+    const template = `${VALUE_TOKEN}x${VALUE_TOKEN}`;
+    const second = template.lastIndexOf(VALUE_TOKEN);
+    expect(offsetAfterKeepOneToken(template, second + 3)).toBe(second);
+  });
+
+  it("leaves a template with one mark, or none, untouched", () => {
+    expect(offsetAfterKeepOneToken(`{"a":${VALUE_TOKEN}}`, 9)).toBe(9);
+    expect(offsetAfterKeepOneToken("RESET", 3)).toBe(3);
   });
 });
 

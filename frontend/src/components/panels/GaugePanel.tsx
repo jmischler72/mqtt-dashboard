@@ -96,7 +96,18 @@ export function GaugeConfigModal({
 
   // Derived from the sample rather than mirrored into state, so changing the
   // shape or the topic can never leave a stale reading on screen.
-  const reading = latest ? readShape(readTemplate, latest) : null;
+  // The stored path this save would keep, and the one the panel still reads
+  // through: a path no shape can draw — an array index — opens the box as the
+  // bare chip, so it survives until the shape has something of its own to say.
+  // The preview is given the same one, or it would report the whole document as
+  // what the panel reads while the panel reads one field out of it.
+  const legacyPath =
+    readTemplate.trim() === VALUE_TOKEN &&
+    !templateFromValueKey(config.valueKey)
+      ? config.valueKey
+      : undefined;
+
+  const reading = latest ? readShape(readTemplate, latest, legacyPath) : null;
   const numeric = reading?.dataType === "number";
   // "Nothing published yet" and "the shape does not fit this message" are
   // different problems: neither is a reason to disable a style, but only a
@@ -175,16 +186,7 @@ export function GaugeConfigModal({
           {
             topic: topic.split(",")[0]?.trim() ?? "",
             readTemplate,
-            // A stored path the shape cannot draw — an array index — opens the
-            // modal as the bare chip, so saving would silently swap a working
-            // gauge onto the whole payload. It survives until the shape is
-            // given something of its own to say, and even then only applies
-            // when the shape reads nothing.
-            valueKey:
-              readTemplate.trim() === VALUE_TOKEN &&
-              !templateFromValueKey(config.valueKey)
-                ? config.valueKey
-                : undefined,
+            valueKey: legacyPath,
             unit,
             min: minNum,
             max: maxNum,
@@ -245,6 +247,7 @@ export function GaugeConfigModal({
             brokerId={selectedBrokerId}
             topic={topic}
             allowBlankShape
+            readPath={legacyPath}
             unit={unit}
             placeholder="whole payload"
           />

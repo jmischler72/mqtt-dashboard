@@ -71,8 +71,6 @@ export function CronConfigModal({
   }, [config.cron_expr]);
 
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  // Not run through `migrateTemplate`: a schedule publishes a literal, so a
-  // `\u25c6` in it is a character the device asked for, not an old chip.
   const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
   const [qos, setQos] = useState(config.qos ?? 0);

@@ -9,6 +9,7 @@ import {
   findLiterals,
   hasToken,
   keepOneToken,
+  offsetAfterKeepOneToken,
   readShape,
   renderPayload,
 } from "../payloadShape";
@@ -64,6 +65,12 @@ export interface PayloadBuilderProps {
   acceptsChip?: boolean;
   /** Read mode: an empty box means "the whole payload", not "unconfigured". */
   allowBlankShape?: boolean;
+  /**
+   * Read mode: the dot path stored before shapes existed, which the panel still
+   * reads through when the shape marks nothing of its own. Passed so the
+   * preview reads a message exactly the way the panel does.
+   */
+  readPath?: string;
   placeholder?: string;
   /** Write mode: the live preview sweeps this range. */
   range?: NumericRange | null;
@@ -106,6 +113,7 @@ export default function PayloadBuilder({
   showPreview = true,
   acceptsChip = true,
   allowBlankShape = false,
+  readPath,
   placeholder,
   range,
   previewValue,
@@ -201,13 +209,14 @@ export default function PayloadBuilder({
           } else {
             // A second chip was spelled out and has been dropped. The box still
             // shows it, so leave `painted` on what is there and let the repaint
-            // run; the caret sits just past what was written, which is what the
-            // removal took away.
+            // run; the caret moves back only past the removals that were
+            // actually before it — a chip typed *ahead* of an existing one wins,
+            // and it is the older one behind the caret that goes.
             painted.current = raw;
-            const at = readSelectionOffsets(host)?.start ?? next.length;
-            pendingCaret.current = Math.max(
-              0,
-              Math.min(next.length, at - (raw.length - next.length)),
+            const at = readSelectionOffsets(host)?.start ?? raw.length;
+            pendingCaret.current = Math.min(
+              next.length,
+              offsetAfterKeepOneToken(raw, at),
             );
           }
 
@@ -257,6 +266,7 @@ export default function PayloadBuilder({
           topic={topic}
           chip={chip}
           allowBlankShape={allowBlankShape}
+          readPath={readPath}
           unit={unit}
         />
       ) : (
@@ -381,6 +391,7 @@ function ReadPreview({
   topic,
   chip,
   allowBlankShape,
+  readPath,
   unit,
 }: {
   value: string;
@@ -388,6 +399,7 @@ function ReadPreview({
   topic: string;
   chip: boolean;
   allowBlankShape: boolean;
+  readPath?: string;
   unit?: string;
 }) {
   const blank = value.trim() === "";
@@ -423,7 +435,7 @@ function ReadPreview({
   }
 
   // Read it exactly the way the panel will, so the two can never disagree
-  const read = readShape(value, latest.payload);
+  const read = readShape(value, latest.payload, readPath);
 
   if (!read.found) {
     return (

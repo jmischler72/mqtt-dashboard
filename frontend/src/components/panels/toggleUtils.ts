@@ -3,11 +3,9 @@ import {
   deriveReadPath,
   hasToken,
   matchTemplate,
-  migrateTemplate,
   parseLooseJson,
   renderPayload,
   resolvePath,
-  templateFromValueKey,
 } from "./payloadShape";
 
 export interface ToggleShape {
@@ -19,8 +17,6 @@ export interface ToggleShape {
   readTemplate?: string;
   /** Write shape, needed to recognise a panel's own bytes echoed back. */
   payloadTemplate?: string;
-  /** Legacy dot path, honoured when no shape marks the value. */
-  valueKey?: string;
 }
 
 export const DEFAULT_ON_PAYLOAD = "ON";
@@ -39,33 +35,29 @@ export function toggleWritePayloads(config: {
   offPayload?: string;
   payloadTemplate?: string;
 }): { on: string; off: string } {
-  const on = config.onPayload ?? DEFAULT_ON_PAYLOAD;
-  const off = config.offPayload ?? DEFAULT_OFF_PAYLOAD;
-  const template = migrateTemplate(config.payloadTemplate);
-
-  if (!template || !hasToken(template)) return { on, off };
+  const template = config.payloadTemplate;
 
   return {
-    on: renderPayload(template, on),
-    off: renderPayload(template, off),
+    on: toggleWritePayload(config.onPayload ?? DEFAULT_ON_PAYLOAD, template),
+    off: toggleWritePayload(config.offPayload ?? DEFAULT_OFF_PAYLOAD, template),
   };
 }
 
 /**
- * The read shape a stored toggle should open with. A panel saved with only a
- * dot path is drawn as the shape it was really describing, so the box says what
- * the panel actually reads — the gauge opens the same way.
+ * The exact bytes one state publishes.
  *
- * Blank stays blank: for a toggle that is a real answer, the whole payload,
- * which is what a device echoing `ON` on its state topic sends.
+ * A template with no chip in it has nowhere to put the value, so the value goes
+ * out on its own — the same thing a bare chip does. Both the panel and the
+ * config modal say what is sent through here, so a shape mid-edit can never be
+ * previewed as bytes the panel would not actually publish.
  */
-export function toggleReadTemplate(config: {
-  readTemplate?: string;
-  valueKey?: string;
-}): string {
-  return config.readTemplate !== undefined
-    ? migrateTemplate(config.readTemplate)
-    : templateFromValueKey(config.valueKey);
+export function toggleWritePayload(
+  value: string,
+  payloadTemplate?: string,
+): string {
+  const template = payloadTemplate;
+  if (!template || !hasToken(template)) return value;
+  return renderPayload(template, value);
 }
 
 /**
@@ -75,7 +67,7 @@ export function toggleReadTemplate(config: {
  */
 export function extractPayloadValue(
   payload: string,
-  shape: Pick<ToggleShape, "readTemplate" | "valueKey"> = {},
+  shape: Pick<ToggleShape, "readTemplate"> = {},
 ): string {
   const template = shape.readTemplate?.trim();
 
@@ -85,11 +77,10 @@ export function extractPayloadValue(
   }
 
   // Mirrors `readValue`: a stencil that did not line up still names the field
-  // it was describing, so the path it implies is tried before the stored key.
-  // Without this the panel and the modal's preview read the same message
-  // differently — the preview has always had this fallback.
-  const path =
-    (template ? deriveReadPath(template) : null) ?? shape.valueKey?.trim();
+  // it was describing, so the path it implies is tried next. Without this the
+  // panel and the modal's preview read the same message differently — the
+  // preview has always had this fallback.
+  const path = template ? deriveReadPath(template) : null;
   if (path) {
     // Deliberately not the typed extractor: the value is compared as text
     // against the configured payloads, so "ON" must stay "ON" rather than

@@ -27,9 +27,7 @@ import {
 } from "./config";
 import {
   VALUE_TOKEN,
-  effectiveReadPath,
   effectiveReadTemplate,
-  migrateTemplate,
   renderPayload,
 } from "./payloadShape";
 import {
@@ -61,8 +59,6 @@ export interface SliderConfig {
   step?: number;
   /** Shown next to the value readout, e.g. "%" or "°C". */
   unit?: string;
-  /** Legacy read path, still honoured when no template marks the value. */
-  valueKey?: string;
   /**
    * Which field sent the user to the topic picker. The picker round-trips the
    * draft config and hands the chosen topic back as `initialTopic`, which would
@@ -126,16 +122,14 @@ export function SliderConfigModal({
       "",
   );
   const [readTemplate, setReadTemplate] = useState(
-    migrateTemplate(
-      config.readTemplate ?? config.payloadTemplate ?? VALUE_TOKEN,
-    ),
+    config.readTemplate ?? config.payloadTemplate ?? VALUE_TOKEN,
   );
   const [min, setMin] = useState(String(config.min ?? DEFAULT_MIN));
   const [max, setMax] = useState(String(config.max ?? DEFAULT_MAX));
   const [step, setStep] = useState(String(config.step ?? DEFAULT_STEP));
   const [unit, setUnit] = useState(config.unit ?? "");
   const [payloadTemplate, setPayloadTemplate] = useState(
-    migrateTemplate(config.payloadTemplate ?? VALUE_TOKEN),
+    config.payloadTemplate ?? VALUE_TOKEN,
   );
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
@@ -173,7 +167,6 @@ export function SliderConfigModal({
     step: stepNum,
     unit,
     payloadTemplate,
-    valueKey: config.valueKey,
     qos,
     retain,
     pickTarget,
@@ -227,7 +220,6 @@ export function SliderConfigModal({
             max: maxNum,
             step: stepNum,
             unit: unit.trim(),
-            valueKey: config.valueKey,
             payloadTemplate,
             qos,
             retain,
@@ -466,7 +458,6 @@ export default function SliderPanel(props: SliderPanelProps) {
     String(config.min ?? DEFAULT_MIN),
     String(config.max ?? DEFAULT_MAX),
     String(config.step ?? DEFAULT_STEP),
-    config.valueKey ?? "",
   ].join("\u0000");
 
   return <SliderRuntime key={identity} {...props} />;
@@ -498,8 +489,11 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
     (separateRead && config.stateBrokerId?.trim()) || brokerId;
   const range = normalizeRange(config);
   const unit = config.unit?.trim() ?? "";
-  const readTemplate = effectiveReadTemplate(config);
-  const valueKey = effectiveReadPath(config);
+  // The derived flag, not the stored one: a config saved before `separateRead`
+  // existed says so only by carrying a state topic, and reading such a panel
+  // through the *write* shape would decode the state topic with the wrong
+  // stencil. The toggle resolves it the same way.
+  const readTemplate = effectiveReadTemplate({ ...config, separateRead });
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
   const hasWildcard = commandTopic.includes("+") || commandTopic.includes("#");
@@ -514,10 +508,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
   // A message from the state topic is the source of truth: it resolves any
   // pending write and replaces the optimistic position.
   const applyIncomingValue = (payload: string, receivedAt: number) => {
-    const next = parseSliderValue(payload, {
-      template: readTemplate,
-      path: valueKey,
-    });
+    const next = parseSliderValue(payload, { template: readTemplate });
     if (next === null) return;
 
     setRemote(next);
@@ -562,7 +553,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateBrokerId, stateTopic, valueKey]);
+  }, [stateBrokerId, stateTopic, readTemplate]);
 
   // Live updates
   const { subscribe } = useWebSocket({
@@ -621,10 +612,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: renderPayload(
-          migrateTemplate(config.payloadTemplate ?? VALUE_TOKEN),
-          value,
-        ),
+        payload: renderPayload(config.payloadTemplate ?? VALUE_TOKEN, value),
         qos,
         retain,
       });

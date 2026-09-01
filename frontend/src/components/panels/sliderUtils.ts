@@ -63,13 +63,9 @@ function decimalsOf(step: number): number {
  */
 export function parseSliderValue(
   payload: string,
-  shape: { template?: string; path?: string } = {},
+  shape: { template?: string } = {},
 ): number | null {
-  const { value, dataType } = readValue(
-    shape.template,
-    payload,
-    shape.path?.trim() || undefined,
-  );
+  const { value, dataType } = readValue(shape.template, payload);
   if (dataType !== "number") return null;
 
   const parsed = Number(value);

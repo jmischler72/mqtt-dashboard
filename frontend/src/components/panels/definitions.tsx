@@ -40,12 +40,7 @@ import SliderPanel, {
   type SliderConfig,
 } from "./SliderPanel";
 import { DEFAULT_MAX, DEFAULT_MIN } from "./sliderUtils";
-import {
-  VALUE_TOKEN,
-  describeTemplate,
-  migrateTemplate,
-  payloadIssue,
-} from "./payloadShape";
+import { VALUE_TOKEN, describeTemplate, payloadIssue } from "./payloadShape";
 import {
   DEFAULT_OFF_PAYLOAD,
   DEFAULT_ON_PAYLOAD,
@@ -355,6 +350,15 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
         errors: { payload: "On and Off publish the same bytes" },
       };
     }
+    // The same check the slider makes, and the same one the modal blocks Save
+    // on: a message with no chip has nowhere to put either state, so the panel
+    // falls back to publishing the bare values and the header must say so.
+    const shape = payloadIssue({
+      template: config?.payloadTemplate ?? VALUE_TOKEN,
+    });
+    if (shape) {
+      return { isValid: false, warning: shape, errors: { payload: shape } };
+    }
     return { isValid: true };
   },
   getHeaderMeta: (config) => {
@@ -412,11 +416,11 @@ export const sliderPanelDefinition: PanelDefinition<SliderConfig> = {
     const problem = publishIssueResult(
       config?.topic,
       payloadIssue({
-        template: migrateTemplate(config?.payloadTemplate ?? VALUE_TOKEN),
+        template: config?.payloadTemplate ?? VALUE_TOKEN,
       }) ??
         (config?.separateRead
           ? payloadIssue({
-              template: migrateTemplate(config?.readTemplate ?? VALUE_TOKEN),
+              template: config?.readTemplate ?? VALUE_TOKEN,
               mode: "read",
             })
           : null),

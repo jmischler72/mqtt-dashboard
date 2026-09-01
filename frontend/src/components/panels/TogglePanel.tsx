@@ -21,17 +21,10 @@ import {
   topicRules,
   useConfigValidation,
 } from "./config";
-import {
-  VALUE_TOKEN,
-  effectiveReadPath,
-  effectiveReadTemplate,
-  migrateTemplate,
-  renderPayload,
-  templateFromValueKey,
-} from "./payloadShape";
+import { VALUE_TOKEN, effectiveReadTemplate } from "./payloadShape";
 import {
   parseToggleState,
-  toggleReadTemplate,
+  toggleWritePayload,
   toggleWritePayloads,
   DEFAULT_ON_PAYLOAD,
   DEFAULT_OFF_PAYLOAD,
@@ -61,8 +54,6 @@ export interface ToggleConfig {
    * what a device expecting plain `ON` wants; see `toggleWritePayloads`.
    */
   payloadTemplate?: string;
-  /** Legacy read path, still honoured when no shape marks the value. */
-  valueKey?: string;
   /**
    * Which field sent the user to the topic picker. The picker round-trips the
    * draft config and hands the chosen topic back as `initialTopic`, which would
@@ -110,7 +101,7 @@ export function ToggleConfigModal({
   // states written out in full has no template, so the bare chip publishes
   // each one unchanged and the boxes still say what they always said.
   const [payloadTemplate, setPayloadTemplate] = useState(
-    migrateTemplate(config.payloadTemplate ?? VALUE_TOKEN) || VALUE_TOKEN,
+    config.payloadTemplate || VALUE_TOKEN,
   );
   const [onPayload, setOnPayload] = useState(
     config.onPayload ?? DEFAULT_ON_PAYLOAD,
@@ -131,7 +122,7 @@ export function ToggleConfigModal({
       config.stateBrokerId ??
       "",
   );
-  const [readTemplate, setReadTemplate] = useState(toggleReadTemplate(config));
+  const [readTemplate, setReadTemplate] = useState(config.readTemplate ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
@@ -156,7 +147,6 @@ export function ToggleConfigModal({
     payloadTemplate,
     onPayload,
     offPayload,
-    valueKey: config.valueKey,
     qos,
     retain,
     pickTarget,
@@ -208,10 +198,13 @@ export function ToggleConfigModal({
       : []),
   ]);
 
-  // Rendered once here so the collapsed row can tell "nothing configured yet"
-  // from a payload that happens to be short.
-  const summaryOn = renderPayload(payloadTemplate, onPayload).trim();
-  const summaryOff = renderPayload(payloadTemplate, offPayload).trim();
+  // The bytes the panel would actually publish, not the template with the value
+  // dropped in: a shape mid-edit that has lost its chip publishes each state on
+  // its own, and a preview saying otherwise would describe a panel that does not
+  // exist. Rendered once here so the collapsed row can also tell "nothing
+  // configured yet" from a payload that happens to be short.
+  const summaryOn = toggleWritePayload(onPayload, payloadTemplate).trim();
+  const summaryOff = toggleWritePayload(offPayload, payloadTemplate).trim();
 
   return (
     <PanelConfigModal
@@ -237,10 +230,6 @@ export function ToggleConfigModal({
             // It survives where the box cannot speak for it: a panel reading
             // its command topic saves no shape at all, and an array index is a
             // path no shape can draw.
-            valueKey:
-              separateRead && templateFromValueKey(config.valueKey)
-                ? undefined
-                : config.valueKey,
             qos,
             retain,
           },
@@ -452,7 +441,7 @@ function StateValue({
           Sends
         </span>
         <span className="flex-1 min-w-0 font-mono text-[11px] break-all text-base-content/70">
-          {renderPayload(template, value)}
+          {toggleWritePayload(value, template)}
         </span>
       </div>
     </div>
@@ -494,7 +483,6 @@ export default function TogglePanel(props: TogglePanelProps) {
     config.readTemplate ?? "",
     config.onPayload ?? DEFAULT_ON_PAYLOAD,
     config.offPayload ?? DEFAULT_OFF_PAYLOAD,
-    config.valueKey ?? "",
     config.payloadTemplate ?? "",
   ].join("\u0000");
 
@@ -533,7 +521,6 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   // shape, the way every other panel does: a device that echoes the command
   // topic with a timestamp beside the value is a shape, not an unknown state.
   const readTemplate = effectiveReadTemplate({ ...config, separateRead }) ?? "";
-  const valueKey = effectiveReadPath({ ...config, separateRead });
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
   const hasWildcard = commandTopic.includes("+") || commandTopic.includes("#");
@@ -553,7 +540,6 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       offPayload,
       payloadTemplate: config.payloadTemplate,
       readTemplate,
-      valueKey,
     });
     setState(next);
     setUpdatedAt(receivedAt);
@@ -595,14 +581,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    stateBrokerId,
-    stateTopic,
-    onPayload,
-    offPayload,
-    readTemplate,
-    valueKey,
-  ]);
+  }, [stateBrokerId, stateTopic, onPayload, offPayload, readTemplate]);
 
   // Live updates
   const { subscribe } = useWebSocket({

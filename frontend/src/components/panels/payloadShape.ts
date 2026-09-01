@@ -211,17 +211,10 @@ export function extractValue(payload: string, path?: string): ExtractedValue {
 /**
  * The payload a panel publishes is written literally, exactly as it goes on the
  * wire, with a single token marking the one spot the panel's own value drops
- * into at publish time. Quoting the token is what decides the type: `"◆"` sends
- * text, a bare `◆` sends a number.
+ * into at publish time. Quoting the token is what decides the type:
+ * `"{value}"` sends text, a bare `{value}` sends a number.
  */
 export const VALUE_TOKEN = "{value}";
-
-/**
- * The token panels were saved with before it had a name the user could read.
- * Still recognised on load so a dashboard written by an older build keeps
- * working; `migrateTemplate` is what turns it into the current spelling.
- */
-export const LEGACY_VALUE_TOKEN = "\u25c6";
 
 /**
  * What the token is called in the interface. The payload stores the character;
@@ -414,6 +407,22 @@ export interface ShapeRead extends ExtractedValue {
 }
 
 /**
+ * The value a dot path names inside a message, or null when it names nothing a
+ * panel could draw. A path landing on an object or an array has not found a
+ * value: the chip marks one scalar, and reporting a whole subtree as a fit
+ * would tell the user their shape works when the panel has nothing to show.
+ */
+function readAtPath(message: string, path: string): ShapeRead | null {
+  const json = parseLooseJson(message);
+  if (json === undefined) return null;
+
+  const resolved = resolvePath(json, path);
+  if (!resolved.found || !isScalar(resolved.value)) return null;
+
+  return { ...coerceValue(resolved.value, message), found: true };
+}
+
+/**
  * Read a message through a shape and say whether the shape fitted.
  *
  * `readValue` always answers with something, because a panel has to draw
@@ -421,11 +430,25 @@ export interface ShapeRead extends ExtractedValue {
  * not match" is the thing worth telling the user about. A blank shape means the
  * whole payload, and so does a bare chip — the same statement said out loud —
  * so both always fit.
+ *
+ * `fallbackPath` is the same last resort `readValue` takes: a path stored
+ * before shapes existed, which the panel still reads through when the shape
+ * marks nothing of its own. A preview that ignored it would tell the user their
+ * gauge reads the whole document while the panel reads one field out of it.
  */
-export function readShape(template: string, message: string): ShapeRead {
+export function readShape(
+  template: string,
+  message: string,
+  fallbackPath?: string,
+): ShapeRead {
   const shape = template.trim();
+  const legacy = fallbackPath?.trim();
+
   if (!shape || isBareToken(shape)) {
-    return { ...coerceValue(message, message), found: true };
+    // Both say "the whole payload" — unless a stored path still names the value
+    // inside it, which is exactly what the panel itself would read.
+    const byPath = legacy ? readAtPath(message, legacy) : null;
+    return byPath ?? { ...coerceValue(message, message), found: true };
   }
 
   const stencilled = matchTemplate(shape, message);
@@ -433,19 +456,11 @@ export function readShape(template: string, message: string): ShapeRead {
     return { ...coerceValue(stencilled, message), found: true };
   }
 
-  const path = deriveReadPath(shape);
+  // Mirrors `readValue`: the shape's own path first, then the stored one.
+  const path = deriveReadPath(shape) ?? legacy;
   if (path) {
-    const json = parseLooseJson(message);
-    const resolved =
-      json === undefined
-        ? { found: false, value: undefined }
-        : resolvePath(json, path);
-    // A path that lands on an object or an array has not found a value: the
-    // chip marks one scalar, and reporting a whole subtree as a fit would tell
-    // the user their shape works when the panel has nothing to draw.
-    if (resolved.found && isScalar(resolved.value)) {
-      return { ...coerceValue(resolved.value, message), found: true };
-    }
+    const byPath = readAtPath(message, path);
+    if (byPath) return byPath;
   }
 
   return { ...coerceValue(message, message), found: false };
@@ -478,20 +493,17 @@ export function effectiveReadTemplate(config: {
   readTemplate?: string;
   separateRead?: boolean;
 }): string | undefined {
-  return migrateTemplate(storedReadTemplate(config));
+  return storedReadTemplate(config);
 }
 
 export function effectiveReadPath(config: {
   payloadTemplate?: string;
   readTemplate?: string;
   separateRead?: boolean;
-  valueKey?: string;
 }): string | undefined {
-  const source = migrateTemplate(storedReadTemplate(config));
+  const source = storedReadTemplate(config);
 
-  const derived = source ? deriveReadPath(source) : null;
-
-  return derived ?? config.valueKey;
+  return (source ? deriveReadPath(source) : null) ?? undefined;
 }
 
 export interface PayloadCheck {
@@ -534,22 +546,6 @@ export function payloadIssue({
   // The bytes themselves are never judged: a payload that is not JSON, or is
   // JSON-shaped without parsing, is a device's business and not a broken panel.
   return null;
-}
-
-/**
- * Bring a stored payload onto the current token spelling. Templates saved with
- * the old diamond keep working; nothing else is touched.
- */
-export function migrateTemplate(template: string): string;
-export function migrateTemplate(template: undefined): undefined;
-export function migrateTemplate(
-  template: string | undefined,
-): string | undefined;
-export function migrateTemplate(
-  template: string | undefined,
-): string | undefined {
-  if (template === undefined) return undefined;
-  return template.split(LEGACY_VALUE_TOKEN).join(VALUE_TOKEN);
 }
 
 /**
@@ -599,6 +595,35 @@ export function keepOneToken(template: string): string {
   return (
     template.slice(0, upto) + template.slice(upto).split(VALUE_TOKEN).join("")
   );
+}
+
+/**
+ * Where an offset in `template` lands once `keepOneToken` has run.
+ *
+ * The caret cannot simply be shifted by however much was removed: the mark that
+ * survives is the *first* one, so a second token typed ahead of an existing
+ * chip deletes text that sits after the caret, which must not move it at all.
+ * Only the removals before the offset count, and an offset inside a removal
+ * collapses onto where it began.
+ */
+export function offsetAfterKeepOneToken(
+  template: string,
+  offset: number,
+): number {
+  const first = template.indexOf(VALUE_TOKEN);
+  if (first === -1) return offset;
+
+  let result = offset;
+  for (
+    let dropped = template.indexOf(VALUE_TOKEN, first + VALUE_TOKEN.length);
+    dropped !== -1;
+    dropped = template.indexOf(VALUE_TOKEN, dropped + VALUE_TOKEN.length)
+  ) {
+    if (offset >= dropped + VALUE_TOKEN.length) result -= VALUE_TOKEN.length;
+    else if (offset > dropped) result -= offset - dropped;
+  }
+
+  return Math.max(0, result);
 }
 
 /** Punctuation that means the payload is a document, not a lone value. */
@@ -703,7 +728,7 @@ export function clearToken(template: string, restore: string): string {
 
 /** The template as the interface says it, with the token under its label. */
 export function describeTemplate(template: string): string {
-  return migrateTemplate(template).split(VALUE_TOKEN).join(TOKEN_LABEL);
+  return template.split(VALUE_TOKEN).join(TOKEN_LABEL);
 }
 
 /**

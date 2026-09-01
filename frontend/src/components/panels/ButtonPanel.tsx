@@ -58,8 +58,6 @@ export function ButtonConfigModal({
   const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [label, setLabel] = useState(config.label ?? "Click");
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  // Not run through `migrateTemplate`: a button publishes a literal, so a
-  // `\u25c6` in it is a character the device asked for, not an old chip.
   const [payload, setPayload] = useState(config.payload ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);

@@ -2,43 +2,53 @@ import { describe, it, expect } from "vitest";
 import {
   extractPayloadValue,
   parseToggleState,
-  toggleReadTemplate,
+  toggleWritePayload,
   toggleWritePayloads,
 } from "./toggleUtils";
 import { VALUE_TOKEN } from "./payloadShape";
 
+const STATE_SHAPE = { readTemplate: `{"state":"${VALUE_TOKEN}"}` };
+
 describe("extractPayloadValue", () => {
-  it("returns the trimmed payload when no valueKey is set", () => {
+  it("returns the trimmed payload when no shape marks a part of it", () => {
     expect(extractPayloadValue("  ON  ")).toBe("ON");
   });
 
-  it("unwraps the configured key from a JSON object", () => {
-    expect(
-      extractPayloadValue('{"state":"ON","rssi":-40}', { valueKey: "state" }),
-    ).toBe("ON");
-  });
-
-  it("stringifies non-string JSON values", () => {
-    expect(extractPayloadValue('{"state":true}', { valueKey: "state" })).toBe(
-      "true",
+  it("unwraps the part the shape marks", () => {
+    expect(extractPayloadValue('{"state":"ON","rssi":-40}', STATE_SHAPE)).toBe(
+      "ON",
     );
-    expect(extractPayloadValue('{"state":1}', { valueKey: "state" })).toBe("1");
   });
 
-  it("falls back to the raw payload when the key is missing", () => {
-    expect(extractPayloadValue('{"other":"ON"}', { valueKey: "state" })).toBe(
+  it("stringifies values the shape marks that are not text", () => {
+    const bare = { readTemplate: `{"state":${VALUE_TOKEN}}` };
+    expect(extractPayloadValue('{"state":true}', bare)).toBe("true");
+    expect(extractPayloadValue('{"state":1}', bare)).toBe("1");
+  });
+
+  it("falls back to the raw payload when the field is missing", () => {
+    expect(extractPayloadValue('{"other":"ON"}', STATE_SHAPE)).toBe(
       '{"other":"ON"}',
     );
   });
 
   it("falls back to the raw payload when the payload is not JSON", () => {
-    expect(extractPayloadValue("ON", { valueKey: "state" })).toBe("ON");
+    expect(extractPayloadValue("ON", STATE_SHAPE)).toBe("ON");
   });
 
-  it("returns an empty string for null values", () => {
-    expect(extractPayloadValue('{"state":null}', { valueKey: "state" })).toBe(
-      "",
-    );
+  it("reads a null the device sent as the characters it sent", () => {
+    // The stencil reports the bytes at the mark; it does not parse them. What
+    // matters is that they match neither state, so the panel says "unknown"
+    // rather than picking one.
+    const shape = { readTemplate: `{"state":${VALUE_TOKEN}}` };
+    expect(extractPayloadValue('{"state":null}', shape)).toBe("null");
+    expect(
+      parseToggleState('{"state":null}', {
+        ...shape,
+        onPayload: "ON",
+        offPayload: "OFF",
+      }),
+    ).toBeNull();
   });
 
   it("reads by the path the shape implies when the stencil does not line up", () => {
@@ -83,8 +93,8 @@ describe("parseToggleState", () => {
     expect(parseToggleState("0")).toBe(false);
   });
 
-  it("reads through a JSON valueKey", () => {
-    const opts = { valueKey: "state", onPayload: "ON", offPayload: "OFF" };
+  it("reads through the field the shape marks", () => {
+    const opts = { ...STATE_SHAPE, onPayload: "ON", offPayload: "OFF" };
     expect(parseToggleState('{"state":"ON"}', opts)).toBe(true);
     expect(parseToggleState('{"state":"OFF"}', opts)).toBe(false);
     expect(parseToggleState('{"state":true}', opts)).toBe(true);
@@ -143,30 +153,6 @@ describe("parseToggleState with a read shape of its own", () => {
   });
 });
 
-describe("toggleReadTemplate", () => {
-  it("draws a stored path as the shape it was describing", () => {
-    // What the box must show, or the preview and the panel read differently
-    expect(toggleReadTemplate({ valueKey: "state" })).toBe(
-      `{"state":${VALUE_TOKEN}}`,
-    );
-  });
-
-  it("keeps a blank shape blank, which means the whole payload", () => {
-    expect(toggleReadTemplate({ readTemplate: "", valueKey: "state" })).toBe(
-      "",
-    );
-  });
-
-  it("prefers a shape the panel already has", () => {
-    expect(
-      toggleReadTemplate({
-        readTemplate: `{"v":${VALUE_TOKEN}}`,
-        valueKey: "state",
-      }),
-    ).toBe(`{"v":${VALUE_TOKEN}}`);
-  });
-});
-
 describe("toggleWritePayloads", () => {
   it("drops each value into the shared template", () => {
     expect(
@@ -200,5 +186,31 @@ describe("toggleWritePayloads", () => {
 
   it("defaults to ON and OFF", () => {
     expect(toggleWritePayloads({})).toEqual({ on: "ON", off: "OFF" });
+  });
+
+  it("publishes the values on their own when the template lost its chip", () => {
+    // The modal blocks saving this, but a seeded config can still hold it — and
+    // the config modal previews the states through the same function, so what
+    // it shows and what the panel sends can never drift apart.
+    expect(
+      toggleWritePayloads({
+        payloadTemplate: '{"state":""}',
+        onPayload: "ON",
+        offPayload: "OFF",
+      }),
+    ).toEqual({ on: "ON", off: "OFF" });
+  });
+});
+
+describe("toggleWritePayload", () => {
+  it("is the bytes one state publishes", () => {
+    expect(toggleWritePayload("ON", '{"state":"{value}"}')).toBe(
+      '{"state":"ON"}',
+    );
+  });
+
+  it("sends the value alone with no template, or one with no chip", () => {
+    expect(toggleWritePayload("ON")).toBe("ON");
+    expect(toggleWritePayload("ON", '{"state":""}')).toBe("ON");
   });
 });

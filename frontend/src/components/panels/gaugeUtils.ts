@@ -1,9 +1,4 @@
-import {
-  VALUE_TOKEN,
-  migrateTemplate,
-  readValue,
-  templateFromValueKey,
-} from "./payloadShape";
+import { VALUE_TOKEN, readValue, templateFromValueKey } from "./payloadShape";
 import type { PayloadDataType } from "./payloadShape";
 
 export interface ParsedResult {
@@ -52,7 +47,7 @@ export function gaugeReadTemplate(config: {
 }): string {
   const stored =
     config.readTemplate !== undefined
-      ? migrateTemplate(config.readTemplate)
+      ? config.readTemplate
       : templateFromValueKey(config.valueKey);
   return stored.trim() || VALUE_TOKEN;
 }
