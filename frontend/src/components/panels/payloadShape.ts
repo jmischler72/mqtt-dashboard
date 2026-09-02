@@ -42,6 +42,18 @@ export function resolvePath(
   root: unknown,
   path: string,
 ): { found: boolean; value: unknown } {
+  // A key that contains a dot is one field, not a path: panels saved before
+  // paths existed stored exactly that, so an exact hit on the whole string is
+  // taken before it is split up.
+  if (typeof root === "object" && root !== null && !Array.isArray(root)) {
+    const flat = root as Record<string, unknown>;
+    // Own keys only: `toString` is on every object, and a shape naming one of
+    // those would report a fit on any message and hand back a function.
+    if (Object.prototype.hasOwnProperty.call(flat, path)) {
+      return { found: true, value: flat[path] };
+    }
+  }
+
   const segments = path
     .split(".")
     .map((s) => s.trim())
@@ -66,7 +78,9 @@ export function resolvePath(
 
     if (typeof current === "object") {
       const obj = current as Record<string, unknown>;
-      if (!(segment in obj)) return { found: false, value: undefined };
+      if (!Object.prototype.hasOwnProperty.call(obj, segment)) {
+        return { found: false, value: undefined };
+      }
       current = obj[segment];
       continue;
     }
@@ -104,7 +118,24 @@ function coerceValue(target: unknown, raw: string): ExtractedValue {
     return { value: trimmed, dataType: "string", raw };
   }
 
-  return { value: String(target), dataType: "string", raw };
+  // An object or an array reached through a path is not a value a panel can
+  // draw, but `String(...)` would render it as the useless `[object Object]`.
+  // Its own JSON at least shows what the device actually sent.
+  return { value: jsonish(target), dataType: "string", raw };
+}
+
+/** True for something a panel can show as-is: not an object, not an array. */
+function isScalar(value: unknown): boolean {
+  return value === null || typeof value !== "object";
+}
+
+/** A value's own JSON, falling back to `String` for anything unserialisable. */
+function jsonish(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 /**
@@ -180,10 +211,10 @@ export function extractValue(payload: string, path?: string): ExtractedValue {
 /**
  * The payload a panel publishes is written literally, exactly as it goes on the
  * wire, with a single token marking the one spot the panel's own value drops
- * into at publish time. Quoting the token is what decides the type: `"◆"` sends
- * text, a bare `◆` sends a number.
+ * into at publish time. Quoting the token is what decides the type:
+ * `"{value}"` sends text, a bare `{value}` sends a number.
  */
-export const VALUE_TOKEN = "\u25c6";
+export const VALUE_TOKEN = "{value}";
 
 /**
  * What the token is called in the interface. The payload stores the character;
@@ -265,16 +296,35 @@ export function deriveReadPath(template: string): string | null {
   return find(json, "");
 }
 
+/** A number, the commonest thing a device puts where the chip sits. */
+const NUMBER = "-?\\d+(?:\\.\\d+)?";
+
+/**
+ * An unquoted run of value characters. It stops at anything that carries
+ * structure — a brace, a bracket, a quote, a comma — because a value that
+ * appears to contain those is not a value: it is the stencil having slid over
+ * a nested object, and `{"data":{"temp":21.5}}` read through `{"data":<chip>}`
+ * would otherwise come back as the truncated fragment `{"temp":21.5`. Colons
+ * stay legal so a time like `12:30:00` still reads as one value.
+ */
+const BARE = '[^,{}\\[\\]"\\s]+';
+
+/** Escape a literal so it can be spliced into a regular expression. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Read the value straight out of a message, using the template as a stencil:
- * everything written before the token has to match, everything after it has to
- * match, and whatever sits in between is the value.
+ * the text written *before* the token is what identifies the field, and
+ * whatever sits immediately after it is the value.
  *
- * This knows nothing about JSON — it reads `<set>21</set>`, `temp=21`, `21;ON`
- * and `{temp:21}` alike, because the user already described the shape when they
- * wrote the payload. Returns null when the message is not that shape, which is
- * the common case of a device reporting more than the panel publishes; those
- * fall back to the path-based read.
+ * Deliberately lenient about the tail. A device that publishes
+ * `{"temp":21.4,"battery":{"pct":92}}` should still be read by the shape
+ * `{"temp":{value}}` — the user described the field they care about, not the
+ * whole document — so the trailing template text is tried first and then
+ * dropped. This knows nothing about JSON, which is the point: `temp=21`,
+ * `<set>21</set>` and `random: 21.4 (ok)` all work the same way.
  *
  * A bare token anchors on nothing, so it deliberately does not match here — a
  * whole-message read is what the path branch already does.
@@ -286,23 +336,43 @@ export function matchTemplate(
   const at = template.indexOf(VALUE_TOKEN);
   if (at === -1) return null;
 
-  const prefix = template.slice(0, at).trimStart();
-  const suffix = template.slice(at + VALUE_TOKEN.length).trimEnd();
-  if (!prefix && !suffix) return null;
+  const head = template.slice(0, at).trimStart();
+  const tail = template.slice(at + VALUE_TOKEN.length).trimEnd();
+  if (!head && !tail) return null;
 
   const text = message.trim();
-  if (text.length < prefix.length + suffix.length) return null;
-  if (!text.startsWith(prefix) || !text.endsWith(suffix)) return null;
+  const unquote = (found: string) =>
+    found.startsWith('"') && found.endsWith('"') ? found.slice(1, -1) : found;
 
-  const candidate = text.slice(prefix.length, text.length - suffix.length);
+  // With text after the chip to anchor on, the last alternative may be lazy:
+  // it stops as soon as the template's own tail lines up again, which is what
+  // reads `21` out of `<set>21</set>`.
+  if (tail) {
+    const strict = text.match(
+      new RegExp(
+        escapeRegExp(head) +
+          `("[^"]*"|${NUMBER}|${BARE}?)` +
+          escapeRegExp(tail),
+      ),
+    );
+    if (strict) return unquote(strict[1]);
+  }
 
-  // A suffix as generic as `}` matches a message carrying more than the
-  // template describes, swallowing the extra fields into the value. What a
-  // device reports is a scalar, so anything with structure in it means the
-  // stencil caught the wrong span and the path-based read should handle it.
-  if (/[{}[\],:"\n]/.test(candidate)) return null;
-
-  return candidate;
+  // The tail did not line up — the device appended fields the shape does not
+  // describe — so anchor on the head alone and take the value sitting there.
+  // The bare run is greedy here: with no tail to stop at, the value is however
+  // far it runs before the next structural character.
+  //
+  // A shape whose token comes first (`{value} °C`) has no head to anchor on, so
+  // it is pinned to the start of the message instead. Free-floating, it would
+  // seize the first string or number anywhere in the payload and report that
+  // `{"error":"offline"}` fits a shape about degrees.
+  const loose = text.match(
+    new RegExp(
+      (head ? "" : "^") + escapeRegExp(head) + `("[^"]*"|${NUMBER}|${BARE})`,
+    ),
+  );
+  return loose ? unquote(loose[1]) : null;
 }
 
 /**
@@ -327,6 +397,100 @@ export function readValue(
   return extractValue(message, path);
 }
 
+export interface ShapeRead extends ExtractedValue {
+  /**
+   * Whether the shape actually located a value in this message. False means the
+   * message does not fit — a different problem from having no message at all,
+   * and the two must never be reported as one.
+   */
+  found: boolean;
+  /**
+   * The characters the shape marked, before they were read as a number or a
+   * boolean. A panel that compares text rather than a value — the toggle,
+   * matching `ON` against its configured states — works from these, so a
+   * preview showing them says what that panel will really see.
+   */
+  text: string;
+}
+
+/**
+ * The value a dot path names inside a message, or null when it names nothing a
+ * panel could draw. A path landing on an object or an array has not found a
+ * value: the chip marks one scalar, and reporting a whole subtree as a fit
+ * would tell the user their shape works when the panel has nothing to show.
+ */
+function readAtPath(message: string, path: string): ShapeRead | null {
+  const json = parseLooseJson(message);
+  if (json === undefined) return null;
+
+  const resolved = resolvePath(json, path);
+  if (!resolved.found || !isScalar(resolved.value)) return null;
+
+  return {
+    ...coerceValue(resolved.value, message),
+    found: true,
+    text: String(resolved.value).trim(),
+  };
+}
+
+/**
+ * Read a message through a shape and say whether the shape fitted.
+ *
+ * `readValue` always answers with something, because a panel has to draw
+ * something; this is the version a config modal needs, where "the shape does
+ * not match" is the thing worth telling the user about. A blank shape means the
+ * whole payload, and so does a bare chip — the same statement said out loud —
+ * so both always fit.
+ *
+ * `fallbackPath` is the same last resort `readValue` takes: a path stored
+ * before shapes existed, which the panel still reads through when the shape
+ * marks nothing of its own. A preview that ignored it would tell the user their
+ * gauge reads the whole document while the panel reads one field out of it.
+ */
+export function readShape(
+  template: string,
+  message: string,
+  fallbackPath?: string,
+): ShapeRead {
+  const shape = template.trim();
+  const legacy = fallbackPath?.trim();
+
+  if (!shape || isBareToken(shape)) {
+    // Both say "the whole payload" — unless a stored path still names the value
+    // inside it, which is exactly what the panel itself would read.
+    const byPath = legacy ? readAtPath(message, legacy) : null;
+    return (
+      byPath ?? {
+        ...coerceValue(message, message),
+        found: true,
+        text: message.trim(),
+      }
+    );
+  }
+
+  const stencilled = matchTemplate(shape, message);
+  if (stencilled !== null) {
+    return {
+      ...coerceValue(stencilled, message),
+      found: true,
+      text: stencilled.trim(),
+    };
+  }
+
+  // Mirrors `readValue`: the shape's own path first, then the stored one.
+  const path = deriveReadPath(shape) ?? legacy;
+  if (path) {
+    const byPath = readAtPath(message, path);
+    if (byPath) return byPath;
+  }
+
+  return {
+    ...coerceValue(message, message),
+    found: false,
+    text: message.trim(),
+  };
+}
+
 /**
  * Where a panel reads its value from. A panel whose device reports on a
  * different shape configures a read template of its own; otherwise incoming
@@ -336,30 +500,35 @@ export function readValue(
  * Panels saved before templates existed have no token to mirror, so their
  * stored key still applies.
  */
+function storedReadTemplate(config: {
+  payloadTemplate?: string;
+  readTemplate?: string;
+  separateRead?: boolean;
+}): string | undefined {
+  // An empty shape is an answer, not a gap: it means "the whole payload", which
+  // is what a device echoing `ON` on its own state topic sends. Only a panel
+  // that has never been given one falls back to the shape it publishes.
+  return config.separateRead && config.readTemplate !== undefined
+    ? config.readTemplate
+    : config.payloadTemplate;
+}
+
 export function effectiveReadTemplate(config: {
   payloadTemplate?: string;
   readTemplate?: string;
   separateRead?: boolean;
 }): string | undefined {
-  return config.separateRead && config.readTemplate
-    ? config.readTemplate
-    : config.payloadTemplate;
+  return storedReadTemplate(config);
 }
 
 export function effectiveReadPath(config: {
   payloadTemplate?: string;
   readTemplate?: string;
   separateRead?: boolean;
-  valueKey?: string;
 }): string | undefined {
-  const source =
-    config.separateRead && config.readTemplate
-      ? config.readTemplate
-      : config.payloadTemplate;
+  const source = storedReadTemplate(config);
 
-  const derived = source ? deriveReadPath(source) : null;
-
-  return derived ?? config.valueKey;
+  return (source ? deriveReadPath(source) : null) ?? undefined;
 }
 
 export interface PayloadCheck {
@@ -390,22 +559,42 @@ export function payloadIssue({
   if (mode === "read") {
     return token
       ? null
-      : `Read shape does not mark where the ${TOKEN_LABEL} sits`;
+      : "The read shape has no value chip, so nothing can be pulled out of it.";
   }
 
   if (acceptsToken && !token) {
     return template.trim()
-      ? `Payload has no ${TOKEN_LABEL} in it — every publish would send the same bytes`
-      : "No payload configured";
-  }
-
-  if (!acceptsToken && token) {
-    return `This panel has no ${TOKEN_LABEL} to send — remove it from the payload`;
+      ? `Add the ${TOKEN_LABEL} chip to the message, or every publish sends the same bytes.`
+      : "No message configured — this panel has nothing to publish.";
   }
 
   // The bytes themselves are never judged: a payload that is not JSON, or is
   // JSON-shaped without parsing, is a device's business and not a broken panel.
   return null;
+}
+
+/**
+ * The shape a panel that only ever stored a dot path was really describing:
+ * `a.b` means the value sits at `{"a":{"b":<here>}}`. Numeric segments would be
+ * array indices, which no object literal can express, so those fall back to a
+ * blank shape — a blank shape reads the whole payload, which is the honest
+ * answer when the old path cannot be drawn.
+ */
+export function templateFromValueKey(valueKey: string | undefined): string {
+  const path = valueKey?.trim();
+  if (!path) return "";
+
+  const segments = path
+    .split(".")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return "";
+  if (segments.some((s) => /^\d+$/.test(s))) return "";
+
+  return segments.reduceRight(
+    (inner, key) => `{${JSON.stringify(key)}:${inner}}`,
+    VALUE_TOKEN,
+  );
 }
 
 export interface TemplateLiteral {
@@ -415,27 +604,101 @@ export interface TemplateLiteral {
 }
 
 /**
- * Value literals in the template, each of which the user can move the token
- * onto. Matches JSON values after a colon; a template that is a bare value with
- * no token counts as one literal so it can be marked too.
+ * The template with at most one token in it.
+ *
+ * The token is ordinary characters now, so a payload can be typed or pasted
+ * that spells a second one. Two would publish the value twice, leave
+ * `matchTemplate` reading the rest of the shape as a tail it can never line up,
+ * and put `placeToken`'s offsets out by a token's width. The first mark is the
+ * one the user made; later spellings are dropped.
  */
-export function findLiterals(template: string): TemplateLiteral[] {
-  const out: TemplateLiteral[] = [];
-  const re = /:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false)/g;
+export function keepOneToken(template: string): string {
+  const at = template.indexOf(VALUE_TOKEN);
+  if (at === -1) return template;
 
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(template)) !== null) {
-    const start = match.index + match[0].length - match[1].length;
-    out.push({ text: match[1], start, end: start + match[1].length });
+  const upto = at + VALUE_TOKEN.length;
+  return (
+    template.slice(0, upto) + template.slice(upto).split(VALUE_TOKEN).join("")
+  );
+}
+
+/**
+ * Where an offset in `template` lands once `keepOneToken` has run.
+ *
+ * The caret cannot simply be shifted by however much was removed: the mark that
+ * survives is the *first* one, so a second token typed ahead of an existing
+ * chip deletes text that sits after the caret, which must not move it at all.
+ * Only the removals before the offset count, and an offset inside a removal
+ * collapses onto where it began.
+ */
+export function offsetAfterKeepOneToken(
+  template: string,
+  offset: number,
+): number {
+  const first = template.indexOf(VALUE_TOKEN);
+  if (first === -1) return offset;
+
+  let result = offset;
+  for (
+    let dropped = template.indexOf(VALUE_TOKEN, first + VALUE_TOKEN.length);
+    dropped !== -1;
+    dropped = template.indexOf(VALUE_TOKEN, dropped + VALUE_TOKEN.length)
+  ) {
+    if (offset >= dropped + VALUE_TOKEN.length) result -= VALUE_TOKEN.length;
+    else if (offset > dropped) result -= offset - dropped;
   }
 
+  return Math.max(0, result);
+}
+
+/** Punctuation that means the payload is a document, not a lone value. */
+const STRUCTURED = /[{}[\]:,]/;
+
+/**
+ * Value literals in the template, each of which the user can move the token
+ * onto with one tap. Numbers and quoted strings anywhere in the bytes count —
+ * not only JSON values after a colon — because the box holds whatever the
+ * device speaks, and `random: 21.4 (ok)` has a value worth marking too.
+ *
+ * Capped and de-duplicated: the chips are a shortcut, not an index. A caller
+ * looking for one particular literal rather than drawing the row raises the cap.
+ */
+export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
+  const out: TemplateLiteral[] = [];
+  const re = /"[^"]*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
+  const seen = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(template)) !== null && out.length < limit) {
+    const text = match[0];
+    // A string followed by a colon is a JSON key, not a value — offering it
+    // would fill the row with `"temp"` and hide the 21.4 next to it. Keys are
+    // not always quoted (`parseLooseJson` reads `{ch1:5}`), so what follows the
+    // *word* the match sits in decides it: the `1` of `ch1` names the field.
+    const rest = template.slice(match.index + text.length);
+    if (/^[^\s"',{}[\]]*\s*:/.test(rest)) continue;
+    if (seen.has(text) || text.includes(VALUE_TOKEN)) continue;
+    seen.add(text);
+    out.push({ text, start: match.index, end: match.index + text.length });
+  }
+
+  // A payload that is a single bare word — `ON`, `RESET` — has no literal the
+  // pattern above can see, but it is exactly the thing a user wants to mark.
+  // Only when the whole payload is that word, though: offering a structured
+  // message as one literal would collapse the document the user is marking
+  // down to a bare chip.
   const trimmed = template.trim();
-  if (out.length === 0 && trimmed !== "" && !hasToken(template)) {
+  if (
+    out.length === 0 &&
+    trimmed !== "" &&
+    !hasToken(template) &&
+    !STRUCTURED.test(trimmed)
+  ) {
     const start = template.indexOf(trimmed);
     out.push({ text: trimmed, start, end: start + trimmed.length });
   }
 
-  return out.filter((lit) => !lit.text.includes(VALUE_TOKEN));
+  return out;
 }
 
 /**
@@ -499,23 +762,46 @@ export function describeTemplate(template: string): string {
  * replaces depending on what they did.
  *
  * Only one token can exist, so a token already sitting elsewhere hands its spot
- * back to the constant it displaced — the same trade `clearToken` makes.
- * Returns where the caret belongs afterwards, just past the token.
+ * back to the constant it displaced — the same trade `clearToken` makes. The
+ * offsets come from the box, which shows the token spelled out, so they are
+ * translated onto the text with the token taken back out before anything is
+ * cut; without that, repeated taps of the button would walk the chip rightwards
+ * by its own length each time.
+ *
+ * Returns where the caret belongs afterwards, just past the token, and the text
+ * the token now covers so a later removal can put it back.
  */
 export function placeToken(
   template: string,
   start: number,
   end: number,
   restore = "",
-): { template: string; caret: number } {
-  const untoken = (part: string) => part.split(VALUE_TOKEN).join(restore);
+): { template: string; caret: number; covered: string } {
+  const at = template.indexOf(VALUE_TOKEN);
+  const stripped =
+    at === -1 ? template : template.split(VALUE_TOKEN).join(restore);
 
-  const before = untoken(template.slice(0, start));
-  const after = untoken(template.slice(end));
+  // An offset inside the token itself has no counterpart in the stripped text,
+  // so it collapses onto where the token began.
+  const translate = (offset: number) => {
+    if (at === -1) return Math.min(offset, stripped.length);
+    if (offset <= at) return offset;
+    if (offset >= at + VALUE_TOKEN.length) {
+      return Math.min(
+        offset - VALUE_TOKEN.length + restore.length,
+        stripped.length,
+      );
+    }
+    return at;
+  };
+
+  const from = translate(start);
+  const to = Math.max(from, translate(end));
 
   return {
-    template: before + VALUE_TOKEN + after,
-    caret: before.length + VALUE_TOKEN.length,
+    template: stripped.slice(0, from) + VALUE_TOKEN + stripped.slice(to),
+    caret: from + VALUE_TOKEN.length,
+    covered: stripped.slice(from, to),
   };
 }
 

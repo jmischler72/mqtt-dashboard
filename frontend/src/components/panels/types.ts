@@ -67,6 +67,16 @@ export interface PanelDefinition<TConfig = any> {
     maxW?: number;
     maxH?: number;
   };
+  /**
+   * Size that fits a config just saved, when the constraints it implies no
+   * longer match the panel's current one (a separator switching orientation
+   * would otherwise keep the span of the axis it left). Return null to leave
+   * the size alone.
+   */
+  adjustSizeForConfig?: (
+    config: TConfig,
+    size: { w: number; h: number },
+  ) => { w: number; h: number } | null;
 
   // Traits & Warnings
   isVisual?: boolean;

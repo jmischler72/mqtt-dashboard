@@ -1,7 +1,8 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GaugePanel from "./GaugePanel";
-import { parseGaugePayload } from "./gaugeUtils";
+import { gaugeReadTemplate, parseGaugePayload } from "./gaugeUtils";
+import { VALUE_TOKEN } from "./payloadShape";
 
 const subscribeMock = vi.fn();
 const getExplorerHistoryMock = vi.fn();
@@ -55,14 +56,16 @@ describe("parseGaugePayload", () => {
     });
   });
 
-  it("extracts values from JSON objects when valueKey is specified", () => {
-    expect(parseGaugePayload('{"temp": 28.4, "unit": "C"}', "temp")).toEqual({
+  it("extracts values from JSON objects at the configured path", () => {
+    expect(
+      parseGaugePayload('{"temp": 28.4, "unit": "C"}', { path: "temp" }),
+    ).toEqual({
       parsedValue: 28.4,
       dataType: "number",
       raw: '{"temp": 28.4, "unit": "C"}',
     });
 
-    expect(parseGaugePayload('{"val": true}', "val")).toEqual({
+    expect(parseGaugePayload('{"val": true}', { path: "val" })).toEqual({
       parsedValue: true,
       dataType: "boolean",
       raw: '{"val": true}',
@@ -138,5 +141,23 @@ describe("GaugePanel", () => {
 
     expect(screen.getByText("ON")).toBeInTheDocument();
     expect(screen.queryByText("history")).not.toBeInTheDocument();
+  });
+});
+
+describe("gaugeReadTemplate", () => {
+  it("opens a fresh gauge on the bare chip, not an empty box", () => {
+    expect(gaugeReadTemplate({})).toBe(VALUE_TOKEN);
+    expect(gaugeReadTemplate({ readTemplate: "" })).toBe(VALUE_TOKEN);
+  });
+
+  it("keeps a shape the panel was saved with", () => {
+    const shape = `{"t":${VALUE_TOKEN}}`;
+    expect(gaugeReadTemplate({ readTemplate: shape })).toBe(shape);
+  });
+
+  it("draws a legacy dot path as the shape it described", () => {
+    expect(gaugeReadTemplate({ valueKey: "temp" })).toBe(
+      `{"temp":${VALUE_TOKEN}}`,
+    );
   });
 });

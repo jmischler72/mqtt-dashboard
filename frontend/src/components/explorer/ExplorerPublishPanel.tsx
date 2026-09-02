@@ -4,7 +4,7 @@ import {
   RiCloseLine as CloseIcon,
 } from "react-icons/ri";
 import InputPanel from "../panels/InputPanel";
-import MqttOptionsSection from "../panels/MqttOptionsSection";
+import { PublishOptionsCard } from "../panels/config";
 
 interface Props {
   brokerId: string;
@@ -58,10 +58,10 @@ export default function ExplorerPublishPanel({
         overrideTopic={selectedTopic}
         overrideBrokerId={brokerId}
       />
-      <MqttOptionsSection
+      <PublishOptionsCard
         qos={qos}
-        retain={retain}
         onQosChange={setQos}
+        retain={retain}
         onRetainChange={setRetain}
       />
     </div>

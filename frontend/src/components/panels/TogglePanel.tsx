@@ -4,11 +4,35 @@ import { RiErrorWarningLine, RiLoader4Line, RiTimeLine } from "react-icons/ri";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import MqttOptionsSection from "./MqttOptionsSection";
-import PanelModalFrame from "./PanelModalFrame";
+import { usePayloadSample } from "../../hooks/usePayloadSample";
+import {
+  BrokerTopicCard,
+  ConfigGroup,
+  DisclosureCard,
+  FieldRow,
+  PanelConfigModal,
+  PayloadBuilder,
+  PreviewBox,
+  PreviewLine,
+  PublishOptionsCard,
+  ReadBackSwitch,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  payloadRules,
+  topicRules,
+  useConfigValidation,
+} from "./config";
+import {
+  TOKEN_LABEL,
+  VALUE_TOKEN,
+  effectiveReadTemplate,
+  hasToken,
+} from "./payloadShape";
 import {
   parseToggleState,
+  toggleWritePayload,
+  toggleWritePayloads,
   DEFAULT_ON_PAYLOAD,
   DEFAULT_OFF_PAYLOAD,
 } from "./toggleUtils";
@@ -19,12 +43,32 @@ const CONFIRM_TIMEOUT_MS = 5000;
 export interface ToggleConfig {
   /** Command topic — the toggle publishes here. */
   topic?: string;
-  /** Optional state/telemetry topic. When empty, the command topic is used. */
+  /** Reads back from its own broker/topic/shape rather than the command one. */
+  separateRead?: boolean;
+  /** State/telemetry topic, used when separateRead is set. */
   stateTopic?: string;
+  /** Broker the state topic lives on; defaults to the command broker. */
+  stateBrokerId?: string;
+  /** Shape of incoming messages, with `{value}` marking the value to compare. */
+  readTemplate?: string;
+  /** The value published to turn the device on, dropped into the template. */
   onPayload?: string;
+  /** The value published to turn it off. */
   offPayload?: string;
-  /** Optional JSON key to read the state from. */
-  valueKey?: string;
+  /**
+   * The message both states are published inside, with `{value}` marking where
+   * the value above goes. A bare chip publishes the value on its own, which is
+   * what a device expecting plain `ON` wants; see `toggleWritePayloads`.
+   */
+  payloadTemplate?: string;
+  /**
+   * Which field sent the user to the topic picker. The picker round-trips the
+   * draft config and hands the chosen topic back as `initialTopic`, which would
+   * otherwise always land in the command topic — this says where it belongs.
+   */
+  pickTarget?: "topic" | "stateTopic";
+  /** Command broker carried across the picker round-trip. */
+  commandBrokerId?: string;
   qos?: number;
   retain?: boolean;
 }
@@ -54,165 +98,379 @@ export function ToggleConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
-  const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
-  const [separateStateTopic, setSeparateStateTopic] = useState(
-    Boolean(config.stateTopic?.trim()),
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
+  // A topic picked for the state field must not overwrite the command topic
+  const pickedForState = config.pickTarget === "stateTopic";
+  const [topic, setTopic] = useState(
+    (pickedForState ? config.topic : initialTopic) ?? config.topic ?? "",
   );
-  const [stateTopic, setStateTopic] = useState(config.stateTopic ?? "");
+  // The parts as stored, never the rendered bytes: a panel saved with its two
+  // states written out in full has no template, so the bare chip publishes
+  // each one unchanged and the boxes still say what they always said.
+  const [payloadTemplate, setPayloadTemplate] = useState(
+    config.payloadTemplate || VALUE_TOKEN,
+  );
   const [onPayload, setOnPayload] = useState(
     config.onPayload ?? DEFAULT_ON_PAYLOAD,
   );
   const [offPayload, setOffPayload] = useState(
     config.offPayload ?? DEFAULT_OFF_PAYLOAD,
   );
-  const [valueKey, setValueKey] = useState(config.valueKey ?? "");
+  const [separateRead, setSeparateRead] = useState(
+    config.separateRead ?? Boolean(config.stateTopic?.trim()),
+  );
+  const [stateTopic, setStateTopic] = useState(
+    (pickedForState ? initialTopic : config.stateTopic) ??
+      config.stateTopic ??
+      "",
+  );
+  const [stateBrokerId, setStateBrokerId] = useState(
+    (pickedForState ? initialBrokerId : config.stateBrokerId) ??
+      config.stateBrokerId ??
+      "",
+  );
+  const [readTemplate, setReadTemplate] = useState(config.readTemplate ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    (pickedForState ? config.commandBrokerId : initialBrokerId) ||
+      brokerId ||
+      fallbackBroker,
   );
 
-  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
-  const effectiveStateTopic = separateStateTopic ? stateTopic.trim() : "";
+  const effectiveStateBroker =
+    (separateRead && stateBrokerId) || selectedBrokerId;
+
+  // Sampled once for the message box below, which is the only thing a real
+  // message can fill: the two values are the toggle's own, not the device's.
+  const commandHistory = usePayloadSample(selectedBrokerId, topic);
+
+  const draft = (pickTarget: "topic" | "stateTopic"): ToggleConfig => ({
+    topic,
+    separateRead,
+    stateTopic,
+    stateBrokerId,
+    readTemplate,
+    payloadTemplate,
+    onPayload,
+    offPayload,
+    qos,
+    retain,
+    pickTarget,
+    commandBrokerId: selectedBrokerId,
+  });
+
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic, allowMultiple: false, subject: "A command topic" }),
+    ...payloadRules({
+      field: "payload",
+      value: payloadTemplate,
+      mode: "write",
+      subject: "the toggle has",
+    }),
+    {
+      field: "onPayload",
+      when: onPayload.trim() === "",
+      message: "The On value is empty — there would be nothing to publish.",
+    },
+    {
+      field: "offPayload",
+      when: offPayload.trim() === "",
+      message: "The Off value is empty — there would be nothing to publish.",
+    },
+    {
+      field: "onPayload",
+      when: onPayload.trim() !== "" && onPayload.trim() === offPayload.trim(),
+      message: "On and Off publish the same bytes, so the toggle can't flip.",
+    },
+    ...(separateRead
+      ? [
+          ...topicRules({
+            field: "stateTopic",
+            topic: stateTopic,
+            allowWildcards: true,
+            // Subscribed to as one topic, so a list would be handed to the
+            // broker whole and match nothing — the command topic above says
+            // the same thing.
+            allowMultiple: false,
+            subject: "A state topic",
+          }),
+          // Blank is a real answer here: a device echoing `ON` on its own
+          // state topic puts the value in the whole payload, and
+          // `extractPayloadValue` reads it that way.
+          ...payloadRules({
+            field: "readShape",
+            value: readTemplate,
+            mode: "read",
+            allowEmpty: true,
+          }),
+        ]
+      : []),
+  ]);
+
+  // The bytes the panel would actually publish, not the template with the value
+  // dropped in: a shape mid-edit that has lost its chip publishes each state on
+  // its own, and a preview saying otherwise would describe a panel that does not
+  // exist. Rendered once here so the collapsed row can also tell "nothing
+  // configured yet" from a payload that happens to be short.
+  // A message with nowhere to put the value is not a message this panel can
+  // send — the same thing the slider's collapsed row says by going blank, and
+  // what Save is refusing while the box is in that state. Showing the bare
+  // states instead would read as configured.
+  const configured =
+    hasToken(payloadTemplate) &&
+    onPayload.trim() !== "" &&
+    offPayload.trim() !== "";
+  const summaryOn = toggleWritePayload(onPayload, payloadTemplate).trim();
+  const summaryOff = toggleWritePayload(offPayload, payloadTemplate).trim();
 
   return (
-    <PanelModalFrame
-      title="Toggle Configuration"
+    <PanelConfigModal
       icon={MdToggleOn}
-      onClose={onClose}
+      title="Toggle Configuration"
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
           {
             topic,
-            stateTopic: effectiveStateTopic,
+            separateRead,
+            stateTopic: separateRead ? stateTopic.trim() : "",
+            stateBrokerId: separateRead ? effectiveStateBroker : undefined,
+            readTemplate: separateRead ? readTemplate : undefined,
+            payloadTemplate,
             onPayload,
             offPayload,
-            valueKey: valueKey.trim(),
+            // A stored path opens the read box as the shape it was describing,
+            // so once that box is saved it says everything the path did — and
+            // the path has to go, or blanking the box could never clear it.
+            // It survives where the box cannot speak for it: a panel reading
+            // its command topic saves no shape at all, and an array index is a
+            // path no shape can draw.
             qos,
             retain,
           },
-          selectedBrokerId,
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={
-        brokerStatuses.length === 0 ||
-        !topic.trim() ||
-        hasWildcardWarning ||
-        !onPayload.trim() ||
-        !offPayload.trim()
-      }
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        onPickTopic={
-          onPickTopic
-            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-            : undefined
-        }
-        topicLabel="Command topic"
-        allowWildcards={false}
-        allowMultiple={false}
-        helpText="The topic the toggle publishes to. Also used to read the state unless a separate state topic is set below."
-      />
+      <ConfigGroup heading="Publish">
+        <BrokerTopicCard
+          title="Publishes to"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={(next) => {
+            setTopic(next);
+          }}
+          topicPlaceholder="home/light/set"
+          topicError={fieldErrors.topic}
+          help="Publishes here, and reads the state back from here unless you turn on Read below."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: topic,
+                    selectedBrokerId,
+                    draftConfig: draft("topic"),
+                  })
+              : undefined
+          }
+        />
 
-      <fieldset className="fieldset p-0 border-0">
-        <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg border border-base-300 bg-base-200/40">
-          <span className="text-xs font-medium text-base-content/80">
-            State topic is different
-          </span>
-          <input
-            type="checkbox"
-            className="toggle toggle-xs toggle-primary"
-            checked={separateStateTopic}
-            onChange={(e) => setSeparateStateTopic(e.target.checked)}
+        <DisclosureCard
+          title="Message"
+          // Both states, because the difference between them is the point
+          summary={
+            configured ? (
+              <span className="font-mono">{`${summaryOn}  /  ${summaryOff}`}</span>
+            ) : (
+              <span className="text-base-content/50">not configured</span>
+            )
+          }
+          defaultOpen={!configured}
+          invalid={Boolean(
+            fieldErrors.payload ||
+            fieldErrors.onPayload ||
+            fieldErrors.offPayload,
+          )}
+        >
+          <PayloadBuilder
+            mode="write"
+            value={payloadTemplate}
+            onChange={(next) => {
+              setPayloadTemplate(next);
+            }}
+            history={{
+              messages: commandHistory.recent,
+              loading: commandHistory.loading,
+            }}
+            brokerId={selectedBrokerId}
+            topic={topic}
+            showPreview={false}
+            placeholder={VALUE_TOKEN}
           />
-        </label>
+          {fieldErrors.payload && (
+            <span className="text-[11px] text-warning">
+              {fieldErrors.payload}
+            </span>
+          )}
 
-        {separateStateTopic && (
-          <div className="mt-2">
-            <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-              State topic
-            </legend>
-            <input
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                !stateTopic.trim() ? "input-warning" : ""
-              }`}
-              value={stateTopic}
-              onChange={(e) => setStateTopic(e.target.value)}
-              placeholder="e.g. home/lamp/state"
-            />
-            <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-              The topic the device reports its actual state on. Read-only, so
-              wildcards are allowed here.
-            </p>
-          </div>
-        )}
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Payloads
-        </legend>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">On</span>
-            <input
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                !onPayload.trim() ? "input-warning" : ""
-              }`}
+          <div className="flex flex-col gap-2.5 pt-2.5 border-t border-base-300 dark:border-base-100 min-w-0">
+            <StateValue
+              caption="On value"
+              error={fieldErrors.onPayload}
               value={onPayload}
-              onChange={(e) => setOnPayload(e.target.value)}
+              onChange={(next) => {
+                setOnPayload(next);
+              }}
               placeholder={DEFAULT_ON_PAYLOAD}
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-base-content/60">Off</span>
-            <input
-              className={`input input-bordered input-sm w-full font-mono text-xs ${
-                !offPayload.trim() ? "input-warning" : ""
-              }`}
+
+            <StateValue
+              caption="Off value"
+              error={fieldErrors.offPayload}
               value={offPayload}
-              onChange={(e) => setOffPayload(e.target.value)}
+              onChange={(next) => {
+                setOffPayload(next);
+              }}
               placeholder={DEFAULT_OFF_PAYLOAD}
             />
-          </label>
-        </div>
-        <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-          Sent when the toggle is flipped, and matched against incoming messages
-          to read the state back.
-        </p>
-      </fieldset>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          JSON key <span className="opacity-60 font-normal">(optional)</span>
-        </legend>
-        <input
-          className="input input-bordered input-sm w-full font-mono text-xs"
-          value={valueKey}
-          onChange={(e) => setValueKey(e.target.value)}
-          placeholder="e.g. state"
+            {/* One preview for the pair, not a line under each field: what
+                matters is the two side by side, and it is the same box the
+                other panels show their bytes in. */}
+            <PreviewBox
+              problem={
+                payloadTemplate.trim() === ""
+                  ? "Nothing to send yet."
+                  : hasToken(payloadTemplate)
+                    ? null
+                    : `No ${TOKEN_LABEL} chip in the message.`
+              }
+            >
+              <PreviewLine label="On" bytes={summaryOn} />
+              <PreviewLine label="Off" bytes={summaryOff} />
+            </PreviewBox>
+          </div>
+        </DisclosureCard>
+
+        <PublishOptionsCard
+          qos={qos}
+          onQosChange={setQos}
+          retain={retain}
+          onRetainChange={setRetain}
+          retainNote="Last state kept for new subscribers"
         />
-        <p className="text-[11px] text-base-content/60 mt-1.5 leading-normal">
-          Read the state from this key when the device publishes JSON, e.g.{" "}
-          <code className="font-mono">{`{"state":"ON"}`}</code>.
-        </p>
-      </fieldset>
+      </ConfigGroup>
 
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
-    </PanelModalFrame>
+      <ConfigGroup heading="Read">
+        <ReadBackSwitch
+          on={separateRead}
+          onToggle={(next) => {
+            setSeparateRead(next);
+          }}
+          title="A different topic reports the state"
+          offExplanation="The device reports on the command topic, in the same shape the panel publishes."
+          onExplanation="The panel listens here instead of on the command topic."
+          invalid={Boolean(fieldErrors.stateTopic || fieldErrors.readShape)}
+        >
+          <BrokerTopicCard
+            bare
+            brokers={brokerStatuses}
+            brokerId={effectiveStateBroker}
+            onBrokerChange={setStateBrokerId}
+            topic={stateTopic}
+            onTopicChange={(next) => {
+              setStateTopic(next);
+            }}
+            topicPlaceholder="home/light/state"
+            topicError={fieldErrors.stateTopic}
+            help="Read-only, so wildcards (+ and #) are fine here."
+            onExplore={
+              onPickTopic
+                ? () =>
+                    onPickTopic({
+                      currentTopic: stateTopic,
+                      selectedBrokerId: effectiveStateBroker,
+                      draftConfig: draft("stateTopic"),
+                    })
+                : undefined
+            }
+          />
+
+          <div className="flex flex-col gap-2.5 pt-2.5 border-t border-base-300 dark:border-base-100 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold">
+                Shape it arrives in
+              </span>
+              <span className="ml-auto text-[10.5px] text-base-content/50 truncate">
+                the chip marks the value compared against On
+              </span>
+            </div>
+            <PayloadBuilder
+              mode="read"
+              value={readTemplate}
+              onChange={(next) => {
+                setReadTemplate(next);
+              }}
+              brokerId={effectiveStateBroker}
+              topic={stateTopic}
+              allowBlankShape
+              // The toggle compares the marked characters against its two
+              // states; it never parses them into a value.
+              readsText
+              placeholder={`whole payload, or {"state":"${VALUE_TOKEN}"}`}
+            />
+            {fieldErrors.readShape && (
+              <span className="text-[11px] text-warning">
+                {fieldErrors.readShape}
+              </span>
+            )}
+          </div>
+        </ReadBackSwitch>
+      </ConfigGroup>
+    </PanelConfigModal>
+  );
+}
+
+/** One of the toggle's two verbatim payloads, under its own caption. */
+/**
+ * One state's value, with the bytes it turns into shown underneath. The value
+ * is what the panel compares an incoming message against, so it is deliberately
+ * the small field and the template is the big one.
+ */
+function StateValue({
+  caption,
+  error,
+  value,
+  onChange,
+  placeholder,
+}: {
+  caption: string;
+  error?: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <FieldRow label={caption} invalid={Boolean(error)} help={error}>
+        <input
+          className={`input input-bordered w-full min-w-0 h-8 min-h-8 font-mono text-xs ${
+            error ? "input-warning" : ""
+          }`}
+          aria-label={caption}
+          spellCheck={false}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+        />
+      </FieldRow>
+    </div>
   );
 }
 
@@ -247,9 +505,11 @@ export default function TogglePanel(props: TogglePanelProps) {
     brokerId,
     config.topic ?? "",
     config.stateTopic ?? "",
+    config.stateBrokerId ?? "",
+    config.readTemplate ?? "",
     config.onPayload ?? DEFAULT_ON_PAYLOAD,
     config.offPayload ?? DEFAULT_OFF_PAYLOAD,
-    config.valueKey ?? "",
+    config.payloadTemplate ?? "",
   ].join("\u0000");
 
   return <ToggleRuntime key={identity} {...props} />;
@@ -270,10 +530,23 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   const resizeIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const commandTopic = (config.topic ?? "").split(",")[0]?.trim() ?? "";
-  const stateTopic = config.stateTopic?.trim() || commandTopic;
+  const separateRead =
+    config.separateRead ?? Boolean(config.stateTopic?.trim());
+  const stateTopic =
+    (separateRead && config.stateTopic?.trim()) || commandTopic;
+  // The state topic may live on another broker entirely
+  const stateBrokerId =
+    (separateRead && config.stateBrokerId?.trim()) || brokerId;
+  // The bytes published for each state, and the values those bytes were built
+  // from — a read shape yields the value, an echo of the command topic yields
+  // the whole message, and `parseToggleState` is given both.
+  const { on: writeOn, off: writeOff } = toggleWritePayloads(config);
   const onPayload = config.onPayload ?? DEFAULT_ON_PAYLOAD;
   const offPayload = config.offPayload ?? DEFAULT_OFF_PAYLOAD;
-  const valueKey = config.valueKey;
+  // Without a read topic of its own the toggle still reads through the write
+  // shape, the way every other panel does: a device that echoes the command
+  // topic with a timestamp beside the value is a shape, not an unknown state.
+  const readTemplate = effectiveReadTemplate({ ...config, separateRead }) ?? "";
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
   const hasWildcard = commandTopic.includes("+") || commandTopic.includes("#");
@@ -288,7 +561,12 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   // A message from the state topic is the source of truth: it resolves any
   // pending flip and replaces the optimistic position.
   const applyIncomingState = (payload: string, receivedAt: number) => {
-    const next = parseToggleState(payload, { onPayload, offPayload, valueKey });
+    const next = parseToggleState(payload, {
+      onPayload,
+      offPayload,
+      payloadTemplate: config.payloadTemplate,
+      readTemplate,
+    });
     setState(next);
     setUpdatedAt(receivedAt);
 
@@ -305,11 +583,11 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
 
   // Seed the last known state from history so a reload isn't blank
   useEffect(() => {
-    if (!brokerId || !stateTopic) return;
+    if (!stateBrokerId || !stateTopic) return;
 
     let cancelled = false;
     api
-      .getExplorerHistory(brokerId, stateTopic)
+      .getExplorerHistory(stateBrokerId, stateTopic)
       .then((records) => {
         if (cancelled || !records || records.length === 0) return;
         const sorted = [...records].sort(
@@ -329,7 +607,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brokerId, stateTopic, onPayload, offPayload, valueKey]);
+  }, [stateBrokerId, stateTopic, onPayload, offPayload, readTemplate]);
 
   // Live updates
   const { subscribe } = useWebSocket({
@@ -355,8 +633,12 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
 
   useEffect(() => {
     if (!stateTopic) return;
-    subscribe({ panel_id: panelId, broker_id: brokerId, topics: [stateTopic] });
-  }, [panelId, brokerId, stateTopic, subscribe]);
+    subscribe({
+      panel_id: panelId,
+      broker_id: stateBrokerId,
+      topics: [stateTopic],
+    });
+  }, [panelId, stateBrokerId, stateTopic, subscribe]);
 
   // Scale the switch with the panel. Every animated property is derived from
   // these dimensions, so transitions are suppressed until resizing settles —
@@ -434,7 +716,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: desired ? onPayload : offPayload,
+        payload: desired ? writeOn : writeOff,
         qos,
         retain,
       });

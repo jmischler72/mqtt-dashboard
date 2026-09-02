@@ -1,9 +1,22 @@
 import { useState, useEffect, useRef } from "react";
+import { MdListAlt } from "react-icons/md";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import PanelModalFrame from "./PanelModalFrame";
+import {
+  BrokerTopicCard,
+  ChoiceCards,
+  ConfigCard,
+  ConfigGroup,
+  FieldRow,
+  PanelConfigModal,
+  SwitchRow,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  topicRules,
+  useConfigValidation,
+} from "./config";
 
 interface LogMessage {
   receivedAt: string;
@@ -14,10 +27,12 @@ interface LogMessage {
   historical?: boolean;
 }
 
+export type LogDateFormat = "time" | "full";
+
 export interface LogConfig {
   topics?: string;
   maxMessages?: number;
-  dateFormat?: "time" | "full";
+  dateFormat?: LogDateFormat;
   showQos?: boolean;
   showRetained?: boolean;
 }
@@ -47,125 +62,169 @@ export function LogConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [topics, setTopics] = useState(initialTopic ?? config.topics ?? "");
-  const [maxMessages, setMaxMessages] = useState(config.maxMessages ?? 200);
-  const [dateFormat, setDateFormat] = useState<"time" | "full">(
+  const [maxMessages, setMaxMessages] = useState(
+    String(config.maxMessages ?? 200),
+  );
+  const [dateFormat, setDateFormat] = useState<LogDateFormat>(
     config.dateFormat ?? "full",
   );
   const [showQos, setShowQos] = useState(config.showQos ?? true);
   const [showRetained, setShowRetained] = useState(config.showRetained ?? true);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
   );
 
+  const rowsNum = Number(maxMessages);
+
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ field: "topic", topic: topics, allowWildcards: true }),
+    {
+      field: "rows",
+      when: !Number.isFinite(rowsNum) || rowsNum < 1 || rowsNum > 1000,
+      message: "Rows must be a number between 1 and 1000.",
+    },
+  ]);
+
+  const draft = (): LogConfig => ({
+    topics,
+    // A half-typed or cleared box comes back as it was left, not as the text
+    // `NaN` for the user to clear again.
+    maxMessages: Number.isFinite(rowsNum) ? rowsNum : config.maxMessages,
+    dateFormat,
+    showQos,
+    showRetained,
+  });
+
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdListAlt}
       title="Log Configuration"
-      onClose={onClose}
-      onSave={() =>
-        onSave(
-          {
-            topics,
-            maxMessages,
-            dateFormat,
-            showQos,
-            showRetained,
-          },
-          selectedBrokerId || defaultBrokerId,
-        )
-      }
-      saveDisabled={brokerStatuses.length === 0}
-      maxWidthClass="max-w-lg"
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
+      onSave={() => onSave(draft(), selectedBrokerId || fallbackBroker)}
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topics}
-        onTopicChange={setTopics}
-        allowWildcards={true}
-        placeholder="e.g. sensors/#, home/+/status"
-        onPickTopic={
-          onPickTopic
-            ? () =>
-                onPickTopic({
-                  currentTopic: "",
-                  selectedBrokerId,
-                  draftConfig: {
-                    topics,
-                    maxMessages,
-                    dateFormat,
-                    showQos,
-                    showRetained,
-                  },
-                })
-            : undefined
-        }
-      />
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Max Messages Buffer
-        </legend>
-        <input
-          className="input input-bordered input-sm w-full font-mono text-xs"
-          type="number"
-          min={1}
-          max={1000}
-          value={maxMessages}
-          onChange={(e) => setMaxMessages(Number(e.target.value))}
+      <ConfigGroup heading="Read">
+        <BrokerTopicCard
+          title="Reads from"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topics}
+          onTopicChange={(next) => {
+            setTopics(next);
+          }}
+          topicPlaceholder="sensors/#, home/+/status"
+          topicError={fieldErrors.topic}
+          help="Comma-separate several topics. Read-only, so wildcards (+ and #) are fine."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: "",
+                    selectedBrokerId,
+                    draftConfig: draft(),
+                  })
+              : undefined
+          }
         />
-      </fieldset>
+      </ConfigGroup>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Timestamp Format
-        </legend>
-        <select
-          className="select select-bordered select-sm w-full font-medium"
-          value={dateFormat}
-          onChange={(e) => setDateFormat(e.target.value as "time" | "full")}
-        >
-          <option value="time font-medium">Time only (HH:MM:SS)</option>
-          <option value="full">Full date and time</option>
-        </select>
-      </fieldset>
+      <ConfigGroup heading="Appearance">
+        <ConfigCard title="Line style" summary="Drawn with your settings">
+          <ChoiceCards<LogDateFormat>
+            value={dateFormat}
+            onChange={setDateFormat}
+            options={[
+              {
+                id: "time",
+                label: "Time only",
+                preview: (
+                  <LinePreview
+                    stamp="14:32:07"
+                    showQos={showQos}
+                    showRetained={showRetained}
+                  />
+                ),
+              },
+              {
+                id: "full",
+                label: "Full date",
+                preview: (
+                  <LinePreview
+                    stamp="2026-08-31 14:32:07"
+                    showQos={showQos}
+                    showRetained={showRetained}
+                  />
+                ),
+              },
+            ]}
+          />
+          <SwitchRow
+            name="QoS badge"
+            note="Prints the delivery level on each line"
+            on={showQos}
+            onToggle={setShowQos}
+          />
+          <SwitchRow
+            name="Retain badge"
+            note="Marks messages the broker had kept"
+            on={showRetained}
+            onToggle={setShowRetained}
+          />
+        </ConfigCard>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
-          Display Badges
-        </legend>
-        <div className="flex flex-col gap-2">
-          {(
-            [
-              [showQos, setShowQos, "Show QoS level badge"],
-              [showRetained, setShowRetained, "Show retain flag badge"],
-            ] as [boolean, (v: boolean) => void, string][]
-          ).map(([value, setter, label]) => (
-            <label
-              key={label}
-              className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
-            >
-              <span className="text-xs font-medium text-base-content/80">
-                {label}
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-xs toggle-primary"
-                checked={value}
-                onChange={(e) => setter(e.target.checked)}
-              />
-            </label>
-          ))}
-        </div>
-      </fieldset>
-    </PanelModalFrame>
+        <ConfigCard>
+          <FieldRow
+            label="Rows"
+            invalid={Boolean(fieldErrors.rows)}
+            help={
+              fieldErrors.rows ??
+              "How many lines the panel keeps before dropping the oldest."
+            }
+          >
+            <input
+              className={`input input-bordered w-full min-w-0 h-8 min-h-8 font-mono text-xs ${
+                fieldErrors.rows ? "input-warning" : ""
+              }`}
+              inputMode="numeric"
+              value={maxMessages}
+              onChange={(e) => {
+                setMaxMessages(e.target.value);
+              }}
+            />
+          </FieldRow>
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 
-function formatTimestamp(date: Date, format: "time" | "full") {
+/** A log line drawn with the badges and stamp the user has actually picked. */
+function LinePreview({
+  stamp,
+  showQos,
+  showRetained,
+}: {
+  stamp: string;
+  showQos: boolean;
+  showRetained: boolean;
+}) {
+  return (
+    <div className="w-full px-1 font-mono text-[9px] leading-relaxed text-left truncate">
+      <span className="opacity-60">[{stamp}]</span>{" "}
+      <span className="text-accent">my-topic</span>
+      {showQos && <span className="opacity-60"> Q0</span>}
+      {showRetained && <span className="text-warning"> R</span>} 21.4
+    </div>
+  );
+}
+
+/** The stamp at the head of a line, in the format the panel is configured for. */
+function formatTimestamp(date: Date, format: LogDateFormat) {
   const pad2 = (n: number) => String(n).padStart(2, "0");
   if (format === "full") {
     return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;

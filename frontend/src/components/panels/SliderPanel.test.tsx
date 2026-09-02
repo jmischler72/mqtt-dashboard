@@ -106,6 +106,31 @@ describe("SliderPanel publishing", () => {
     expect(screen.queryByTitle(/Double-click/)).toBeNull();
   });
 
+  it("decodes a state topic through the read shape with no separateRead flag", async () => {
+    // A slider saved before the flag existed says "I read elsewhere" only by
+    // carrying a state topic. It subscribes there either way, so it has to
+    // decode there with the read shape too — the write shape names a different
+    // field and would leave the handle stuck on "unknown".
+    getExplorerHistoryMock.mockResolvedValue([
+      { payload: '{"bri":42}', timestamp: "2026-01-01T00:00:00Z" },
+    ]);
+
+    render(
+      <SliderPanel
+        panelId="p1"
+        brokerId="b1"
+        config={{
+          ...config,
+          stateTopic: "home/lamp/state",
+          payloadTemplate: '{"set":{value}}',
+          readTemplate: '{"bri":{value}}',
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("42")).toBeTruthy();
+  });
+
   it("does not publish again on the blur that follows a committed move", () => {
     const slider = renderSlider();
     fireEvent.change(slider, { target: { value: "40" } });

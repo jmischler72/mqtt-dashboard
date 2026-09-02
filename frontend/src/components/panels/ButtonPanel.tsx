@@ -1,9 +1,25 @@
 import { useState } from "react";
+import { MdSmartButton } from "react-icons/md";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import MqttOptionsSection from "./MqttOptionsSection";
-import PanelModalFrame from "./PanelModalFrame";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  DisclosureCard,
+  FieldRow,
+  PanelConfigModal,
+  PayloadBuilder,
+  PayloadSummary,
+  PublishOptionsCard,
+  SwitchRow,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  payloadRules,
+  topicRules,
+  useConfigValidation,
+} from "./config";
 import { usePanelSize } from "../../hooks/usePanelSize";
 
 export interface ButtonConfig {
@@ -39,8 +55,7 @@ export function ButtonConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [label, setLabel] = useState(config.label ?? "Click");
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
@@ -50,85 +65,117 @@ export function ButtonConfigModal({
     config.requireConfirm ?? false,
   );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
   );
 
-  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    ...topicRules({ topic }),
+    // A button publishes a fixed message, so there is no runtime value for a
+    // chip to stand in for — an empty payload, on the other hand, is how a
+    // retained message gets cleared and is perfectly valid.
+    ...payloadRules({
+      value: payload,
+      mode: "write",
+      acceptsChip: false,
+      allowEmpty: true,
+      subject: "a button has",
+    }),
+  ]);
+
+  const topicCount = topic.split(",").filter((t) => t.trim()).length;
 
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdSmartButton}
       title="Button Configuration"
-      onClose={onClose}
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
           { label, topic, payload, qos, retain, requireConfirm },
-          selectedBrokerId,
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={
-        brokerStatuses.length === 0 || !topic.trim() || hasWildcardWarning
-      }
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        onPickTopic={
-          onPickTopic
-            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-            : undefined
-        }
-      />
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Button Label
-        </legend>
-        <input
-          className="input input-bordered input-sm w-full font-medium"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Button text"
+      <ConfigGroup heading="Publish">
+        <BrokerTopicCard
+          title="Publishes to"
+          summary={topicCount > 1 ? `${topicCount} topics` : undefined}
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={(next) => {
+            setTopic(next);
+          }}
+          topicPlaceholder="home/light/set"
+          topicError={fieldErrors.topic}
+          help="Comma-separate to publish to several topics."
+          onExplore={
+            onPickTopic
+              ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+              : undefined
+          }
         />
-      </fieldset>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Payload
-        </legend>
-        <textarea
-          className="textarea textarea-bordered textarea-sm w-full font-mono"
-          rows={3}
-          placeholder='{"action": "on"}'
-          value={payload}
-          onChange={(e) => setPayload(e.target.value)}
-        />
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg border border-base-300 bg-base-200/40">
-          <span className="text-xs font-medium text-base-content/80">
-            Require Confirmation before publishing
-          </span>
-          <input
-            type="checkbox"
-            className="toggle toggle-xs toggle-primary"
-            checked={requireConfirm}
-            onChange={(e) => setRequireConfirm(e.target.checked)}
+        <DisclosureCard
+          title="Message"
+          summary={
+            <PayloadSummary
+              value={payload}
+              empty="empty message"
+              chips={false}
+            />
+          }
+          defaultOpen={payload.trim() === ""}
+          invalid={Boolean(fieldErrors.payload)}
+        >
+          <PayloadBuilder
+            mode="write"
+            value={payload}
+            onChange={setPayload}
+            acceptsChip={false}
+            brokerId={selectedBrokerId}
+            topic={topic}
+            placeholder="ON"
           />
-        </label>
-      </fieldset>
+          {fieldErrors.payload && (
+            <span className="text-[11px] text-warning">
+              {fieldErrors.payload}
+            </span>
+          )}
+        </DisclosureCard>
 
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
-    </PanelModalFrame>
+        <PublishOptionsCard
+          qos={qos}
+          onQosChange={setQos}
+          retain={retain}
+          onRetainChange={setRetain}
+        />
+      </ConfigGroup>
+
+      <ConfigGroup heading="Appearance">
+        <ConfigCard>
+          <FieldRow label="Label" help="Button text. Scales to the panel.">
+            <input
+              className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Click"
+            />
+          </FieldRow>
+
+          <SwitchRow
+            name="Ask before publishing"
+            note="A click on the panel opens a confirm dialog"
+            on={requireConfirm}
+            onToggle={setRequireConfirm}
+          />
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 

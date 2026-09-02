@@ -41,6 +41,11 @@ import SliderPanel, {
 } from "./SliderPanel";
 import { DEFAULT_MAX, DEFAULT_MIN } from "./sliderUtils";
 import { VALUE_TOKEN, describeTemplate, payloadIssue } from "./payloadShape";
+import {
+  DEFAULT_OFF_PAYLOAD,
+  DEFAULT_ON_PAYLOAD,
+  toggleWritePayloads,
+} from "./toggleUtils";
 
 /**
  * The command topic of a publishing panel: it has to exist, and it cannot carry
@@ -165,6 +170,12 @@ export const brokerStatsPanelDefinition: PanelDefinition<BrokerStatsConfig> = {
   category: "monitor",
   icon: MdBarChart,
   description: "Broker throughput and message rates",
+  // This panel counts a broker, not a topic: with no filter it counts the lot.
+  // Without saying so it falls to the generic "a panel needs a topic" rules,
+  // which leave a blank-filter panel showing an empty state behind a warning
+  // badge — for a config its own modal calls the default.
+  isEmpty: () => null,
+  validateConfig: (): ValidationResult => ({ isValid: true }),
   preview: (
     <div className="flex flex-col gap-2 h-full">
       <div className="grid grid-cols-2 gap-1">
@@ -325,15 +336,34 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
         errors: { topic: "Cannot publish to wildcard topics (+ or #)" },
       };
     }
-    if (
-      !(config?.onPayload ?? "ON").trim() ||
-      !(config?.offPayload ?? "OFF").trim()
-    ) {
+    // The stored values as well as the bytes: a config seeded from a file can
+    // hold an empty state inside a template, which renders as `{"v":}` — bytes
+    // that are not empty and say nothing.
+    const states = toggleWritePayloads(config ?? {});
+    const on = config?.onPayload ?? DEFAULT_ON_PAYLOAD;
+    const off = config?.offPayload ?? DEFAULT_OFF_PAYLOAD;
+    if (!on.trim() || !off.trim() || !states.on.trim() || !states.off.trim()) {
       return {
         isValid: false,
-        warning: "On and Off payloads are required",
-        errors: { payload: "On and Off payloads are required" },
+        warning: "On and Off messages are required",
+        errors: { payload: "On and Off messages are required" },
       };
+    }
+    if (states.on.trim() === states.off.trim()) {
+      return {
+        isValid: false,
+        warning: "On and Off publish the same bytes",
+        errors: { payload: "On and Off publish the same bytes" },
+      };
+    }
+    // The same check the slider makes, and the same one the modal blocks Save
+    // on: a message with no chip has nowhere to put either state, so the panel
+    // falls back to publishing the bare values and the header must say so.
+    const shape = payloadIssue({
+      template: config?.payloadTemplate ?? VALUE_TOKEN,
+    });
+    if (shape) {
+      return { isValid: false, warning: shape, errors: { payload: shape } };
     }
     return { isValid: true };
   },
@@ -346,7 +376,10 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
       topicDetail: stateTopic
         ? `command → ${topic} · state ← ${stateTopic}`
         : `command and state → ${topic}`,
-      payloadPreview: `${(config?.onPayload ?? "ON").trim()} / ${(config?.offPayload ?? "OFF").trim()}`,
+      payloadPreview: (() => {
+        const states = toggleWritePayloads(config ?? {});
+        return `${states.on.trim()} / ${states.off.trim()}`;
+      })(),
     };
   },
   preview: (
@@ -388,7 +421,9 @@ export const sliderPanelDefinition: PanelDefinition<SliderConfig> = {
     const max = config?.max ?? DEFAULT_MAX;
     const problem = publishIssueResult(
       config?.topic,
-      payloadIssue({ template: config?.payloadTemplate ?? VALUE_TOKEN }) ??
+      payloadIssue({
+        template: config?.payloadTemplate ?? VALUE_TOKEN,
+      }) ??
         (config?.separateRead
           ? payloadIssue({
               template: config?.readTemplate ?? VALUE_TOKEN,
@@ -482,6 +517,14 @@ export const separatorPanelDefinition: PanelDefinition<SeparatorConfig> = {
       return { minW: 1, minH: 1, maxH: 1 };
     }
     return { minW: 1, minH: 1, maxW: 1 };
+  },
+  // Orientation moves the bar to the other axis. The span it had on the axis it
+  // just left says nothing about the one it lands on, so it collapses to the
+  // smallest legal size and the user drags it to the length they want.
+  adjustSizeForConfig: (config, { w, h }) => {
+    const orient = config?.orientation ?? "horizontal";
+    const fits = orient === "horizontal" ? h <= 1 : w <= 1;
+    return fits ? null : { w: 1, h: 1 };
   },
   preview: (
     <div className="flex items-center justify-center h-full px-2">

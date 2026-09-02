@@ -13,9 +13,10 @@ import {
   defaultResolvePickedTopic,
   PanelPreviewCard,
   PanelEmptyState,
-  PanelModalFrame,
+  PanelConfigModal,
   type PanelDefinition,
 } from "./index";
+import { VALUE_TOKEN } from "./payloadShape";
 
 afterEach(() => {
   cleanup();
@@ -26,8 +27,10 @@ describe("Slider header meta", () => {
 
   it("shows the payload, as the config modal does", () => {
     expect(
-      slider()?.getHeaderMeta?.({ topic: "lamp", payloadTemplate: '{"b":◆}' })
-        ?.payloadPreview,
+      slider()?.getHeaderMeta?.({
+        topic: "lamp",
+        payloadTemplate: `{"b":${VALUE_TOKEN}}`,
+      })?.payloadPreview,
     ).toBe('{"b":value}');
   });
 
@@ -35,9 +38,9 @@ describe("Slider header meta", () => {
     expect(
       slider()?.getHeaderMeta?.({
         topic: "lamp",
-        payloadTemplate: "◆",
+        payloadTemplate: VALUE_TOKEN,
         separateRead: true,
-        readTemplate: '{"bri":◆}',
+        readTemplate: `{"bri":${VALUE_TOKEN}}`,
       })?.payloadPreview,
     ).toBe('sends  value\nreads  {"bri":value}');
   });
@@ -293,6 +296,44 @@ describe("Registry Helper: defaultResolvePickedTopic & Custom Resolve", () => {
   });
 });
 
+describe("Toggle header validation", () => {
+  const toggleDef = getPanelDefinition("toggle")!;
+
+  it("refuses an empty state hidden inside a template", () => {
+    // `{"v":}` is bytes that are not empty and say nothing; a config seeded
+    // from a file can hold one, having never been through the modal
+    const result = toggleDef.validateConfig?.({
+      topic: "home/lamp/set",
+      payloadTemplate: '{"v":{value}}',
+      onPayload: "",
+      offPayload: "OFF",
+    });
+    expect(result?.isValid).toBe(false);
+  });
+
+  it("accepts a config whose states are both written out", () => {
+    expect(
+      toggleDef.validateConfig?.({
+        topic: "home/lamp/set",
+        payloadTemplate: '{"v":{value}}',
+        onPayload: "ON",
+        offPayload: "OFF",
+      })?.isValid,
+    ).toBe(true);
+  });
+});
+
+describe("Stats panel with no topic filter", () => {
+  const statsDef = getPanelDefinition("stats")!;
+
+  it("counts the whole broker rather than reading as unconfigured", () => {
+    // The modal offers a blank filter as the default and never blocks Save on
+    // it, so the generic "a panel needs a topic" rules must not apply here
+    expect(defaultCheckEmpty(statsDef, {})).toBeNull();
+    expect(defaultValidateWarning(statsDef, {})).toBeNull();
+  });
+});
+
 describe("Separator layout constraints", () => {
   const sepDef = getPanelDefinition("separator")!;
 
@@ -308,6 +349,30 @@ describe("Separator layout constraints", () => {
       orientation: "vertical",
     });
     expect(constraints).toEqual({ minW: 1, minH: 1, maxW: 1 });
+  });
+
+  it("collapses to the smallest legal size when orientation flips", () => {
+    expect(
+      sepDef.adjustSizeForConfig?.({ orientation: "vertical" }, { w: 6, h: 1 }),
+    ).toEqual({ w: 1, h: 1 });
+    expect(
+      sepDef.adjustSizeForConfig?.(
+        { orientation: "horizontal" },
+        { w: 1, h: 4 },
+      ),
+    ).toEqual({ w: 1, h: 1 });
+  });
+
+  it("leaves a size that already fits the orientation alone", () => {
+    expect(
+      sepDef.adjustSizeForConfig?.(
+        { orientation: "horizontal" },
+        { w: 6, h: 1 },
+      ),
+    ).toBeNull();
+    expect(
+      sepDef.adjustSizeForConfig?.({ orientation: "vertical" }, { w: 1, h: 4 }),
+    ).toBeNull();
   });
 });
 
@@ -381,60 +446,65 @@ describe("PanelEmptyState", () => {
   });
 });
 
-describe("PanelModalFrame", () => {
-  it("renders title, content, and handles save/close events", () => {
-    const onClose = vi.fn();
+describe("PanelConfigModal", () => {
+  it("renders title, content, and handles save/cancel events", () => {
+    const onCancel = vi.fn();
     const onSave = vi.fn();
 
     render(
-      <PanelModalFrame
+      <PanelConfigModal
         title="Test Modal"
-        onClose={onClose}
+        onCancel={onCancel}
         onSave={onSave}
-        headerAction={<button type="button">Action</button>}
+        brokerStatus="connected"
       >
         <div>Modal Body Content</div>
-      </PanelModalFrame>,
+      </PanelConfigModal>,
     );
 
     expect(screen.getByText("Test Modal")).toBeInTheDocument();
     expect(screen.getByText("Modal Body Content")).toBeInTheDocument();
-    expect(screen.getByText("Action")).toBeInTheDocument();
+    expect(screen.getByText("CONNECTED")).toBeInTheDocument();
 
-    const saveBtn = screen.getByRole("button", { name: "Save" });
-    fireEvent.click(saveBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledTimes(1);
 
-    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
-    fireEvent.click(cancelBtn);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it("handles Escape key dismissal", () => {
-    const onClose = vi.fn();
+    const onCancel = vi.fn();
     render(
-      <PanelModalFrame title="Escape Test" onClose={onClose}>
+      <PanelConfigModal
+        title="Escape Test"
+        onCancel={onCancel}
+        onSave={() => {}}
+      >
         <div>Body</div>
-      </PanelModalFrame>,
+      </PanelConfigModal>,
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it("disables save button when saveDisabled is true", () => {
+  it("disables save and shows the reason when one is given", () => {
     const onSave = vi.fn();
     render(
-      <PanelModalFrame
+      <PanelConfigModal
         title="Disabled Save"
-        onClose={() => {}}
+        onCancel={() => {}}
         onSave={onSave}
-        saveDisabled={true}
+        blockerReason="A topic is needed before this can save."
       >
         <div>Body</div>
-      </PanelModalFrame>,
+      </PanelConfigModal>,
     );
 
+    expect(
+      screen.getByText("A topic is needed before this can save."),
+    ).toBeInTheDocument();
     const saveBtn = screen.getByRole("button", { name: "Save" });
     expect(saveBtn).toBeDisabled();
     fireEvent.click(saveBtn);

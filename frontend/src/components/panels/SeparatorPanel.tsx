@@ -1,8 +1,16 @@
 import { useState } from "react";
-import PanelModalFrame from "./PanelModalFrame";
+import { MdHorizontalRule } from "react-icons/md";
+import {
+  ChoiceCards,
+  ConfigCard,
+  ConfigGroup,
+  PanelConfigModal,
+} from "./config";
+
+export type SeparatorOrientation = "horizontal" | "vertical";
 
 export interface SeparatorConfig {
-  orientation?: "horizontal" | "vertical";
+  orientation?: SeparatorOrientation;
 }
 
 interface ModalProps {
@@ -12,37 +20,44 @@ interface ModalProps {
 }
 
 export function SeparatorConfigModal({ config, onSave, onClose }: ModalProps) {
-  const [orientation, setOrientation] = useState<"horizontal" | "vertical">(
+  const [orientation, setOrientation] = useState<SeparatorOrientation>(
     config.orientation ?? "horizontal",
   );
 
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdHorizontalRule}
       title="Separator Configuration"
-      onClose={onClose}
+      onCancel={onClose}
       onSave={() => onSave({ orientation }, "")}
-      maxWidthClass="max-w-md"
     >
-      <fieldset className="fieldset">
-        <legend className="fieldset-legend">Orientation</legend>
-        <div className="join">
-          <button
-            type="button"
-            className={`btn join-item ${orientation === "horizontal" ? "btn-primary" : "btn-outline"}`}
-            onClick={() => setOrientation("horizontal")}
-          >
-            Horizontal
-          </button>
-          <button
-            type="button"
-            className={`btn join-item ${orientation === "vertical" ? "btn-primary" : "btn-outline"}`}
-            onClick={() => setOrientation("vertical")}
-          >
-            Vertical
-          </button>
-        </div>
-      </fieldset>
-    </PanelModalFrame>
+      <ConfigGroup heading="Appearance">
+        <ConfigCard title="Orientation">
+          {/* The choice is entirely visual, so the picker draws it rather than
+              naming it in a select. */}
+          <ChoiceCards<SeparatorOrientation>
+            value={orientation}
+            onChange={setOrientation}
+            options={[
+              {
+                id: "horizontal",
+                label: "Horizontal",
+                preview: (
+                  <div className="w-full h-1 rounded-full bg-base-content/30" />
+                ),
+              },
+              {
+                id: "vertical",
+                label: "Vertical",
+                preview: (
+                  <div className="h-[54px] w-1 rounded-full bg-base-content/30" />
+                ),
+              },
+            ]}
+          />
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 

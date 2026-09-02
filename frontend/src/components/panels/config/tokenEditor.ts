@@ -1,4 +1,4 @@
-import { TOKEN_LABEL, VALUE_TOKEN } from "./payloadShape";
+import { TOKEN_LABEL, VALUE_TOKEN } from "../payloadShape";
 
 /**
  * The payload editor is a contenteditable rather than a textarea, so the token
@@ -17,8 +17,25 @@ const CHIP_CLASS =
   "border border-primary bg-primary/15 text-primary font-mono text-[11px] " +
   "select-none";
 
-/** Replace the host's content with the template, token rendered as a chip. */
-export function paintTemplate(host: HTMLElement, template: string): void {
+/**
+ * Replace the host's content with the template, token rendered as a chip.
+ *
+ * `chips` is false for a panel with no value to substitute (button, cron): the
+ * same characters are then ordinary text the device asked for, and painting
+ * them as a chip would leave bytes the caret cannot get into.
+ */
+export function paintTemplate(
+  host: HTMLElement,
+  template: string,
+  chips = true,
+): void {
+  if (!chips) {
+    host.replaceChildren(
+      ...(template ? [host.ownerDocument.createTextNode(template)] : []),
+    );
+    return;
+  }
+
   const nodes: Node[] = [];
 
   template.split(VALUE_TOKEN).forEach((chunk, index) => {
@@ -40,23 +57,56 @@ function buildChip(doc: Document): HTMLElement {
   return chip;
 }
 
+/** A DOM selection boundary, as a container node plus its offset. */
+interface Boundary {
+  container: Node;
+  offset: number;
+}
+
 /**
- * Read the host back as a payload string. Browsers represent a newline in a
- * contenteditable as a `<br>` or as a fresh block element depending on how it
- * was produced, so both are mapped back to "\n".
+ * Walk `host` building the payload string, recording where each boundary in
+ * `marks` lands inside it.
+ *
+ * One walk serves both jobs on purpose. Measuring a selection used to clone the
+ * content up to each end and read the clone back, but a `<br>` that is trailing
+ * *in the clone* is not necessarily the browser's filler — cut the content at
+ * the start of line two and the newline the user typed looks like filler and is
+ * dropped, putting every offset after a line break one short. Only the live
+ * tree can tell the two apart, so the boundaries are resolved against it.
  */
-export function readTemplate(host: Node): string {
+function walkHost(
+  host: Node,
+  marks: Boundary[],
+): { text: string; at: number[] } {
   let out = "";
+  const at: number[] = marks.map(() => -1);
+
+  /** A boundary inside `node` resolves to the payload offset `resolve` gives. */
+  const record = (matches: (mark: Boundary) => boolean) => {
+    marks.forEach((mark, index) => {
+      if (at[index] === -1 && matches(mark)) at[index] = out.length;
+    });
+  };
 
   const walk = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      out += node.textContent ?? "";
+      const text = node.textContent ?? "";
+      const start = out.length;
+      marks.forEach((mark, index) => {
+        if (at[index] === -1 && mark.container === node) {
+          at[index] = start + Math.min(mark.offset, text.length);
+        }
+      });
+      out += text;
       return;
     }
 
     if (!(node instanceof HTMLElement)) return;
 
     if (node.hasAttribute(TOKEN_ATTR)) {
+      // The caret cannot sit inside a chip, so any point in it — the chip
+      // itself or the text it holds — is its leading edge.
+      record((mark) => node.contains(mark.container));
       // Browsers do not always remove the whole chip: some empty it out and
       // leave the husk behind. A chip that no longer reads as itself has been
       // deleted, whatever the DOM still holds.
@@ -65,6 +115,7 @@ export function readTemplate(host: Node): string {
     }
 
     if (node.tagName === "BR") {
+      record((mark) => mark.container === node);
       // Browsers park a filler <br> at the end of editable content to keep the
       // last line reachable. It is not a line the user typed, and publishing
       // the newline it stands for would append a byte they cannot see.
@@ -76,12 +127,33 @@ export function readTemplate(host: Node): string {
     const isBlock = node.tagName === "DIV" || node.tagName === "P";
     if (isBlock && out && !out.endsWith("\n")) out += "\n";
 
-    node.childNodes.forEach(walk);
+    walkChildren(node);
   };
 
-  host.childNodes.forEach(walk);
+  const walkChildren = (parent: Node) => {
+    const children = parent.childNodes;
+    for (let index = 0; index < children.length; index++) {
+      // An offset on an element boundary counts children, not characters
+      record((mark) => mark.container === parent && mark.offset === index);
+      walk(children[index]);
+    }
+    record(
+      (mark) => mark.container === parent && mark.offset >= children.length,
+    );
+  };
 
-  return out;
+  walkChildren(host);
+
+  return { text: out, at };
+}
+
+/**
+ * Read the host back as a payload string. Browsers represent a newline in a
+ * contenteditable as a `<br>` or as a fresh block element depending on how it
+ * was produced, so both are mapped back to "\n".
+ */
+export function readTemplate(host: Node): string {
+  return walkHost(host, []).text;
 }
 
 /** True for a <br> with nothing after it, anywhere up to the host. */
@@ -98,9 +170,7 @@ function isTrailingFiller(node: Node, host: Node): boolean {
 
 /**
  * Where the selection sits, counted in payload characters rather than DOM
- * positions — the chip counts as the single token character it stands for.
- * Measured by cloning the content up to each end and reading it back, so it
- * holds up whatever shape the browser has made of the box.
+ * positions — the chip counts as the token it stands for.
  *
  * Null when nothing in the editor is selected, e.g. the user has not put the
  * caret in it yet.
@@ -114,22 +184,23 @@ export function readSelectionOffsets(
   const range = selection.getRangeAt(0);
   if (!host.contains(range.commonAncestorContainer)) return null;
 
-  const upTo = (container: Node, offset: number) => {
-    const measured = host.ownerDocument.createRange();
-    measured.selectNodeContents(host);
-    measured.setEnd(container, offset);
-    return readTemplate(measured.cloneContents()).length;
-  };
+  const { text, at } = walkHost(host, [
+    { container: range.startContainer, offset: range.startOffset },
+    { container: range.endContainer, offset: range.endOffset },
+  ]);
 
-  return {
-    start: upTo(range.startContainer, range.startOffset),
-    end: upTo(range.endContainer, range.endOffset),
-  };
+  // A boundary the walk never reached sits past everything it did
+  const start = at[0] === -1 ? text.length : at[0];
+  const end = at[1] === -1 ? text.length : at[1];
+
+  return { start: Math.min(start, end), end: Math.max(start, end) };
 }
 
 /**
- * Put the caret at a payload offset. Only valid on a freshly painted box, whose
- * children are a flat run of text nodes and chips.
+ * Put the caret at a payload offset — the same offsets `readTemplate` and
+ * `readSelectionOffsets` count in, where a chip is as wide as the token it
+ * stands for. Only valid on a freshly painted box, whose children are a flat
+ * run of text nodes and chips.
  */
 export function setCaret(host: HTMLElement, offset: number): void {
   const selection = host.ownerDocument.getSelection();
@@ -153,14 +224,15 @@ export function setCaret(host: HTMLElement, offset: number): void {
       continue;
     }
 
-    // A chip is one character wide, and the caret can only sit beside it: on
-    // its leading edge that means before it, past it means after.
+    // A chip stands for the whole token and the caret can only sit beside it:
+    // on its leading edge that means before it, anywhere else in its span —
+    // including the offset `placeToken` hands back — means after.
     if (offset <= seen) {
       range.setStart(host, index);
       placed = true;
       break;
     }
-    seen += 1;
+    seen += VALUE_TOKEN.length;
     if (offset <= seen) {
       range.setStart(host, index + 1);
       placed = true;

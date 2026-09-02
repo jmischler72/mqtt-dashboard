@@ -1,10 +1,26 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { CiPause1 } from "react-icons/ci";
+import { MdSchedule } from "react-icons/md";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import MqttOptionsSection from "./MqttOptionsSection";
-import PanelModalFrame from "./PanelModalFrame";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  DisclosureCard,
+  FieldRow,
+  PanelConfigModal,
+  PayloadBuilder,
+  PayloadSummary,
+  PublishOptionsCard,
+  SwitchRow,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  payloadRules,
+  topicRules,
+  useConfigValidation,
+} from "./config";
 import { usePanelSize } from "../../hooks/usePanelSize";
 import {
   PRESETS,
@@ -46,18 +62,14 @@ export function CronConfigModal({
   initialTopic,
   initialBrokerId,
 }: Props) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   const initialCronState = useMemo(() => {
-    if (!config.cron_expr) {
-      return { preset: "* * * * *", customExpr: "" };
-    }
+    if (!config.cron_expr) return { preset: "* * * * *", customExpr: "" };
     const found = PRESETS.find((p) => p.value === config.cron_expr);
-    if (found) {
-      return { preset: found.value, customExpr: config.cron_expr };
-    }
+    if (found) return { preset: found.value, customExpr: config.cron_expr };
     return { preset: "custom", customExpr: config.cron_expr };
   }, [config.cron_expr]);
+
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [payload, setPayload] = useState(config.payload ?? "");
   const [enabled, setEnabled] = useState(config.enabled ?? false);
@@ -66,129 +78,162 @@ export function CronConfigModal({
   const [preset, setPreset] = useState(initialCronState.preset);
   const [customExpr, setCustomExpr] = useState(initialCronState.customExpr);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
   );
+
   const isCustom = preset === "custom";
   const cronExpr = isCustom ? customExpr : preset;
   const cronError = isCustom ? validateCron(customExpr) : null;
   const cronDescription =
     isCustom && !cronError ? describeCron(customExpr) : null;
+  const presetLabel =
+    PRESETS.find((p) => p.value === preset)?.label ?? "Custom";
 
-  const hasWildcardWarning = topic.includes("+") || topic.includes("#");
+  const { fieldErrors, blockerReason } = useConfigValidation([
+    ...brokerRules(brokerStatuses.length),
+    {
+      field: "schedule",
+      when: Boolean(cronError),
+      message: cronError ?? "",
+    },
+    ...topicRules({ topic }),
+    // The schedule supplies the moment, not a value, so the message is fixed
+    // bytes and a chip would publish an empty hole.
+    ...payloadRules({
+      value: payload,
+      mode: "write",
+      acceptsChip: false,
+      allowEmpty: true,
+      subject: "a schedule has",
+    }),
+  ]);
+
+  const topicCount = topic.split(",").filter((t) => t.trim()).length;
 
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdSchedule}
       title="Cron Configuration"
-      onClose={onClose}
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
-          {
-            cron_expr: cronExpr,
-            topic,
-            payload,
-            qos,
-            retain,
-            enabled,
-          },
-          selectedBrokerId || defaultBrokerId,
+          { cron_expr: cronExpr, topic, payload, qos, retain, enabled },
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={
-        brokerStatuses.length === 0 ||
-        (isCustom && !!cronError) ||
-        !topic.trim() ||
-        hasWildcardWarning
-      }
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        onPickTopic={
-          onPickTopic
-            ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
-            : undefined
-        }
-      />
-
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Schedule Presets
-        </legend>
-        <select
-          className="select select-bordered select-sm w-full font-medium"
-          value={preset}
-          onChange={(e) => setPreset(e.target.value)}
+      {/* The schedule decides when the bytes go out, so it belongs to Publish
+          rather than to a group of its own. */}
+      <ConfigGroup heading="Publish">
+        <ConfigCard
+          title="Schedule"
+          summary={isCustom ? (cronDescription ?? customExpr) : presetLabel}
+          invalid={Boolean(fieldErrors.schedule)}
         >
-          {PRESETS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </fieldset>
+          <FieldRow label="Runs">
+            <select
+              className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+              aria-label="Schedule preset"
+              value={preset}
+              onChange={(e) => {
+                setPreset(e.target.value);
+              }}
+            >
+              {PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
 
-      {isCustom && (
-        <fieldset className="fieldset p-0 border-0">
-          <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-            Custom Cron Expression
-          </legend>
-          <input
-            className={`input input-bordered input-sm w-full font-mono text-xs ${
-              cronError ? "input-error" : ""
-            }`}
-            placeholder="* * * * *"
-            value={customExpr}
-            onChange={(e) => setCustomExpr(e.target.value)}
-          />
-          {cronError && (
-            <span className="text-error text-xs mt-1">{cronError}</span>
+          {isCustom && (
+            <FieldRow
+              label="Cron"
+              invalid={Boolean(fieldErrors.schedule)}
+              help={fieldErrors.schedule ?? cronDescription ?? undefined}
+            >
+              <input
+                className={`input input-bordered w-full min-w-0 h-8 min-h-8 font-mono text-xs ${
+                  fieldErrors.schedule ? "input-warning" : ""
+                }`}
+                aria-label="Cron expression"
+                spellCheck={false}
+                placeholder="* * * * *"
+                value={customExpr}
+                onChange={(e) => {
+                  setCustomExpr(e.target.value);
+                }}
+              />
+            </FieldRow>
           )}
-          {cronDescription && (
-            <span className="text-info text-xs mt-1 block">
-              {cronDescription}
+
+          <SwitchRow
+            name="Run this schedule"
+            note="Publishes on the schedule above. The schedule is kept either way."
+            on={enabled}
+            onToggle={setEnabled}
+          />
+        </ConfigCard>
+
+        <BrokerTopicCard
+          title="Publishes to"
+          summary={topicCount > 1 ? `${topicCount} topics` : undefined}
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={(next) => {
+            setTopic(next);
+          }}
+          topicPlaceholder="devices/hub/cmd"
+          topicError={fieldErrors.topic}
+          help="Comma-separate to publish to several topics."
+          onExplore={
+            onPickTopic
+              ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
+              : undefined
+          }
+        />
+
+        <DisclosureCard
+          title="Message"
+          summary={
+            <PayloadSummary
+              value={payload}
+              empty="empty message"
+              chips={false}
+            />
+          }
+          defaultOpen={payload.trim() === ""}
+          invalid={Boolean(fieldErrors.payload)}
+        >
+          <PayloadBuilder
+            mode="write"
+            value={payload}
+            onChange={setPayload}
+            acceptsChip={false}
+            brokerId={selectedBrokerId}
+            topic={topic}
+            placeholder='{"ping":true}'
+          />
+          {fieldErrors.payload && (
+            <span className="text-[11px] text-warning">
+              {fieldErrors.payload}
             </span>
           )}
-        </fieldset>
-      )}
+        </DisclosureCard>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Payload (string or JSON)
-        </legend>
-        <textarea
-          className="textarea textarea-bordered textarea-sm w-full font-mono text-xs"
-          rows={2}
-          placeholder='{"ping": true}'
-          value={payload}
-          onChange={(e) => setPayload(e.target.value)}
+        <PublishOptionsCard
+          qos={qos}
+          onQosChange={setQos}
+          retain={retain}
+          onRetainChange={setRetain}
         />
-      </fieldset>
-
-      <fieldset className="fieldset p-0 border-0">
-        <label className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40">
-          <span className="text-xs font-medium text-base-content/80">
-            Enable Schedule Execution
-          </span>
-          <input
-            type="checkbox"
-            className="toggle toggle-xs toggle-primary"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-          />
-        </label>
-      </fieldset>
-
-      <MqttOptionsSection
-        qos={qos}
-        retain={retain}
-        onQosChange={setQos}
-        onRetainChange={setRetain}
-      />
-    </PanelModalFrame>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 

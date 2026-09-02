@@ -2,8 +2,18 @@ import { useState, useEffect, useRef } from "react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
-import BrokerTopicSection from "./BrokerTopicSection";
-import PanelModalFrame from "./PanelModalFrame";
+import { MdBarChart } from "react-icons/md";
+import {
+  BrokerTopicCard,
+  ConfigCard,
+  ConfigGroup,
+  PanelConfigModal,
+  SwitchRow,
+  brokerPresence,
+  brokerRules,
+  defaultBrokerId,
+  useConfigValidation,
+} from "./config";
 
 type TimeRange = 60 | 300 | 900 | 3600;
 
@@ -67,14 +77,13 @@ export function BrokerStatsConfigModal({
   initialTopic,
   initialBrokerId,
 }: ModalProps) {
-  const defaultBrokerId =
-    brokerStatuses.find((b) => b.is_enabled)?.id ?? brokerStatuses[0]?.id ?? "";
+  const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [defaultRange, setDefaultRange] = useState<TimeRange>(
     config.defaultRange ?? 60,
   );
   const [selectedBrokerId, setSelectedBrokerId] = useState(
-    initialBrokerId || brokerId || defaultBrokerId,
+    initialBrokerId || brokerId || fallbackBroker,
   );
   const [showStatTiles, setShowStatTiles] = useState(
     config.showStatTiles !== false,
@@ -84,10 +93,19 @@ export function BrokerStatsConfigModal({
     config.showTopicBreakdown !== false,
   );
 
+  // An empty filter is the honest default here — it means "everything this
+  // broker carries" — so the topic is never a reason Save is off.
+  const { blockerReason } = useConfigValidation(
+    brokerRules(brokerStatuses.length),
+  );
+
   return (
-    <PanelModalFrame
+    <PanelConfigModal
+      icon={MdBarChart}
       title="Stats Configuration"
-      onClose={onClose}
+      brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
+      blockerReason={blockerReason}
+      onCancel={onClose}
       onSave={() =>
         onSave(
           {
@@ -97,77 +115,72 @@ export function BrokerStatsConfigModal({
             showChart,
             showTopicBreakdown,
           },
-          selectedBrokerId || defaultBrokerId,
+          selectedBrokerId || fallbackBroker,
         )
       }
-      saveDisabled={brokerStatuses.length === 0}
-      maxWidthClass="max-w-lg"
     >
-      <BrokerTopicSection
-        selectedBrokerId={selectedBrokerId}
-        onBrokerChange={setSelectedBrokerId}
-        brokerStatuses={brokerStatuses}
-        topic={topic}
-        onTopicChange={setTopic}
-        allowWildcards={true}
-        onPickTopic={
-          onPickTopic
-            ? () =>
-                onPickTopic({
-                  currentTopic: "",
-                  selectedBrokerId,
-                  draftConfig: { topic, defaultRange },
-                })
-            : undefined
-        }
-      />
+      <ConfigGroup heading="Read">
+        <BrokerTopicCard
+          title="Counts traffic on"
+          brokers={brokerStatuses}
+          brokerId={selectedBrokerId}
+          onBrokerChange={setSelectedBrokerId}
+          topic={topic}
+          onTopicChange={setTopic}
+          topicPlaceholder="# (everything)"
+          help="Read-only, so wildcards (+ and #) are fine. Leave blank to count everything."
+          onExplore={
+            onPickTopic
+              ? () =>
+                  onPickTopic({
+                    currentTopic: "",
+                    selectedBrokerId,
+                    draftConfig: { topic, defaultRange },
+                  })
+              : undefined
+          }
+        />
+      </ConfigGroup>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-1">
-          Default Time Range
-        </legend>
-        <select
-          className="select select-bordered select-sm w-full font-medium"
-          value={defaultRange}
-          onChange={(e) => setDefaultRange(Number(e.target.value) as TimeRange)}
-        >
-          <option value={60}>1 minute</option>
-          <option value={300}>5 minutes</option>
-          <option value={900}>15 minutes</option>
-          <option value={3600}>1 hour</option>
-        </select>
-      </fieldset>
+      <ConfigGroup heading="Appearance">
+        <ConfigCard title="Default Time Range">
+          <select
+            className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"
+            aria-label="Default time range"
+            value={defaultRange}
+            onChange={(e) =>
+              setDefaultRange(Number(e.target.value) as TimeRange)
+            }
+          >
+            <option value={60}>1 minute</option>
+            <option value={300}>5 minutes</option>
+            <option value={900}>15 minutes</option>
+            <option value={3600}>1 hour</option>
+          </select>
+        </ConfigCard>
 
-      <fieldset className="fieldset p-0 border-0">
-        <legend className="fieldset-legend font-medium text-xs text-base-content/80 mb-2">
-          Visible Sections
-        </legend>
-        <div className="flex flex-col gap-2">
-          {(
-            [
-              [showStatTiles, setShowStatTiles, "Stat tiles"],
-              [showChart, setShowChart, "Chart"],
-              [showTopicBreakdown, setShowTopicBreakdown, "Topic breakdown"],
-            ] as [boolean, (v: boolean) => void, string][]
-          ).map(([value, setter, label]) => (
-            <label
-              key={label}
-              className="flex items-center justify-between cursor-pointer p-2.5 rounded-lg border border-base-300 bg-base-200/40"
-            >
-              <span className="text-xs font-medium text-base-content/80">
-                {label}
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-xs toggle-primary"
-                checked={value}
-                onChange={(e) => setter(e.target.checked)}
-              />
-            </label>
-          ))}
-        </div>
-      </fieldset>
-    </PanelModalFrame>
+        <ConfigCard title="Visible Sections">
+          <SwitchRow
+            name="Stat tiles"
+            note="The headline numbers across the top of the panel"
+            on={showStatTiles}
+            onToggle={setShowStatTiles}
+          />
+          <SwitchRow
+            name="Chart"
+            note="The message-rate graph"
+            on={showChart}
+            onToggle={setShowChart}
+          />
+          <SwitchRow
+            name="Topic breakdown"
+            note="The busiest topics, counted over the same window"
+            on={showTopicBreakdown}
+            onToggle={setShowTopicBreakdown}
+          />
+        </ConfigCard>
+      </ConfigGroup>
+    </PanelConfigModal>
   );
 }
 
@@ -227,19 +240,26 @@ export default function BrokerStatsPanel({
   brokerId,
   config,
 }: BrokerStatsPanelProps) {
-  const topicFilter = (config.topic ?? "").trim();
-  const parsedTopics = topicFilter
-    ? topicFilter
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
+  // Blank means "everything this broker carries" — what the config modal
+  // offers, what its placeholder shows, and why the topic is never a reason
+  // Save is off. The panel has to honour that rather than sit on an empty
+  // state the modal never warned about.
+  const topicFilter = (config.topic ?? "").trim() || "#";
   const showStatTiles = config.showStatTiles !== false;
   const showChart = config.showChart !== false;
   const showTopicBreakdown = config.showTopicBreakdown !== false;
-  const [currentRange, setCurrentRange] = useState<TimeRange>(
-    config.defaultRange ?? 60,
-  );
+  // The pills change the window live, so it is state — but the panel is never
+  // remounted when its config is saved, and reading the setting only at mount
+  // left a freshly saved window invisible until a reload. Tracking the saved
+  // value alongside it means a save resets the view, while a pill the user
+  // pressed still wins until the setting itself changes again.
+  const savedRange = config.defaultRange ?? 60;
+  const [seenSavedRange, setSeenSavedRange] = useState<TimeRange>(savedRange);
+  const [currentRange, setCurrentRange] = useState<TimeRange>(savedRange);
+  if (seenSavedRange !== savedRange) {
+    setSeenSavedRange(savedRange);
+    setCurrentRange(savedRange);
+  }
   const [activity, setActivity] = useState<ActivityData | null>(null);
   const [liveRate, setLiveRate] = useState<LiveRate>(() => ({
     rate: 0,
@@ -514,14 +534,6 @@ export default function BrokerStatsPanel({
   const total = activity?.total ?? 0;
   const totalKb = (activity?.totalBytes ?? 0) / 1024;
   const topics = activity?.topics ?? [];
-  if (parsedTopics.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
-        No topic configured — open settings to add topic
-      </div>
-    );
-  }
-
   const maxCount = Math.max(1, ...topics.map((t) => t.count));
 
   return (
