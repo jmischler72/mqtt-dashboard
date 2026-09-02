@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.11.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.10.0...v1.11.0) (2026-09-02)
+
+
+### Features
+
+* **panels:** add slider panel ([#150](https://github.com/jmischler72/mqtt-dashboard/issues/150)) ([e0a4b3c](https://github.com/jmischler72/mqtt-dashboard/commit/e0a4b3c6e5baf973ef1f1ff4b710a9898793c6a2))
+* **panels:** add toggle panel ([#144](https://github.com/jmischler72/mqtt-dashboard/issues/144)) ([016104d](https://github.com/jmischler72/mqtt-dashboard/commit/016104dd143c73e08436f0c7ec9d39afe41f034e))
+* **panels:** rebuild config modals around one payload builder ([#153](https://github.com/jmischler72/mqtt-dashboard/issues/153)) ([b74ffef](https://github.com/jmischler72/mqtt-dashboard/commit/b74ffef1cce63c04f441870e184dd19c14edf674))
+* **panels:** scale button and cron panels with panel size ([#143](https://github.com/jmischler72/mqtt-dashboard/issues/143)) ([21e0d8e](https://github.com/jmischler72/mqtt-dashboard/commit/21e0d8ef64a3703100be97f0e36062710be22212))
+
+
+### Bug Fixes
+
+* **frontend:** correct cron step matching, cron search cost, and topic filter wildcards ([#157](https://github.com/jmischler72/mqtt-dashboard/issues/157)) ([bb97fb0](https://github.com/jmischler72/mqtt-dashboard/commit/bb97fb07411dcdef98057d6961a6987dfb615571)), closes [#154](https://github.com/jmischler72/mqtt-dashboard/issues/154) [#155](https://github.com/jmischler72/mqtt-dashboard/issues/155) [#156](https://github.com/jmischler72/mqtt-dashboard/issues/156)
+
 ## [1.10.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.9.1...v1.10.0) (2026-08-27)
 
 
