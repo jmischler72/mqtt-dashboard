@@ -404,6 +404,13 @@ export interface ShapeRead extends ExtractedValue {
    * and the two must never be reported as one.
    */
   found: boolean;
+  /**
+   * The characters the shape marked, before they were read as a number or a
+   * boolean. A panel that compares text rather than a value — the toggle,
+   * matching `ON` against its configured states — works from these, so a
+   * preview showing them says what that panel will really see.
+   */
+  text: string;
 }
 
 /**
@@ -419,7 +426,11 @@ function readAtPath(message: string, path: string): ShapeRead | null {
   const resolved = resolvePath(json, path);
   if (!resolved.found || !isScalar(resolved.value)) return null;
 
-  return { ...coerceValue(resolved.value, message), found: true };
+  return {
+    ...coerceValue(resolved.value, message),
+    found: true,
+    text: String(resolved.value).trim(),
+  };
 }
 
 /**
@@ -448,12 +459,22 @@ export function readShape(
     // Both say "the whole payload" — unless a stored path still names the value
     // inside it, which is exactly what the panel itself would read.
     const byPath = legacy ? readAtPath(message, legacy) : null;
-    return byPath ?? { ...coerceValue(message, message), found: true };
+    return (
+      byPath ?? {
+        ...coerceValue(message, message),
+        found: true,
+        text: message.trim(),
+      }
+    );
   }
 
   const stencilled = matchTemplate(shape, message);
   if (stencilled !== null) {
-    return { ...coerceValue(stencilled, message), found: true };
+    return {
+      ...coerceValue(stencilled, message),
+      found: true,
+      text: stencilled.trim(),
+    };
   }
 
   // Mirrors `readValue`: the shape's own path first, then the stored one.
@@ -463,7 +484,11 @@ export function readShape(
     if (byPath) return byPath;
   }
 
-  return { ...coerceValue(message, message), found: false };
+  return {
+    ...coerceValue(message, message),
+    found: false,
+    text: message.trim(),
+  };
 }
 
 /**

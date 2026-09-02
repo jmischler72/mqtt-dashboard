@@ -238,7 +238,9 @@ export function GaugeConfigModal({
           title="Value"
           // The shape itself, not a sentence about it: the chip in the row is
           // what the panel reads, and a blank one reads the whole payload.
-          summary={<PayloadSummary value={readTemplate} empty="whole payload" />}
+          summary={
+            <PayloadSummary value={readTemplate} empty="whole payload" />
+          }
           defaultOpen={Boolean(fieldErrors.readShape)}
           invalid={Boolean(fieldErrors.readShape)}
         >

@@ -283,6 +283,21 @@ describe("readShape", () => {
   });
 });
 
+describe("readShape's marked characters", () => {
+  it("reports what was marked as well as what it parses into", () => {
+    // The gauge draws the boolean; the toggle matches the characters against
+    // its configured states, and a preview showing `true` for a panel matching
+    // `ON` would describe a panel that does not exist.
+    expect(
+      readShape(`{"state":"${VALUE_TOKEN}"}`, '{"state":"ON"}'),
+    ).toMatchObject({ value: true, dataType: "boolean", text: "ON" });
+  });
+
+  it("reports the whole payload as the text a blank shape marks", () => {
+    expect(readShape(VALUE_TOKEN, " ON ")).toMatchObject({ text: "ON" });
+  });
+});
+
 describe("offsetAfterKeepOneToken", () => {
   it("moves the caret back past a duplicate that was before it", () => {
     const template = `{"a":${VALUE_TOKEN},"b":${VALUE_TOKEN}}`;

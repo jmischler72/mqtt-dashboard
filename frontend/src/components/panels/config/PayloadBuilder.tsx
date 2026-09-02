@@ -71,6 +71,12 @@ export interface PayloadBuilderProps {
    * preview reads a message exactly the way the panel does.
    */
   readPath?: string;
+  /**
+   * Read mode: true for a panel that compares the marked characters rather than
+   * reading a value out of them — the toggle, matching `ON` against its states.
+   * Without it the preview would report `true` for a panel matching `ON`.
+   */
+  readsText?: boolean;
   placeholder?: string;
   /** Write mode: the live preview sweeps this range. */
   range?: NumericRange | null;
@@ -114,6 +120,7 @@ export default function PayloadBuilder({
   acceptsChip = true,
   allowBlankShape = false,
   readPath,
+  readsText,
   placeholder,
   range,
   previewValue,
@@ -262,6 +269,7 @@ export default function PayloadBuilder({
           chip={chip}
           allowBlankShape={allowBlankShape}
           readPath={readPath}
+          readsText={readsText}
           unit={unit}
         />
       ) : (
@@ -387,6 +395,7 @@ function ReadPreview({
   chip,
   allowBlankShape,
   readPath,
+  readsText,
   unit,
 }: {
   value: string;
@@ -395,6 +404,7 @@ function ReadPreview({
   chip: boolean;
   allowBlankShape: boolean;
   readPath?: string;
+  readsText?: boolean;
   unit?: string;
 }) {
   const blank = value.trim() === "";
@@ -414,22 +424,16 @@ function ReadPreview({
   }
 
   if (blank && !allowBlankShape) {
-    return (
-      <PreviewBox
-        problem="Nothing marked to read."
-      />
-    );
+    return <PreviewBox problem="Nothing marked to read." />;
   }
 
   if (!blank && !chip) {
-    return (
-      <PreviewBox
-        problem="Nothing marked to read."
-      />
-    );
+    return <PreviewBox problem="Nothing marked to read." />;
   }
 
-  // Read it exactly the way the panel will, so the two can never disagree
+  // Read it exactly the way the panel will, so the two can never disagree:
+  // through the same shape, and — for a panel that matches text — reported as
+  // the characters it matches rather than as the value they parse into.
   const read = readShape(value, latest.payload, readPath);
 
   if (!read.found) {
@@ -452,7 +456,7 @@ function ReadPreview({
           Reads
         </span>
         <span className="flex-1 min-w-0 font-mono font-semibold text-[15px] truncate text-success">
-          {String(read.value)}
+          {readsText ? read.text : String(read.value)}
           {unit ? ` ${unit}` : ""}
         </span>
       </div>

@@ -170,6 +170,12 @@ export const brokerStatsPanelDefinition: PanelDefinition<BrokerStatsConfig> = {
   category: "monitor",
   icon: MdBarChart,
   description: "Broker throughput and message rates",
+  // This panel counts a broker, not a topic: with no filter it counts the lot.
+  // Without saying so it falls to the generic "a panel needs a topic" rules,
+  // which leave a blank-filter panel showing an empty state behind a warning
+  // badge — for a config its own modal calls the default.
+  isEmpty: () => null,
+  validateConfig: (): ValidationResult => ({ isValid: true }),
   preview: (
     <div className="flex flex-col gap-2 h-full">
       <div className="grid grid-cols-2 gap-1">

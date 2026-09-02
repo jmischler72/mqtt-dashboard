@@ -190,6 +190,10 @@ export function ToggleConfigModal({
             field: "stateTopic",
             topic: stateTopic,
             allowWildcards: true,
+            // Subscribed to as one topic, so a list would be handed to the
+            // broker whole and match nothing — the command topic above says
+            // the same thing.
+            allowMultiple: false,
             subject: "A state topic",
           }),
           // Blank is a real answer here: a device echoing `ON` on its own
@@ -416,6 +420,9 @@ export function ToggleConfigModal({
               brokerId={effectiveStateBroker}
               topic={stateTopic}
               allowBlankShape
+              // The toggle compares the marked characters against its two
+              // states; it never parses them into a value.
+              readsText
               placeholder={`whole payload, or {"state":"${VALUE_TOKEN}"}`}
             />
             {fieldErrors.readShape && (

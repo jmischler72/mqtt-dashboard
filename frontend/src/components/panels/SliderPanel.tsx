@@ -188,6 +188,10 @@ export function SliderConfigModal({
             field: "stateTopic",
             topic: stateTopic,
             allowWildcards: true,
+            // Subscribed to as one topic, so a list would be handed to the
+            // broker whole and match nothing — the command topic above says
+            // the same thing.
+            allowMultiple: false,
             subject: "A state topic",
           }),
           ...payloadRules({

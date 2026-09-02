@@ -323,6 +323,17 @@ describe("Toggle header validation", () => {
   });
 });
 
+describe("Stats panel with no topic filter", () => {
+  const statsDef = getPanelDefinition("stats")!;
+
+  it("counts the whole broker rather than reading as unconfigured", () => {
+    // The modal offers a blank filter as the default and never blocks Save on
+    // it, so the generic "a panel needs a topic" rules must not apply here
+    expect(defaultCheckEmpty(statsDef, {})).toBeNull();
+    expect(defaultValidateWarning(statsDef, {})).toBeNull();
+  });
+});
+
 describe("Separator layout constraints", () => {
   const sepDef = getPanelDefinition("separator")!;
 

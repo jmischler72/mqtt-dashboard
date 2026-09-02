@@ -240,13 +240,11 @@ export default function BrokerStatsPanel({
   brokerId,
   config,
 }: BrokerStatsPanelProps) {
-  const topicFilter = (config.topic ?? "").trim();
-  const parsedTopics = topicFilter
-    ? topicFilter
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
+  // Blank means "everything this broker carries" — what the config modal
+  // offers, what its placeholder shows, and why the topic is never a reason
+  // Save is off. The panel has to honour that rather than sit on an empty
+  // state the modal never warned about.
+  const topicFilter = (config.topic ?? "").trim() || "#";
   const showStatTiles = config.showStatTiles !== false;
   const showChart = config.showChart !== false;
   const showTopicBreakdown = config.showTopicBreakdown !== false;
@@ -536,14 +534,6 @@ export default function BrokerStatsPanel({
   const total = activity?.total ?? 0;
   const totalKb = (activity?.totalBytes ?? 0) / 1024;
   const topics = activity?.topics ?? [];
-  if (parsedTopics.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
-        No topic configured — open settings to add topic
-      </div>
-    );
-  }
-
   const maxCount = Math.max(1, ...topics.map((t) => t.count));
 
   return (
