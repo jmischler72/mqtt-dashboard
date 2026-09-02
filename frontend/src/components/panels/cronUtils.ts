@@ -61,12 +61,14 @@ export function describeCron(expr: string): string | null {
   }
 }
 
-function matchCronPart(val: number, part: string): boolean {
+function matchCronPart(val: number, part: string, fieldMin: number): boolean {
   if (part === "*") return true;
   const [range, stepStr] = part.split("/");
   const step = stepStr ? parseInt(stepStr, 10) : 1;
   if (range === "*") {
-    return val % step === 0;
+    // Cron counts steps from the field's minimum, which is 1 for day of month
+    // and month, not 0.
+    return (val - fieldMin) % step === 0;
   }
   if (range.includes("-")) {
     const [minStr, maxStr] = range.split("-");
@@ -78,52 +80,79 @@ function matchCronPart(val: number, part: string): boolean {
   return parseInt(range, 10) === val;
 }
 
-function matchCronField(val: number, fieldExpr: string): boolean {
-  return fieldExpr.split(",").some((part) => matchCronPart(val, part));
+function matchCronField(
+  val: number,
+  fieldExpr: string,
+  fieldMin: number,
+): boolean {
+  return fieldExpr
+    .split(",")
+    .some((part) => matchCronPart(val, part, fieldMin));
+}
+
+const [MINUTE, HOUR, DOM, MONTH, DOW] = CRON_FIELDS;
+
+// Minute and hour fields only.
+function matchesCronTime(parts: string[], date: Date): boolean {
+  return (
+    matchCronField(date.getMinutes(), parts[0], MINUTE.min) &&
+    matchCronField(date.getHours(), parts[1], HOUR.min)
+  );
+}
+
+// Day-of-month, month and weekday fields only.
+function matchesCronDate(parts: string[], date: Date): boolean {
+  const [, , domExpr, monthExpr, dowExpr] = parts;
+  if (!matchCronField(date.getMonth() + 1, monthExpr, MONTH.min)) return false;
+
+  const dom = date.getDate();
+  const dow = date.getDay();
+  const domIsStar = domExpr === "*";
+  const dowIsStar = dowExpr === "*";
+  if (!domIsStar && !dowIsStar) {
+    return (
+      matchCronField(dom, domExpr, DOM.min) ||
+      matchCronField(dow, dowExpr, DOW.min)
+    );
+  }
+  return (
+    matchCronField(dom, domExpr, DOM.min) &&
+    matchCronField(dow, dowExpr, DOW.min)
+  );
 }
 
 export function matchesCron(expr: string, date: Date): boolean {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return false;
-  const [minExpr, hourExpr, domExpr, monthExpr, dowExpr] = parts;
-
-  const min = date.getMinutes();
-  const hour = date.getHours();
-  const dom = date.getDate();
-  const month = date.getMonth() + 1;
-  const dow = date.getDay();
-
-  if (!matchCronField(min, minExpr)) return false;
-  if (!matchCronField(hour, hourExpr)) return false;
-  if (!matchCronField(month, monthExpr)) return false;
-
-  const domIsStar = domExpr === "*";
-  const dowIsStar = dowExpr === "*";
-  if (!domIsStar && !dowIsStar) {
-    if (!matchCronField(dom, domExpr) && !matchCronField(dow, dowExpr)) {
-      return false;
-    }
-  } else {
-    if (!matchCronField(dom, domExpr)) return false;
-    if (!matchCronField(dow, dowExpr)) return false;
-  }
-
-  return true;
+  return matchesCronTime(parts, date) && matchesCronDate(parts, date);
 }
 
 export function getPreviousCronRun(expr: string, nextRun: Date): Date | null {
-  const target = new Date(nextRun.getTime());
-  target.setSeconds(0, 0);
+  // Expressions this parser cannot handle (@daily, "MON", 7 for Sunday, ...)
+  // would otherwise never match and run the whole search on the UI thread.
+  if (validateCron(expr) !== null) return null;
+  const parts = expr.trim().split(/\s+/);
 
-  // Look backwards up to 366 days (527040 minutes)
-  const maxMinutes = 527040;
-  let curr = new Date(target.getTime() - 60000);
+  const curr = new Date(nextRun.getTime());
+  curr.setSeconds(0, 0);
+  curr.setTime(curr.getTime() - 60000);
 
-  for (let i = 0; i < maxMinutes; i++) {
-    if (matchesCron(expr, curr)) {
-      return curr;
+  // Look backwards up to 366 days.
+  const limit = new Date(curr.getTime());
+  limit.setDate(limit.getDate() - 366);
+
+  while (curr.getTime() >= limit.getTime()) {
+    // Skip whole days that the date fields rule out, so an expression that
+    // never matches (e.g. "0 0 30 2 *") costs 366 steps instead of 527040.
+    if (!matchesCronDate(parts, curr)) {
+      curr.setDate(curr.getDate() - 1);
+      curr.setHours(23, 59, 0, 0);
+      continue;
     }
-    curr = new Date(curr.getTime() - 60000);
+    if (matchesCronTime(parts, curr)) {
+      return new Date(curr.getTime());
+    }
+    curr.setTime(curr.getTime() - 60000);
   }
   return null;
 }
