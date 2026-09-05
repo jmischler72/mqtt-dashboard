@@ -12,6 +12,13 @@ services:
       context: ../..
     volumes:
       - ../..:/app
+    # Deps live in /node_modules (see Dockerfile.dev), but Node still resolves
+    # /app/frontend/node_modules first, and both sides keep recreating it: the
+    # host editor writes .tmp/*.tsbuildinfo there, Vite writes .vite-temp. An
+    # empty tmpfs hides whatever the host has and sends those writes to RAM, so
+    # the worktree stays clean and nothing shadows the container's Linux builds.
+    tmpfs:
+      - /app/frontend/node_modules
     environment:
       - APP_ENV=development
       - LOG_LEVEL=debug
@@ -71,7 +78,10 @@ services:
     volumes:
       - ./mosquitto/certs:/certs:ro
     environment:
+      # sensors/ and test/ rounds; the showcase demo/ series tick faster so the
+      # graph panels have a line to draw rather than a point every few minutes.
       - PUBLISH_INTERVAL=5
+      - DEMO_INTERVAL=1
       - BROKER_PLAIN_HOST=mosquitto
       - BROKER_PLAIN_PORT=1883
       - BROKER_PASS_HOST=mosquitto-password

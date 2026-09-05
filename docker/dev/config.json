@@ -30,97 +30,202 @@
   ],
   "dashboards": [
     {
-      "id": "dev-showcase",
-      "name": "Dev Showcase",
+      "id": "showcase-monitors",
+      "name": "Showcase · Monitors",
       "panels": [
         {
-          "title": "🧪 Developer Showcase",
+          "title": "📈 Monitors",
           "panel_type": "text",
           "x": 0,
           "y": 0,
           "w": 12,
-          "h": 2,
+          "h": 3,
           "config_json": {
-            "markdown": "# 🧪 Developer Showcase Dashboard\n\nComprehensive test suite featuring all **9 panel types** and configurations:\n- **Monitors**: Radial / Bar / Value Gauges, Topic Throughput Stats, Streaming Live Logs\n- **Controls**: Instant & Confirmation Action Buttons, Dynamic Input, Automated Cron\n- **Visuals**: Separator Dividers, Rich Markdown, Architecture Media Cards\n\n> 💡 *Live feeds connected to `mosquitto` with simulated IoT & control topics.*"
+            "markdown": "## 📈 Monitors — every read-only panel type\n\nFed by the dev worker's `demo/` namespace on **Mosquitto Plain** (one point per\nsecond, so the graphs actually draw). Each group has a **debug log** beneath it\nshowing the exact messages its panels are reading — if a panel looks wrong, the\nlog says whether the data or the config is at fault.\n\n| Group | Panel types | Topics |\n| --- | --- | --- |\n| Gauges | `gauge` × 3 types | `demo/thermostat/measured`, `demo/graph/humidity`, `demo/lamp/state`, `demo/fan/state` |\n| Graphs | `graph` × 3 curves | `demo/graph/#` |\n| Stats | `stats` × 2 | `demo/#`, `sensors/#` |\n"
           }
         },
         {
-          "title": "Section Divider",
-          "panel_type": "separator",
-          "x": 0,
-          "y": 2,
-          "w": 12,
-          "h": 1,
-          "config_json": {
-            "orientation": "horizontal",
-            "thickness": 2,
-            "color": "#9ca3af"
-          }
-        },
-        {
-          "title": "Temperature (Radial Dial)",
+          "title": "Thermostat (radial)",
           "panel_type": "gauge",
           "x": 0,
           "y": 3,
           "w": 3,
-          "h": 3,
+          "h": 4,
           "config_json": {
-            "topic": "sensors/living-room/temperature",
-            "valueKey": "value",
+            "topic": "demo/thermostat/measured",
+            "readTemplate": "{\"value\": {value}, \"unit\": \"°C\"}",
             "unit": "°C",
-            "min": 0,
-            "max": 50,
+            "min": 5,
+            "max": 30,
             "colorScheme": "auto",
             "gaugeType": "radial",
-            "header_meta_pinned": false
+            "header_meta_pinned": true
           },
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Humidity (Progress Bar)",
+          "title": "Humidity (bar)",
           "panel_type": "gauge",
           "x": 3,
           "y": 3,
           "w": 3,
-          "h": 3,
+          "h": 4,
           "config_json": {
-            "topic": "sensors/living-room/humidity",
-            "valueKey": "value",
+            "topic": "demo/graph/humidity",
+            "readTemplate": "{\"value\": {value}, \"unit\": \"%\"}",
             "unit": "%",
             "min": 0,
             "max": 100,
-            "colorScheme": "auto",
+            "colorScheme": "info",
             "gaugeType": "bar",
-            "header_meta_pinned": false
+            "header_meta_pinned": true
           },
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Motion Detector (Value Card)",
+          "title": "Lamp (value card)",
           "panel_type": "gauge",
           "x": 6,
           "y": 3,
           "w": 3,
-          "h": 3,
+          "h": 4,
           "config_json": {
-            "topic": "sensors/living-room/motion",
-            "valueKey": "value",
-            "unit": "",
+            "topic": "demo/lamp/state",
+            "readTemplate": "{value}",
             "gaugeType": "value",
-            "header_meta_pinned": false
+            "colorScheme": "success",
+            "header_meta_pinned": true
           },
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Sensor Metrics & Rate",
-          "panel_type": "stats",
+          "title": "Fan speed (legacy valueKey)",
+          "panel_type": "gauge",
           "x": 9,
           "y": 3,
           "w": 3,
+          "h": 4,
+          "config_json": {
+            "topic": "demo/fan/state",
+            "valueKey": "speed",
+            "unit": "%",
+            "min": 0,
+            "max": 100,
+            "colorScheme": "warning",
+            "gaugeType": "radial",
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Gauge feeds (debug)",
+          "panel_type": "log",
+          "x": 0,
+          "y": 7,
+          "w": 12,
           "h": 3,
           "config_json": {
-            "topic": "sensors/#",
-            "defaultRange": 60,
+            "topics": "demo/thermostat/measured, demo/graph/humidity, demo/lamp/state, demo/fan/state",
+            "maxMessages": 100,
+            "dateFormat": "time",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Climate (smooth, area, legend)",
+          "panel_type": "graph",
+          "x": 0,
+          "y": 10,
+          "w": 6,
+          "h": 5,
+          "config_json": {
+            "topics": "demo/graph/temperature, demo/graph/humidity",
+            "readTemplate": "{\"value\": {value}}",
+            "timeWindowSeconds": 300,
+            "maxPoints": 600,
+            "curve": "smooth",
+            "showArea": true,
+            "showPoints": false,
+            "showLegend": true,
+            "yMin": null,
+            "yMax": null,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Power draw (step, fixed axis)",
+          "panel_type": "graph",
+          "x": 6,
+          "y": 10,
+          "w": 3,
+          "h": 5,
+          "config_json": {
+            "topics": "demo/graph/power",
+            "readTemplate": "{value}",
+            "unit": "W",
+            "timeWindowSeconds": 180,
+            "maxPoints": 300,
+            "curve": "step",
+            "showArea": true,
+            "showPoints": false,
+            "showLegend": false,
+            "yMin": 0,
+            "yMax": 3000,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Flaky feed (linear, points)",
+          "panel_type": "graph",
+          "x": 9,
+          "y": 10,
+          "w": 3,
+          "h": 5,
+          "config_json": {
+            "topics": "demo/graph/mixed",
+            "readTemplate": "{value}",
+            "timeWindowSeconds": 120,
+            "maxPoints": 150,
+            "curve": "linear",
+            "showArea": false,
+            "showPoints": true,
+            "showLegend": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Graph feeds (debug) — note the non-numeric messages the chart skips",
+          "panel_type": "log",
+          "x": 0,
+          "y": 15,
+          "w": 12,
+          "h": 3,
+          "config_json": {
+            "topics": "demo/graph/#",
+            "maxMessages": 300,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Showcase throughput (all sections)",
+          "panel_type": "stats",
+          "x": 0,
+          "y": 18,
+          "w": 6,
+          "h": 5,
+          "config_json": {
+            "topic": "demo/#",
+            "defaultRange": 300,
             "showStatTiles": true,
             "showChart": true,
             "showTopicBreakdown": true,
@@ -129,126 +234,306 @@
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Section Divider",
-          "panel_type": "separator",
+          "title": "Sensor throughput (tiles only)",
+          "panel_type": "stats",
+          "x": 6,
+          "y": 18,
+          "w": 6,
+          "h": 5,
+          "config_json": {
+            "topic": "sensors/#",
+            "defaultRange": 3600,
+            "showStatTiles": true,
+            "showChart": false,
+            "showTopicBreakdown": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        }
+      ]
+    },
+    {
+      "id": "showcase-controls",
+      "name": "Showcase · Controls",
+      "panels": [
+        {
+          "title": "🎛️ Controls",
+          "panel_type": "text",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 3,
+          "config_json": {
+            "markdown": "## 🎛️ Controls — every panel type that publishes\n\nThe dev worker **answers these**: it subscribes to each command topic below,\napplies it to a simulated device, republishes the device's retained state, and\nechoes a line to `demo/events`. So a toggle really does turn something on, and\nthe state you read back is the device's, not the panel's own optimism.\n\n| Panel | Publishes to | Reads back from |\n| --- | --- | --- |\n| Toggles | `demo/lamp/set` | `demo/lamp/state` (`ON` / `OFF`) |\n| Sliders | `demo/fan/set`, `demo/thermostat/set` | `demo/fan/state`, `demo/thermostat/state` (JSON) |\n| Buttons / Input | `demo/actions/+`, `test/command` | `demo/events` |\n| Cron | `test/heartbeat`, `demo/actions/sweep` | `demo/events` |\n\nThe **debug logs** at the bottom show both directions at once: what the panel\nsent, and what the worker did with it.\n"
+          }
+        },
+        {
+          "title": "Lamp (command only)",
+          "panel_type": "toggle",
+          "x": 0,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/lamp/set",
+            "onPayload": "ON",
+            "offPayload": "OFF",
+            "qos": 0,
+            "retain": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Lamp (reads demo/lamp/state)",
+          "panel_type": "toggle",
+          "x": 3,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/lamp/set",
+            "separateRead": true,
+            "stateTopic": "demo/lamp/state",
+            "readTemplate": "{value}",
+            "onPayload": "ON",
+            "offPayload": "OFF",
+            "qos": 1,
+            "retain": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Lamp (JSON write shape)",
+          "panel_type": "toggle",
+          "x": 6,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/lamp/set",
+            "separateRead": true,
+            "stateTopic": "demo/lamp/state",
+            "readTemplate": "{value}",
+            "onPayload": "ON",
+            "offPayload": "OFF",
+            "payloadTemplate": "{\"state\": \"{value}\", \"src\": \"dashboard\"}",
+            "qos": 2,
+            "retain": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Lamp state (mirror)",
+          "panel_type": "gauge",
+          "x": 9,
+          "y": 3,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/lamp/state",
+            "readTemplate": "{value}",
+            "gaugeType": "value",
+            "colorScheme": "accent",
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Toggle: commands out, state back (debug)",
+          "panel_type": "log",
           "x": 0,
           "y": 6,
           "w": 12,
-          "h": 1,
+          "h": 3,
           "config_json": {
-            "orientation": "horizontal",
-            "thickness": 2,
-            "color": "#9ca3af"
-          }
+            "topics": "demo/lamp/set, demo/lamp/state",
+            "maxMessages": 100,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Start Node (Action Button)",
-          "panel_type": "button",
+          "title": "Fan speed (bare number)",
+          "panel_type": "slider",
           "x": 0,
-          "y": 7,
-          "w": 3,
-          "h": 3,
-          "config_json": {
-            "label": "Start Node",
-            "topic": "device/1/cmd",
-            "payload": "START",
-            "qos": 1,
-            "retain": false,
-            "header_meta_pinned": false
-          },
-          "broker_name": "Mosquitto Plain"
-        },
-        {
-          "title": "Stop Node (Action Button)",
-          "panel_type": "button",
-          "x": 3,
-          "y": 7,
-          "w": 3,
-          "h": 3,
-          "config_json": {
-            "label": "Stop Node",
-            "topic": "device/1/cmd",
-            "payload": "STOP",
-            "qos": 1,
-            "retain": false,
-            "header_meta_pinned": false
-          },
-          "broker_name": "Mosquitto Plain"
-        },
-        {
-          "title": "Quick Boost (Custom Payload)",
-          "panel_type": "button",
-          "x": 6,
-          "y": 7,
-          "w": 3,
-          "h": 3,
-          "config_json": {
-            "label": "Boost Fan",
-            "topic": "sensors/bathroom/humidity",
-            "payload": "{\"action\": \"boost\", \"speed\": 100}",
-            "qos": 1,
-            "retain": false,
-            "header_meta_pinned": false
-          },
-          "broker_name": "Mosquitto Plain"
-        },
-        {
-          "title": "Emergency Cut (Confirmed)",
-          "panel_type": "button",
-          "x": 9,
-          "y": 7,
-          "w": 3,
-          "h": 3,
-          "config_json": {
-            "label": "Emergency Stop",
-            "topic": "device/1/cmd",
-            "payload": "{\"action\": \"emergency_stop\"}",
-            "qos": 1,
-            "retain": false,
-            "requireConfirm": true,
-            "header_meta_pinned": false
-          },
-          "broker_name": "Mosquitto Plain"
-        },
-        {
-          "title": "Section Divider",
-          "panel_type": "separator",
-          "x": 0,
-          "y": 10,
-          "w": 12,
-          "h": 1,
-          "config_json": {
-            "orientation": "horizontal",
-            "thickness": 2,
-            "color": "#9ca3af"
-          }
-        },
-        {
-          "title": "Custom Command Publisher",
-          "panel_type": "input",
-          "x": 0,
-          "y": 11,
+          "y": 9,
           "w": 4,
           "h": 3,
           "config_json": {
-            "topic": "test/command",
+            "topic": "demo/fan/set",
+            "separateRead": true,
+            "stateTopic": "demo/fan/state",
+            "readTemplate": "{\"speed\": {value}, \"unit\": \"%\"}",
+            "min": 0,
+            "max": 100,
+            "step": 5,
+            "unit": "%",
             "qos": 0,
             "retain": false,
-            "header_meta_pinned": false
+            "header_meta_pinned": true
           },
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Heartbeat Scheduler",
+          "title": "Thermostat (JSON write shape)",
+          "panel_type": "slider",
+          "x": 4,
+          "y": 9,
+          "w": 4,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/thermostat/set",
+            "separateRead": true,
+            "stateTopic": "demo/thermostat/state",
+            "readTemplate": "{\"setpoint\": {value}}",
+            "payloadTemplate": "{\"setpoint\": {value}}",
+            "min": 5,
+            "max": 30,
+            "step": 0.5,
+            "unit": "°C",
+            "qos": 1,
+            "retain": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Fan speed (mirror)",
+          "panel_type": "gauge",
+          "x": 8,
+          "y": 9,
+          "w": 4,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/fan/state",
+            "readTemplate": "{\"speed\": {value}, \"unit\": \"%\"}",
+            "unit": "%",
+            "min": 0,
+            "max": 100,
+            "gaugeType": "bar",
+            "colorScheme": "primary",
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Slider: commands out, state back (debug)",
+          "panel_type": "log",
+          "x": 0,
+          "y": 12,
+          "w": 12,
+          "h": 3,
+          "config_json": {
+            "topics": "demo/fan/set, demo/fan/state, demo/thermostat/set, demo/thermostat/state",
+            "maxMessages": 100,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Ping (plain)",
+          "panel_type": "button",
+          "x": 0,
+          "y": 15,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Ping",
+            "topic": "demo/actions/ping",
+            "payload": "ping",
+            "qos": 0,
+            "retain": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Reboot (confirmation)",
+          "panel_type": "button",
+          "x": 3,
+          "y": 15,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Reboot node",
+            "topic": "demo/actions/reboot",
+            "payload": "{\"action\": \"reboot\", \"delay\": 5}",
+            "qos": 1,
+            "retain": false,
+            "requireConfirm": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Latch (QoS 2, retained)",
+          "panel_type": "button",
+          "x": 6,
+          "y": 15,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "label": "Latch relay",
+            "topic": "demo/actions/latch",
+            "payload": "LATCHED",
+            "qos": 2,
+            "retain": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Free-text command",
+          "panel_type": "input",
+          "x": 9,
+          "y": 15,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "test/command",
+            "placeholder": "Type a command and press enter…",
+            "qos": 1,
+            "retain": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Retained note",
+          "panel_type": "input",
+          "x": 0,
+          "y": 18,
+          "w": 4,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/actions/note",
+            "placeholder": "Stored on the broker as retained",
+            "qos": 0,
+            "retain": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Heartbeat (enabled)",
           "panel_type": "cron",
           "x": 4,
-          "y": 11,
+          "y": 18,
           "w": 4,
           "h": 3,
           "config_json": {
             "cron_expr": "* * * * *",
             "topic": "test/heartbeat",
-            "payload": "{\"status\": \"healthy\", \"timestamp\": \"auto\"}",
+            "payload": "{\"status\": \"healthy\", \"from\": \"cron panel\"}",
             "qos": 0,
             "retain": false,
             "enabled": true,
@@ -257,14 +542,32 @@
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Live IoT & Test Feed",
-          "panel_type": "log",
+          "title": "Nightly sweep (disabled)",
+          "panel_type": "cron",
           "x": 8,
-          "y": 11,
+          "y": 18,
           "w": 4,
           "h": 3,
           "config_json": {
-            "topics": "sensors/#, test/#",
+            "cron_expr": "30 2 * * *",
+            "topic": "demo/actions/sweep",
+            "payload": "sweep",
+            "qos": 1,
+            "retain": false,
+            "enabled": false,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Commands out (debug)",
+          "panel_type": "log",
+          "x": 0,
+          "y": 21,
+          "w": 6,
+          "h": 4,
+          "config_json": {
+            "topics": "demo/actions/#, test/command, test/heartbeat",
             "maxMessages": 200,
             "dateFormat": "full",
             "showQos": true,
@@ -274,39 +577,121 @@
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Section Divider",
-          "panel_type": "separator",
-          "x": 0,
-          "y": 14,
-          "w": 12,
-          "h": 1,
+          "title": "🔍 Worker replies — demo/events (debug)",
+          "panel_type": "log",
+          "x": 6,
+          "y": 21,
+          "w": 6,
+          "h": 4,
           "config_json": {
-            "orientation": "horizontal",
-            "thickness": 2,
-            "color": "#9ca3af"
+            "topics": "demo/events",
+            "maxMessages": 200,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        }
+      ]
+    },
+    {
+      "id": "showcase-layout",
+      "name": "Showcase · Layout",
+      "panels": [
+        {
+          "title": "🧱 Layout",
+          "panel_type": "text",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 3,
+          "config_json": {
+            "markdown": "## 🧱 Layout — the panel types with no broker at all\n\n`text`, `separator` and `image` never subscribe or publish. They are here so the\nshowcase covers all **12 panel types**, and so the markdown renderer has\nsomething to chew on.\n"
           }
         },
         {
-          "title": "Architecture Blueprint",
-          "panel_type": "image",
+          "title": "Horizontal rule",
+          "panel_type": "separator",
           "x": 0,
-          "y": 15,
+          "y": 3,
+          "w": 12,
+          "h": 1,
+          "config_json": {
+            "orientation": "horizontal"
+          }
+        },
+        {
+          "title": "Markdown reference",
+          "panel_type": "text",
+          "x": 0,
+          "y": 4,
+          "w": 5,
+          "h": 6,
+          "config_json": {
+            "markdown": "### Markdown support\n\nEverything `react-markdown` renders, in one panel:\n\n1. **Bold**, *italic*, ~~struck~~, and `inline code`\n2. A [link back to the explorer](/explorer)\n3. A fenced block:\n\n```json\n{\"value\": 21.4, \"unit\": \"°C\"}\n```\n\n| Panel | Category | Broker |\n| --- | --- | --- |\n| gauge | monitor | yes |\n| separator | layout | no |\n\n> Blockquotes work too — handy for the notes at the top of a dashboard.\n\n---\n\n- [x] Task lists\n- [ ] …including unchecked ones\n"
+          }
+        },
+        {
+          "title": "Vertical rule",
+          "panel_type": "separator",
+          "x": 5,
+          "y": 4,
+          "w": 1,
+          "h": 6,
+          "config_json": {
+            "orientation": "vertical"
+          }
+        },
+        {
+          "title": "Image panel",
+          "panel_type": "image",
+          "x": 6,
+          "y": 4,
           "w": 6,
-          "h": 3,
+          "h": 6,
           "config_json": {
             "src": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80"
           }
         },
         {
-          "title": "System Notes & Guide",
+          "title": "Horizontal rule",
+          "panel_type": "separator",
+          "x": 0,
+          "y": 10,
+          "w": 12,
+          "h": 1,
+          "config_json": {
+            "orientation": "horizontal"
+          }
+        },
+        {
+          "title": "Notes",
           "panel_type": "text",
-          "x": 6,
-          "y": 15,
+          "x": 0,
+          "y": 11,
           "w": 6,
           "h": 3,
           "config_json": {
-            "markdown": "### 🛠️ Developer Tips & Controls\n\n- **Drag & Resize**: Click **Edit: ON** in the header to reorder or resize panels.\n- **Topic Explorer**: Use the search icon in any config modal to browse topics.\n- **QoS & Retain**: Configure per-panel Quality of Service and retained flags.\n- **Multiple Brokers**: Easily switch brokers per panel (Plain, Password, TLS)."
+            "markdown": "### Re-seeding\n\nThese dashboards are seeded from `docker/dev/config.json` **only when a dashboard of that name has no panels**. To pick up edits, delete the dev database (`backend/data/mqtt-dashboard.db`) and restart the stack."
           }
+        },
+        {
+          "title": "🔍 Raw feed — everything the plain broker sees (debug)",
+          "panel_type": "log",
+          "x": 6,
+          "y": 11,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "topics": "#",
+            "maxMessages": 500,
+            "dateFormat": "time",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
         }
       ]
     }
