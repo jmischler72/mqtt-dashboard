@@ -2,6 +2,7 @@ import { registerPanel } from "./registry";
 import {
   gaugePanelDefinition,
   logPanelDefinition,
+  graphPanelDefinition,
   brokerStatsPanelDefinition,
   buttonPanelDefinition,
   inputPanelDefinition,
@@ -16,6 +17,7 @@ import {
 // Register all built-in panels
 registerPanel(gaugePanelDefinition);
 registerPanel(logPanelDefinition);
+registerPanel(graphPanelDefinition);
 registerPanel(brokerStatsPanelDefinition);
 registerPanel(buttonPanelDefinition);
 registerPanel(inputPanelDefinition);
