@@ -78,7 +78,10 @@ services:
     volumes:
       - ./mosquitto/certs:/certs:ro
     environment:
+      # sensors/ and test/ rounds; the showcase demo/ series tick faster so the
+      # graph panels have a line to draw rather than a point every few minutes.
       - PUBLISH_INTERVAL=5
+      - DEMO_INTERVAL=1
       - BROKER_PLAIN_HOST=mosquitto
       - BROKER_PLAIN_PORT=1883
       - BROKER_PASS_HOST=mosquitto-password
