@@ -12,6 +12,13 @@ services:
       context: ../..
     volumes:
       - ../..:/app
+    # Deps live in /node_modules (see Dockerfile.dev), but Node still resolves
+    # /app/frontend/node_modules first, and both sides keep recreating it: the
+    # host editor writes .tmp/*.tsbuildinfo there, Vite writes .vite-temp. An
+    # empty tmpfs hides whatever the host has and sends those writes to RAM, so
+    # the worktree stays clean and nothing shadows the container's Linux builds.
+    tmpfs:
+      - /app/frontend/node_modules
     environment:
       - APP_ENV=development
       - LOG_LEVEL=debug

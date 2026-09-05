@@ -3,14 +3,14 @@
 # lockfile, then run Vite and air side by side.
 set -e
 
-# Nothing masks /node_modules any more, and Node resolves the nearest
-# node_modules first — a host-side `npm install` would shadow the container's
-# Linux binaries with macOS ones. Fail loudly rather than crash inside Vite.
+# Node resolves the nearest node_modules first, so a host-side `npm install`
+# would shadow the container's Linux binaries with macOS ones. Compose masks
+# /app/frontend/node_modules with an empty tmpfs to prevent that; warn rather
+# than exit if it is populated anyway (mask dropped, or `docker run` by hand).
 if [ -n "$(ls -A /app/frontend/node_modules 2>/dev/null)" ]; then
-    echo "ERROR: frontend/node_modules exists in the worktree and would shadow" >&2
-    echo "       the container's deps in /node_modules. Remove it on the host:" >&2
-    echo "         rm -rf frontend/node_modules" >&2
-    exit 1
+    echo "WARNING: /app/frontend/node_modules is not empty — the tmpfs mask in" >&2
+    echo "         docker-compose-dev.yml is missing, and these deps will shadow" >&2
+    echo "         the container's own in /node_modules." >&2
 fi
 
 LOCK=/app/frontend/package-lock.json
