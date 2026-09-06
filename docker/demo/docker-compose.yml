@@ -12,6 +12,13 @@ services:
     restart: unless-stopped
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      # Keep the compose-internal network so mqtt-worker still reaches it as "mosquitto".
+      default: {}
+      # Also attach to Dokploy's shared overlay so standalone/preview apps can reach it.
+      dokploy-network:
+        aliases:
+          - mqtt-demo-broker
 
   mqtt-worker:
     build:
@@ -31,3 +38,7 @@ services:
 
 volumes:
   data_volume:
+
+networks:
+  dokploy-network:
+    external: true
