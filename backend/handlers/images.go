@@ -27,18 +27,20 @@ const maxImageUpload = 8 << 20
 
 // ImageHandler manages visual-panel images stored under <dataDir>/images.
 type ImageHandler struct {
-	dir string
+	dir     string
+	baseURL string
 }
 
 // NewImageHandler creates the image handler, ensuring the images directory
 // exists under the given data directory (mirrors the ./data creation in main).
-func NewImageHandler(dataDir string) *ImageHandler {
+func NewImageHandler(dataDir string, basePath string) *ImageHandler {
 	dir := filepath.Join(dataDir, "images")
+	baseURL := strings.TrimSuffix(basePath, "/") + "/api/images/"
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		// Non-fatal: handler still constructs; operations will surface errors.
-		return &ImageHandler{dir: dir}
+		return &ImageHandler{dir: dir, baseURL: baseURL}
 	}
-	return &ImageHandler{dir: dir}
+	return &ImageHandler{dir: dir, baseURL: baseURL}
 }
 
 type imageEntry struct {
@@ -94,7 +96,7 @@ func (h *ImageHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(imageEntry{Name: name, URL: "/api/images/" + name})
+	json.NewEncoder(w).Encode(imageEntry{Name: name, URL: h.baseURL + name})
 }
 
 // ListPresets handles GET /api/images/presets by scanning the images directory.
@@ -113,7 +115,7 @@ func (h *ImageHandler) ListPresets(w http.ResponseWriter, r *http.Request) {
 		if _, ok := allowedImageExts[ext]; !ok {
 			continue
 		}
-		presets = append(presets, imageEntry{Name: e.Name(), URL: "/api/images/" + e.Name()})
+		presets = append(presets, imageEntry{Name: e.Name(), URL: h.baseURL + e.Name()})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(presets)

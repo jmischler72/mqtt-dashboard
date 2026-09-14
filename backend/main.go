@@ -14,6 +14,7 @@ import (
 	"mqtt-dashboard/ws"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -26,10 +27,16 @@ import (
 var embeddedFiles embed.FS
 
 func main() {
+	runtimeConfig, err := config.LoadRuntimeConfig()
+	if err != nil {
+		slog.Error("load runtime config", "err", err)
+		os.Exit(1)
+	}
+
 	// --- Configure slog ---
 	logLevel := new(slog.LevelVar)
 	logLevel.Set(slog.LevelInfo)
-	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+	if lvl := runtimeConfig.LogLevel; lvl != "" {
 		if err := logLevel.UnmarshalText([]byte(lvl)); err != nil {
 			slog.Warn("invalid LOG_LEVEL, defaulting to info", "value", lvl)
 		}
@@ -37,11 +44,11 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 
 	// --- Init database ---
-	if err := os.MkdirAll("./data", 0o750); err != nil {
+	if err := os.MkdirAll(runtimeConfig.DataDir, 0o750); err != nil {
 		slog.Error("create data dir", "err", err)
 		os.Exit(1)
 	}
-	database, err := db.InitDB("./data/mqtt-dashboard.db")
+	database, err := db.InitDB(filepath.Join(runtimeConfig.DataDir, "mqtt-dashboard.db"))
 	if err != nil {
 		slog.Error("init db", "err", err)
 		os.Exit(1)
@@ -49,7 +56,7 @@ func main() {
 	defer database.Close()
 
 	// --- Seed Brokers from Config File (if configured) ---
-	config.SeedBrokersFromConfig(database)
+	config.SeedBrokersFromPath(database, runtimeConfig.SeedConfigFile)
 
 	// --- Init broker registry ---
 	registry := mqttclient.NewRegistry(database)
@@ -84,17 +91,16 @@ func main() {
 		}
 	}
 
-	r := buildRouter(database, registry, scheduler, wsHub, "./data", frontendFS)
+	r := buildRouter(database, registry, scheduler, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath)
 
-	addr := ":8080"
-	slog.Info("server starting", "addr", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
+	slog.Info("server starting", "addr", runtimeConfig.HTTPAddr, "base_path", runtimeConfig.BasePath, "data_dir", runtimeConfig.DataDir)
+	if err := http.ListenAndServe(runtimeConfig.HTTPAddr, r); err != nil {
 		slog.Error("server", "err", err)
 		os.Exit(1)
 	}
 }
 
-func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS) http.Handler {
+func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, basePath string) http.Handler {
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
@@ -105,81 +111,86 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	dashboardH.SetInvalidator(wsHub)
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
-	imageH := handlers.NewImageHandler(dataDir)
+	imageH := handlers.NewImageHandler(dataDir, basePath)
 
 	// --- Router ---
-	r := chi.NewRouter()
-	r.Use(skipLoggerForPaths(middleware.Logger, "/api/brokers/status"))
-	r.Use(middleware.Recoverer)
-	r.Use(corsMiddleware)
+	app := chi.NewRouter()
+	app.Use(skipLoggerForPaths(middleware.Logger, "/api/brokers/status"))
+	app.Use(middleware.Recoverer)
+	app.Use(corsMiddleware)
 
 	// Health
-	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
+	app.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
 	// Brokers
-	r.Get("/api/brokers", brokerH.ListBrokers)
-	r.Post("/api/brokers", brokerH.CreateBroker)
-	r.Get("/api/brokers/status", brokerH.GetBrokersStatus)
-	r.Put("/api/brokers/reorder", brokerH.ReorderBrokers)
-	r.Get("/api/brokers/{id}/info", brokerH.GetBrokerInfo)
-	r.Put("/api/brokers/{id}", brokerH.UpdateBroker)
-	r.Delete("/api/brokers/{id}", brokerH.DeleteBroker)
+	app.Get("/api/brokers", brokerH.ListBrokers)
+	app.Post("/api/brokers", brokerH.CreateBroker)
+	app.Get("/api/brokers/status", brokerH.GetBrokersStatus)
+	app.Put("/api/brokers/reorder", brokerH.ReorderBrokers)
+	app.Get("/api/brokers/{id}/info", brokerH.GetBrokerInfo)
+	app.Put("/api/brokers/{id}", brokerH.UpdateBroker)
+	app.Delete("/api/brokers/{id}", brokerH.DeleteBroker)
 
 	// Layouts
-	r.Get("/api/layouts", layoutH.GetLayouts)
-	r.Post("/api/layouts", layoutH.CreatePanel)
-	r.Put("/api/layouts/batch", layoutH.BatchUpdatePositions)
-	r.Put("/api/layouts/{id}", layoutH.UpdatePanel)
-	r.Delete("/api/layouts/{id}", layoutH.DeletePanel)
+	app.Get("/api/layouts", layoutH.GetLayouts)
+	app.Post("/api/layouts", layoutH.CreatePanel)
+	app.Put("/api/layouts/batch", layoutH.BatchUpdatePositions)
+	app.Put("/api/layouts/{id}", layoutH.UpdatePanel)
+	app.Delete("/api/layouts/{id}", layoutH.DeletePanel)
 
 	// Dashboards
-	r.Get("/api/dashboards", dashboardH.ListDashboards)
-	r.Post("/api/dashboards", dashboardH.CreateDashboard)
-	r.Post("/api/dashboards/import", dashboardH.ImportDashboard)
-	r.Put("/api/dashboards/{id}", dashboardH.RenameDashboard)
-	r.Delete("/api/dashboards/{id}", dashboardH.DeleteDashboard)
+	app.Get("/api/dashboards", dashboardH.ListDashboards)
+	app.Post("/api/dashboards", dashboardH.CreateDashboard)
+	app.Post("/api/dashboards/import", dashboardH.ImportDashboard)
+	app.Put("/api/dashboards/{id}", dashboardH.RenameDashboard)
+	app.Delete("/api/dashboards/{id}", dashboardH.DeleteDashboard)
 
 	// Publish
-	r.Post("/api/publish", publishH.Publish)
+	app.Post("/api/publish", publishH.Publish)
 
 	// Cron
-	r.Get("/api/cron", cronH.ListCronJobs)
-	r.Post("/api/cron/{panelId}", cronH.UpsertCron)
-	r.Delete("/api/cron/{panelId}", cronH.DeleteCron)
-	r.Put("/api/cron/{panelId}/toggle", cronH.ToggleCron)
-	r.Get("/api/cron/{panelId}", cronH.GetCronStatus)
+	app.Get("/api/cron", cronH.ListCronJobs)
+	app.Post("/api/cron/{panelId}", cronH.UpsertCron)
+	app.Delete("/api/cron/{panelId}", cronH.DeleteCron)
+	app.Put("/api/cron/{panelId}/toggle", cronH.ToggleCron)
+	app.Get("/api/cron/{panelId}", cronH.GetCronStatus)
 
 	// Settings
-	r.Get("/api/settings", settingsH.GetSettings)
-	r.Put("/api/settings", settingsH.UpdateSettings)
-	r.Patch("/api/settings", settingsH.PatchSettings)
+	app.Get("/api/settings", settingsH.GetSettings)
+	app.Put("/api/settings", settingsH.UpdateSettings)
+	app.Patch("/api/settings", settingsH.PatchSettings)
 
 	// History
-	r.Get("/api/history/size", settingsH.GetHistorySize)
-	r.Delete("/api/history", settingsH.ClearHistory)
+	app.Get("/api/history/size", settingsH.GetHistorySize)
+	app.Delete("/api/history", settingsH.ClearHistory)
 
 	// Images (visual panels)
-	r.Post("/api/images", imageH.UploadImage)
-	r.Get("/api/images/presets", imageH.ListPresets)
-	r.Get("/api/images/{filename}", imageH.ServeImage)
-	r.Delete("/api/images/{filename}", imageH.DeleteImage)
+	app.Post("/api/images", imageH.UploadImage)
+	app.Get("/api/images/presets", imageH.ListPresets)
+	app.Get("/api/images/{filename}", imageH.ServeImage)
+	app.Delete("/api/images/{filename}", imageH.DeleteImage)
 
 	// Explorer
-	r.Get("/api/explorer/tree", explorerH.GetTree)
-	r.Get("/api/explorer/history", explorerH.GetHistory)
-	r.Get("/api/explorer/activity", explorerH.GetActivity)
+	app.Get("/api/explorer/tree", explorerH.GetTree)
+	app.Get("/api/explorer/history", explorerH.GetHistory)
+	app.Get("/api/explorer/activity", explorerH.GetActivity)
 
 	// WebSocket
-	r.Get("/ws", wsHub.ServeWS)
+	app.Get("/ws", wsHub.ServeWS)
 
 	// Static frontend (production only)
 	if frontendFS != nil {
-		r.Handle("/*", spaHandler(frontendFS, http.FileServer(http.FS(frontendFS))))
+		app.Handle("/*", spaHandler(frontendFS, http.FileServer(http.FS(frontendFS)), basePath))
 	}
 
+	if basePath == "/" {
+		return app
+	}
+	r := chi.NewRouter()
+	r.Mount(strings.TrimSuffix(basePath, "/"), app)
 	return r
 }
 
@@ -253,21 +264,48 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 }
 
 // spaHandler wraps a file server to serve index.html for unknown paths (client-side routing).
-func spaHandler(distFS fs.FS, h http.Handler) http.Handler {
+func spaHandler(distFS fs.FS, h http.Handler, basePath string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
+		requestPath := r.URL.Path
+		if basePath != "/" {
+			requestPath = strings.TrimPrefix(requestPath, strings.TrimSuffix(basePath, "/"))
+		}
+		path := strings.TrimPrefix(requestPath, "/")
 		if path == "" {
 			path = "index.html"
 		}
 		if _, err := fs.Stat(distFS, path); err != nil {
 			// File not found — serve index.html so React Router handles the path.
-			r2 := r.Clone(r.Context())
-			r2.URL.Path = "/"
-			h.ServeHTTP(w, r2)
+			serveIndex(w, distFS, basePath)
 			return
 		}
-		h.ServeHTTP(w, r)
+		if path == "index.html" {
+			serveIndex(w, distFS, basePath)
+			return
+		}
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = "/" + path
+		h.ServeHTTP(w, r2)
 	})
+}
+
+// serveIndex inserts a document base at request time. The production frontend
+// is built with relative asset URLs, so one embedded binary can be mounted at
+// either / or a validated sub-path without a separate frontend build.
+func serveIndex(w http.ResponseWriter, distFS fs.FS, basePath string) {
+	data, err := fs.ReadFile(distFS, "index.html")
+	if err != nil {
+		http.Error(w, "frontend index not found", http.StatusInternalServerError)
+		return
+	}
+	const marker = "</head>"
+	base := `<base href="` + basePath + `">`
+	if !strings.Contains(string(data), marker) {
+		http.Error(w, "frontend index is invalid", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(strings.Replace(string(data), marker, base+marker, 1)))
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

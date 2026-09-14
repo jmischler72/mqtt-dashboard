@@ -93,25 +93,26 @@ func TestSkipLoggerForPaths_LogsNonSkippedPath(t *testing.T) {
 
 func TestSpaHandler_DelegatesToFileServer(t *testing.T) {
 	called := false
-	var passedPath string
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		passedPath = r.URL.Path
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Use an empty in-memory FS so all paths fall through to the inner handler with path "/".
-	emptyFS := fstest.MapFS{}
-	h := spaHandler(emptyFS, inner)
+	// A missing path falls back to index.html and does not bypass the runtime
+	// base-tag injection.
+	emptyFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}
+	h := spaHandler(emptyFS, inner, "/")
 	req := httptest.NewRequest(http.MethodGet, "/some/path", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if !called {
-		t.Error("spaHandler should delegate to inner file server")
+	if called {
+		t.Error("spaHandler fallback should serve index directly")
 	}
-	if passedPath != "/" {
-		t.Errorf("spaHandler fallback path = %q, want '/'", passedPath)
+	if rec.Code != http.StatusOK {
+		t.Errorf("spaHandler fallback status = %d, want 200", rec.Code)
 	}
 }
 
@@ -123,11 +124,11 @@ func TestSpaHandler_ServesExistingFile(t *testing.T) {
 	})
 
 	testFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
 		"app.js":     &fstest.MapFile{Data: []byte("console.log('hi')")},
 	}
 
-	h := spaHandler(testFS, inner)
+	h := spaHandler(testFS, inner, "/")
 
 	// Test existing app.js
 	req := httptest.NewRequest(http.MethodGet, "/app.js", nil)
@@ -137,12 +138,16 @@ func TestSpaHandler_ServesExistingFile(t *testing.T) {
 		t.Errorf("spaHandler existing file path = %q, want '/app.js'", passedPath)
 	}
 
-	// Test root path "" which maps to index.html
+	// Root maps to index.html, which is served directly so the handler can add
+	// the document base at runtime.
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if passedPath != "/" {
-		t.Errorf("spaHandler root path = %q, want '/'", passedPath)
+	if rec.Code != http.StatusOK {
+		t.Errorf("spaHandler root status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `<base href="/">`) {
+		t.Errorf("spaHandler root did not inject base tag: %q", rec.Body.String())
 	}
 }
 
@@ -259,12 +264,12 @@ func TestBuildRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewScheduler: %v", err)
 	}
-	wsHub := ws.NewHub(registry)
+	wsHub := ws.NewHub(registry, database)
 	testFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("<html>app</html>")},
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head>app</html>")},
 	}
 
-	router := buildRouter(database, registry, scheduler, wsHub, t.TempDir(), testFS)
+	router := buildRouter(database, registry, scheduler, wsHub, t.TempDir(), testFS, "/")
 
 	// Health check
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -280,5 +285,48 @@ func TestBuildRouter(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("static fallback status = %d, want 200", rec.Code)
+	}
+}
+
+func TestBuildRouter_MountsBasePath(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	registry := mqttclient.NewRegistry(database)
+	scheduler, err := cron.NewScheduler(registry)
+	if err != nil {
+		t.Fatalf("NewScheduler: %v", err)
+	}
+	router := buildRouter(database, registry, scheduler, ws.NewHub(registry, database), t.TempDir(), fstest.MapFS{
+		"index.html":    &fstest.MapFile{Data: []byte("<html><head></head><body>app</body></html>")},
+		"assets/app.js": &fstest.MapFile{Data: []byte("console.log('app')")},
+	}, "/mqtt-dashboard/")
+
+	for _, requestPath := range []string{"/mqtt-dashboard/api/health", "/mqtt-dashboard/dashboard"} {
+		req := httptest.NewRequest(http.MethodGet, requestPath, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s status = %d, want 200", requestPath, rec.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("unprefixed health status = %d, want 404", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/mqtt-dashboard/assets/app.js", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("prefixed asset status = %d, want 200", rec.Code)
+	}
+	if rec.Body.String() != "console.log('app')" {
+		t.Errorf("prefixed asset body = %q, want JavaScript asset", rec.Body.String())
 	}
 }

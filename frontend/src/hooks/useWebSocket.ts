@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { appPath } from "../runtime";
 
 interface UseWebSocketOptions {
   onMessage: (data: string) => void;
@@ -51,7 +52,9 @@ class WSConnectionManager {
     this.isConnecting = true;
 
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${proto}://${window.location.host}/ws`);
+    const socket = new WebSocket(
+      `${proto}://${window.location.host}${appPath("/ws")}`,
+    );
     this.socket = socket;
 
     socket.onopen = () => {

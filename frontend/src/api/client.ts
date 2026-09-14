@@ -1,8 +1,10 @@
-// Thin wrapper around fetch for API calls
+import { appPath } from "../runtime";
+
+// Thin wrapper around fetch for API calls.
 const BASE = "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, {
+  const res = await fetch(appPath(BASE + path), {
     headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
   });
@@ -107,7 +109,7 @@ export const api = {
   uploadImage: async (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(BASE + "/api/images", {
+    const res = await fetch(appPath(BASE + "/api/images"), {
       method: "POST",
       body: form,
     });

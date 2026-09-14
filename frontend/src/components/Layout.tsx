@@ -10,6 +10,7 @@ import packageJson from "../../package.json";
 
 const ACTIVE_DASHBOARD_KEY = "mqtt_active_dashboard_id";
 import { api } from "../api/client";
+import { appPath } from "../runtime";
 
 type AggregatedStatus = "CONNECTED" | "PARTIALLY CONNECTED" | "DISCONNECTED";
 
@@ -237,7 +238,7 @@ export default function Layout() {
           <div className="modal-box max-w-sm">
             <div className="flex items-center gap-3 mb-4">
               <img
-                src="/logo.svg"
+                src={appPath("/logo.svg")}
                 alt="mqtt-dashboard"
                 className="h-8 w-auto"
               />
@@ -347,7 +348,7 @@ export default function Layout() {
             />
           )}
           <img
-            src="/logo.svg"
+            src={appPath("/logo.svg")}
             alt="mqtt-dashboard"
             className="h-8 w-auto mx-2 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => setShowCredits(!showCredits)}
