@@ -158,6 +158,10 @@ function FilterPopover({
 
 export default function AutomationsPage() {
   const [jobs, setJobs] = useState<ScheduledJob[]>([]);
+  const [dashboards, setDashboards] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  const [selectedDashboardId, setSelectedDashboardId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<ColumnFilters>(DEFAULT_FILTERS);
@@ -179,8 +183,12 @@ export default function AutomationsPage() {
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getScheduledJobs();
+      const [data, dList] = await Promise.all([
+        api.getScheduledJobs(),
+        api.getDashboards().catch(() => []),
+      ]);
       setJobs(data);
+      if (dList.length > 0) setDashboards(dList);
     } catch {
       showToast("Failed to load automations", false);
     } finally {
@@ -190,10 +198,15 @@ export default function AutomationsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .getScheduledJobs()
-      .then((data) => {
-        if (!cancelled) setJobs(data);
+    Promise.all([
+      api.getScheduledJobs(),
+      api.getDashboards().catch(() => []),
+    ])
+      .then(([data, dList]) => {
+        if (!cancelled) {
+          setJobs(data);
+          if (dList.length > 0) setDashboards(dList);
+        }
       })
       .catch(() => {
         if (!cancelled) showToast("Failed to load automations", false);
@@ -325,7 +338,23 @@ export default function AutomationsPage() {
   const handleResetAllFilters = () => {
     setFilters(DEFAULT_FILTERS);
     setSearchQuery("");
+    setSelectedDashboardId("all");
   };
+
+  const availableDashboards = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of dashboards) {
+      map.set(d.id, d.name);
+    }
+    for (const j of jobs) {
+      if (j.dashboard_id && !map.has(j.dashboard_id)) {
+        map.set(j.dashboard_id, j.dashboard_name || "Untitled Dashboard");
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [dashboards, jobs]);
 
   const brokerOptions = useMemo(() => {
     const set = new Set<string>();
@@ -338,6 +367,14 @@ export default function AutomationsPage() {
   // Filter and Sort Pipeline
   const displayedJobs = useMemo(() => {
     let result = jobs.filter((job) => {
+      // 0. Dashboard filter
+      if (
+        selectedDashboardId !== "all" &&
+        job.dashboard_id !== selectedDashboardId
+      ) {
+        return false;
+      }
+
       // 1. Global search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -459,37 +496,35 @@ export default function AutomationsPage() {
     }
 
     return result;
-  }, [jobs, searchQuery, filters, sort, currentTimeMs]);
+  }, [jobs, searchQuery, filters, sort, currentTimeMs, selectedDashboardId]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
-      {/* ── Top Toolbar ──────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 border-b border-base-300 bg-base-100 shrink-0">
-        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
-          {/* Global Search */}
-          <div className="relative flex-1 max-w-xs min-w-[200px]">
-            <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 text-base pointer-events-none" />
-            <input
-              type="text"
-              className="input input-sm input-bordered w-full pl-8 pr-7 font-mono text-xs"
-              placeholder="Search all columns..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 min-h-0 text-base-content/50 hover:text-base-content"
-                onClick={() => setSearchQuery("")}
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-base-200/40">
+      {/* ── Header bar ── */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-base-300 bg-base-100 shrink-0">
+        <span className="text-sm font-medium text-base-content/60">Dashboard</span>
+        <select
+          className="select select-bordered select-sm"
+          value={selectedDashboardId}
+          onChange={(e) => setSelectedDashboardId(e.target.value)}
+        >
+          <option value="all">All Dashboards</option>
+          {availableDashboards.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-base-content/40">
+          {searchQuery.trim() || isFilterActive || selectedDashboardId !== "all"
+            ? `${displayedJobs.length} of ${jobs.length} automations`
+            : `${jobs.length} automations configured`}
+        </span>
 
+        {/* Right side controls */}
+        <div className="ml-auto flex items-center gap-3">
           {/* Active filter badge & reset */}
-          {(isFilterActive || searchQuery) && (
+          {(isFilterActive || searchQuery || selectedDashboardId !== "all") && (
             <div className="flex items-center gap-2">
               <span className="badge badge-sm badge-ghost text-xs">
                 Showing {displayedJobs.length} of {jobs.length}
@@ -503,54 +538,50 @@ export default function AutomationsPage() {
               </button>
             </div>
           )}
-        </div>
 
-        {/* Refresh Action */}
-        <div className="tooltip tooltip-left" data-tip="Refresh automations">
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs btn-square"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <MdRefresh
-              className={`text-base ${loading ? "animate-spin" : ""}`}
+          {/* Global Search */}
+          <div className="relative w-64">
+            <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 text-sm pointer-events-none" />
+            <input
+              type="text"
+              className="input input-sm input-bordered w-full pl-8 pr-7 text-xs"
+              placeholder="Search all columns..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </button>
+            {searchQuery && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 min-h-0 text-base-content/50 hover:text-base-content"
+                onClick={() => setSearchQuery("")}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Refresh Action */}
+          <div className="tooltip tooltip-left" data-tip="Refresh automations">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <MdRefresh
+                className={`text-base ${loading ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ── Main Content ────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto p-6">
-        {loading && jobs.length === 0 ? (
-          <div className="flex items-center justify-center py-20 gap-2 text-base-content/50 text-xs">
-            <span className="loading loading-spinner loading-sm" />
-            <span>Loading automations...</span>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="card bg-base-100 border border-base-300 shadow-sm p-16 text-center w-full">
-            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-              <MdAutoMode className="text-4xl text-base-content/30" />
-              <p className="text-base font-semibold text-base-content/70">
-                No automations configured
-              </p>
-              <p className="text-xs text-base-content/50">
-                Create a Cron panel on any dashboard to automate periodic MQTT
-                messages.
-              </p>
-              <Link
-                to="/dashboard"
-                className="btn btn-xs btn-primary mt-2 gap-1.5"
-              >
-                <MdLayers className="text-xs" />
-                <span>Go to Dashboards</span>
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="card bg-base-100 border border-base-300 shadow-sm overflow-hidden w-full">
-            <div className="overflow-x-auto">
-              <table className="table w-full">
+      <main className="flex-1 overflow-y-auto p-6 bg-base-200/40">
+        <div className="card bg-base-100 border border-base-300 shadow-sm overflow-hidden w-full">
+          <div className="overflow-x-auto">
+            <table className="table w-full">
                 <thead>
                   <tr className="border-b border-base-300 text-xs bg-base-200/50">
                     {/* ── Column: Go to Dashboard ──────── */}
@@ -826,7 +857,44 @@ export default function AutomationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-base-200">
-                  {displayedJobs.length === 0 ? (
+                  {loading && jobs.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="py-16 text-center text-xs text-base-content/50"
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="loading loading-spinner loading-sm" />
+                          <span>Loading automations...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : jobs.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="py-16 text-center text-xs text-base-content/50"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                          <MdAutoMode className="text-4xl text-base-content/30" />
+                          <p className="text-base font-semibold text-base-content/70">
+                            No automations configured
+                          </p>
+                          <p className="text-xs text-base-content/50">
+                            Create a Cron panel on any dashboard to automate periodic MQTT
+                            messages.
+                          </p>
+                          <Link
+                            to="/dashboard"
+                            className="btn btn-xs btn-primary mt-2 gap-1.5"
+                          >
+                            <MdLayers className="text-xs" />
+                            <span>Go to Dashboards</span>
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : displayedJobs.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-16 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
@@ -857,7 +925,7 @@ export default function AutomationsPage() {
                       return (
                         <tr
                           key={job.panel_id}
-                          className={`hover:bg-base-200/50 transition-colors ${
+                          className={`hover:bg-base-200/50 ${
                             !job.enabled ? "opacity-60" : ""
                           }`}
                         >
@@ -907,9 +975,22 @@ export default function AutomationsPage() {
                           {/* Automation Name & Dashboard */}
                           <td className="align-middle py-3 px-4">
                             <div className="flex flex-col gap-0.5 min-w-[140px]">
-                              <span className="font-semibold text-xs text-base-content">
-                                {job.panel_title || "Untitled"}
-                              </span>
+                              {(() => {
+                                const cleanTitle = (
+                                  job.panel_title || "Untitled"
+                                ).replace(
+                                  /\s*\((enabled|disabled|active|paused)\)/i,
+                                  "",
+                                );
+                                return (
+                                  <span
+                                    className="font-bold text-sm text-base-content truncate max-w-[220px]"
+                                    title={cleanTitle}
+                                  >
+                                    {cleanTitle}
+                                  </span>
+                                );
+                              })()}
                               <span className="text-[11px] text-base-content/50 flex items-center gap-1">
                                 <MdLayers className="text-xs shrink-0" />
                                 <span
@@ -1079,7 +1160,6 @@ export default function AutomationsPage() {
               </table>
             </div>
           </div>
-        )}
       </main>
 
       {/* ── Portaled Filter Popover (Mounts in document.body to avoid table clipping & overflow) ── */}
