@@ -303,3 +303,41 @@ func TestScheduler_JobExecution(t *testing.T) {
 		t.Error("expected non-zero NextRun time")
 	}
 }
+
+func TestScheduler_GetJobs(t *testing.T) {
+	pub := &mockPublisher{defaultID: "def-broker"}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	sc.AddJob("p1", "b1", "*/5 * * * *", "topic1", "payload1", 0, false, true) //nolint
+	sc.AddJob("p2", "b2", "*/10 * * * *", "topic2", "payload2", 1, true, false) //nolint
+
+	jobs := sc.GetJobs()
+	if len(jobs) != 2 {
+		t.Fatalf("GetJobs returned %d jobs, want 2", len(jobs))
+	}
+
+	foundP1 := false
+	foundP2 := false
+	for _, j := range jobs {
+		if j.PanelID == "p1" {
+			foundP1 = true
+			if !j.Enabled {
+				t.Errorf("p1 should be enabled")
+			}
+			if j.NextRun.IsZero() {
+				t.Errorf("p1 NextRun should not be zero")
+			}
+		}
+		if j.PanelID == "p2" {
+			foundP2 = true
+			if j.Enabled {
+				t.Errorf("p2 should be disabled")
+			}
+		}
+	}
+	if !foundP1 || !foundP2 {
+		t.Errorf("expected both p1 and p2 in GetJobs result")
+	}
+}

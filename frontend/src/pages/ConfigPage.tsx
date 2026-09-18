@@ -18,6 +18,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
 import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
+import { MdSettings } from "react-icons/md";
+import { RiServerLine } from "react-icons/ri";
 
 const statusDot: Record<string, string> = {
   CONNECTED: "bg-success",
@@ -205,7 +207,7 @@ function formatBytes(bytes: number): string {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
@@ -220,9 +222,28 @@ export default function ConfigPage() {
   const [historySize, setHistorySize] = useState<number | null>(null);
   const [clearingHistory, setClearingHistory] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<"brokers" | "general">("brokers");
 
   const requestedBrokerId = searchParams.get("broker");
+  const tabParam = searchParams.get("tab");
+  const activeTab: "brokers" | "general" = requestedBrokerId
+    ? "brokers"
+    : tabParam === "general"
+      ? "general"
+      : "brokers";
+
+  const handleTabChange = (tab: "brokers" | "general") => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("tab", tab);
+        if (tab !== "brokers") {
+          next.delete("broker");
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -259,9 +280,6 @@ export default function ConfigPage() {
           ? list.find((b) => b.id === requestedBrokerId)
           : null;
         const preferred = fromQuery ?? fallback;
-        if (fromQuery) {
-          setActiveTab("brokers");
-        }
         if (!preferred) {
           setSelectedId(null);
           return;
@@ -491,20 +509,26 @@ export default function ConfigPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* ── Sub-navbar ───────────────────────────────────────── */}
       <div className="border-b border-base-300 bg-base-100 px-6 shrink-0">
-        <div role="tablist" className="tabs tabs-bordered">
+        <div role="tablist" className="tabs tabs-border -mb-px">
           <button
             role="tab"
-            className={`tab ${activeTab === "brokers" ? "tab-active" : ""}`}
-            onClick={() => setActiveTab("brokers")}
+            type="button"
+            aria-selected={activeTab === "brokers"}
+            className={`tab gap-2 ${activeTab === "brokers" ? "tab-active font-medium text-primary" : "text-base-content/70 hover:text-base-content"}`}
+            onClick={() => handleTabChange("brokers")}
           >
-            Brokers
+            <RiServerLine className="text-base" />
+            <span>Brokers</span>
           </button>
           <button
             role="tab"
-            className={`tab ${activeTab === "general" ? "tab-active" : ""}`}
-            onClick={() => setActiveTab("general")}
+            type="button"
+            aria-selected={activeTab === "general"}
+            className={`tab gap-2 ${activeTab === "general" ? "tab-active font-medium text-primary" : "text-base-content/70 hover:text-base-content"}`}
+            onClick={() => handleTabChange("general")}
           >
-            General
+            <MdSettings className="text-base" />
+            <span>General</span>
           </button>
         </div>
       </div>

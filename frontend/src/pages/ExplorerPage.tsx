@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -28,7 +28,12 @@ const commonSysTopics = [
 
 export default function ExplorerPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const brokerStatuses = useBrokerStatuses();
+
+  const urlTopic = searchParams.get("topic");
+  const urlBrokerId =
+    searchParams.get("broker") || searchParams.get("brokerId");
 
   const [pickerCtx, setPickerCtx] = useState<{
     brokerId: string;
@@ -53,15 +58,23 @@ export default function ExplorerPage() {
     }
   });
 
-  const [selectedBrokerId, setSelectedBrokerId] = useState<string>(
-    pickerCtx?.brokerId ?? "",
-  );
+  const initialBrokerId = pickerCtx?.brokerId ?? urlBrokerId ?? "";
+  const initialTopic = pickerCtx?.currentTopic
+    ? pickerCtx.currentTopic.split(",")[0].trim()
+    : urlTopic
+      ? urlTopic.split(",")[0].trim()
+      : pickerCtx
+        ? null
+        : "#";
+
+  const [selectedBrokerId, setSelectedBrokerId] =
+    useState<string>(initialBrokerId);
   const [pickerSelectedTopic, setPickerSelectedTopic] = useState<string>(
-    pickerCtx?.currentTopic ?? "",
+    pickerCtx?.currentTopic ?? urlTopic ?? "",
   );
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(
-    pickerCtx ? null : "#",
+    initialTopic,
   );
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
@@ -158,26 +171,51 @@ export default function ExplorerPage() {
     });
   }, [effectiveBrokerId, panelId, subscribe, showSysTopic]);
 
-  // If in picker mode and a current topic exists, auto-select it in the tree
+  const [prevUrlTopic, setPrevUrlTopic] = useState(urlTopic);
+  const [prevUrlBrokerId, setPrevUrlBrokerId] = useState(urlBrokerId);
+
+  if (urlTopic !== prevUrlTopic) {
+    setPrevUrlTopic(urlTopic);
+    setSelectedTopic(urlTopic ? urlTopic.split(",")[0].trim() : "#");
+    setPickerSelectedTopic(urlTopic ?? "");
+  }
+
+  if (urlBrokerId !== prevUrlBrokerId) {
+    setPrevUrlBrokerId(urlBrokerId);
+    setSelectedBrokerId(urlBrokerId ?? "");
+  }
+
+  // If in picker mode or opened with URL topic, auto-select it in the tree
   useEffect(() => {
+    const rawTarget = pickerSelectedTopic || urlTopic || "";
+    const target = rawTarget.split(",")[0].trim();
+    if (!target || target === "#") return;
+
     if (
-      pickerCtx &&
-      pickerSelectedTopic &&
-      (displayedTopics.includes(pickerSelectedTopic) ||
-        (pickerSelectedTopic.endsWith("/#") &&
-          displayedTopics.some((t) =>
-            t.startsWith(pickerSelectedTopic.slice(0, -1)),
-          )))
+      displayedTopics.includes(target) ||
+      (target.endsWith("/#") &&
+        displayedTopics.some((t) => t.startsWith(target.slice(0, -1))))
     ) {
       if (!pickerInitializedRef.current) {
         pickerInitializedRef.current = true;
-        setSelectedTopic(pickerSelectedTopic);
+        const isParent =
+          !target.endsWith("/#") &&
+          displayedTopics.some((t) => t.startsWith(target + "/"));
+        const effective =
+          !showExactTopicOnly && isParent ? target + "/#" : target;
+        setSelectedTopic(effective);
       }
-    } else if (!pickerCtx) {
-      // Reset ref when exiting picker mode
+    } else if (!pickerCtx && !urlTopic) {
+      // Reset ref when exiting picker/target mode
       pickerInitializedRef.current = false;
     }
-  }, [pickerCtx, pickerSelectedTopic, displayedTopics]);
+  }, [
+    pickerCtx,
+    urlTopic,
+    pickerSelectedTopic,
+    displayedTopics,
+    showExactTopicOnly,
+  ]);
 
   const handleTopicSelect = (topic: string) => {
     const isParent =

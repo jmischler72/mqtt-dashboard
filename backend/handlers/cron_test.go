@@ -14,6 +14,7 @@ import (
 
 func newCronRouter(h *handlers.CronHandler) chi.Router {
 	r := chi.NewRouter()
+	r.Get("/api/cron", h.ListCronJobs)
 	r.Put("/api/cron/{panelId}", h.UpsertCron)
 	r.Delete("/api/cron/{panelId}", h.DeleteCron)
 	r.Put("/api/cron/{panelId}/toggle", h.ToggleCron)
@@ -288,5 +289,120 @@ func TestToggleCron_SchedulerError(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestListCronJobs_Empty(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cron", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var jobs []handlers.ScheduledJobItem
+	decodeJSON(t, rec.Body, &jobs)
+	if len(jobs) != 0 {
+		t.Errorf("len(jobs) = %d, want 0", len(jobs))
+	}
+}
+
+func TestListCronJobs_Success(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test Broker 1', 'localhost', 1883, 1, 0)`)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('dash1', 'Kitchen')`)
+
+	// Configured enabled job
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel1', 'dash1', 'Cron 1', 'cron', 0, 0, 4, 4, '{"cron_expr":"*/5 * * * *","topic":"kitchen/light","payload":"on","qos":1,"retain":true,"enabled":true}', 'b1')`)
+	// Configured disabled job
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel2', 'dash1', 'Cron 2', 'cron', 0, 4, 4, 4, '{"cron_expr":"0 * * * *","topic":"kitchen/fan","payload":"off","qos":0,"retain":false,"enabled":false}', 'b1')`)
+	// Unconfigured cron panel (no cron_expr, no topic)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel3', 'dash1', 'Cron 3', 'cron', 0, 8, 4, 4, '{}', 'b1')`)
+	// Non-cron panel
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel4', 'dash1', 'Button 1', 'button', 4, 0, 4, 4, '{}', 'b1')`)
+
+	sched := newMockScheduler()
+	sched.AddJob("panel1", "b1", "*/5 * * * *", "kitchen/light", "on", 1, true, true) //nolint
+
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cron", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var jobs []handlers.ScheduledJobItem
+	decodeJSON(t, rec.Body, &jobs)
+
+	// panel3 (unconfigured) and panel4 (button) should be excluded
+	if len(jobs) != 2 {
+		t.Fatalf("got %d jobs, want 2", len(jobs))
+	}
+
+	j1 := jobs[0]
+	if j1.PanelID != "panel1" || j1.PanelTitle != "Cron 1" {
+		t.Errorf("unexpected job 0: %+v", j1)
+	}
+	if j1.DashboardName != "Kitchen" {
+		t.Errorf("DashboardName = %q, want 'Kitchen'", j1.DashboardName)
+	}
+	if j1.BrokerName != "Test Broker 1" {
+		t.Errorf("BrokerName = %q, want 'Test Broker 1'", j1.BrokerName)
+	}
+	if !j1.Enabled {
+		t.Errorf("panel1 should be enabled")
+	}
+	if j1.Topic != "kitchen/light" || j1.Payload != "on" || j1.QoS != 1 || !j1.Retain {
+		t.Errorf("unexpected panel1 properties: %+v", j1)
+	}
+
+	j2 := jobs[1]
+	if j2.PanelID != "panel2" || j2.PanelTitle != "Cron 2" {
+		t.Errorf("unexpected job 1: %+v", j2)
+	}
+	if j2.Enabled {
+		t.Errorf("panel2 should be disabled")
+	}
+}
+
+func TestListCronJobs_FilterEnabled(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Test Broker 1', 'localhost', 1883, 1, 0)`)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('dash1', 'Kitchen')`)
+
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel1', 'dash1', 'Cron 1', 'cron', 0, 0, 4, 4, '{"cron_expr":"*/5 * * * *","topic":"kitchen/light","enabled":true}', 'b1')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel2', 'dash1', 'Cron 2', 'cron', 0, 4, 4, 4, '{"cron_expr":"0 * * * *","topic":"kitchen/fan","enabled":false}', 'b1')`)
+
+	sched := newMockScheduler()
+	sched.AddJob("panel1", "b1", "*/5 * * * *", "kitchen/light", "", 0, false, true) //nolint
+
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cron?enabled=true", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var jobs []handlers.ScheduledJobItem
+	decodeJSON(t, rec.Body, &jobs)
+
+	if len(jobs) != 1 {
+		t.Fatalf("got %d jobs, want 1", len(jobs))
+	}
+	if jobs[0].PanelID != "panel1" {
+		t.Errorf("got job ID %q, want 'panel1'", jobs[0].PanelID)
 	}
 }

@@ -144,6 +144,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	r.Post("/api/publish", publishH.Publish)
 
 	// Cron
+	r.Get("/api/cron", cronH.ListCronJobs)
 	r.Post("/api/cron/{panelId}", cronH.UpsertCron)
 	r.Delete("/api/cron/{panelId}", cronH.DeleteCron)
 	r.Put("/api/cron/{panelId}/toggle", cronH.ToggleCron)

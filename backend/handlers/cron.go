@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -138,4 +139,145 @@ func (h *CronHandler) GetCronStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info)
+}
+
+type ScheduledJobItem struct {
+	PanelID       string     `json:"panel_id"`
+	PanelTitle    string     `json:"panel_title"`
+	PanelType     string     `json:"panel_type"`
+	DashboardID   string     `json:"dashboard_id"`
+	DashboardName string     `json:"dashboard_name"`
+	BrokerID      string     `json:"broker_id"`
+	BrokerName    string     `json:"broker_name"`
+	CronExpr      string     `json:"cron_expr"`
+	Topic         string     `json:"topic"`
+	Payload       string     `json:"payload"`
+	QoS           byte       `json:"qos"`
+	Retain        bool       `json:"retain"`
+	Enabled       bool       `json:"enabled"`
+	NextRun       *time.Time `json:"next_run,omitempty"`
+	PrevRun       *time.Time `json:"prev_run,omitempty"`
+}
+
+func (h *CronHandler) ListCronJobs(w http.ResponseWriter, r *http.Request) {
+	enabledOnly := r.URL.Query().Get("enabled") == "true"
+
+	// Fetch brokers to resolve broker IDs to broker names
+	brokerNames := make(map[string]string)
+	var defaultBrokerID, defaultBrokerName string
+	bRows, err := h.db.Query(`SELECT id, name, is_enabled FROM mqtt_brokers ORDER BY sort_order ASC`)
+	if err == nil {
+		defer bRows.Close()
+		for bRows.Next() {
+			var id, name string
+			var isEnabled bool
+			if bRows.Scan(&id, &name, &isEnabled) == nil {
+				brokerNames[id] = name
+				if isEnabled && defaultBrokerID == "" {
+					defaultBrokerID = id
+					defaultBrokerName = name
+				}
+			}
+		}
+	}
+
+	rows, err := h.db.Query(`
+		SELECT
+			l.id,
+			l.title,
+			l.panel_type,
+			l.dashboard_id,
+			COALESCE(NULLIF(d.name, ''), 'Default'),
+			COALESCE(l.broker_id, ''),
+			COALESCE(l.config_json, '{}')
+		FROM dashboard_layouts l
+		LEFT JOIN dashboards d ON l.dashboard_id = d.id
+		WHERE l.panel_type = 'cron'
+		ORDER BY l.title ASC
+	`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	jobs := make([]ScheduledJobItem, 0)
+	for rows.Next() {
+		var panelID, panelTitle, panelType, dashboardID, dashboardName, layoutBrokerID, cfgStr string
+		if err := rows.Scan(&panelID, &panelTitle, &panelType, &dashboardID, &dashboardName, &layoutBrokerID, &cfgStr); err != nil {
+			continue
+		}
+
+		var cfg cronConfigJSON
+		if err := json.Unmarshal([]byte(cfgStr), &cfg); err != nil {
+			continue
+		}
+		// Only list configured jobs that have at least a cron_expr or topic
+		if cfg.CronExpr == "" && cfg.Topic == "" {
+			continue
+		}
+
+		if dashboardID == "" {
+			dashboardID = "default"
+		}
+
+		brokerID := cfg.BrokerID
+		if brokerID == "" {
+			brokerID = layoutBrokerID
+		}
+		if brokerID == "" {
+			brokerID = defaultBrokerID
+		}
+		brokerName := brokerNames[brokerID]
+		if brokerName == "" && brokerID == defaultBrokerID {
+			brokerName = defaultBrokerName
+		}
+
+		item := ScheduledJobItem{
+			PanelID:       panelID,
+			PanelTitle:    panelTitle,
+			PanelType:     panelType,
+			DashboardID:   dashboardID,
+			DashboardName: dashboardName,
+			BrokerID:      brokerID,
+			BrokerName:    brokerName,
+			CronExpr:      cfg.CronExpr,
+			Topic:         cfg.Topic,
+			Payload:       cfg.Payload,
+			QoS:           byte(cfg.QoS),
+			Retain:        cfg.Retain,
+			Enabled:       cfg.Enabled,
+		}
+
+		if info, ok := h.scheduler.GetJob(panelID); ok {
+			item.Enabled = info.Enabled
+			if !info.NextRun.IsZero() {
+				item.NextRun = &info.NextRun
+			}
+			if !info.PrevRun.IsZero() {
+				item.PrevRun = &info.PrevRun
+			}
+		} else if cfg.Enabled && cfg.CronExpr != "" && cfg.Topic != "" {
+			if err := h.scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err == nil {
+				if info, ok := h.scheduler.GetJob(panelID); ok {
+					item.Enabled = info.Enabled
+					if !info.NextRun.IsZero() {
+						item.NextRun = &info.NextRun
+					}
+					if !info.PrevRun.IsZero() {
+						item.PrevRun = &info.PrevRun
+					}
+				}
+			}
+		}
+
+		if enabledOnly && !item.Enabled {
+			continue
+		}
+
+		jobs = append(jobs, item)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(jobs)
 }
