@@ -22,15 +22,12 @@ updates:
     labels:
       - "frontend"
       - "dependencies"
-    ignore:
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
     groups:
       react-ecosystem:
         patterns:
           - "react*"
           - "eslint*"
-          - "typescript*"
+          - "typescript-eslint*"
       types:
         patterns:
           - "@types/*"
@@ -40,6 +37,8 @@ updates:
           - "@vitest/*"
       dev-deps:
         dependency-type: "development"
+        exclude-patterns:
+          - "typescript"
 
 # Docker things
   - package-ecosystem: "docker"
