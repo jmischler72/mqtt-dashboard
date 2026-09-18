@@ -158,6 +158,10 @@ function FilterPopover({
 
 export default function AutomationsPage() {
   const [jobs, setJobs] = useState<ScheduledJob[]>([]);
+  const [dashboards, setDashboards] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  const [selectedDashboardId, setSelectedDashboardId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<ColumnFilters>(DEFAULT_FILTERS);
@@ -179,8 +183,14 @@ export default function AutomationsPage() {
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getScheduledJobs();
+      const [data, dList] = await Promise.all([
+        api.getScheduledJobs(),
+        api
+          .get<Array<{ id: string; name: string }>>("/api/dashboards")
+          .catch(() => []),
+      ]);
       setJobs(data);
+      if (dList.length > 0) setDashboards(dList);
     } catch {
       showToast("Failed to load automations", false);
     } finally {
@@ -190,10 +200,17 @@ export default function AutomationsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .getScheduledJobs()
-      .then((data) => {
-        if (!cancelled) setJobs(data);
+    Promise.all([
+      api.getScheduledJobs(),
+      api
+        .get<Array<{ id: string; name: string }>>("/api/dashboards")
+        .catch(() => []),
+    ])
+      .then(([data, dList]) => {
+        if (!cancelled) {
+          setJobs(data);
+          if (dList.length > 0) setDashboards(dList);
+        }
       })
       .catch(() => {
         if (!cancelled) showToast("Failed to load automations", false);
@@ -325,7 +342,23 @@ export default function AutomationsPage() {
   const handleResetAllFilters = () => {
     setFilters(DEFAULT_FILTERS);
     setSearchQuery("");
+    setSelectedDashboardId("all");
   };
+
+  const availableDashboards = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of dashboards) {
+      map.set(d.id, d.name);
+    }
+    for (const j of jobs) {
+      if (j.dashboard_id && !map.has(j.dashboard_id)) {
+        map.set(j.dashboard_id, j.dashboard_name || "Untitled Dashboard");
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [dashboards, jobs]);
 
   const brokerOptions = useMemo(() => {
     const set = new Set<string>();
@@ -338,6 +371,14 @@ export default function AutomationsPage() {
   // Filter and Sort Pipeline
   const displayedJobs = useMemo(() => {
     let result = jobs.filter((job) => {
+      // 0. Dashboard filter
+      if (
+        selectedDashboardId !== "all" &&
+        job.dashboard_id !== selectedDashboardId
+      ) {
+        return false;
+      }
+
       // 1. Global search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -459,37 +500,37 @@ export default function AutomationsPage() {
     }
 
     return result;
-  }, [jobs, searchQuery, filters, sort, currentTimeMs]);
+  }, [jobs, searchQuery, filters, sort, currentTimeMs, selectedDashboardId]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
-      {/* ── Top Toolbar ──────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 border-b border-base-300 bg-base-100 shrink-0">
-        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
-          {/* Global Search */}
-          <div className="relative flex-1 max-w-xs min-w-[200px]">
-            <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 text-base pointer-events-none" />
-            <input
-              type="text"
-              className="input input-sm input-bordered w-full pl-8 pr-7 font-mono text-xs"
-              placeholder="Search all columns..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 min-h-0 text-base-content/50 hover:text-base-content"
-                onClick={() => setSearchQuery("")}
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-base-200/40">
+      {/* ── Header bar ── */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-base-300 bg-base-100 shrink-0">
+        <span className="text-sm font-medium text-base-content/60">
+          Dashboard
+        </span>
+        <select
+          className="select select-bordered select-sm"
+          value={selectedDashboardId}
+          onChange={(e) => setSelectedDashboardId(e.target.value)}
+        >
+          <option value="all">All Dashboards</option>
+          {availableDashboards.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-base-content/40">
+          {searchQuery.trim() || isFilterActive || selectedDashboardId !== "all"
+            ? `${displayedJobs.length} of ${jobs.length} automations`
+            : `${jobs.length} automations configured`}
+        </span>
 
+        {/* Right side controls */}
+        <div className="ml-auto flex items-center gap-3">
           {/* Active filter badge & reset */}
-          {(isFilterActive || searchQuery) && (
+          {(isFilterActive || searchQuery || selectedDashboardId !== "all") && (
             <div className="flex items-center gap-2">
               <span className="badge badge-sm badge-ghost text-xs">
                 Showing {displayedJobs.length} of {jobs.length}
@@ -503,583 +544,626 @@ export default function AutomationsPage() {
               </button>
             </div>
           )}
-        </div>
 
-        {/* Refresh Action */}
-        <div className="tooltip tooltip-left" data-tip="Refresh automations">
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs btn-square"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <MdRefresh
-              className={`text-base ${loading ? "animate-spin" : ""}`}
+          {/* Global Search */}
+          <div className="relative w-64">
+            <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 text-sm pointer-events-none" />
+            <input
+              type="text"
+              className="input input-sm input-bordered w-full pl-8 pr-7 text-xs"
+              placeholder="Search all columns..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </button>
+            {searchQuery && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 min-h-0 text-base-content/50 hover:text-base-content"
+                onClick={() => setSearchQuery("")}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Refresh Action */}
+          <div className="tooltip tooltip-left" data-tip="Refresh automations">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <MdRefresh
+                className={`text-base ${loading ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ── Main Content ────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto p-6">
-        {loading && jobs.length === 0 ? (
-          <div className="flex items-center justify-center py-20 gap-2 text-base-content/50 text-xs">
-            <span className="loading loading-spinner loading-sm" />
-            <span>Loading automations...</span>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="card bg-base-100 border border-base-300 shadow-sm p-16 text-center w-full">
-            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-              <MdAutoMode className="text-4xl text-base-content/30" />
-              <p className="text-base font-semibold text-base-content/70">
-                No automations configured
-              </p>
-              <p className="text-xs text-base-content/50">
-                Create a Cron panel on any dashboard to automate periodic MQTT
-                messages.
-              </p>
-              <Link
-                to="/dashboard"
-                className="btn btn-xs btn-primary mt-2 gap-1.5"
-              >
-                <MdLayers className="text-xs" />
-                <span>Go to Dashboards</span>
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="card bg-base-100 border border-base-300 shadow-sm overflow-hidden w-full">
-            <div className="overflow-x-auto">
-              <table className="table w-full">
-                <thead>
-                  <tr className="border-b border-base-300 text-xs bg-base-200/50">
-                    {/* ── Column: Go to Dashboard ──────── */}
-                    <th className="w-10 text-center py-2.5 px-3 border-r border-base-300">
-                      <span className="sr-only">Go to dashboard</span>
-                    </th>
+      <main className="flex-1 overflow-y-auto p-6 bg-base-200/40">
+        <div className="card bg-base-100 border border-base-300 shadow-sm overflow-hidden w-full">
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead>
+                <tr className="border-b border-base-300 text-xs bg-base-200/50">
+                  {/* ── Column: Go to Dashboard ──────── */}
+                  <th className="w-10 text-center py-2.5 px-3 border-r border-base-300">
+                    <span className="sr-only">Go to dashboard</span>
+                  </th>
 
-                    {/* ── Column: Status ────────────────── */}
-                    <th className="py-2.5 px-4 w-28 border-r border-base-300">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("status")}
-                        >
-                          <span>Status</span>
-                          {sort.key === "status" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Status ────────────────── */}
+                  <th className="py-2.5 px-4 w-28 border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("status")}
+                      >
+                        <span>Status</span>
+                        {sort.key === "status" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("status")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("status", e)}
-                          title="Filter by status"
-                        >
-                          {isColFiltered("status") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
-                      </div>
-                    </th>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("status")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("status", e)}
+                        title="Filter by status"
+                      >
+                        {isColFiltered("status") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
 
-                    {/* ── Column: Automation ────────────── */}
-                    <th className="py-2.5 px-4 min-w-[150px] border-r border-base-300">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("automation")}
-                        >
-                          <span>Automation</span>
-                          {sort.key === "automation" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Automation ────────────── */}
+                  <th className="py-2.5 px-4 min-w-[150px] border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("automation")}
+                      >
+                        <span>Automation</span>
+                        {sort.key === "automation" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("automation")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("automation", e)}
-                          title="Filter by name or dashboard"
-                        >
-                          {isColFiltered("automation") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
-                      </div>
-                    </th>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("automation")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("automation", e)}
+                        title="Filter by name or dashboard"
+                      >
+                        {isColFiltered("automation") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
 
-                    {/* ── Column: Topic ─────────────────── */}
-                    <th className="py-2.5 px-4 min-w-[180px] border-r border-base-300">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("topic")}
-                        >
-                          <span>Topic</span>
-                          {sort.key === "topic" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Topic ─────────────────── */}
+                  <th className="py-2.5 px-4 min-w-[180px] border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("topic")}
+                      >
+                        <span>Topic</span>
+                        {sort.key === "topic" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("topic")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("topic", e)}
-                          title="Filter by topic"
-                        >
-                          {isColFiltered("topic") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
-                      </div>
-                    </th>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("topic")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("topic", e)}
+                        title="Filter by topic"
+                      >
+                        {isColFiltered("topic") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
 
-                    {/* ── Column: Payload ───────────────── */}
-                    <th className="py-2.5 px-4 min-w-[220px] flex-1 border-r border-base-300">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("payload")}
-                        >
-                          <span>Payload</span>
-                          {sort.key === "payload" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Payload ───────────────── */}
+                  <th className="py-2.5 px-4 min-w-[220px] flex-1 border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("payload")}
+                      >
+                        <span>Payload</span>
+                        {sort.key === "payload" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("payload")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("payload", e)}
-                          title="Filter payload and flags"
-                        >
-                          {isColFiltered("payload") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
-                      </div>
-                    </th>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("payload")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("payload", e)}
+                        title="Filter payload and flags"
+                      >
+                        {isColFiltered("payload") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
 
-                    {/* ── Column: Schedule ──────────────── */}
-                    <th className="py-2.5 px-4 min-w-[140px] border-r border-base-300">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("schedule")}
-                        >
-                          <span>Schedule</span>
-                          {sort.key === "schedule" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Schedule ──────────────── */}
+                  <th className="py-2.5 px-4 min-w-[140px] border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("schedule")}
+                      >
+                        <span>Schedule</span>
+                        {sort.key === "schedule" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("schedule")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("schedule", e)}
-                          title="Filter schedule expression"
-                        >
-                          {isColFiltered("schedule") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
-                      </div>
-                    </th>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("schedule")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("schedule", e)}
+                        title="Filter schedule expression"
+                      >
+                        {isColFiltered("schedule") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
 
-                    {/* ── Column: Next Run ──────────────── */}
-                    <th className="py-2.5 px-4 min-w-[130px] border-r border-base-300">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("next_run")}
-                        >
-                          <span>Next Run</span>
-                          {sort.key === "next_run" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Next Run ──────────────── */}
+                  <th className="py-2.5 px-4 min-w-[130px] border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("next_run")}
+                      >
+                        <span>Next Run</span>
+                        {sort.key === "next_run" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("next_run")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("next_run", e)}
-                          title="Filter next run timing"
-                        >
-                          {isColFiltered("next_run") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
-                      </div>
-                    </th>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("next_run")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("next_run", e)}
+                        title="Filter next run timing"
+                      >
+                        {isColFiltered("next_run") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
 
-                    {/* ── Column: Broker ────────────────── */}
-                    <th className="py-2.5 px-4 min-w-[130px]">
-                      <div className="flex items-center justify-between gap-1">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                          onClick={() => handleSort("broker")}
-                        >
-                          <span>Broker</span>
-                          {sort.key === "broker" ? (
-                            sort.order === "asc" ? (
-                              <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                            ) : (
-                              <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                            )
+                  {/* ── Column: Broker ────────────────── */}
+                  <th className="py-2.5 px-4 min-w-[130px]">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("broker")}
+                      >
+                        <span>Broker</span>
+                        {sort.key === "broker" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
-                            <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                            isColFiltered("broker")
-                              ? "text-primary bg-primary/10"
-                              : "text-base-content/40 hover:text-base-content"
-                          }`}
-                          onClick={(e) => handleOpenFilter("broker", e)}
-                          title="Filter by broker"
-                        >
-                          {isColFiltered("broker") ? (
-                            <RiFilter3Fill className="text-xs" />
-                          ) : (
-                            <RiFilter3Line className="text-xs" />
-                          )}
-                        </button>
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("broker")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("broker", e)}
+                        title="Filter by broker"
+                      >
+                        {isColFiltered("broker") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-base-200">
+                {loading && jobs.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="py-16 text-center text-xs text-base-content/50"
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="loading loading-spinner loading-sm" />
+                        <span>Loading automations...</span>
                       </div>
-                    </th>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-base-200">
-                  {displayedJobs.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-16 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <p className="text-sm font-medium text-base-content/60">
-                            No matching automations
-                          </p>
-                          <p className="text-xs text-base-content/40">
-                            Try adjusting or clearing your column filters
-                          </p>
-                          <button
-                            type="button"
-                            className="btn btn-xs btn-ghost text-primary mt-1"
-                            onClick={handleResetAllFilters}
-                          >
-                            Reset all filters
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    displayedJobs.map((job) => {
-                      const isToggling = togglingIds.has(job.panel_id);
-                      const topicList = job.topic
-                        .split(",")
-                        .map((t) => t.trim())
-                        .filter(Boolean);
-
-                      return (
-                        <tr
-                          key={job.panel_id}
-                          className={`hover:bg-base-200/50 transition-colors ${
-                            !job.enabled ? "opacity-60" : ""
-                          }`}
+                ) : jobs.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="py-16 text-center text-xs text-base-content/50"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                        <MdAutoMode className="text-4xl text-base-content/30" />
+                        <p className="text-base font-semibold text-base-content/70">
+                          No automations configured
+                        </p>
+                        <p className="text-xs text-base-content/50">
+                          Create a Cron panel on any dashboard to automate
+                          periodic MQTT messages.
+                        </p>
+                        <Link
+                          to="/dashboard"
+                          className="btn btn-xs btn-primary mt-2 gap-1.5"
                         >
-                          {/* Go to Panel */}
-                          <td className="align-middle text-center py-3 px-3">
-                            <div
-                              className="tooltip tooltip-right"
-                              data-tip="Go to panel"
+                          <MdLayers className="text-xs" />
+                          <span>Go to Dashboards</span>
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ) : displayedJobs.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <p className="text-sm font-medium text-base-content/60">
+                          No matching automations
+                        </p>
+                        <p className="text-xs text-base-content/40">
+                          Try adjusting or clearing your column filters
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost text-primary mt-1"
+                          onClick={handleResetAllFilters}
+                        >
+                          Reset all filters
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  displayedJobs.map((job) => {
+                    const isToggling = togglingIds.has(job.panel_id);
+                    const topicList = job.topic
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean);
+
+                    return (
+                      <tr
+                        key={job.panel_id}
+                        className={`hover:bg-base-200/50 ${
+                          !job.enabled ? "opacity-60" : ""
+                        }`}
+                      >
+                        {/* Go to Panel */}
+                        <td className="align-middle text-center py-3 px-3">
+                          <div
+                            className="tooltip tooltip-right"
+                            data-tip="Go to panel"
+                          >
+                            <Link
+                              to={`/dashboard?dashboard=${encodeURIComponent(
+                                job.dashboard_id,
+                              )}&panel=${encodeURIComponent(job.panel_id)}`}
+                              className="btn btn-ghost btn-xs btn-square"
+                              aria-label="Go to panel"
                             >
-                              <Link
-                                to={`/dashboard?dashboard=${encodeURIComponent(
-                                  job.dashboard_id,
-                                )}&panel=${encodeURIComponent(job.panel_id)}`}
-                                className="btn btn-ghost btn-xs btn-square"
-                                aria-label="Go to panel"
-                              >
-                                <RiExternalLinkLine className="text-sm" />
-                              </Link>
-                            </div>
-                          </td>
+                              <RiExternalLinkLine className="text-sm" />
+                            </Link>
+                          </div>
+                        </td>
 
-                          {/* Status dot + toggle */}
-                          <td className="text-center align-middle py-3 px-4">
-                            <div
-                              className="tooltip tooltip-right inline-flex items-center gap-1.5"
-                              data-tip={
-                                job.enabled
-                                  ? "Active — click to pause"
-                                  : "Paused"
-                              }
-                            >
-                              <span
-                                className={`w-2 h-2 rounded-full shrink-0 ${
-                                  job.enabled ? "bg-success" : "bg-neutral"
-                                }`}
-                              />
-                              <input
-                                type="checkbox"
-                                className="toggle toggle-xs toggle-primary"
-                                checked={job.enabled}
-                                disabled={isToggling}
-                                onChange={() => handleToggle(job)}
-                              />
-                            </div>
-                          </td>
+                        {/* Status dot + toggle */}
+                        <td className="text-center align-middle py-3 px-4">
+                          <div
+                            className="tooltip tooltip-right inline-flex items-center gap-1.5"
+                            data-tip={
+                              job.enabled ? "Active — click to pause" : "Paused"
+                            }
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full shrink-0 ${
+                                job.enabled ? "bg-success" : "bg-neutral"
+                              }`}
+                            />
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-xs toggle-primary"
+                              checked={job.enabled}
+                              disabled={isToggling}
+                              onChange={() => handleToggle(job)}
+                            />
+                          </div>
+                        </td>
 
-                          {/* Automation Name & Dashboard */}
-                          <td className="align-middle py-3 px-4">
-                            <div className="flex flex-col gap-0.5 min-w-[140px]">
-                              <span className="font-semibold text-xs text-base-content">
-                                {job.panel_title || "Untitled"}
-                              </span>
-                              <span className="text-[11px] text-base-content/50 flex items-center gap-1">
-                                <MdLayers className="text-xs shrink-0" />
+                        {/* Automation Name & Dashboard */}
+                        <td className="align-middle py-3 px-4">
+                          <div className="flex flex-col gap-0.5 min-w-[140px]">
+                            {(() => {
+                              const cleanTitle = (
+                                job.panel_title || "Untitled"
+                              ).replace(
+                                /\s*\((enabled|disabled|active|paused)\)/i,
+                                "",
+                              );
+                              return (
                                 <span
-                                  className="truncate max-w-[170px]"
-                                  title={job.dashboard_name}
+                                  className="font-bold text-sm text-base-content truncate max-w-[220px]"
+                                  title={cleanTitle}
                                 >
-                                  {job.dashboard_name || "Default"}
+                                  {cleanTitle}
                                 </span>
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Topic (Separate Column with Truncation) */}
-                          <td className="align-middle py-3 px-4 max-w-[200px]">
-                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                              {topicList.map((t, idx) => (
-                                <div
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
-                                >
-                                  <Link
-                                    to={`/explorer?topic=${encodeURIComponent(t)}${
-                                      job.broker_id
-                                        ? `&broker=${encodeURIComponent(job.broker_id)}`
-                                        : ""
-                                    }`}
-                                    className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
-                                    title={`Show "${t}" in Explorer`}
-                                  >
-                                    <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
-                                    <span className="truncate">{t}</span>
-                                  </Link>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                    title="Copy topic"
-                                    onClick={() =>
-                                      handleCopy(
-                                        `topic-${job.panel_id}-${idx}`,
-                                        t,
-                                      )
-                                    }
-                                  >
-                                    {copiedId ===
-                                    `topic-${job.panel_id}-${idx}` ? (
-                                      <MdCheck className="text-success text-xs" />
-                                    ) : (
-                                      <MdContentCopy className="text-[10px]" />
-                                    )}
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-
-                          {/* Payload (Separate Column with QoS/Retain Flags next to it & Ellipsis) */}
-                          <td className="align-middle py-3 px-4 max-w-[280px]">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {/* QoS flag next to payload */}
+                              );
+                            })()}
+                            <span className="text-[11px] text-base-content/50 flex items-center gap-1">
+                              <MdLayers className="text-xs shrink-0" />
                               <span
-                                className="badge badge-xs badge-neutral font-mono shrink-0"
-                                title={`QoS ${job.qos}`}
+                                className="truncate max-w-[170px]"
+                                title={job.dashboard_name}
                               >
-                                Q{job.qos}
+                                {job.dashboard_name || "Default"}
                               </span>
+                            </span>
+                          </div>
+                        </td>
 
-                              {/* Retain flag next to payload */}
-                              {job.retain && (
-                                <span
-                                  className="badge badge-xs badge-warning font-mono shrink-0"
-                                  title="Retained message"
-                                >
-                                  R
-                                </span>
-                              )}
-
-                              {/* Payload snippet with Ellipsis */}
-                              {job.payload ? (
-                                <div
-                                  className="flex items-center gap-1 bg-base-200/70 px-2 py-0.5 rounded font-mono text-[11px] text-base-content/80 min-w-0 flex-1 overflow-hidden"
-                                  title={job.payload}
-                                >
-                                  <span className="truncate flex-1 block">
-                                    {job.payload}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                    title="Copy payload"
-                                    onClick={() =>
-                                      handleCopy(
-                                        `payload-${job.panel_id}`,
-                                        job.payload,
-                                      )
-                                    }
-                                  >
-                                    {copiedId === `payload-${job.panel_id}` ? (
-                                      <MdCheck className="text-success text-xs" />
-                                    ) : (
-                                      <MdContentCopy className="text-[10px]" />
-                                    )}
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-[11px] text-base-content/30 italic">
-                                  (empty)
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Schedule */}
-                          <td className="align-middle py-3 px-4">
-                            <div className="flex flex-col gap-0.5 min-w-[130px]">
-                              <div className="flex items-center gap-1 text-xs font-medium">
-                                <MdSchedule className="text-xs text-base-content/50 shrink-0" />
-                                <span>{formatSchedule(job.cron_expr)}</span>
-                              </div>
-                              <span className="font-mono text-[10px] text-base-content/40 pl-4">
-                                {job.cron_expr}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Next Run */}
-                          <td className="align-middle whitespace-nowrap py-3 px-4">
-                            {job.enabled && job.next_run ? (
+                        {/* Topic (Separate Column with Truncation) */}
+                        <td className="align-middle py-3 px-4 max-w-[200px]">
+                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                            {topicList.map((t, idx) => (
                               <div
-                                className="tooltip tooltip-top text-left"
-                                data-tip={`Exact: ${formatExactTime(job.next_run)}${
-                                  job.prev_run
-                                    ? ` | Prev: ${formatExactTime(job.prev_run)}`
-                                    : ""
-                                }`}
+                                key={idx}
+                                className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
                               >
-                                <span className="text-primary font-medium text-xs block">
-                                  {formatCountdown(job.next_run, currentTimeMs)}
-                                </span>
-                                <span className="text-[10px] text-base-content/40 block">
-                                  {formatExactTime(job.next_run)}
-                                </span>
+                                <Link
+                                  to={`/explorer?topic=${encodeURIComponent(t)}${
+                                    job.broker_id
+                                      ? `&broker=${encodeURIComponent(job.broker_id)}`
+                                      : ""
+                                  }`}
+                                  className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
+                                  title={`Show "${t}" in Explorer`}
+                                >
+                                  <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
+                                  <span className="truncate">{t}</span>
+                                </Link>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
+                                  title="Copy topic"
+                                  onClick={() =>
+                                    handleCopy(
+                                      `topic-${job.panel_id}-${idx}`,
+                                      t,
+                                    )
+                                  }
+                                >
+                                  {copiedId ===
+                                  `topic-${job.panel_id}-${idx}` ? (
+                                    <MdCheck className="text-success text-xs" />
+                                  ) : (
+                                    <MdContentCopy className="text-[10px]" />
+                                  )}
+                                </button>
                               </div>
-                            ) : (
-                              <span className="badge badge-xs badge-neutral">
-                                paused
+                            ))}
+                          </div>
+                        </td>
+
+                        {/* Payload (Separate Column with QoS/Retain Flags next to it & Ellipsis) */}
+                        <td className="align-middle py-3 px-4 max-w-[280px]">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {/* QoS flag next to payload */}
+                            <span
+                              className="badge badge-xs badge-neutral font-mono shrink-0"
+                              title={`QoS ${job.qos}`}
+                            >
+                              Q{job.qos}
+                            </span>
+
+                            {/* Retain flag next to payload */}
+                            {job.retain && (
+                              <span
+                                className="badge badge-xs badge-warning font-mono shrink-0"
+                                title="Retained message"
+                              >
+                                R
                               </span>
                             )}
-                          </td>
 
-                          {/* Broker */}
-                          <td className="align-middle py-3 px-4">
-                            <div className="flex items-center gap-1 text-xs text-base-content/70 min-w-[120px]">
-                              <RiServerLine className="text-xs text-base-content/40 shrink-0" />
-                              <span
-                                className="truncate max-w-[130px]"
-                                title={job.broker_name}
+                            {/* Payload snippet with Ellipsis */}
+                            {job.payload ? (
+                              <div
+                                className="flex items-center gap-1 bg-base-200/70 px-2 py-0.5 rounded font-mono text-[11px] text-base-content/80 min-w-0 flex-1 overflow-hidden"
+                                title={job.payload}
                               >
-                                {job.broker_name || "Default"}
+                                <span className="truncate flex-1 block">
+                                  {job.payload}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
+                                  title="Copy payload"
+                                  onClick={() =>
+                                    handleCopy(
+                                      `payload-${job.panel_id}`,
+                                      job.payload,
+                                    )
+                                  }
+                                >
+                                  {copiedId === `payload-${job.panel_id}` ? (
+                                    <MdCheck className="text-success text-xs" />
+                                  ) : (
+                                    <MdContentCopy className="text-[10px]" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-base-content/30 italic">
+                                (empty)
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Schedule */}
+                        <td className="align-middle py-3 px-4">
+                          <div className="flex flex-col gap-0.5 min-w-[130px]">
+                            <div className="flex items-center gap-1 text-xs font-medium">
+                              <MdSchedule className="text-xs text-base-content/50 shrink-0" />
+                              <span>{formatSchedule(job.cron_expr)}</span>
+                            </div>
+                            <span className="font-mono text-[10px] text-base-content/40 pl-4">
+                              {job.cron_expr}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Next Run */}
+                        <td className="align-middle whitespace-nowrap py-3 px-4">
+                          {job.enabled && job.next_run ? (
+                            <div
+                              className="tooltip tooltip-top text-left"
+                              data-tip={`Exact: ${formatExactTime(job.next_run)}${
+                                job.prev_run
+                                  ? ` | Prev: ${formatExactTime(job.prev_run)}`
+                                  : ""
+                              }`}
+                            >
+                              <span className="text-primary font-medium text-xs block">
+                                {formatCountdown(job.next_run, currentTimeMs)}
+                              </span>
+                              <span className="text-[10px] text-base-content/40 block">
+                                {formatExactTime(job.next_run)}
                               </span>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          ) : (
+                            <span className="badge badge-xs badge-neutral">
+                              paused
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Broker */}
+                        <td className="align-middle py-3 px-4">
+                          <div className="flex items-center gap-1 text-xs text-base-content/70 min-w-[120px]">
+                            <RiServerLine className="text-xs text-base-content/40 shrink-0" />
+                            <span
+                              className="truncate max-w-[130px]"
+                              title={job.broker_name}
+                            >
+                              {job.broker_name || "Default"}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </main>
 
       {/* ── Portaled Filter Popover (Mounts in document.body to avoid table clipping & overflow) ── */}
