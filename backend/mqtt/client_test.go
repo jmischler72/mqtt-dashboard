@@ -27,10 +27,13 @@ func (m *mockMessage) Ack()              {}
 var _ paho.Message = (*mockMessage)(nil)
 
 // mockToken implements paho.Token for testing.
-type mockToken struct{ err error }
+type mockToken struct {
+	err     error
+	timeout bool
+}
 
-func (t *mockToken) Wait() bool                       { return true }
-func (t *mockToken) WaitTimeout(_ time.Duration) bool { return true }
+func (t *mockToken) Wait() bool                       { return !t.timeout }
+func (t *mockToken) WaitTimeout(_ time.Duration) bool { return !t.timeout }
 func (t *mockToken) Done() <-chan struct{}            { c := make(chan struct{}); close(c); return c }
 func (t *mockToken) Error() error                     { return t.err }
 
@@ -398,6 +401,20 @@ func TestPublish_TokenError(t *testing.T) {
 
 	if err := m.Publish("test/topic", 0, false, []byte("hello")); err == nil {
 		t.Error("expected error from token.Error(), got nil")
+	}
+}
+
+func TestPublish_Timeout(t *testing.T) {
+	timeoutToken := &mockToken{timeout: true}
+	mock := &mockPahoClientWithErr{connected: true, publishToken: timeoutToken}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	if err := m.Publish("test/topic", 0, false, []byte("hello")); err == nil {
+		t.Error("expected error on publish timeout, got nil")
 	}
 }
 

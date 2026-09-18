@@ -146,17 +146,31 @@ export default function Layout() {
 
   useEffect(() => {
     if (!backendReady) return;
+    if (dashboards.length > 0) {
+      const params = new URLSearchParams(location.search);
+      const qDash = params.get("dashboard");
+      if (
+        qDash &&
+        dashboards.some((d) => d.id === qDash) &&
+        qDash !== activeDashboardId
+      ) {
+        queueMicrotask(() => {
+          setActiveDashboardId(qDash);
+          localStorage.setItem(ACTIVE_DASHBOARD_KEY, qDash);
+        });
+      }
+      return;
+    }
+
     api
       .get<Dashboard[]>("/api/dashboards")
       .then((list) => {
         setDashboards(list);
         const params = new URLSearchParams(location.search);
-        const queryDashboard = params.get("dashboard");
+        const qDash = params.get("dashboard");
         const stored = localStorage.getItem(ACTIVE_DASHBOARD_KEY);
         const target =
-          queryDashboard && list.some((d) => d.id === queryDashboard)
-            ? queryDashboard
-            : stored;
+          qDash && list.some((d) => d.id === qDash) ? qDash : stored;
         const valid = list.find((d) => d.id === target);
         const defaultId = valid ? target! : (list[0]?.id ?? "");
         setActiveDashboardId(defaultId);
@@ -164,7 +178,7 @@ export default function Layout() {
       })
       .catch(() => {})
       .finally(() => setDashboardsLoading(false));
-  }, [backendReady, location.search]);
+  }, [backendReady, location.search, dashboards, activeDashboardId]);
 
   const switchDashboard = (id: string) => {
     setActiveDashboardId(id);

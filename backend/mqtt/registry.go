@@ -341,7 +341,7 @@ func (r *BrokerRegistry) Publish(brokerID, topic string, qos byte, retain bool, 
 	// fresh subscribe. An empty-payload retained publish clears the stored message.
 	if retain {
 		r.markRetained(brokerID, topic, len(payload) > 0)
-		if pid != "" && len(payload) > 0 {
+		if len(payload) > 0 {
 			r.MarkRetainedPanel(brokerID, topic, pid)
 		}
 	}

@@ -98,6 +98,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
+	layoutH.SetInvalidator(wsHub)
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)

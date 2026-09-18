@@ -337,6 +337,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
                 !m.historical &&
                 m.topic === entry.topic &&
                 m.payload === entry.payload &&
+                m.sourcePanelId === entry.sourcePanelId &&
                 Math.abs(new Date(m.receivedAt).getTime() - entryTime) <=
                   DEDUPE_WINDOW_MS,
             );

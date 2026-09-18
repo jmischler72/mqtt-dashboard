@@ -396,3 +396,55 @@ func TestDeletePanel_RemovesCronJob(t *testing.T) {
 		t.Error("expected cron job to be removed from scheduler upon panel delete")
 	}
 }
+
+type mockInvalidator struct {
+	invalidated []string
+}
+
+func (m *mockInvalidator) InvalidatePanelMeta(panelID string) {
+	m.invalidated = append(m.invalidated, panelID)
+}
+
+func TestUpdatePanel_InvalidatesCache(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Old', 'button', 0, 0, 4, 4)`)
+
+	h := handlers.NewLayoutHandler(database)
+	inv := &mockInvalidator{}
+	h.SetInvalidator(inv)
+	r := newLayoutRouter(h)
+
+	body := jsonBody(t, map[string]any{"title": "Renamed"})
+	req := httptest.NewRequest(http.MethodPut, "/api/layouts/p1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if len(inv.invalidated) != 1 || inv.invalidated[0] != "p1" {
+		t.Errorf("expected p1 to be invalidated, got %+v", inv.invalidated)
+	}
+}
+
+func TestDeletePanel_InvalidatesCache(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Old', 'button', 0, 0, 4, 4)`)
+
+	h := handlers.NewLayoutHandler(database)
+	inv := &mockInvalidator{}
+	h.SetInvalidator(inv)
+	r := newLayoutRouter(h)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/layouts/p1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if len(inv.invalidated) != 1 || inv.invalidated[0] != "p1" {
+		t.Errorf("expected p1 to be invalidated, got %+v", inv.invalidated)
+	}
+}

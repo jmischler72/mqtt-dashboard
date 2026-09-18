@@ -431,10 +431,26 @@ func TestRetainedTracking(t *testing.T) {
 		t.Fatal("retained state must be scoped per broker")
 	}
 
-	// Empty-payload retained publish clears the stored message (MQTT convention).
+	// Retained panel tracking
+	r.MarkRetainedPanel("b1", "a/b", "p1")
+	if r.GetRetainedPanel("b1", "a/b") != "p1" {
+		t.Fatalf("expected retained panel p1, got %q", r.GetRetainedPanel("b1", "a/b"))
+	}
+
+	// Overwriting with empty panelID clears panel attribution while topic remains retained
+	r.MarkRetainedPanel("b1", "a/b", "")
+	if r.GetRetainedPanel("b1", "a/b") != "" {
+		t.Fatalf("expected retained panel to be cleared, got %q", r.GetRetainedPanel("b1", "a/b"))
+	}
+
+	r.MarkRetainedPanel("b1", "a/b", "p2")
+	// Empty-payload retained publish clears both the stored message and panel (MQTT convention).
 	r.markRetained("b1", "a/b", false)
 	if r.IsRetained("b1", "a/b") {
 		t.Fatal("topic should be cleared after markRetained(false)")
+	}
+	if r.GetRetainedPanel("b1", "a/b") != "" {
+		t.Fatalf("expected retained panel to be cleared on empty payload, got %q", r.GetRetainedPanel("b1", "a/b"))
 	}
 }
 

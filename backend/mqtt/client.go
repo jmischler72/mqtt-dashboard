@@ -198,6 +198,17 @@ func (m *MQTTManager) ConnectError() string {
 	return m.connectErr
 }
 
+func (m *MQTTManager) prunePendingPubsLocked(now time.Time) {
+	cutoff := now.Add(-publishTTL)
+	valid := m.pendingPubs[:0]
+	for _, p := range m.pendingPubs {
+		if p.createdAt.After(cutoff) {
+			valid = append(valid, p)
+		}
+	}
+	m.pendingPubs = valid
+}
+
 func (m *MQTTManager) trackOutgoing(topic string, payload []byte, panelID string) {
 	if panelID == "" {
 		return
@@ -205,20 +216,13 @@ func (m *MQTTManager) trackOutgoing(topic string, payload []byte, panelID string
 	m.pendingPubsMu.Lock()
 	defer m.pendingPubsMu.Unlock()
 	now := time.Now()
-	cutoff := now.Add(-publishTTL)
+	m.prunePendingPubsLocked(now)
 
-	// Filter out expired items
-	valid := m.pendingPubs[:0]
-	for _, p := range m.pendingPubs {
-		if p.createdAt.After(cutoff) {
-			valid = append(valid, p)
-		}
-	}
 	// Cap to max capacity if needed
-	if len(valid) >= maxPendingPubs {
-		valid = valid[len(valid)-maxPendingPubs+1:]
+	if len(m.pendingPubs) >= maxPendingPubs {
+		m.pendingPubs = m.pendingPubs[len(m.pendingPubs)-maxPendingPubs+1:]
 	}
-	m.pendingPubs = append(valid, pendingPublish{
+	m.pendingPubs = append(m.pendingPubs, pendingPublish{
 		topic:     topic,
 		payload:   string(payload),
 		panelID:   panelID,
@@ -230,13 +234,10 @@ func (m *MQTTManager) matchOutgoing(topic string, payload []byte) string {
 	m.pendingPubsMu.Lock()
 	defer m.pendingPubsMu.Unlock()
 	now := time.Now()
-	cutoff := now.Add(-publishTTL)
+	m.prunePendingPubsLocked(now)
 	payloadStr := string(payload)
 
 	for i, p := range m.pendingPubs {
-		if p.createdAt.Before(cutoff) {
-			continue
-		}
 		if p.topic == topic && p.payload == payloadStr {
 			panelID := p.panelID
 			m.pendingPubs = append(m.pendingPubs[:i], m.pendingPubs[i+1:]...)
@@ -268,7 +269,9 @@ func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byt
 	token := client.Publish(topic, qos, retain, payload)
 	m.pubMu.Unlock()
 
-	token.Wait()
+	if !token.WaitTimeout(5 * time.Second) {
+		return fmt.Errorf("publish timed out")
+	}
 	return token.Error()
 }
 

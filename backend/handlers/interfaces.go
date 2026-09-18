@@ -25,3 +25,8 @@ type CronScheduler interface {
 	GetJob(panelID string) (*cron.JobInfo, bool)
 	GetJobs() []*cron.JobInfo
 }
+
+// PanelMetaInvalidator invalidates cached metadata for a panel.
+type PanelMetaInvalidator interface {
+	InvalidatePanelMeta(panelID string)
+}
