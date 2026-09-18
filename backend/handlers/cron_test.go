@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -408,3 +409,58 @@ func TestListCronJobs_FilterEnabled(t *testing.T) {
 		t.Errorf("got job ID %q, want 'panel1'", jobs[0].PanelID)
 	}
 }
+
+func TestUpsertAndToggleCron_PreservesMetadata(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('panel1', 'default', 'Cron', 'cron', 0, 0, 4, 4, '{"cron_expr":"*/5 * * * *","topic":"t","header_meta_pinned":true,"enabled":true}', 'b1')`)
+	sched := newMockScheduler()
+	h := handlers.NewCronHandler(database, sched)
+	r := newCronRouter(h)
+
+	// 1. UpsertCron updates cron fields but preserves header_meta_pinned
+	body := jsonBody(t, map[string]any{
+		"cron_expr": "*/10 * * * *",
+		"topic":     "updated/topic",
+		"enabled":   true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/cron/panel1", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upsert status = %d, want 200", rec.Code)
+	}
+
+	var cfgStr string
+	database.QueryRow(`SELECT config_json FROM dashboard_layouts WHERE id = 'panel1'`).Scan(&cfgStr)
+	var cfgMap map[string]any
+	json.Unmarshal([]byte(cfgStr), &cfgMap)
+	if cfgMap["header_meta_pinned"] != true {
+		t.Errorf("header_meta_pinned was lost after UpsertCron, got %v", cfgMap["header_meta_pinned"])
+	}
+	if cfgMap["topic"] != "updated/topic" {
+		t.Errorf("topic = %v, want 'updated/topic'", cfgMap["topic"])
+	}
+
+	// 2. ToggleCron preserves header_meta_pinned
+	toggleBody := jsonBody(t, map[string]bool{"enabled": false})
+	toggleReq := httptest.NewRequest(http.MethodPut, "/api/cron/panel1/toggle", toggleBody)
+	toggleReq.Header.Set("Content-Type", "application/json")
+	toggleRec := httptest.NewRecorder()
+	r.ServeHTTP(toggleRec, toggleReq)
+
+	if toggleRec.Code != http.StatusOK {
+		t.Fatalf("toggle status = %d, want 200", toggleRec.Code)
+	}
+
+	database.QueryRow(`SELECT config_json FROM dashboard_layouts WHERE id = 'panel1'`).Scan(&cfgStr)
+	json.Unmarshal([]byte(cfgStr), &cfgMap)
+	if cfgMap["header_meta_pinned"] != true {
+		t.Errorf("header_meta_pinned was lost after ToggleCron, got %v", cfgMap["header_meta_pinned"])
+	}
+	if cfgMap["enabled"] != false {
+		t.Errorf("enabled = %v, want false", cfgMap["enabled"])
+	}
+}
+

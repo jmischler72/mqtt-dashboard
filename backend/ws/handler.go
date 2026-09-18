@@ -39,6 +39,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		slog.Error("ws upgrade", "err", err)
 		return
 	}
+	defer conn.Close()
 
 	c := &Client{
 		id:   uuid.New().String(),
@@ -52,6 +53,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		ticker := time.NewTicker(pingPeriod)
 		defer ticker.Stop()
+		defer conn.Close()
 		for {
 			select {
 			case msg, ok := <-c.send:

@@ -53,8 +53,21 @@ func (h *CronHandler) UpsertCron(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Persist config_json on the panel row
-	b, _ := json.Marshal(req)
+	// Persist config_json on the panel row while preserving metadata (e.g. header_meta_pinned)
+	var existingStr string
+	h.db.QueryRow(`SELECT COALESCE(config_json, '{}') FROM dashboard_layouts WHERE id = ?`, panelID).Scan(&existingStr) //nolint
+	var cfgMap map[string]any
+	if err := json.Unmarshal([]byte(existingStr), &cfgMap); err != nil || cfgMap == nil {
+		cfgMap = make(map[string]any)
+	}
+	cfgMap["broker_id"] = req.BrokerID
+	cfgMap["cron_expr"] = req.CronExpr
+	cfgMap["topic"] = req.Topic
+	cfgMap["payload"] = req.Payload
+	cfgMap["qos"] = req.QoS
+	cfgMap["retain"] = req.Retain
+	cfgMap["enabled"] = req.Enabled
+	b, _ := json.Marshal(cfgMap)
 	h.db.Exec(`UPDATE dashboard_layouts SET config_json = ? WHERE id = ?`, string(b), panelID) //nolint
 
 	w.Header().Set("Content-Type", "application/json")
@@ -63,7 +76,9 @@ func (h *CronHandler) UpsertCron(w http.ResponseWriter, r *http.Request) {
 
 func (h *CronHandler) DeleteCron(w http.ResponseWriter, r *http.Request) {
 	panelID := chi.URLParam(r, "panelId")
-	h.scheduler.RemoveJob(panelID)
+	if h.scheduler != nil {
+		h.scheduler.RemoveJob(panelID)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -103,14 +118,16 @@ func (h *CronHandler) ToggleCron(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Update enabled in config_json
+	// Update enabled in config_json while preserving any other panel properties
 	row := h.db.QueryRow(`SELECT COALESCE(config_json, '{}') FROM dashboard_layouts WHERE id = ?`, panelID)
 	var cfgStr string
 	row.Scan(&cfgStr) //nolint
-	var cfg cronConfigJSON
-	json.Unmarshal([]byte(cfgStr), &cfg) //nolint
-	cfg.Enabled = req.Enabled
-	b, _ := json.Marshal(cfg)
+	var cfgMap map[string]any
+	if err := json.Unmarshal([]byte(cfgStr), &cfgMap); err != nil || cfgMap == nil {
+		cfgMap = make(map[string]any)
+	}
+	cfgMap["enabled"] = req.Enabled
+	b, _ := json.Marshal(cfgMap)
 	h.db.Exec(`UPDATE dashboard_layouts SET config_json = ? WHERE id = ?`, string(b), panelID) //nolint
 
 	w.Header().Set("Content-Type", "application/json")

@@ -13,11 +13,28 @@ interface SubscriptionPayload {
   topics?: string[];
 }
 
+export function mqttTopicMatches(filter: string, topic: string): boolean {
+  if (filter === topic) return true;
+  if (!filter.startsWith("$") && topic.startsWith("$")) return false;
+  const fp = filter.split("/");
+  const tp = topic.split("/");
+  for (let i = 0; i < fp.length; i++) {
+    if (fp[i] === "#") return true;
+    if (fp[i] === "+") {
+      if (i >= tp.length) return false;
+      continue;
+    }
+    if (i >= tp.length || fp[i] !== tp[i]) return false;
+  }
+  return fp.length === tp.length;
+}
+
 interface Listener {
   id: string;
   onMessage: (data: string) => void;
   onOpen?: () => void;
   onClose?: () => void;
+  subscription?: SubscriptionPayload;
 }
 
 class WSConnectionManager {
@@ -48,7 +65,34 @@ class WSConnectionManager {
     };
 
     socket.onmessage = (e) => {
-      this.listeners.forEach((l) => l.onMessage(e.data));
+      let parsed: { broker_id?: string; topic?: string } | null = null;
+      try {
+        parsed = JSON.parse(e.data);
+      } catch {
+        // Non-JSON frame: forward to all
+      }
+
+      this.listeners.forEach((l) => {
+        if (!parsed || !l.subscription) {
+          l.onMessage(e.data);
+          return;
+        }
+        if (
+          l.subscription.broker_id &&
+          parsed.broker_id &&
+          l.subscription.broker_id !== parsed.broker_id
+        ) {
+          return;
+        }
+        if (l.subscription.topics && l.subscription.topics.length > 0) {
+          if (!parsed.topic) return;
+          const matches = l.subscription.topics.some((filter) =>
+            mqttTopicMatches(filter, parsed.topic!)
+          );
+          if (!matches) return;
+        }
+        l.onMessage(e.data);
+      });
     };
 
     socket.onclose = () => {
@@ -108,7 +152,11 @@ class WSConnectionManager {
     }
   }
 
-  public subscribe(payload: SubscriptionPayload) {
+  public subscribe(listenerId: string, payload: SubscriptionPayload) {
+    const listener = this.listeners.get(listenerId);
+    if (listener) {
+      listener.subscription = payload;
+    }
     if (payload.panel_id) {
       this.activeSubscriptions.set(payload.panel_id, payload);
     }
@@ -158,7 +206,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     if (payload.panel_id) {
       currentPanelId.current = payload.panel_id;
     }
-    wsManager.subscribe(payload);
+    wsManager.subscribe(listenerIdRef.current, payload);
   }, []);
 
   return { subscribe };
