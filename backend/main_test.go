@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -24,8 +25,9 @@ func TestCorsMiddleware_SetsHeaders(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Errorf("Access-Control-Allow-Origin = %q, want '*'", got)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Methods"); got == "" {
-		t.Error("Access-Control-Allow-Methods should be set")
+	methods := rec.Header().Get("Access-Control-Allow-Methods")
+	if !strings.Contains(methods, "PATCH") {
+		t.Errorf("Access-Control-Allow-Methods %q does not contain PATCH", methods)
 	}
 }
 

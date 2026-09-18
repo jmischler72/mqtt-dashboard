@@ -6,6 +6,7 @@ import {
   PanelConfigModal,
   PreviewBox,
 } from "./config";
+import { api } from "../../api/client";
 
 export interface ImageConfig {
   src?: string;
@@ -34,9 +35,9 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/images/presets")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: PresetEntry[]) => {
+    api
+      .getImagePresets()
+      .then((data) => {
         if (active) setPresets(data);
       })
       .catch(() => {});
@@ -49,11 +50,7 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
     setUploading(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/images", { method: "POST", body: form });
-      if (!res.ok) throw new Error(await res.text());
-      const entry = (await res.json()) as PresetEntry;
+      const entry = await api.uploadImage(file);
       setSrc(entry.url);
       setPresets((prev) =>
         prev.some((p) => p.name === entry.name) ? prev : [...prev, entry],

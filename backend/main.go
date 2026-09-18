@@ -102,6 +102,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
+	dashboardH.SetInvalidator(wsHub)
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
 	imageH := handlers.NewImageHandler(dataDir)
@@ -230,6 +231,7 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 			continue
 		}
 		var cfg struct {
+			BrokerID string `json:"broker_id"`
 			CronExpr string `json:"cron_expr"`
 			Topic    string `json:"topic"`
 			Payload  string `json:"payload"`
@@ -240,7 +242,11 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 		if err := json.Unmarshal([]byte(cfgJSON), &cfg); err != nil || cfg.CronExpr == "" {
 			continue
 		}
-		if err := scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err != nil {
+		bID := cfg.BrokerID
+		if bID == "" {
+			bID = brokerID
+		}
+		if err := scheduler.AddJob(panelID, bID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err != nil {
 			slog.Error("load cron job", "panel_id", panelID, "err", err)
 		}
 	}
@@ -267,7 +273,7 @@ func spaHandler(distFS fs.FS, h http.Handler) http.Handler {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 
 		if r.Method == "OPTIONS" {

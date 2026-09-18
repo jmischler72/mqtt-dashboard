@@ -368,6 +368,8 @@ export default function AutomationsPage() {
     return Array.from(set).sort();
   }, [jobs]);
 
+  const soonReferenceTime = filters.nextRun === "soon" ? currentTimeMs : 0;
+
   // Filter and Sort Pipeline
   const displayedJobs = useMemo(() => {
     let result = jobs.filter((job) => {
@@ -441,7 +443,7 @@ export default function AutomationsPage() {
         if (!job.enabled || !job.next_run) return false;
       } else if (filters.nextRun === "soon") {
         if (!job.enabled || !job.next_run) return false;
-        const diffMs = new Date(job.next_run).getTime() - currentTimeMs;
+        const diffMs = new Date(job.next_run).getTime() - soonReferenceTime;
         if (diffMs > 5 * 60 * 1000 || diffMs < 0) return false;
       }
 
@@ -500,7 +502,14 @@ export default function AutomationsPage() {
     }
 
     return result;
-  }, [jobs, searchQuery, filters, sort, currentTimeMs, selectedDashboardId]);
+  }, [
+    jobs,
+    searchQuery,
+    filters,
+    sort,
+    selectedDashboardId,
+    soonReferenceTime,
+  ]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-base-200/40">

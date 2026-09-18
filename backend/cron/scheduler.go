@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	cronv3 "github.com/robfig/cron/v3"
 )
 
 type JobInfo struct {
@@ -52,16 +53,15 @@ func (sc *Scheduler) Stop() {
 	sc.s.Shutdown() //nolint
 }
 
+var standardCronParser = cronv3.NewParser(
+	cronv3.Minute | cronv3.Hour | cronv3.Dom | cronv3.Month | cronv3.Dow | cronv3.Descriptor,
+)
+
 // ValidateCronExpr reports whether expr is a schedulable 5-field cron
 // expression, without registering anything. It is exported so handlers can
 // reject bad input before any state is mutated.
 func ValidateCronExpr(cronExpr string) error {
-	s, err := gocron.NewScheduler()
-	if err != nil {
-		return err
-	}
-	defer s.Shutdown() //nolint
-	if _, err := s.NewJob(gocron.CronJob(cronExpr, false), gocron.NewTask(func() {})); err != nil {
+	if _, err := standardCronParser.Parse(cronExpr); err != nil {
 		return fmt.Errorf("invalid cron expression %q: %w", cronExpr, err)
 	}
 	return nil

@@ -65,6 +65,17 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		retentionHours = 24
 	}
 
+	limit := 5000
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			if parsed > 10000 {
+				limit = 10000
+			} else {
+				limit = parsed
+			}
+		}
+	}
+
 	var rows *sql.Rows
 	var err error
 	if mqttutil.HasWildcard(topic) {
@@ -74,23 +85,33 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 			prefixTopic = ""
 		}
 		rows, err = h.db.Query(
-			`SELECT h.id, h.broker_id, h.topic, COALESCE(h.payload, ''), h.timestamp, h.qos, h.retained,
-			        COALESCE(h.source_panel_id, ''), COALESCE(p.title, ''), COALESCE(p.dashboard_id, '')
-			 FROM mqtt_history h
-			 LEFT JOIN dashboard_layouts p ON h.source_panel_id = p.id
-			 WHERE h.broker_id = ? AND (h.topic = ? OR h.topic LIKE ?) AND h.timestamp > DATETIME('now', '-' || ? || ' hours')
-			 ORDER BY h.timestamp ASC`,
-			brokerID, prefixTopic, likePattern, retentionHours,
+			`SELECT id, broker_id, topic, payload, timestamp, qos, retained,
+			        source_panel_id, source_panel_title, source_dashboard_id
+			 FROM (
+			     SELECT h.id, h.broker_id, h.topic, COALESCE(h.payload, '') AS payload, h.timestamp, h.qos, h.retained,
+			            COALESCE(h.source_panel_id, '') AS source_panel_id, COALESCE(p.title, '') AS source_panel_title, COALESCE(p.dashboard_id, '') AS source_dashboard_id
+			     FROM mqtt_history h
+			     LEFT JOIN dashboard_layouts p ON h.source_panel_id = p.id
+			     WHERE h.broker_id = ? AND (h.topic = ? OR h.topic LIKE ?) AND h.timestamp > DATETIME('now', '-' || ? || ' hours')
+			     ORDER BY h.timestamp DESC
+			     LIMIT ?
+			 ) ORDER BY timestamp ASC`,
+			brokerID, prefixTopic, likePattern, retentionHours, limit,
 		)
 	} else {
 		rows, err = h.db.Query(
-			`SELECT h.id, h.broker_id, h.topic, COALESCE(h.payload, ''), h.timestamp, h.qos, h.retained,
-			        COALESCE(h.source_panel_id, ''), COALESCE(p.title, ''), COALESCE(p.dashboard_id, '')
-			 FROM mqtt_history h
-			 LEFT JOIN dashboard_layouts p ON h.source_panel_id = p.id
-			 WHERE h.broker_id = ? AND h.topic = ? AND h.timestamp > DATETIME('now', '-' || ? || ' hours')
-			 ORDER BY h.timestamp ASC`,
-			brokerID, topic, retentionHours,
+			`SELECT id, broker_id, topic, payload, timestamp, qos, retained,
+			        source_panel_id, source_panel_title, source_dashboard_id
+			 FROM (
+			     SELECT h.id, h.broker_id, h.topic, COALESCE(h.payload, '') AS payload, h.timestamp, h.qos, h.retained,
+			            COALESCE(h.source_panel_id, '') AS source_panel_id, COALESCE(p.title, '') AS source_panel_title, COALESCE(p.dashboard_id, '') AS source_dashboard_id
+			     FROM mqtt_history h
+			     LEFT JOIN dashboard_layouts p ON h.source_panel_id = p.id
+			     WHERE h.broker_id = ? AND h.topic = ? AND h.timestamp > DATETIME('now', '-' || ? || ' hours')
+			     ORDER BY h.timestamp DESC
+			     LIMIT ?
+			 ) ORDER BY timestamp ASC`,
+			brokerID, topic, retentionHours, limit,
 		)
 	}
 	if err != nil {

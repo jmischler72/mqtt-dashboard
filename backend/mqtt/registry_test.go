@@ -502,3 +502,43 @@ func TestWriteHistory_QueueFullDropsMessage(t *testing.T) {
 	// Next write hits default (drop message) without blocking
 	r.writeHistory("b1", "t", []byte("drop"), 0, false)
 }
+
+func TestAddBroker_DisconnectsOldClient(t *testing.T) {
+	database := testutil.SetupTestDB(t)
+	r := NewRegistry(database)
+
+	oldBroker := models.MQTTBroker{
+		ID:   "b-replace-1",
+		Name: "Old Broker",
+		Host: "127.0.0.1",
+		Port: 1883,
+	}
+
+	// Register old broker
+	_ = r.AddBroker(oldBroker)
+	firstClient, _ := r.GetClient("b-replace-1")
+	if firstClient == nil {
+		t.Fatal("expected firstClient to exist")
+	}
+
+	// Re-add with same ID
+	newBroker := models.MQTTBroker{
+		ID:   "b-replace-1",
+		Name: "New Broker",
+		Host: "127.0.0.1",
+		Port: 1884,
+	}
+	_ = r.AddBroker(newBroker)
+	secondClient, _ := r.GetClient("b-replace-1")
+	if secondClient == nil {
+		t.Fatal("expected secondClient to exist")
+	}
+
+	if firstClient == secondClient {
+		t.Error("expected firstClient to be replaced with secondClient")
+	}
+	if firstClient.Status() != "DISCONNECTED" {
+		t.Errorf("firstClient.Status = %q, want DISCONNECTED", firstClient.Status())
+	}
+}
+

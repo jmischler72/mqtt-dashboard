@@ -13,12 +13,17 @@ import (
 )
 
 type DashboardHandler struct {
-	db        *sql.DB
-	scheduler CronScheduler
+	db          *sql.DB
+	scheduler   CronScheduler
+	invalidator PanelMetaInvalidator
 }
 
 func NewDashboardHandler(db *sql.DB, scheduler CronScheduler) *DashboardHandler {
 	return &DashboardHandler{db: db, scheduler: scheduler}
+}
+
+func (h *DashboardHandler) SetInvalidator(invalidator PanelMetaInvalidator) {
+	h.invalidator = invalidator
 }
 
 func (h *DashboardHandler) ListDashboards(w http.ResponseWriter, r *http.Request) {
@@ -212,9 +217,11 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Register cron jobs after the transaction is durably committed.
-	for _, j := range cronJobs {
-		if err := h.scheduler.AddJob(j.panelID, j.brokerID, j.cfg.CronExpr, j.cfg.Topic, j.cfg.Payload, byte(j.cfg.QoS), j.cfg.Retain, j.cfg.Enabled); err != nil {
-			slog.Error("import: register cron job", "panel_id", j.panelID, "err", err)
+	if h.scheduler != nil {
+		for _, j := range cronJobs {
+			if err := h.scheduler.AddJob(j.panelID, j.brokerID, j.cfg.CronExpr, j.cfg.Topic, j.cfg.Payload, byte(j.cfg.QoS), j.cfg.Retain, j.cfg.Enabled); err != nil {
+				slog.Error("import: register cron job", "panel_id", j.panelID, "err", err)
+			}
 		}
 	}
 
@@ -268,8 +275,10 @@ func (h *DashboardHandler) DeleteDashboard(w http.ResponseWriter, r *http.Reques
 	rows.Close()
 
 	// Remove cron jobs for all panels in this dashboard
-	for _, pid := range panelIDs {
-		h.scheduler.RemoveJob(pid)
+	if h.scheduler != nil {
+		for _, pid := range panelIDs {
+			h.scheduler.RemoveJob(pid)
+		}
 	}
 
 	// Cascade delete panels then the dashboard
@@ -297,6 +306,12 @@ func (h *DashboardHandler) DeleteDashboard(w http.ResponseWriter, r *http.Reques
 	if err := tx.Commit(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if h.invalidator != nil {
+		for _, pid := range panelIDs {
+			h.invalidator.InvalidatePanelMeta(pid)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)

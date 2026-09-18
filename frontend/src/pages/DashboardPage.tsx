@@ -106,7 +106,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const checkAnyModalOpen = () => {
-      setHasAnyModalOpen(Boolean(document.querySelector(".modal.modal-open")));
+      const isOpen = Boolean(
+        document.querySelector(".modal.modal-open, dialog.modal[open]"),
+      );
+      setHasAnyModalOpen((prev) => (prev === isOpen ? prev : isOpen));
     };
 
     checkAnyModalOpen();
@@ -116,6 +119,7 @@ export default function DashboardPage() {
       childList: true,
       subtree: true,
       attributes: true,
+      attributeFilter: ["class", "open"],
     });
 
     return () => observer.disconnect();

@@ -784,3 +784,27 @@ func TestBuildHandler_CorrelatesOutgoingPanelID(t *testing.T) {
 	}
 }
 
+func TestConnect_GeneratesUniqueClientID(t *testing.T) {
+	m1 := NewManager()
+	m2 := NewManager()
+
+	broker := models.MQTTBroker{
+		Host: "127.0.0.1",
+		Port: 1883,
+	}
+
+	_ = m1.Connect(broker)
+	_ = m2.Connect(broker)
+
+	id1 := m1.ClientID()
+	id2 := m2.ClientID()
+
+	if id1 == "" || id2 == "" {
+		t.Fatalf("expected non-empty client IDs, got %q and %q", id1, id2)
+	}
+	if id1 == id2 {
+		t.Errorf("expected unique client IDs, both got %q", id1)
+	}
+}
+
+

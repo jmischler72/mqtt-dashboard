@@ -25,21 +25,61 @@ type WSMessage struct {
 	Retained          bool   `json:"retained"`
 }
 
-// SubscribeRequest is the message a client sends to subscribe to topics on a broker.
+// SubscribeRequest is the message a client sends to subscribe to or unsubscribe from topics on a broker.
 type SubscribeRequest struct {
+	Action   string   `json:"action,omitempty"` // "subscribe" (default) or "unsubscribe"
 	PanelID  string   `json:"panel_id"`
 	BrokerID string   `json:"broker_id"`
 	Topics   []string `json:"topics"`
 }
 
 type Client struct {
-	id       string
-	panelID  string
-	brokerID string
-	topics   []string
-	send     chan WSMessage
-	hub      *Hub
+	id            string
+	panelID       string
+	brokerID      string
+	topics        []string
+	send          chan WSMessage
+	hub           *Hub
+	mu            sync.Mutex
+	closed        bool
+	panelSubs     map[string]map[brokerTopic]struct{}
+	subscriptions map[brokerTopic]map[string]struct{}
 }
+
+// SetPanelID sets the client's associated panel ID safely under lock.
+func (c *Client) SetPanelID(panelID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.panelID = panelID
+}
+
+// Send non-blockingly sends a message to the client, stamped with the client's panelID.
+// It returns false if the client is already closed or if the channel buffer is full.
+func (c *Client) Send(msg WSMessage) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return false
+	}
+	msg.PanelID = c.panelID
+	select {
+	case c.send <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
+// Close marks the client as closed and safely closes the send channel once.
+func (c *Client) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.closed {
+		c.closed = true
+		close(c.send)
+	}
+}
+
 
 // brokerTopic is a composite key for routing: one broker × one topic.
 type brokerTopic struct {
@@ -93,7 +133,16 @@ func (h *Hub) Unregister(c *Client) {
 	slog.Debug("ws client unregistered", "client_id", c.id)
 
 	delete(h.clients, c.id)
-	close(c.send)
+	c.Close()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for bt := range c.subscriptions {
+		h.removeTopicClient(bt, c.id)
+	}
+	c.subscriptions = nil
+	c.panelSubs = nil
 
 	for _, topic := range c.topics {
 		h.removeTopicClient(brokerTopic{c.brokerID, topic}, c.id)
@@ -101,30 +150,91 @@ func (h *Hub) Unregister(c *Client) {
 }
 
 func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
+	panelID := c.panelID
+	if panelID == "" {
+		panelID = "default"
+	}
+	h.SubscribePanel(c, panelID, brokerID, topics)
+}
+
+func (h *Hub) SubscribePanel(c *Client, panelID, brokerID string, topics []string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Remove old subscriptions for this client
-	for _, t := range c.topics {
-		h.removeTopicClient(brokerTopic{c.brokerID, t}, c.id)
-	}
-	c.brokerID = brokerID
-	c.topics = topics
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	for _, topic := range topics {
-		key := brokerTopic{brokerID, topic}
-		if _, ok := h.topicClients[key]; !ok {
-			h.topicClients[key] = make(map[string]struct{})
-			t := topic
-			bid := brokerID
-			handler := h.buildMQTTHandler(bid, t)
-			h.topicHandlers[key] = handler
-			if err := h.registry.Subscribe(bid, t, handler); err != nil {
-				delete(h.topicHandlers, key)
-				slog.Error("ws subscribe mqtt", "broker_id", bid, "topic", t, "err", err)
+	if c.panelSubs == nil {
+		c.panelSubs = make(map[string]map[brokerTopic]struct{})
+	}
+	if c.subscriptions == nil {
+		c.subscriptions = make(map[brokerTopic]map[string]struct{})
+	}
+
+	if panelID == "" {
+		panelID = "default"
+	}
+
+	// 1. Remove old subscriptions for this panelID
+	if oldBTs, ok := c.panelSubs[panelID]; ok {
+		for bt := range oldBTs {
+			if panels, exists := c.subscriptions[bt]; exists {
+				delete(panels, panelID)
+				if len(panels) == 0 {
+					delete(c.subscriptions, bt)
+					h.removeTopicClient(bt, c.id)
+				}
 			}
 		}
-		h.topicClients[key][c.id] = struct{}{}
+		delete(c.panelSubs, panelID)
+	}
+
+	// 2. Add new subscriptions for this panelID
+	c.panelSubs[panelID] = make(map[brokerTopic]struct{})
+	for _, topic := range topics {
+		bt := brokerTopic{brokerID, topic}
+		c.panelSubs[panelID][bt] = struct{}{}
+
+		if _, ok := c.subscriptions[bt]; !ok {
+			c.subscriptions[bt] = make(map[string]struct{})
+			if _, exists := h.topicClients[bt]; !exists {
+				h.topicClients[bt] = make(map[string]struct{})
+				t := topic
+				bid := brokerID
+				handler := h.buildMQTTHandler(bid, t)
+				h.topicHandlers[bt] = handler
+				if err := h.registry.Subscribe(bid, t, handler); err != nil {
+					delete(h.topicHandlers, bt)
+					slog.Error("ws subscribe mqtt", "broker_id", bid, "topic", t, "err", err)
+				}
+			}
+			h.topicClients[bt][c.id] = struct{}{}
+		}
+		c.subscriptions[bt][panelID] = struct{}{}
+	}
+}
+
+func (h *Hub) UnsubscribePanel(c *Client, panelID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.panelSubs == nil {
+		return
+	}
+	if oldBTs, ok := c.panelSubs[panelID]; ok {
+		for bt := range oldBTs {
+			if panels, exists := c.subscriptions[bt]; exists {
+				delete(panels, panelID)
+				if len(panels) == 0 {
+					delete(c.subscriptions, bt)
+					h.removeTopicClient(bt, c.id)
+				}
+			}
+		}
+		delete(c.panelSubs, panelID)
 	}
 }
 
@@ -198,12 +308,7 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 			SourceDashboardID: sourceDashboard,
 		}
 		for _, c := range clients {
-			msg.PanelID = c.panelID
-			select {
-			case c.send <- msg:
-			default:
-				// Drop message if channel is full
-			}
+			c.Send(msg)
 		}
 	}
 }

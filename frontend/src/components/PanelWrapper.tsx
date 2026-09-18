@@ -234,7 +234,7 @@ export default function PanelWrapper({
   const onPickerConsumedRef = useRef(onPickerConsumed);
   useEffect(() => {
     onPickerConsumedRef.current = onPickerConsumed;
-  });
+  }, [onPickerConsumed]);
 
   useEffect(() => {
     if (pickerReturnTopic === undefined) return;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MdSmartButton } from "react-icons/md";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
@@ -201,6 +201,15 @@ export default function ButtonPanel({
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<"success" | "error" | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current) {
+        clearTimeout(flashTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const qos = config.qos ?? 0;
   const retain = config.retain ?? false;
@@ -220,6 +229,7 @@ export default function ButtonPanel({
   const publishMessage = async () => {
     if (parsedTopics.length === 0 || hasWildcard) return;
     setLoading(true);
+    setFlash(null);
     try {
       await Promise.all(
         parsedTopics.map((t) =>
@@ -238,7 +248,10 @@ export default function ButtonPanel({
       setFlash("error");
     } finally {
       setLoading(false);
-      setTimeout(() => setFlash(null), 1500);
+      flashTimeoutRef.current = setTimeout(() => {
+        setFlash(null);
+        flashTimeoutRef.current = null;
+      }, 1500);
     }
   };
 

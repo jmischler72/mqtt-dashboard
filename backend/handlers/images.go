@@ -62,8 +62,9 @@ func sanitizeImageName(name string) string {
 
 // UploadImage handles POST /api/images (multipart/form-data, field "file").
 func (h *ImageHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxImageUpload)
 	if err := r.ParseMultipartForm(maxImageUpload); err != nil {
-		http.Error(w, "invalid multipart form", http.StatusBadRequest)
+		http.Error(w, "file too large or invalid multipart form", http.StatusBadRequest)
 		return
 	}
 	file, header, err := r.FormFile("file")
@@ -129,6 +130,10 @@ func (h *ImageHandler) ServeImage(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(path); err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	}
+	if strings.ToLower(filepath.Ext(name)) == ".svg" {
+		w.Header().Set("Content-Security-Policy", "default-src 'none'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 	}
 	http.ServeFile(w, r, path)
 }

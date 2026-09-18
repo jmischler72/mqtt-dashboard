@@ -10,6 +10,7 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
 
 	"mqtt-dashboard/models"
 )
@@ -31,6 +32,7 @@ const (
 type MQTTManager struct {
 	mu            sync.RWMutex
 	client        paho.Client
+	clientID      string
 	status        string
 	connectErr    string
 	subs          map[string][]MessageHandler
@@ -64,8 +66,9 @@ func (m *MQTTManager) Connect(broker models.MQTTBroker) error {
 
 	clientId := broker.ClientID
 	if clientId == "" {
-		clientId = "mqtt-dashboard-" + time.Now().Format("20060102150405")
+		clientId = fmt.Sprintf("mqtt-dashboard-%s-%s", time.Now().Format("20060102150405"), uuid.New().String()[:8])
 	}
+	m.clientID = clientId
 
 	opts := paho.NewClientOptions().
 		AddBroker(brokerAddr).
@@ -196,6 +199,12 @@ func (m *MQTTManager) ConnectError() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.connectErr
+}
+
+func (m *MQTTManager) ClientID() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.clientID
 }
 
 func (m *MQTTManager) prunePendingPubsLocked(now time.Time) {
