@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.12.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.11.0...v1.12.0) (2026-09-18)
+
+
+### Features
+
+* **automations:** view and manage scheduled cron messages ([#149](https://github.com/jmischler72/mqtt-dashboard/issues/149)) ([#171](https://github.com/jmischler72/mqtt-dashboard/issues/171)) ([0d8e524](https://github.com/jmischler72/mqtt-dashboard/commit/0d8e524002b00a9af18ec02d3eac216fe7625527))
+* **log-panel:** show originating panel badge in logs ([#148](https://github.com/jmischler72/mqtt-dashboard/issues/148)) ([#175](https://github.com/jmischler72/mqtt-dashboard/issues/175)) ([acbf77a](https://github.com/jmischler72/mqtt-dashboard/commit/acbf77ac4e994a4c0ec30188b3ffcf9d7b72b525))
+* **panels:** add graph panel ([#158](https://github.com/jmischler72/mqtt-dashboard/issues/158)) ([635c0c7](https://github.com/jmischler72/mqtt-dashboard/commit/635c0c704bc22b58ada133c74ce8e201ca5cd7e4))
+
+
+### Bug Fixes
+
+* **automations:** improve sub-navbar design, dashboard filter, and table render ([#172](https://github.com/jmischler72/mqtt-dashboard/issues/172)) ([6d42a80](https://github.com/jmischler72/mqtt-dashboard/commit/6d42a80cb805ac0288b855bd279b2bb412fb5831))
+* **core:** release audit fixes & security hardening (WS race, SVG XSS, upload limits, history bounding) ([#178](https://github.com/jmischler72/mqtt-dashboard/issues/178)) ([e69ffd1](https://github.com/jmischler72/mqtt-dashboard/commit/e69ffd187c2e3a68b0d225af8e00d7dff98de58b))
+
 ## [1.11.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.10.0...v1.11.0) (2026-09-02)
 
 
