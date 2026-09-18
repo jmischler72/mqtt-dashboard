@@ -108,7 +108,7 @@ func TestNewManager_InitialState(t *testing.T) {
 func TestSubscribe_StoresHandlerWithoutClient(t *testing.T) {
 	m := NewManager()
 	called := false
-	if err := m.Subscribe("test/topic", func(string, []byte, byte, bool) { called = true }); err != nil {
+	if err := m.Subscribe("test/topic", func(string, []byte, byte, bool, string) { called = true }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	if len(m.subs["test/topic"]) != 1 {
@@ -119,8 +119,8 @@ func TestSubscribe_StoresHandlerWithoutClient(t *testing.T) {
 
 func TestSubscribe_MultipleHandlersSameTopic(t *testing.T) {
 	m := NewManager()
-	m.Subscribe("t", func(string, []byte, byte, bool) {}) //nolint
-	m.Subscribe("t", func(string, []byte, byte, bool) {}) //nolint
+	m.Subscribe("t", func(string, []byte, byte, bool, string) {}) //nolint
+	m.Subscribe("t", func(string, []byte, byte, bool, string) {}) //nolint
 	if len(m.subs["t"]) != 2 {
 		t.Errorf("subs count = %d, want 2", len(m.subs["t"]))
 	}
@@ -128,7 +128,7 @@ func TestSubscribe_MultipleHandlersSameTopic(t *testing.T) {
 
 func TestUnsubscribe_RemovesLastHandler(t *testing.T) {
 	m := NewManager()
-	h1 := func(string, []byte, byte, bool) {}
+	h1 := func(string, []byte, byte, bool, string) {}
 	m.Subscribe("test", h1) //nolint
 
 	m.Unsubscribe("test", h1)
@@ -140,8 +140,8 @@ func TestUnsubscribe_RemovesLastHandler(t *testing.T) {
 
 func TestUnsubscribe_KeepsRemainingHandlers(t *testing.T) {
 	m := NewManager()
-	h1 := func(string, []byte, byte, bool) {}
-	h2 := func(string, []byte, byte, bool) {}
+	h1 := func(string, []byte, byte, bool, string) {}
+	h2 := func(string, []byte, byte, bool, string) {}
 	m.Subscribe("test", h1) //nolint
 	m.Subscribe("test", h2) //nolint
 
@@ -155,7 +155,7 @@ func TestUnsubscribe_KeepsRemainingHandlers(t *testing.T) {
 func TestUnsubscribe_NonExistentTopicNoError(t *testing.T) {
 	m := NewManager()
 	// Should not panic
-	m.Unsubscribe("nope", func(string, []byte, byte, bool) {})
+	m.Unsubscribe("nope", func(string, []byte, byte, bool, string) {})
 }
 
 func TestBuildHandler_DispatchesToHandlers(t *testing.T) {
@@ -166,7 +166,7 @@ func TestBuildHandler_DispatchesToHandlers(t *testing.T) {
 
 	var got string
 	m.subs["sensor/temp"] = []MessageHandler{
-		func(topic string, payload []byte, _ byte, _ bool) {
+		func(topic string, payload []byte, _ byte, _ bool, _ string) {
 			got = topic + ":" + string(payload)
 		},
 	}
@@ -188,10 +188,10 @@ func TestBuildHandler_WildcardDispatchesToSpecificHandlers(t *testing.T) {
 	wildcardCalls := 0
 	specificCalls := 0
 	m.subs["#"] = []MessageHandler{
-		func(string, []byte, byte, bool) { wildcardCalls++ },
+		func(string, []byte, byte, bool, string) { wildcardCalls++ },
 	}
 	m.subs["sensor/temp"] = []MessageHandler{
-		func(string, []byte, byte, bool) { specificCalls++ },
+		func(string, []byte, byte, bool, string) { specificCalls++ },
 	}
 
 	handler := m.buildHandler("#")
@@ -212,7 +212,7 @@ func TestBuildHandler_WildcardDoesNotDoubleDispatch(t *testing.T) {
 		subs:   make(map[string][]MessageHandler),
 	}
 	calls := 0
-	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool) { calls++ }}
+	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool, string) { calls++ }}
 
 	handler := m.buildHandler("#")
 	handler(nil, &mockMessage{topic: "#", payload: []byte("x")})
@@ -246,7 +246,7 @@ func TestSubscribe_WithConnectedClient_SubscribesMQTT(t *testing.T) {
 		client: mock,
 	}
 
-	if err := m.Subscribe("sensor/temp", func(string, []byte, byte, bool) {}); err != nil {
+	if err := m.Subscribe("sensor/temp", func(string, []byte, byte, bool, string) {}); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -264,10 +264,10 @@ func TestSubscribe_WildcardUnsubscribesSpecifics(t *testing.T) {
 	}
 
 	// Add a specific subscription first
-	m.subs["sensor/temp"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["sensor/temp"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	// Now subscribe to "#" — should unsubscribe sensor/temp at MQTT level
-	if err := m.Subscribe("#", func(string, []byte, byte, bool) {}); err != nil {
+	if err := m.Subscribe("#", func(string, []byte, byte, bool, string) {}); err != nil {
 		t.Fatalf("Subscribe #: %v", err)
 	}
 
@@ -285,10 +285,10 @@ func TestSubscribe_SpecificSkippedWhenWildcardActive(t *testing.T) {
 	}
 
 	// Wildcard already active
-	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	// Adding specific topic should NOT call MQTT subscribe (# already covers it)
-	if err := m.Subscribe("sensor/temp", func(string, []byte, byte, bool) {}); err != nil {
+	if err := m.Subscribe("sensor/temp", func(string, []byte, byte, bool, string) {}); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -306,7 +306,7 @@ func TestUnsubscribe_WithConnectedClient_UnsubscribesMQTT(t *testing.T) {
 		client: mock,
 	}
 
-	h := func(string, []byte, byte, bool) {}
+	h := func(string, []byte, byte, bool, string) {}
 	m.subs["test/topic"] = []MessageHandler{h}
 
 	m.Unsubscribe("test/topic", h)
@@ -324,9 +324,9 @@ func TestUnsubscribe_SpecificWhenWildcardActive_NoMQTTUnsub(t *testing.T) {
 		client: mock,
 	}
 
-	h := func(string, []byte, byte, bool) {}
+	h := func(string, []byte, byte, bool, string) {}
 	m.subs["sensor/temp"] = []MessageHandler{h}
-	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	// Removing a specific topic when '#' is active should NOT call MQTT Unsubscribe
 	m.Unsubscribe("sensor/temp", h)
@@ -344,9 +344,9 @@ func TestUnsubscribe_WildcardRemoved_RestoresSpecificTopics(t *testing.T) {
 		client: mock,
 	}
 
-	wildcardH := func(string, []byte, byte, bool) {}
+	wildcardH := func(string, []byte, byte, bool, string) {}
 	m.subs["#"] = []MessageHandler{wildcardH}
-	m.subs["sensor/temp"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["sensor/temp"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	m.Unsubscribe("#", wildcardH)
 
@@ -412,10 +412,10 @@ func TestSubscribe_SysWildcardUnsubscribesSpecificSysTopics(t *testing.T) {
 	}
 
 	// Add a specific $SYS subscription first
-	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	// Now subscribe to "$SYS/#" — should unsubscribe $SYS/broker/uptime at MQTT level
-	if err := m.Subscribe("$SYS/#", func(string, []byte, byte, bool) {}); err != nil {
+	if err := m.Subscribe("$SYS/#", func(string, []byte, byte, bool, string) {}); err != nil {
 		t.Fatalf("Subscribe $SYS/#: %v", err)
 	}
 
@@ -442,10 +442,10 @@ func TestSubscribe_SpecificSysSkippedWhenSysWildcardActive(t *testing.T) {
 	}
 
 	// $SYS/# already active
-	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	// Adding specific $SYS topic should NOT call MQTT subscribe ($SYS/# covers it)
-	if err := m.Subscribe("$SYS/broker/uptime", func(string, []byte, byte, bool) {}); err != nil {
+	if err := m.Subscribe("$SYS/broker/uptime", func(string, []byte, byte, bool, string) {}); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -462,9 +462,9 @@ func TestUnsubscribe_SpecificSysWhenSysWildcardActive_NoMQTTUnsub(t *testing.T) 
 		client: mock,
 	}
 
-	h := func(string, []byte, byte, bool) {}
+	h := func(string, []byte, byte, bool, string) {}
 	m.subs["$SYS/broker/uptime"] = []MessageHandler{h}
-	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	// Removing a specific $SYS topic when '$SYS/#' is active should NOT call MQTT Unsubscribe
 	m.Unsubscribe("$SYS/broker/uptime", h)
@@ -482,9 +482,9 @@ func TestUnsubscribe_SysWildcardRemoved_RestoresSpecificSysTopics(t *testing.T) 
 		client: mock,
 	}
 
-	sysWildcardH := func(string, []byte, byte, bool) {}
+	sysWildcardH := func(string, []byte, byte, bool, string) {}
 	m.subs["$SYS/#"] = []MessageHandler{sysWildcardH}
-	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	m.Unsubscribe("$SYS/#", sysWildcardH)
 
@@ -518,10 +518,10 @@ func TestBuildHandler_SysWildcardDispatchesToSpecificSysHandlers(t *testing.T) {
 	sysWildcardCalls := 0
 	specificSysCalls := 0
 	m.subs["$SYS/#"] = []MessageHandler{
-		func(string, []byte, byte, bool) { sysWildcardCalls++ },
+		func(string, []byte, byte, bool, string) { sysWildcardCalls++ },
 	}
 	m.subs["$SYS/broker/uptime"] = []MessageHandler{
-		func(string, []byte, byte, bool) { specificSysCalls++ },
+		func(string, []byte, byte, bool, string) { specificSysCalls++ },
 	}
 
 	handler := m.buildHandler("$SYS/#")
@@ -542,7 +542,7 @@ func TestBuildHandler_SysWildcardDoesNotDoubleDispatch(t *testing.T) {
 		subs:   make(map[string][]MessageHandler),
 	}
 	calls := 0
-	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool) { calls++ }}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool, string) { calls++ }}
 
 	handler := m.buildHandler("$SYS/#")
 	handler(nil, &mockMessage{topic: "$SYS/#", payload: []byte("x")})
@@ -560,8 +560,8 @@ func TestBuildHandler_WildcardSkipsSysWhenSysWildcardActive(t *testing.T) {
 		subs:   make(map[string][]MessageHandler),
 	}
 	hashCalls := 0
-	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool) { hashCalls++ }}
-	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool, string) { hashCalls++ }}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	handler := m.buildHandler("#")
 	handler(nil, &mockMessage{topic: "$SYS/broker/uptime", payload: []byte("123")})
@@ -578,8 +578,8 @@ func TestBuildHandler_WildcardStillHandlesNonSysWhenSysWildcardActive(t *testing
 		subs:   make(map[string][]MessageHandler),
 	}
 	hashCalls := 0
-	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool) { hashCalls++ }}
-	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["#"] = []MessageHandler{func(string, []byte, byte, bool, string) { hashCalls++ }}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	handler := m.buildHandler("#")
 	handler(nil, &mockMessage{topic: "sensor/temp", payload: []byte("25")})
@@ -597,10 +597,10 @@ func TestUnsubscribe_WildcardRemoved_SkipsSysTopicsCoveredBySysWildcard(t *testi
 		client: mock,
 	}
 
-	wildcardH := func(string, []byte, byte, bool) {}
+	wildcardH := func(string, []byte, byte, bool, string) {}
 	m.subs["#"] = []MessageHandler{wildcardH}
-	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool) {}}
-	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte, byte, bool) {}}
+	m.subs["$SYS/#"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
+	m.subs["$SYS/broker/uptime"] = []MessageHandler{func(string, []byte, byte, bool, string) {}}
 
 	m.Unsubscribe("#", wildcardH)
 
@@ -680,3 +680,72 @@ func TestConnect_DisconnectsPreviousClient(t *testing.T) {
 		t.Errorf("status = %q, want ERROR", m.Status())
 	}
 }
+
+func TestPendingPublish_FIFOAndMatching(t *testing.T) {
+	m := NewManager()
+
+	// Track two publishes on the same topic with different panels
+	m.trackOutgoing("lights/living", []byte("ON"), "panel-btn-1")
+	m.trackOutgoing("lights/living", []byte("ON"), "panel-btn-2")
+
+	// First match should return panel-btn-1 (FIFO)
+	matched1 := m.matchOutgoing("lights/living", []byte("ON"))
+	if matched1 != "panel-btn-1" {
+		t.Errorf("matched1 = %q, want 'panel-btn-1'", matched1)
+	}
+
+	// Second match should return panel-btn-2
+	matched2 := m.matchOutgoing("lights/living", []byte("ON"))
+	if matched2 != "panel-btn-2" {
+		t.Errorf("matched2 = %q, want 'panel-btn-2'", matched2)
+	}
+
+	// Third match should be empty
+	matched3 := m.matchOutgoing("lights/living", []byte("ON"))
+	if matched3 != "" {
+		t.Errorf("matched3 = %q, want empty", matched3)
+	}
+}
+
+func TestPendingPublish_TTLExpiration(t *testing.T) {
+	m := NewManager()
+
+	m.pendingPubsMu.Lock()
+	m.pendingPubs = append(m.pendingPubs, pendingPublish{
+		topic:     "sensor/old",
+		payload:   "expired",
+		panelID:   "panel-old",
+		createdAt: time.Now().Add(-10 * time.Second),
+	})
+	m.pendingPubsMu.Unlock()
+
+	matched := m.matchOutgoing("sensor/old", []byte("expired"))
+	if matched != "" {
+		t.Errorf("matched = %q, want empty due to TTL expiration", matched)
+	}
+}
+
+func TestBuildHandler_CorrelatesOutgoingPanelID(t *testing.T) {
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+	}
+
+	var capturedSourcePanelID string
+	m.subs["home/state"] = []MessageHandler{
+		func(topic string, payload []byte, qos byte, retained bool, sourcePanelID string) {
+			capturedSourcePanelID = sourcePanelID
+		},
+	}
+
+	// Pre-track an outgoing message from panel-toggle-99
+	m.trackOutgoing("home/state", []byte("active"), "panel-toggle-99")
+
+	handler := m.buildHandler("home/state")
+	handler(nil, &mockMessage{topic: "home/state", payload: []byte("active")})
+
+	if capturedSourcePanelID != "panel-toggle-99" {
+		t.Errorf("capturedSourcePanelID = %q, want 'panel-toggle-99'", capturedSourcePanelID)
+	}
+}
+

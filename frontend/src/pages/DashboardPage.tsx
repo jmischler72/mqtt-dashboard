@@ -332,7 +332,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const targetPanelId = searchParams.get("panel");
-    if (!targetPanelId || isLoadingLayout || panels.length === 0) return;
+    if (!targetPanelId) {
+      highlightedTargetRef.current = null;
+      return;
+    }
+    if (isLoadingLayout || panels.length === 0) return;
     if (highlightedTargetRef.current === targetPanelId) return;
 
     const exists = panels.some((p) => p.id === targetPanelId);
@@ -344,10 +348,12 @@ export default function DashboardPage() {
     }, 0);
 
     const cleanupTimer = setTimeout(() => {
+      highlightedTargetRef.current = null;
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
           next.delete("panel");
+          next.delete("dashboard");
           return next;
         },
         { replace: true },

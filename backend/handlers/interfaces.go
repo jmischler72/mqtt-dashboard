@@ -13,7 +13,7 @@ type BrokerRegistry interface {
 	DefaultBrokerID() string
 	Status(id string) string
 	StatusError(id string) string
-	Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error
+	Publish(brokerID, topic string, qos byte, retain bool, payload []byte, panelID ...string) error
 	GetStats(brokerID string) *models.BrokerStats
 }
 

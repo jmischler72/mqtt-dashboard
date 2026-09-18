@@ -65,6 +65,9 @@ export const api = {
         timestamp: string;
         qos?: number;
         retained?: boolean;
+        source_panel_id?: string;
+        source_panel_title?: string;
+        source_dashboard_id?: string;
       }>
     >(
       `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,

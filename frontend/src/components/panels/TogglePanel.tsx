@@ -719,6 +719,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
         payload: desired ? writeOn : writeOff,
         qos,
         retain,
+        panel_id: panelId,
       });
     } catch {
       clearPendingTimer();

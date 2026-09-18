@@ -619,6 +619,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
         payload: renderPayload(config.payloadTemplate ?? VALUE_TOKEN, value),
         qos,
         retain,
+        panel_id: panelId,
       });
     } catch {
       clearPendingTimer();

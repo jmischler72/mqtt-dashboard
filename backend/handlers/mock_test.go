@@ -28,6 +28,7 @@ type publishCall struct {
 	payload  []byte
 	qos      byte
 	retain   bool
+	panelID  string
 }
 
 func newMockRegistry() *mockRegistry {
@@ -86,10 +87,14 @@ func (m *mockRegistry) StatusError(id string) string {
 	return ""
 }
 
-func (m *mockRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
+func (m *mockRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte, panelID ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.publishCalls = append(m.publishCalls, publishCall{brokerID, topic, payload, qos, retain})
+	var pid string
+	if len(panelID) > 0 {
+		pid = panelID[0]
+	}
+	m.publishCalls = append(m.publishCalls, publishCall{brokerID, topic, payload, qos, retain, pid})
 	return m.publishErr
 }
 

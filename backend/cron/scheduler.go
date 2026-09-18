@@ -111,7 +111,7 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 				for _, t := range strings.Split(topic, ",") {
 					t = strings.TrimSpace(t)
 					if t != "" {
-						sc.registry.Publish(bID, t, qos, retain, []byte(payload)) //nolint
+						sc.registry.Publish(bID, t, qos, retain, []byte(payload), panelID) //nolint
 					}
 				}
 			}),

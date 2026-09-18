@@ -72,7 +72,7 @@ func main() {
 	}
 
 	// --- Init WebSocket hub ---
-	wsHub := ws.NewHub(registry)
+	wsHub := ws.NewHub(registry, database)
 
 	var frontendFS fs.FS
 	if os.Getenv("APP_ENV") != "development" {

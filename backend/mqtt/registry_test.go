@@ -130,7 +130,7 @@ func TestPublish_BrokerNotFound(t *testing.T) {
 
 func TestSubscribe_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
-	err := r.Subscribe("missing", "test/topic", func(string, []byte, byte, bool) {})
+	err := r.Subscribe("missing", "test/topic", func(string, []byte, byte, bool, string) {})
 	if err == nil {
 		t.Error("expected error for missing broker")
 	}
@@ -139,19 +139,26 @@ func TestSubscribe_BrokerNotFound(t *testing.T) {
 func TestUnsubscribe_BrokerNotFound(t *testing.T) {
 	r := NewRegistry(nil)
 	// Should not panic
-	r.Unsubscribe("missing", "test/topic", func(string, []byte, byte, bool) {})
+	r.Unsubscribe("missing", "test/topic", func(string, []byte, byte, bool, string) {})
 }
 
 func TestWriteHistory_PersistsRecord(t *testing.T) {
 	database := testutil.SetupTestDB(t)
 	r := NewRegistry(database)
 
-	r.writeHistory("b1", "sensor/temp", []byte("25"), 0, false)
+	r.writeHistory("b1", "sensor/temp", []byte("25"), 0, false, "panel-123")
 
 	var count int
-	database.QueryRow(`SELECT COUNT(*) FROM mqtt_history WHERE broker_id='b1' AND topic='sensor/temp'`).Scan(&count)
+	var sourcePanelID string
+	err := database.QueryRow(`SELECT COUNT(*), source_panel_id FROM mqtt_history WHERE broker_id='b1' AND topic='sensor/temp'`).Scan(&count, &sourcePanelID)
+	if err != nil {
+		t.Fatalf("QueryRow failed: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("expected 1 history record, got %d", count)
+	}
+	if sourcePanelID != "panel-123" {
+		t.Errorf("expected source_panel_id 'panel-123', got %q", sourcePanelID)
 	}
 }
 
@@ -183,7 +190,7 @@ func TestSubscribe_CallsManagerSubscribe(t *testing.T) {
 	r.mu.Unlock()
 
 	called := false
-	if err := r.Subscribe("b1", "my/topic", func(string, []byte, byte, bool) { called = true }); err != nil {
+	if err := r.Subscribe("b1", "my/topic", func(string, []byte, byte, bool, string) { called = true }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -200,7 +207,7 @@ func TestUnsubscribe_CallsManagerUnsubscribe(t *testing.T) {
 	r.clients["b1"] = mgr
 	r.mu.Unlock()
 
-	h := func(string, []byte, byte, bool) {}
+	h := func(string, []byte, byte, bool, string) {}
 	mgr.subs["my/topic"] = []MessageHandler{h}
 
 	// Should not panic and should remove the handler

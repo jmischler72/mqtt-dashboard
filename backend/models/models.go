@@ -86,13 +86,16 @@ type AppSettings struct {
 }
 
 type MQTTHistoryRecord struct {
-	ID        int    `json:"id"`
-	BrokerID  string `json:"broker_id"`
-	Topic     string `json:"topic"`
-	Payload   string `json:"payload"`
-	Timestamp string `json:"timestamp"`
-	QoS       int    `json:"qos"`
-	Retained  bool   `json:"retained"`
+	ID                int    `json:"id"`
+	BrokerID          string `json:"broker_id"`
+	Topic             string `json:"topic"`
+	Payload           string `json:"payload"`
+	Timestamp         string `json:"timestamp"`
+	QoS               int    `json:"qos"`
+	Retained          bool   `json:"retained"`
+	SourcePanelID     string `json:"source_panel_id,omitempty"`
+	SourcePanelTitle  string `json:"source_panel_title,omitempty"`
+	SourceDashboardID string `json:"source_dashboard_id,omitempty"`
 }
 
 type BrokerStats struct {

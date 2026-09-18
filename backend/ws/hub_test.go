@@ -72,12 +72,16 @@ func (m *mockBrokerSub) DefaultBrokerID() string {
 	return m.defaultID
 }
 
-func (m *mockBrokerSub) trigger(brokerID, topic string, payload []byte) {
+func (m *mockBrokerSub) trigger(brokerID, topic string, payload []byte, sourcePanelID ...string) {
 	m.mu.Lock()
 	h, ok := m.subscribed[brokerID+":"+topic]
 	m.mu.Unlock()
 	if ok {
-		h(topic, payload, 0, false)
+		var src string
+		if len(sourcePanelID) > 0 {
+			src = sourcePanelID[0]
+		}
+		h(topic, payload, 0, false, src)
 	}
 }
 
@@ -270,5 +274,25 @@ func TestBuildMQTTHandler_DropOnFullChannel(t *testing.T) {
 		// success — did not block
 	case <-make(chan struct{}):
 		t.Fatal("trigger blocked unexpectedly")
+	}
+}
+
+func TestSubscribe_PropagatesSourcePanelID(t *testing.T) {
+	reg := newMockBrokerSub()
+	hub := NewHub(reg)
+
+	c := newTestClient(hub)
+	hub.Register(c)
+	hub.Subscribe(c, "broker1", []string{"sensor/temp"})
+
+	reg.trigger("broker1", "sensor/temp", []byte("42"), "panel-xyz")
+
+	select {
+	case msg := <-c.send:
+		if msg.SourcePanelID != "panel-xyz" {
+			t.Errorf("msg.SourcePanelID = %q, want 'panel-xyz'", msg.SourcePanelID)
+		}
+	default:
+		t.Fatal("expected message in client send channel")
 	}
 }

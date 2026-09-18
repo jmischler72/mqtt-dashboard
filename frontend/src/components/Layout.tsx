@@ -173,6 +173,19 @@ export default function Layout() {
     } else {
       localStorage.removeItem(ACTIVE_DASHBOARD_KEY);
     }
+    const params = new URLSearchParams(location.search);
+    if (params.has("dashboard") || params.has("panel")) {
+      params.delete("dashboard");
+      params.delete("panel");
+      const nextSearch = params.toString();
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch ? `?${nextSearch}` : "",
+        },
+        { replace: true },
+      );
+    }
   };
 
   const handleCreate = (d: Dashboard) => {
