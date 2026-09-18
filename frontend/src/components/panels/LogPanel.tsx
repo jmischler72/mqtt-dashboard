@@ -474,7 +474,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
                 data-tip={`Panel: ${m.sourcePanelTitle || m.sourcePanelId}`}
               >
                 <RiExternalLinkLine className="w-2.5 h-2.5 flex-shrink-0" />
-                <span className="truncate">{m.sourcePanelTitle || "Panel"}</span>
+                <span className="truncate">
+                  {m.sourcePanelTitle || "Panel"}
+                </span>
               </Link>
             )}
             {showQos && m.qos !== undefined && (
