@@ -316,7 +316,9 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 		token = m.client.Subscribe(topic, 2, m.buildHandler(topic))
 	}
 	m.mu.Unlock()
-	token.Wait()
+	if !token.WaitTimeout(5 * time.Second) {
+		return fmt.Errorf("subscribe timed out")
+	}
 	return token.Error()
 }
 

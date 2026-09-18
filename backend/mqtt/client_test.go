@@ -73,8 +73,9 @@ var _ paho.Client = (*mockPahoClient)(nil)
 
 // mockPahoClientWithErr lets tests inject a failing publish token.
 type mockPahoClientWithErr struct {
-	connected    bool
-	publishToken paho.Token
+	connected      bool
+	publishToken   paho.Token
+	subscribeToken paho.Token
 }
 
 func (m *mockPahoClientWithErr) IsConnected() bool      { return m.connected }
@@ -85,6 +86,9 @@ func (m *mockPahoClientWithErr) Publish(_ string, _ byte, _ bool, _ interface{})
 	return m.publishToken
 }
 func (m *mockPahoClientWithErr) Subscribe(_ string, _ byte, _ paho.MessageHandler) paho.Token {
+	if m.subscribeToken != nil {
+		return m.subscribeToken
+	}
 	return &mockToken{}
 }
 func (m *mockPahoClientWithErr) SubscribeMultiple(_ map[string]byte, _ paho.MessageHandler) paho.Token {
@@ -415,6 +419,20 @@ func TestPublish_Timeout(t *testing.T) {
 
 	if err := m.Publish("test/topic", 0, false, []byte("hello")); err == nil {
 		t.Error("expected error on publish timeout, got nil")
+	}
+}
+
+func TestSubscribe_Timeout(t *testing.T) {
+	timeoutToken := &mockToken{timeout: true}
+	mock := &mockPahoClientWithErr{connected: true, subscribeToken: timeoutToken}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	if err := m.Subscribe("test/topic", func(string, []byte, byte, bool, string) {}); err == nil {
+		t.Error("expected error on subscribe timeout, got nil")
 	}
 }
 

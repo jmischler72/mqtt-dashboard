@@ -3,6 +3,7 @@ package ws
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -49,6 +50,7 @@ type brokerTopic struct {
 type panelMeta struct {
 	title       string
 	dashboardID string
+	found       bool
 }
 
 type Hub struct {
@@ -129,6 +131,9 @@ func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
 func (h *Hub) resolvePanelMeta(panelID string) (string, string) {
 	if val, ok := h.panelMetaCache.Load(panelID); ok {
 		meta := val.(panelMeta)
+		if !meta.found {
+			return "", ""
+		}
 		return meta.title, meta.dashboardID
 	}
 	if h.db == nil {
@@ -137,9 +142,12 @@ func (h *Hub) resolvePanelMeta(panelID string) (string, string) {
 	var title, dashID string
 	err := h.db.QueryRow(`SELECT title, dashboard_id FROM dashboard_layouts WHERE id = ?`, panelID).Scan(&title, &dashID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.panelMetaCache.Store(panelID, panelMeta{found: false})
+		}
 		return "", ""
 	}
-	h.panelMetaCache.Store(panelID, panelMeta{title: title, dashboardID: dashID})
+	h.panelMetaCache.Store(panelID, panelMeta{title: title, dashboardID: dashID, found: true})
 	return title, dashID
 }
 
@@ -164,6 +172,11 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 		}
 		h.mu.RUnlock()
 
+		isRetained := retained || h.registry.IsRetained(brokerID, msgTopic)
+		if sourcePanelID == "" && isRetained {
+			sourcePanelID = h.registry.GetRetainedPanel(brokerID, msgTopic)
+		}
+
 		var sourceTitle, sourceDashboard string
 		if sourcePanelID != "" {
 			sourceTitle, sourceDashboard = h.resolvePanelMeta(sourcePanelID)
@@ -179,7 +192,7 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 			Payload:           string(payload),
 			Timestamp:         time.Now().UTC().Format(time.RFC3339Nano),
 			QoS:               int(qos),
-			Retained:          retained || h.registry.IsRetained(brokerID, msgTopic),
+			Retained:          isRetained,
 			SourcePanelID:     sourcePanelID,
 			SourcePanelTitle:  sourceTitle,
 			SourceDashboardID: sourceDashboard,

@@ -36,14 +36,16 @@ type mockBrokerSub struct {
 	subscribed   map[string]mqttclient.MessageHandler
 	unsubscribed []string
 	defaultID    string
-	subscribeErr error
-	retained     map[string]bool // "broker:topic" → retained
+	subscribeErr   error
+	retained       map[string]bool   // "broker:topic" → retained
+	retainedPanels map[string]string // "broker:topic" → panelID
 }
 
 func newMockBrokerSub() *mockBrokerSub {
 	return &mockBrokerSub{
-		subscribed: make(map[string]mqttclient.MessageHandler),
-		retained:   make(map[string]bool),
+		subscribed:     make(map[string]mqttclient.MessageHandler),
+		retained:       make(map[string]bool),
+		retainedPanels: make(map[string]string),
 	}
 }
 
@@ -51,6 +53,12 @@ func (m *mockBrokerSub) IsRetained(brokerID, topic string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.retained[brokerID+":"+topic]
+}
+
+func (m *mockBrokerSub) GetRetainedPanel(brokerID, topic string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.retainedPanels[brokerID+":"+topic]
 }
 
 func (m *mockBrokerSub) Subscribe(brokerID, topic string, handler mqttclient.MessageHandler) error {
@@ -295,4 +303,42 @@ func TestSubscribe_PropagatesSourcePanelID(t *testing.T) {
 	default:
 		t.Fatal("expected message in client send channel")
 	}
+}
+
+func TestSubscribe_RetainedReplayRecoversSourcePanelID(t *testing.T) {
+	reg := newMockBrokerSub()
+	reg.retained["broker1:sensor/temp"] = true
+	reg.retainedPanels["broker1:sensor/temp"] = "panel-retained-1"
+	hub := NewHub(reg)
+
+	c := newTestClient(hub)
+	hub.Register(c)
+	hub.Subscribe(c, "broker1", []string{"sensor/temp"})
+
+	// Replayed retained message arrives with sourcePanelID == ""
+	reg.trigger("broker1", "sensor/temp", []byte("42"), "")
+
+	select {
+	case msg := <-c.send:
+		if !msg.Retained {
+			t.Errorf("expected msg.Retained = true")
+		}
+		if msg.SourcePanelID != "panel-retained-1" {
+			t.Errorf("msg.SourcePanelID = %q, want 'panel-retained-1'", msg.SourcePanelID)
+		}
+	default:
+		t.Fatal("expected message in client send channel")
+	}
+}
+
+func TestResolvePanelMeta_NegativeCaching(t *testing.T) {
+	hub := NewHub(newMockBrokerSub())
+	// No db configured, so non-existent panel returns empty
+	title, dashID := hub.resolvePanelMeta("nonexistent")
+	if title != "" || dashID != "" {
+		t.Errorf("expected empty meta for nonexistent panel, got title=%q dashID=%q", title, dashID)
+	}
+
+	// Invalidate works cleanly even on un-cached or negative-cached
+	hub.InvalidatePanelMeta("nonexistent")
 }

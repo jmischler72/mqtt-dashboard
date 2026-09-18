@@ -94,14 +94,15 @@ To guarantee deterministic matching, `MQTTManager` enforces write serialization 
 
 ```go
 m.pubMu.Lock()
-defer m.pubMu.Unlock()
-
 if pid != "" {
     m.trackOutgoing(topic, payload, pid)
 }
-
 token := client.Publish(topic, qos, retain, payload)
-token.WaitTimeout(5 * time.Second)
+m.pubMu.Unlock()
+
+if !token.WaitTimeout(5 * time.Second) {
+    return fmt.Errorf("publish timed out")
+}
 ```
 
 Because outgoing packets are written to the TCP socket sequentially, the broker processes and reflects them in identical FIFO order over the established TCP stream.
