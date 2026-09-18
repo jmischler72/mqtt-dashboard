@@ -14,6 +14,24 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export interface ScheduledJob {
+  panel_id: string;
+  panel_title: string;
+  panel_type: string;
+  dashboard_id: string;
+  dashboard_name: string;
+  broker_id: string;
+  broker_name: string;
+  cron_expr: string;
+  topic: string;
+  payload: string;
+  qos: number;
+  retain: boolean;
+  enabled: boolean;
+  next_run?: string;
+  prev_run?: string;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) =>
@@ -23,6 +41,16 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  getScheduledJobs: (enabledOnly = false) =>
+    request<ScheduledJob[]>(`/api/cron${enabledOnly ? "?enabled=true" : ""}`),
+  toggleCronJob: (panelId: string, enabled: boolean) =>
+    request<{ enabled: boolean }>(
+      `/api/cron/${encodeURIComponent(panelId)}/toggle`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ enabled }),
+      },
+    ),
   getExplorerTree: (brokerId: string) =>
     request<string[]>(
       `/api/explorer/tree?broker_id=${encodeURIComponent(brokerId)}`,

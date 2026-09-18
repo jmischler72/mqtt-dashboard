@@ -44,6 +44,20 @@ Always invoke Compose with `-f docker/dev/docker-compose-dev.yml` so the generat
 - Avoid calling `setState` synchronously inside `useEffect`. Never use effects to sync or duplicate state; use derived state/inline computation instead to prevent cascading renders.
 - dont create tests for frontend unless explicited
 
+### Design System & UX Principles
+
+- **Icon-Driven UX**: Rely on intuitive icons, visual affordances, and tooltips (`data-tip`) rather than explanatory text paragraphs. Avoid verbose subtitles or walls of text explaining what is already visually intuitive.
+- **Information-Dense & Compact**: Favor compact tables, clean lists, status dots, subtle badges, and monospace snippets (developer / IoT dashboard aesthetic) over bulky cards with repetitive field labels.
+- **Consistent Iconography**:
+  - Brokers: `RiServerLine`
+  - Topics: `RiHashtag`
+  - Schedules / Timing: `MdSchedule`, `MdAccessTime`
+  - Automations: `MdAutoMode`
+  - Dashboards: `MdLayers`
+  - Status dots: `w-2 h-2 rounded-full` (`bg-success`, `bg-warning`, `bg-error`, `bg-neutral`)
+  - Actions: Clean icon buttons (`btn-ghost btn-xs btn-square` or `btn-circle`) with tooltips (`RiExternalLinkLine` for jump links, `MdContentCopy` for copying, `MdRefresh` for reloading, `RiSettings3Line` for config, `RiCloseLine` for deleting)
+- **Color & Theme Tokens**: Use DaisyUI semantic classes (`primary`, `accent`, `neutral`, `success`, `warning`, `error`, `base-100`, `base-200`, `base-300`) without hardcoding arbitrary CSS colors.
+
 ## Task Tracking
 
 - Task tracking has transitioned to **GitHub Issues**.

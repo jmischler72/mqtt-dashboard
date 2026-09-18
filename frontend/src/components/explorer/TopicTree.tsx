@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 
 interface HighlightTextProps {
   name: string;
@@ -176,16 +176,63 @@ function TreeNodeItem({
   filterText,
   expandCollapseVersion,
 }: NodeProps) {
+  const itemRef = useRef<HTMLDivElement>(null);
   const isFiltered = Boolean(filterText?.trim());
-  const [open, setOpen] = useState(isFiltered || defaultExpanded);
   const hasChildren = node.children.size > 0;
-  const isSelected =
-    node.fullPath === selectedTopic || `${node.fullPath}/#` === selectedTopic;
+
+  const isSelected = useMemo(() => {
+    if (!selectedTopic || selectedTopic === "#") return false;
+    const cleanList = selectedTopic
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return cleanList.some((t) => {
+      const clean = t.replace(/\/([#*])$/, "");
+      return node.fullPath === t || node.fullPath === clean;
+    });
+  }, [selectedTopic, node.fullPath]);
+
+  const shouldAutoExpand = useMemo(() => {
+    if (!selectedTopic || selectedTopic === "#") return false;
+    const cleanList = selectedTopic
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s && s !== "#");
+    return cleanList.some((t) => {
+      const clean = t.replace(/\/([#*])$/, "");
+      return (
+        clean.startsWith(node.fullPath + "/") ||
+        (t.endsWith("/#") && clean === node.fullPath)
+      );
+    });
+  }, [selectedTopic, node.fullPath]);
+
+  const [userOverride, setUserOverride] = useState<{
+    topic: string | null;
+    open: boolean;
+  } | null>(null);
+
+  const defaultOpen = isFiltered || defaultExpanded || shouldAutoExpand;
+  const open =
+    userOverride && userOverride.topic === selectedTopic
+      ? userOverride.open
+      : defaultOpen;
+
   const isFlashing = flashTopics.has(node.fullPath);
+
+  useEffect(() => {
+    if (isSelected && itemRef.current) {
+      itemRef.current.scrollIntoView?.({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }, [isSelected]);
 
   return (
     <div>
       <div
+        ref={itemRef}
         className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer select-none text-sm transition-colors duration-300
                     ${isSelected ? "bg-primary text-primary-content" : isFlashing ? "bg-info/30" : "hover:bg-base-200"}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
@@ -199,7 +246,12 @@ function TreeNodeItem({
             className="text-base-content/50 w-3 shrink-0 text-xl mb-1"
             onClick={(e) => {
               e.stopPropagation();
-              if (hasChildren) setOpen((o) => !o);
+              if (hasChildren) {
+                setUserOverride({
+                  topic: selectedTopic,
+                  open: !open,
+                });
+              }
             }}
             onDoubleClick={(e) => e.stopPropagation()}
           >

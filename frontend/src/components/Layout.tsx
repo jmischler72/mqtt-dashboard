@@ -25,6 +25,7 @@ function computeAggregated(statuses: BrokerStatus[]): AggregatedStatus {
 const NAV_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/explorer", label: "Explorer" },
+  { to: "/automations", label: "Automations" },
   { to: "/config", label: "Configuration" },
 ];
 
@@ -149,15 +150,21 @@ export default function Layout() {
       .get<Dashboard[]>("/api/dashboards")
       .then((list) => {
         setDashboards(list);
+        const params = new URLSearchParams(location.search);
+        const queryDashboard = params.get("dashboard");
         const stored = localStorage.getItem(ACTIVE_DASHBOARD_KEY);
-        const valid = list.find((d) => d.id === stored);
-        const defaultId = valid ? stored! : (list[0]?.id ?? "");
+        const target =
+          queryDashboard && list.some((d) => d.id === queryDashboard)
+            ? queryDashboard
+            : stored;
+        const valid = list.find((d) => d.id === target);
+        const defaultId = valid ? target! : (list[0]?.id ?? "");
         setActiveDashboardId(defaultId);
         localStorage.setItem(ACTIVE_DASHBOARD_KEY, defaultId);
       })
       .catch(() => {})
       .finally(() => setDashboardsLoading(false));
-  }, [backendReady]);
+  }, [backendReady, location.search]);
 
   const switchDashboard = (id: string) => {
     setActiveDashboardId(id);
@@ -189,6 +196,12 @@ export default function Layout() {
   const aggStatus = computeAggregated(brokerStatuses);
   const barHidden = navHidden && showDashboardControls;
   const visibleBrokers = brokerStatuses.slice(0, 6);
+
+  const queryDashboard = new URLSearchParams(location.search).get("dashboard");
+  const effectiveDashboardId =
+    queryDashboard && dashboards.some((d) => d.id === queryDashboard)
+      ? queryDashboard
+      : activeDashboardId;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -358,7 +371,7 @@ export default function Layout() {
             {showDashboardControls && !dashboardsLoading && (
               <DashboardSelector
                 dashboards={dashboards}
-                activeDashboardId={activeDashboardId}
+                activeDashboardId={effectiveDashboardId}
                 onSwitch={switchDashboard}
                 onCreate={handleCreate}
                 onRename={handleRename}
@@ -588,7 +601,7 @@ export default function Layout() {
             context={{
               editMode,
               setEditMode,
-              activeDashboardId,
+              activeDashboardId: effectiveDashboardId,
               dashboardsLoading,
               hasDashboards: dashboards.length > 0,
               brokerStatuses,

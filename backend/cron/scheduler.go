@@ -169,6 +169,38 @@ func (sc *Scheduler) GetJob(panelID string) (*JobInfo, bool) {
 	return info, true
 }
 
+func (sc *Scheduler) GetJobs() []*JobInfo {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+
+	jobs := sc.s.Jobs()
+	timingMap := make(map[string]struct {
+		next time.Time
+		prev time.Time
+	})
+	for _, j := range jobs {
+		next, _ := j.NextRun()
+		prev, _ := j.LastRun()
+		for _, tag := range j.Tags() {
+			timingMap[tag] = struct {
+				next time.Time
+				prev time.Time
+			}{next: next, prev: prev}
+		}
+	}
+
+	result := make([]*JobInfo, 0, len(sc.jobs))
+	for panelID, info := range sc.jobs {
+		cp := *info
+		if t, ok := timingMap[panelID]; ok {
+			cp.NextRun = t.next
+			cp.PrevRun = t.prev
+		}
+		result = append(result, &cp)
+	}
+	return result
+}
+
 // StartPruningJob registers a cron job that runs every 30 minutes and deletes
 // mqtt_history records older than the configured retention window.
 func (sc *Scheduler) StartPruningJob(db *sql.DB) error {

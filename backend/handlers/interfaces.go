@@ -23,4 +23,5 @@ type CronScheduler interface {
 	RemoveJob(panelID string)
 	ToggleJob(panelID string, enabled bool) error
 	GetJob(panelID string) (*cron.JobInfo, bool)
+	GetJobs() []*cron.JobInfo
 }

@@ -159,3 +159,14 @@ func (m *mockScheduler) GetJob(panelID string) (*cron.JobInfo, bool) {
 	info, ok := m.jobs[panelID]
 	return info, ok
 }
+
+func (m *mockScheduler) GetJobs() []*cron.JobInfo {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	res := make([]*cron.JobInfo, 0, len(m.jobs))
+	for _, j := range m.jobs {
+		cp := *j
+		res = append(res, &cp)
+	}
+	return res
+}

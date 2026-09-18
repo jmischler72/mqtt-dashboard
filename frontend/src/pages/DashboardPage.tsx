@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReactGridLayout from "react-grid-layout";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { MdAdd } from "react-icons/md";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const RGL = ReactGridLayout as any;
@@ -101,6 +101,8 @@ export default function DashboardPage() {
     setPanelLibraryOpen,
   } = useOutletContext<LayoutContext>();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightedTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
     const checkAnyModalOpen = () => {
@@ -327,6 +329,36 @@ export default function DashboardPage() {
       clearTimeout(clearTimer);
     };
   }, [newPanelId]);
+
+  useEffect(() => {
+    const targetPanelId = searchParams.get("panel");
+    if (!targetPanelId || isLoadingLayout || panels.length === 0) return;
+    if (highlightedTargetRef.current === targetPanelId) return;
+
+    const exists = panels.some((p) => p.id === targetPanelId);
+    if (!exists) return;
+
+    highlightedTargetRef.current = targetPanelId;
+    const highlightTimer = setTimeout(() => {
+      setNewPanelId(targetPanelId);
+    }, 0);
+
+    const cleanupTimer = setTimeout(() => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("panel");
+          return next;
+        },
+        { replace: true },
+      );
+    }, 2500);
+
+    return () => {
+      clearTimeout(highlightTimer);
+      clearTimeout(cleanupTimer);
+    };
+  }, [searchParams, isLoadingLayout, panels, setSearchParams]);
 
   return (
     <>
