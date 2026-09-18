@@ -191,7 +191,11 @@ interface ButtonPanelProps {
   config: ButtonConfig;
 }
 
-export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
+export default function ButtonPanel({
+  panelId,
+  brokerId,
+  config,
+}: ButtonPanelProps) {
   const { ref: containerRef, size: dimensions } =
     usePanelSize<HTMLDivElement>();
   const [loading, setLoading] = useState(false);
@@ -225,6 +229,7 @@ export default function ButtonPanel({ brokerId, config }: ButtonPanelProps) {
             payload: config.payload ?? "",
             qos,
             retain,
+            panel_id: panelId,
           }),
         ),
       );

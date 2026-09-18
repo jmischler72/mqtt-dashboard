@@ -13,7 +13,7 @@ type BrokerRegistry interface {
 	DefaultBrokerID() string
 	Status(id string) string
 	StatusError(id string) string
-	Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error
+	Publish(brokerID, topic string, qos byte, retain bool, payload []byte, panelID ...string) error
 	GetStats(brokerID string) *models.BrokerStats
 }
 
@@ -24,4 +24,9 @@ type CronScheduler interface {
 	ToggleJob(panelID string, enabled bool) error
 	GetJob(panelID string) (*cron.JobInfo, bool)
 	GetJobs() []*cron.JobInfo
+}
+
+// PanelMetaInvalidator invalidates cached metadata for a panel.
+type PanelMetaInvalidator interface {
+	InvalidatePanelMeta(panelID string)
 }

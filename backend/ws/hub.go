@@ -1,7 +1,9 @@
 package ws
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -11,13 +13,16 @@ import (
 
 // WSMessage is sent over WebSocket to clients.
 type WSMessage struct {
-	PanelID   string `json:"panel_id"`
-	BrokerID  string `json:"broker_id"`
-	Topic     string `json:"topic"`
-	Payload   string `json:"payload"`
-	Timestamp string `json:"timestamp"`
-	QoS       int    `json:"qos"`
-	Retained  bool   `json:"retained"`
+	PanelID           string `json:"panel_id,omitempty"`
+	SourcePanelID     string `json:"source_panel_id,omitempty"`
+	SourcePanelTitle  string `json:"source_panel_title,omitempty"`
+	SourceDashboardID string `json:"source_dashboard_id,omitempty"`
+	BrokerID          string `json:"broker_id"`
+	Topic             string `json:"topic"`
+	Payload           string `json:"payload"`
+	Timestamp         string `json:"timestamp"`
+	QoS               int    `json:"qos"`
+	Retained          bool   `json:"retained"`
 }
 
 // SubscribeRequest is the message a client sends to subscribe to topics on a broker.
@@ -42,10 +47,18 @@ type brokerTopic struct {
 	topic    string
 }
 
+type panelMeta struct {
+	title       string
+	dashboardID string
+	found       bool
+}
+
 type Hub struct {
-	mu       sync.RWMutex
-	clients  map[string]*Client
-	registry BrokerSubscriber
+	mu             sync.RWMutex
+	clients        map[string]*Client
+	registry       BrokerSubscriber
+	db             *sql.DB
+	panelMetaCache sync.Map // panelID -> panelMeta
 
 	// (brokerID, topic) → set of clientIDs
 	topicClients map[brokerTopic]map[string]struct{}
@@ -53,10 +66,15 @@ type Hub struct {
 	topicHandlers map[brokerTopic]mqttclient.MessageHandler
 }
 
-func NewHub(registry BrokerSubscriber) *Hub {
+func NewHub(registry BrokerSubscriber, db ...*sql.DB) *Hub {
+	var database *sql.DB
+	if len(db) > 0 {
+		database = db[0]
+	}
 	return &Hub{
 		clients:       make(map[string]*Client),
 		registry:      registry,
+		db:            database,
 		topicClients:  make(map[brokerTopic]map[string]struct{}),
 		topicHandlers: make(map[brokerTopic]mqttclient.MessageHandler),
 	}
@@ -110,8 +128,36 @@ func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
 	}
 }
 
+func (h *Hub) resolvePanelMeta(panelID string) (string, string) {
+	if val, ok := h.panelMetaCache.Load(panelID); ok {
+		meta := val.(panelMeta)
+		if !meta.found {
+			return "", ""
+		}
+		return meta.title, meta.dashboardID
+	}
+	if h.db == nil {
+		return "", ""
+	}
+	var title, dashID string
+	err := h.db.QueryRow(`SELECT title, dashboard_id FROM dashboard_layouts WHERE id = ?`, panelID).Scan(&title, &dashID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.panelMetaCache.Store(panelID, panelMeta{found: false})
+		}
+		return "", ""
+	}
+	h.panelMetaCache.Store(panelID, panelMeta{title: title, dashboardID: dashID, found: true})
+	return title, dashID
+}
+
+// InvalidatePanelMeta removes a cached panel metadata entry.
+func (h *Hub) InvalidatePanelMeta(panelID string) {
+	h.panelMetaCache.Delete(panelID)
+}
+
 func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler {
-	return func(msgTopic string, payload []byte, qos byte, retained bool) {
+	return func(msgTopic string, payload []byte, qos byte, retained bool, sourcePanelID string) {
 		key := brokerTopic{brokerID, topic}
 		h.mu.RLock()
 		clientIDs := make([]string, 0, len(h.topicClients[key]))
@@ -126,17 +172,30 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 		}
 		h.mu.RUnlock()
 
+		isRetained := retained || h.registry.IsRetained(brokerID, msgTopic)
+		if sourcePanelID == "" && isRetained {
+			sourcePanelID = h.registry.GetRetainedPanel(brokerID, msgTopic)
+		}
+
+		var sourceTitle, sourceDashboard string
+		if sourcePanelID != "" {
+			sourceTitle, sourceDashboard = h.resolvePanelMeta(sourcePanelID)
+		}
+
 		// The broker only sets the retained flag when replaying to a NEW subscriber,
 		// so live deliveries arrive with retained=false even for topics that hold a
 		// retained value. Consult the registry's tracked set so the flag is accurate
 		// regardless of when this client subscribed.
 		msg := WSMessage{
-			BrokerID:  brokerID,
-			Topic:     msgTopic,
-			Payload:   string(payload),
-			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-			QoS:       int(qos),
-			Retained:  retained || h.registry.IsRetained(brokerID, msgTopic),
+			BrokerID:          brokerID,
+			Topic:             msgTopic,
+			Payload:           string(payload),
+			Timestamp:         time.Now().UTC().Format(time.RFC3339Nano),
+			QoS:               int(qos),
+			Retained:          isRetained,
+			SourcePanelID:     sourcePanelID,
+			SourcePanelTitle:  sourceTitle,
+			SourceDashboardID: sourceDashboard,
 		}
 		for _, c := range clients {
 			msg.PanelID = c.panelID

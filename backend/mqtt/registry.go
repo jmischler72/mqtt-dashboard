@@ -31,8 +31,9 @@ type BrokerRegistry struct {
 	// flag when replaying to a NEW subscriber, so live deliveries to existing
 	// subscribers arrive with retained=false; this set lets the WS hub stamp the
 	// retained flag regardless of subscription timing.
-	retainedMu sync.RWMutex
-	retained   map[retainedKey]struct{}
+	retainedMu     sync.RWMutex
+	retained       map[retainedKey]struct{}
+	retainedPanels map[retainedKey]string
 }
 
 type retainedKey struct {
@@ -56,7 +57,35 @@ func (r *BrokerRegistry) markRetained(brokerID, topic string, hasPayload bool) {
 		r.retained[key] = struct{}{}
 	} else {
 		delete(r.retained, key)
+		if r.retainedPanels != nil {
+			delete(r.retainedPanels, key)
+		}
 	}
+}
+
+// MarkRetainedPanel records which panel published a retained message.
+func (r *BrokerRegistry) MarkRetainedPanel(brokerID, topic, panelID string) {
+	key := retainedKey{brokerID: brokerID, topic: topic}
+	r.retainedMu.Lock()
+	defer r.retainedMu.Unlock()
+	if panelID != "" {
+		if r.retainedPanels == nil {
+			r.retainedPanels = make(map[retainedKey]string)
+		}
+		r.retainedPanels[key] = panelID
+	} else if r.retainedPanels != nil {
+		delete(r.retainedPanels, key)
+	}
+}
+
+// GetRetainedPanel returns the source panel ID that published the retained message on this topic, if known.
+func (r *BrokerRegistry) GetRetainedPanel(brokerID, topic string) string {
+	r.retainedMu.RLock()
+	defer r.retainedMu.RUnlock()
+	if r.retainedPanels == nil {
+		return ""
+	}
+	return r.retainedPanels[retainedKey{brokerID: brokerID, topic: topic}]
 }
 
 // IsRetained reports whether the broker currently holds a retained message for
@@ -69,23 +98,25 @@ func (r *BrokerRegistry) IsRetained(brokerID, topic string) bool {
 }
 
 type historyRecord struct {
-	brokerID string
-	topic    string
-	payload  string
-	qos      byte
-	retained bool
+	brokerID      string
+	topic         string
+	payload       string
+	qos           byte
+	retained      bool
+	sourcePanelID string
 }
 
 const historyQueueSize = 1024
 
 func NewRegistry(db *sql.DB) *BrokerRegistry {
 	return &BrokerRegistry{
-		clients:       make(map[string]*MQTTManager),
-		db:            db,
-		statsCache:    NewStatsCache(),
-		historyQueue:  make(chan historyRecord, historyQueueSize),
-		historyStopCh: make(chan struct{}),
-		retained:      make(map[retainedKey]struct{}),
+		clients:        make(map[string]*MQTTManager),
+		db:             db,
+		statsCache:     NewStatsCache(),
+		historyQueue:   make(chan historyRecord, historyQueueSize),
+		historyStopCh:  make(chan struct{}),
+		retained:       make(map[retainedKey]struct{}),
+		retainedPanels: make(map[retainedKey]string),
 	}
 }
 
@@ -156,23 +187,29 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	// Subscribe '#' for history capture. MQTTManager prevents overlapping MQTT
 	// subscriptions, so this is safe alongside specific panel topic subscriptions.
 	brokerID := broker.ID
-	mgr.Subscribe("#", func(topic string, payload []byte, qos byte, retained bool) { //nolint
+	mgr.Subscribe("#", func(topic string, payload []byte, qos byte, retained bool, sourcePanelID string) { //nolint
 		if retained {
 			r.markRetained(brokerID, topic, len(payload) > 0)
+			if sourcePanelID != "" {
+				r.MarkRetainedPanel(brokerID, topic, sourcePanelID)
+			}
 		}
-		r.writeHistory(brokerID, topic, payload, qos, retained)
+		if sourcePanelID == "" && retained {
+			sourcePanelID = r.GetRetainedPanel(brokerID, topic)
+		}
+		r.writeHistory(brokerID, topic, payload, qos, retained, sourcePanelID)
 	})
 	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats
 	// and history capture.
-	mgr.Subscribe("$SYS/#", func(topic string, payload []byte, qos byte, _ bool) { //nolint
+	mgr.Subscribe("$SYS/#", func(topic string, payload []byte, qos byte, _ bool, _ string) { //nolint
 		r.parseSysStats(brokerID, topic, payload)
-		r.writeHistory(brokerID, topic, payload, qos, false)
+		r.writeHistory(brokerID, topic, payload, qos, false, "")
 	})
 	return err
 }
 
 // writeHistory persists an incoming MQTT message to mqtt_history.
-func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte, qos byte, retained bool) {
+func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte, qos byte, retained bool, sourcePanelID ...string) {
 	if r.db == nil {
 		return
 	}
@@ -180,7 +217,19 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte, qo
 		return
 	}
 
-	rec := historyRecord{brokerID: brokerID, topic: topic, payload: string(payload), qos: qos, retained: retained}
+	var panelID string
+	if len(sourcePanelID) > 0 {
+		panelID = sourcePanelID[0]
+	}
+
+	rec := historyRecord{
+		brokerID:      brokerID,
+		topic:         topic,
+		payload:       string(payload),
+		qos:           qos,
+		retained:      retained,
+		sourcePanelID: panelID,
+	}
 
 	r.historyMu.RLock()
 	started := r.historyWorkerStarted
@@ -204,8 +253,8 @@ func (r *BrokerRegistry) writeHistory(brokerID, topic string, payload []byte, qo
 
 func (r *BrokerRegistry) insertHistoryRecord(rec historyRecord) {
 	if _, err := r.db.Exec(
-		`INSERT INTO mqtt_history (broker_id, topic, payload, qos, retained) VALUES (?, ?, ?, ?, ?)`,
-		rec.brokerID, rec.topic, rec.payload, rec.qos, rec.retained); err != nil {
+		`INSERT INTO mqtt_history (broker_id, topic, payload, qos, retained, source_panel_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		rec.brokerID, rec.topic, rec.payload, rec.qos, rec.retained, rec.sourcePanelID); err != nil {
 		slog.Error("write history failed", "broker_id", rec.brokerID, "topic", rec.topic, "err", err)
 	}
 }
@@ -275,12 +324,16 @@ func (r *BrokerRegistry) AllStatuses() map[string]string {
 }
 
 // Publish sends a message to a topic on the specified broker.
-func (r *BrokerRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
+func (r *BrokerRegistry) Publish(brokerID, topic string, qos byte, retain bool, payload []byte, panelID ...string) error {
 	mgr, ok := r.GetClient(brokerID)
 	if !ok {
 		return fmt.Errorf("broker %q not found", brokerID)
 	}
-	if err := mgr.Publish(topic, qos, retain, payload); err != nil {
+	pid := ""
+	if len(panelID) > 0 {
+		pid = panelID[0]
+	}
+	if err := mgr.Publish(topic, qos, retain, payload, pid); err != nil {
 		return err
 	}
 	// Track retained state for our own publishes so the WS hub can stamp the
@@ -288,6 +341,9 @@ func (r *BrokerRegistry) Publish(brokerID, topic string, qos byte, retain bool, 
 	// fresh subscribe. An empty-payload retained publish clears the stored message.
 	if retain {
 		r.markRetained(brokerID, topic, len(payload) > 0)
+		if len(payload) > 0 {
+			r.MarkRetainedPanel(brokerID, topic, pid)
+		}
 	}
 	return nil
 }

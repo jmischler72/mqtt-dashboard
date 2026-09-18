@@ -34,6 +34,10 @@ func (m *externalMockBrokerSub) IsRetained(brokerID, topic string) bool {
 	return false
 }
 
+func (m *externalMockBrokerSub) GetRetainedPanel(brokerID, topic string) string {
+	return ""
+}
+
 func dialWS(t *testing.T, srv *httptest.Server) *websocket.Conn {
 	t.Helper()
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")

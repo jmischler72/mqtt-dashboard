@@ -14,14 +14,29 @@ import (
 	"mqtt-dashboard/models"
 )
 
-type MessageHandler func(topic string, payload []byte, qos byte, retained bool)
+type MessageHandler func(topic string, payload []byte, qos byte, retained bool, sourcePanelID string)
+
+type pendingPublish struct {
+	topic     string
+	payload   string
+	panelID   string
+	createdAt time.Time
+}
+
+const (
+	publishTTL     = 5 * time.Second
+	maxPendingPubs = 500
+)
 
 type MQTTManager struct {
-	mu         sync.RWMutex
-	client     paho.Client
-	status     string
-	connectErr string
-	subs       map[string][]MessageHandler
+	mu            sync.RWMutex
+	client        paho.Client
+	status        string
+	connectErr    string
+	subs          map[string][]MessageHandler
+	pubMu         sync.Mutex
+	pendingPubs   []pendingPublish
+	pendingPubsMu sync.Mutex
 }
 
 func NewManager() *MQTTManager {
@@ -183,14 +198,80 @@ func (m *MQTTManager) ConnectError() string {
 	return m.connectErr
 }
 
-func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byte) error {
+func (m *MQTTManager) prunePendingPubsLocked(now time.Time) {
+	cutoff := now.Add(-publishTTL)
+	valid := m.pendingPubs[:0]
+	for _, p := range m.pendingPubs {
+		if p.createdAt.After(cutoff) {
+			valid = append(valid, p)
+		}
+	}
+	m.pendingPubs = valid
+}
+
+func (m *MQTTManager) trackOutgoing(topic string, payload []byte, panelID string) {
+	if panelID == "" {
+		return
+	}
+	m.pendingPubsMu.Lock()
+	defer m.pendingPubsMu.Unlock()
+	now := time.Now()
+	m.prunePendingPubsLocked(now)
+
+	// Cap to max capacity if needed
+	if len(m.pendingPubs) >= maxPendingPubs {
+		m.pendingPubs = m.pendingPubs[len(m.pendingPubs)-maxPendingPubs+1:]
+	}
+	m.pendingPubs = append(m.pendingPubs, pendingPublish{
+		topic:     topic,
+		payload:   string(payload),
+		panelID:   panelID,
+		createdAt: now,
+	})
+}
+
+func (m *MQTTManager) matchOutgoing(topic string, payload []byte) string {
+	m.pendingPubsMu.Lock()
+	defer m.pendingPubsMu.Unlock()
+	now := time.Now()
+	m.prunePendingPubsLocked(now)
+	payloadStr := string(payload)
+
+	for i, p := range m.pendingPubs {
+		if p.topic == topic && p.payload == payloadStr {
+			panelID := p.panelID
+			m.pendingPubs = append(m.pendingPubs[:i], m.pendingPubs[i+1:]...)
+			return panelID
+		}
+	}
+	return ""
+}
+
+func (m *MQTTManager) Publish(topic string, qos byte, retain bool, payload []byte, panelID ...string) error {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.client == nil || !m.client.IsConnected() {
+	client := m.client
+	connected := client != nil && client.IsConnected()
+	m.mu.RUnlock()
+
+	if !connected {
 		return fmt.Errorf("not connected")
 	}
-	token := m.client.Publish(topic, qos, retain, payload)
-	token.Wait()
+
+	pid := ""
+	if len(panelID) > 0 {
+		pid = panelID[0]
+	}
+
+	m.pubMu.Lock()
+	if pid != "" {
+		m.trackOutgoing(topic, payload, pid)
+	}
+	token := client.Publish(topic, qos, retain, payload)
+	m.pubMu.Unlock()
+
+	if !token.WaitTimeout(5 * time.Second) {
+		return fmt.Errorf("publish timed out")
+	}
 	return token.Error()
 }
 
@@ -235,7 +316,9 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 		token = m.client.Subscribe(topic, 2, m.buildHandler(topic))
 	}
 	m.mu.Unlock()
-	token.Wait()
+	if !token.WaitTimeout(5 * time.Second) {
+		return fmt.Errorf("subscribe timed out")
+	}
 	return token.Error()
 }
 
@@ -341,11 +424,12 @@ func (m *MQTTManager) buildHandler(topic string) paho.MessageHandler {
 		m.mu.RUnlock()
 		qos := msg.Qos()
 		retained := msg.Retained()
+		sourcePanelID := m.matchOutgoing(msgTopic, msg.Payload())
 		for _, h := range handlers {
-			h(msgTopic, msg.Payload(), qos, retained)
+			h(msgTopic, msg.Payload(), qos, retained, sourcePanelID)
 		}
 		for _, h := range specificHandlers {
-			h(msgTopic, msg.Payload(), qos, retained)
+			h(msgTopic, msg.Payload(), qos, retained, sourcePanelID)
 		}
 	}
 }

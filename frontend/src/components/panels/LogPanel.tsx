@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { MdListAlt } from "react-icons/md";
+import { RiExternalLinkLine } from "react-icons/ri";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { api } from "../../api/client";
 import type { BrokerStatus } from "../../hooks/useBrokers";
@@ -25,6 +27,9 @@ interface LogMessage {
   qos?: number;
   retained?: boolean;
   historical?: boolean;
+  sourcePanelId?: string;
+  sourcePanelTitle?: string;
+  sourceDashboardId?: string;
 }
 
 export type LogDateFormat = "time" | "full";
@@ -35,6 +40,7 @@ export interface LogConfig {
   dateFormat?: LogDateFormat;
   showQos?: boolean;
   showRetained?: boolean;
+  showSource?: boolean;
 }
 
 interface ModalProps {
@@ -72,6 +78,7 @@ export function LogConfigModal({
   );
   const [showQos, setShowQos] = useState(config.showQos ?? true);
   const [showRetained, setShowRetained] = useState(config.showRetained ?? true);
+  const [showSource, setShowSource] = useState(config.showSource ?? true);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
     initialBrokerId || brokerId || fallbackBroker,
   );
@@ -96,6 +103,7 @@ export function LogConfigModal({
     dateFormat,
     showQos,
     showRetained,
+    showSource,
   });
 
   return (
@@ -147,6 +155,7 @@ export function LogConfigModal({
                     stamp="14:32:07"
                     showQos={showQos}
                     showRetained={showRetained}
+                    showSource={showSource}
                   />
                 ),
               },
@@ -158,10 +167,17 @@ export function LogConfigModal({
                     stamp="2026-08-31 14:32:07"
                     showQos={showQos}
                     showRetained={showRetained}
+                    showSource={showSource}
                   />
                 ),
               },
             ]}
+          />
+          <SwitchRow
+            name="Source panel badge"
+            note="Links to the panel that published this message"
+            on={showSource}
+            onToggle={setShowSource}
           />
           <SwitchRow
             name="QoS badge"
@@ -208,17 +224,26 @@ function LinePreview({
   stamp,
   showQos,
   showRetained,
+  showSource,
 }: {
   stamp: string;
   showQos: boolean;
   showRetained: boolean;
+  showSource?: boolean;
 }) {
   return (
-    <div className="w-full px-1 font-mono text-[9px] leading-relaxed text-left truncate">
+    <div className="w-full px-1 font-mono text-[9px] leading-relaxed text-left truncate flex items-center gap-1">
       <span className="opacity-60">[{stamp}]</span>{" "}
       <span className="text-accent">my-topic</span>
+      {showSource && (
+        <span className="badge badge-xs badge-info font-normal gap-0.5">
+          <RiExternalLinkLine className="w-2 h-2" />
+          Switch
+        </span>
+      )}
       {showQos && <span className="opacity-60"> Q0</span>}
-      {showRetained && <span className="text-warning"> R</span>} 21.4
+      {showRetained && <span className="text-warning"> R</span>}
+      <span>21.4</span>
     </div>
   );
 }
@@ -259,6 +284,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   const dateFormat = config.dateFormat ?? "time";
   const showQos = config.showQos ?? false;
   const showRetained = config.showRetained ?? false;
+  const showSource = config.showSource ?? true;
   const pausedRef = useRef(paused);
 
   useEffect(() => {
@@ -283,6 +309,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           timestamp?: string;
           qos?: number;
           retained?: boolean;
+          source_panel_id?: string;
+          source_panel_title?: string;
+          source_dashboard_id?: string;
         };
         const entry: LogMessage = {
           receivedAt: normalizeTimestamp(msg.timestamp),
@@ -290,6 +319,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           payload: msg.payload,
           qos: msg.qos,
           retained: msg.retained,
+          sourcePanelId: msg.source_panel_id,
+          sourcePanelTitle: msg.source_panel_title,
+          sourceDashboardId: msg.source_dashboard_id,
         };
         setMessages((prev) => {
           // Overlapping subscription filters (e.g. "foo/bar" and "foo/#") can
@@ -305,6 +337,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
                 !m.historical &&
                 m.topic === entry.topic &&
                 m.payload === entry.payload &&
+                m.sourcePanelId === entry.sourcePanelId &&
                 Math.abs(new Date(m.receivedAt).getTime() - entryTime) <=
                   DEDUPE_WINDOW_MS,
             );
@@ -351,6 +384,9 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
           qos: r.qos,
           retained: r.retained,
           historical: true,
+          sourcePanelId: r.source_panel_id,
+          sourcePanelTitle: r.source_panel_title,
+          sourceDashboardId: r.source_dashboard_id,
         }));
       // Merge history with already-received live messages to prevent flicker.
       setMessages((prev) => {
@@ -431,6 +467,19 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
               [{formatTimestamp(new Date(m.receivedAt), dateFormat)}]
             </span>{" "}
             <span className="text-accent">{m.topic}</span>
+            {showSource && m.sourcePanelId && (
+              <Link
+                to={`/dashboard?${m.sourceDashboardId ? `dashboard=${encodeURIComponent(m.sourceDashboardId)}&` : ""}panel=${encodeURIComponent(m.sourcePanelId)}`}
+                className="badge badge-xs badge-info hover:badge-primary gap-0.5 ml-1 font-normal no-underline inline-flex items-center align-middle cursor-pointer max-w-[140px] truncate"
+                title={`Sent by ${m.sourcePanelTitle || m.sourcePanelId}`}
+                data-tip={`Panel: ${m.sourcePanelTitle || m.sourcePanelId}`}
+              >
+                <RiExternalLinkLine className="w-2.5 h-2.5 flex-shrink-0" />
+                <span className="truncate">
+                  {m.sourcePanelTitle || "Panel"}
+                </span>
+              </Link>
+            )}
             {showQos && m.qos !== undefined && (
               <span className="badge badge-xs badge-ghost ml-1">Q{m.qos}</span>
             )}

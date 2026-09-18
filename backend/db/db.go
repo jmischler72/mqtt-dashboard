@@ -99,7 +99,8 @@ func migrate(db *sql.DB) error {
 			payload TEXT,
 			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 			qos INTEGER NOT NULL DEFAULT 0,
-			retained BOOLEAN NOT NULL DEFAULT 0
+			retained BOOLEAN NOT NULL DEFAULT 0,
+			source_panel_id TEXT
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_mqtt_history_broker_topic_time ON mqtt_history(broker_id, topic, timestamp);
@@ -111,7 +112,7 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
-	// Add qos/retained columns to mqtt_history for existing databases.
+	// Add qos/retained/source_panel_id columns to mqtt_history for existing databases.
 	// ALTER TABLE fails with "duplicate column" if the column already exists; that
 	// error is safe to ignore. Any other error is propagated.
 	for _, col := range []struct {
@@ -120,6 +121,7 @@ func migrate(db *sql.DB) error {
 	}{
 		{`ALTER TABLE mqtt_history ADD COLUMN qos INTEGER NOT NULL DEFAULT 0`, "qos"},
 		{`ALTER TABLE mqtt_history ADD COLUMN retained BOOLEAN NOT NULL DEFAULT 0`, "retained"},
+		{`ALTER TABLE mqtt_history ADD COLUMN source_panel_id TEXT`, "source_panel_id"},
 	} {
 		if _, err := db.Exec(col.stmt); err != nil && !isDuplicateColumnErr(err) {
 			return fmt.Errorf("migrate mqtt_history add %s: %w", col.name, err)

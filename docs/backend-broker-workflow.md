@@ -25,11 +25,11 @@ The backend uses **one MQTT connection per enabled broker**.
 When the frontend sends a publish request to `POST /api/publish`:
 
 1. The handler resolves the target `broker_id` from the request or falls back to the registry default.
-2. `BrokerRegistry.Publish(brokerID, topic, qos, retain, payload)` is called.
+2. `BrokerRegistry.Publish(brokerID, topic, qos, retain, payload, panelID...)` is called.
 3. The registry routes the call to that broker's `MQTTManager`.
-4. If `retain` is true, the registry marks the topic in its internal retained set (`markRetained`).
-5. The `MQTTManager` publishes the message through its broker connection.
-6. The publish handler does not write directly to `mqtt_history`. Explorer history is populated when the broker delivers the message back through the manager's `#` subscription.
+4. If `retain` is true, the registry marks the topic in its internal retained set (`markRetained`) and tracks the originating panel in `retainedPanels`.
+5. The `MQTTManager` serializes writes under `pubMu` and tracks outgoing messages in `pendingPubs` (see [Publish Correlation Engine](publish-correlation-engine.md)).
+6. The publish handler does not write directly to `mqtt_history`. Explorer history and live WebSocket broadcasts are populated when the broker delivers the message back through the manager's `#` subscription, where the correlation engine attributes it to the originating panel.
 
 ## Message Receive & History Capture Flow
 

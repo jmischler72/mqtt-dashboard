@@ -74,16 +74,22 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 			prefixTopic = ""
 		}
 		rows, err = h.db.Query(
-			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp, qos, retained FROM mqtt_history
-			 WHERE broker_id = ? AND (topic = ? OR topic LIKE ?) AND timestamp > DATETIME('now', '-' || ? || ' hours')
-			 ORDER BY timestamp ASC`,
+			`SELECT h.id, h.broker_id, h.topic, COALESCE(h.payload, ''), h.timestamp, h.qos, h.retained,
+			        COALESCE(h.source_panel_id, ''), COALESCE(p.title, ''), COALESCE(p.dashboard_id, '')
+			 FROM mqtt_history h
+			 LEFT JOIN dashboard_layouts p ON h.source_panel_id = p.id
+			 WHERE h.broker_id = ? AND (h.topic = ? OR h.topic LIKE ?) AND h.timestamp > DATETIME('now', '-' || ? || ' hours')
+			 ORDER BY h.timestamp ASC`,
 			brokerID, prefixTopic, likePattern, retentionHours,
 		)
 	} else {
 		rows, err = h.db.Query(
-			`SELECT id, broker_id, topic, COALESCE(payload, ''), timestamp, qos, retained FROM mqtt_history
-			 WHERE broker_id = ? AND topic = ? AND timestamp > DATETIME('now', '-' || ? || ' hours')
-			 ORDER BY timestamp ASC`,
+			`SELECT h.id, h.broker_id, h.topic, COALESCE(h.payload, ''), h.timestamp, h.qos, h.retained,
+			        COALESCE(h.source_panel_id, ''), COALESCE(p.title, ''), COALESCE(p.dashboard_id, '')
+			 FROM mqtt_history h
+			 LEFT JOIN dashboard_layouts p ON h.source_panel_id = p.id
+			 WHERE h.broker_id = ? AND h.topic = ? AND h.timestamp > DATETIME('now', '-' || ? || ' hours')
+			 ORDER BY h.timestamp ASC`,
 			brokerID, topic, retentionHours,
 		)
 	}
@@ -96,7 +102,7 @@ func (h *ExplorerHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	records := []models.MQTTHistoryRecord{}
 	for rows.Next() {
 		var rec models.MQTTHistoryRecord
-		if err := rows.Scan(&rec.ID, &rec.BrokerID, &rec.Topic, &rec.Payload, &rec.Timestamp, &rec.QoS, &rec.Retained); err != nil {
+		if err := rows.Scan(&rec.ID, &rec.BrokerID, &rec.Topic, &rec.Payload, &rec.Timestamp, &rec.QoS, &rec.Retained, &rec.SourcePanelID, &rec.SourcePanelTitle, &rec.SourceDashboardID); err != nil {
 			continue
 		}
 		if mqttutil.HasWildcard(topic) && !mqttutil.TopicMatches(topic, rec.Topic) {

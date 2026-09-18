@@ -147,6 +147,7 @@ export function InputConfigModal({
 }
 
 interface InputPanelProps {
+  panelId?: string;
   brokerId: string;
   config: InputConfig;
   overrideTopic?: string;
@@ -154,6 +155,7 @@ interface InputPanelProps {
 }
 
 export default function InputPanel({
+  panelId,
   brokerId,
   config,
   overrideTopic,
@@ -199,6 +201,7 @@ export default function InputPanel({
             payload: value,
             qos,
             retain,
+            ...(panelId ? { panel_id: panelId } : {}),
           }),
         ),
       );

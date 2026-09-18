@@ -20,10 +20,15 @@ type publishCall struct {
 	payload  []byte
 	qos      byte
 	retain   bool
+	panelID  string
 }
 
-func (m *mockPublisher) Publish(brokerID, topic string, qos byte, retain bool, payload []byte) error {
-	m.calls = append(m.calls, publishCall{brokerID, topic, payload, qos, retain})
+func (m *mockPublisher) Publish(brokerID, topic string, qos byte, retain bool, payload []byte, panelID ...string) error {
+	pid := ""
+	if len(panelID) > 0 {
+		pid = panelID[0]
+	}
+	m.calls = append(m.calls, publishCall{brokerID, topic, payload, qos, retain, pid})
 	return nil
 }
 

@@ -12,8 +12,9 @@ import (
 )
 
 type LayoutHandler struct {
-	db        *sql.DB
-	scheduler CronScheduler
+	db          *sql.DB
+	scheduler   CronScheduler
+	invalidator PanelMetaInvalidator
 }
 
 func NewLayoutHandler(db *sql.DB, scheduler ...CronScheduler) *LayoutHandler {
@@ -22,6 +23,10 @@ func NewLayoutHandler(db *sql.DB, scheduler ...CronScheduler) *LayoutHandler {
 		sched = scheduler[0]
 	}
 	return &LayoutHandler{db: db, scheduler: sched}
+}
+
+func (h *LayoutHandler) SetInvalidator(invalidator PanelMetaInvalidator) {
+	h.invalidator = invalidator
 }
 
 func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
@@ -191,6 +196,9 @@ func (h *LayoutHandler) UpdatePanel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if h.invalidator != nil {
+		h.invalidator.InvalidatePanelMeta(id)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(p)
@@ -210,6 +218,9 @@ func (h *LayoutHandler) DeletePanel(w http.ResponseWriter, r *http.Request) {
 	if n == 0 {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	}
+	if h.invalidator != nil {
+		h.invalidator.InvalidatePanelMeta(id)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

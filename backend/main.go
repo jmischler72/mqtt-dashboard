@@ -72,7 +72,7 @@ func main() {
 	}
 
 	// --- Init WebSocket hub ---
-	wsHub := ws.NewHub(registry)
+	wsHub := ws.NewHub(registry, database)
 
 	var frontendFS fs.FS
 	if os.Getenv("APP_ENV") != "development" {
@@ -98,6 +98,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
+	layoutH.SetInvalidator(wsHub)
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)

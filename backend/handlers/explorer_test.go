@@ -373,3 +373,50 @@ func TestGetActivity_MultipleTopics(t *testing.T) {
 		t.Errorf("expected 2 topics for multi-topic query, got %d", len(resp.Topics))
 	}
 }
+
+func TestGetHistory_ReturnsSourcePanelMeta(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	// Insert layout panel
+	_, err := database.Exec(`INSERT INTO dashboard_layouts (id, panel_type, title, dashboard_id) VALUES ('panel-btn-1', 'button', 'Light Switch', 'dash-living')`)
+	if err != nil {
+		t.Fatalf("insert dashboard_layouts: %v", err)
+	}
+
+	// Insert history with source_panel_id
+	_, err = database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload, source_panel_id) VALUES ('b1', 'home/light', 'ON', 'panel-btn-1')`)
+	if err != nil {
+		t.Fatalf("insert mqtt_history: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=home/light", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var records []struct {
+		SourcePanelID     string `json:"source_panel_id"`
+		SourcePanelTitle  string `json:"source_panel_title"`
+		SourceDashboardID string `json:"source_dashboard_id"`
+	}
+	decodeJSON(t, rec.Body, &records)
+
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	if records[0].SourcePanelID != "panel-btn-1" {
+		t.Errorf("SourcePanelID = %q, want 'panel-btn-1'", records[0].SourcePanelID)
+	}
+	if records[0].SourcePanelTitle != "Light Switch" {
+		t.Errorf("SourcePanelTitle = %q, want 'Light Switch'", records[0].SourcePanelTitle)
+	}
+	if records[0].SourceDashboardID != "dash-living" {
+		t.Errorf("SourceDashboardID = %q, want 'dash-living'", records[0].SourceDashboardID)
+	}
+}
+

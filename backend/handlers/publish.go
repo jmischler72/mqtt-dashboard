@@ -24,6 +24,7 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 		Payload  string `json:"payload"`
 		QoS      *int   `json:"qos"`
 		Retain   *bool  `json:"retain"`
+		PanelID  string `json:"panel_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -57,7 +58,7 @@ func (h *PublishHandler) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.registry.Publish(brokerID, req.Topic, qos, retain, []byte(req.Payload)); err != nil {
+	if err := h.registry.Publish(brokerID, req.Topic, qos, retain, []byte(req.Payload), req.PanelID); err != nil {
 		slog.Error("publish failed", "broker_id", brokerID, "topic", req.Topic, "err", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
