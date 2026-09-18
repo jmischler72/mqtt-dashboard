@@ -6,6 +6,13 @@ import {
 import InputPanel from "../panels/InputPanel";
 import { PublishOptionsCard } from "../panels/config";
 
+/**
+ * Once someone has read why a wildcard topic cannot be published to, they know
+ * it for every wildcard topic — so the dismissal is remembered across sessions
+ * and topics rather than reappearing on each new `+`/`#` selection.
+ */
+const WILDCARD_NOTICE_KEY = "mqtt_wildcard_publish_notice_dismissed";
+
 interface Props {
   brokerId: string;
   selectedTopic: string;
@@ -17,13 +24,19 @@ export default function ExplorerPublishPanel({
 }: Props) {
   const [qos, setQos] = useState(0);
   const [retain, setRetain] = useState(false);
-  const [dismissedTopic, setDismissedTopic] = useState<string | null>(null);
+  const [noticeDismissed, setNoticeDismissed] = useState(
+    () => localStorage.getItem(WILDCARD_NOTICE_KEY) === "true",
+  );
 
   const isWildcard = selectedTopic.includes("+") || selectedTopic.includes("#");
-  const isDismissed = dismissedTopic === selectedTopic;
+
+  const dismissNotice = () => {
+    localStorage.setItem(WILDCARD_NOTICE_KEY, "true");
+    setNoticeDismissed(true);
+  };
 
   if (isWildcard) {
-    if (isDismissed) return null;
+    if (noticeDismissed) return null;
     return (
       <div className="border border-base-300 bg-base-200/40 rounded-xl p-3 text-xs flex flex-col gap-1 relative">
         <div className="flex items-center justify-between font-semibold text-base-content">
@@ -35,7 +48,7 @@ export default function ExplorerPublishPanel({
             type="button"
             className="btn btn-xs btn-ghost btn-square text-base-content/60 hover:text-base-content shrink-0"
             title="Dismiss warning"
-            onClick={() => setDismissedTopic(selectedTopic)}
+            onClick={dismissNotice}
           >
             <CloseIcon className="text-sm" />
           </button>

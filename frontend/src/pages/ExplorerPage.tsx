@@ -5,6 +5,7 @@ import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
 import TopicTree from "../components/explorer/TopicTree";
 import LogPanel from "../components/panels/LogPanel";
+import GraphPanel from "../components/panels/GraphPanel";
 import ExplorerPublishPanel from "../components/explorer/ExplorerPublishPanel";
 import { topicMatchesFilter } from "../components/explorer/topicFilterUtils";
 
@@ -64,6 +65,8 @@ export default function ExplorerPage() {
   );
   const [liveMessages, setLiveMessages] = useState<WSMessage[]>([]);
   const [showSysTopic, setShowSysTopic] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
+  const [graphWindowSeconds, setGraphWindowSeconds] = useState(900);
   const [showExactTopicOnly, setShowExactTopicOnly] = useState(false);
   const [defaultExpanded, setDefaultExpanded] = useState(false);
   const [expandCollapseVersion, setExpandCollapseVersion] = useState(0);
@@ -314,10 +317,14 @@ export default function ExplorerPage() {
             ? `${filteredTopics.length} of ${displayedTopics.length} topics`
             : `${displayedTopics.length} topics captured`}
         </span>
+        {/* tooltip-start top-aligns these tips so they grow downward. Centred,
+            a multi-line tip on this thin row reaches up into the sticky navbar
+            (z-40 in Layout.tsx) and is painted over; raising the toggles above
+            it instead would put them in front of the broker flyout. */}
         <div className="ml-auto flex items-center gap-4">
           <label className="label cursor-pointer gap-2 p-0">
             <div
-              className="tooltip tooltip-left"
+              className="tooltip tooltip-left tooltip-start"
               data-tip="When enabled, clicking a parent topic only shows messages published directly to that exact topic instead of including all child topics (topic/#)."
             >
               <span className="label-text text-xs">Show exact topic only</span>
@@ -331,7 +338,21 @@ export default function ExplorerPage() {
           </label>
           <label className="label cursor-pointer gap-2 p-0">
             <div
-              className="tooltip tooltip-left"
+              className="tooltip tooltip-left tooltip-start"
+              data-tip="Plot the selected topic over time. Bare numbers are charted directly; for JSON payloads the first numeric field is picked automatically. Messages with nothing numeric in them are skipped."
+            >
+              <span className="label-text text-xs">Show graph</span>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle toggle-xs toggle-accent"
+              checked={showGraph}
+              onChange={(e) => setShowGraph(e.target.checked)}
+            />
+          </label>
+          <label className="label cursor-pointer gap-2 p-0">
+            <div
+              className="tooltip tooltip-left tooltip-start"
               data-tip="Show $SYS broker system topics in the tree. If you have not enabled 'Save $SYS topics in history' in settings, these topics will only be visible here when they are published by the broker, and will not be saved to history."
             >
               <span className="label-text text-xs">Show $SYS</span>
@@ -466,6 +487,46 @@ export default function ExplorerPage() {
                   </div>
                 ))}
               </div>
+              {showGraph && (
+                <section className="shrink-0 rounded-lg border border-base-300 bg-base-100">
+                  <div className="flex items-center gap-2 px-3 py-1.5 border-b border-base-300">
+                    <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+                      Graph
+                    </span>
+                    <select
+                      className="select select-bordered select-xs ml-auto"
+                      value={graphWindowSeconds}
+                      onChange={(e) =>
+                        setGraphWindowSeconds(Number(e.target.value))
+                      }
+                    >
+                      <option value={300}>Last 5 minutes</option>
+                      <option value={900}>Last 15 minutes</option>
+                      <option value={3600}>Last hour</option>
+                      <option value={21600}>Last 6 hours</option>
+                      <option value={86400}>Last 24 hours</option>
+                      <option value={0}>All history</option>
+                    </select>
+                  </div>
+                  <div className="h-48 p-2">
+                    <GraphPanel
+                      key={`graph:${effectiveBrokerId}:${selectedTopic}:${graphWindowSeconds}`}
+                      panelId={`${panelId}-graph`}
+                      brokerId={effectiveBrokerId}
+                      compact
+                      autoValue
+                      config={{
+                        topics: selectedTopic,
+                        maxPoints: 500,
+                        timeWindowSeconds: graphWindowSeconds,
+                        curve: "linear",
+                        showArea: true,
+                        showLegend: true,
+                      }}
+                    />
+                  </div>
+                </section>
+              )}
               <div className="flex-1 overflow-hidden min-h-0">
                 <LogPanel
                   key={`${effectiveBrokerId}:${selectedTopic}`}

@@ -10,11 +10,13 @@ import {
   MdImage,
   MdToggleOn,
   MdTune,
+  MdShowChart,
 } from "react-icons/md";
 import { api } from "../../api/client";
 import type { PanelDefinition, ValidationResult } from "./types";
 import GaugePanel, { GaugeConfigModal, type GaugeConfig } from "./GaugePanel";
 import LogPanel, { LogConfigModal, type LogConfig } from "./LogPanel";
+import GraphPanel, { GraphConfigModal, type GraphConfig } from "./GraphPanel";
 import BrokerStatsPanel, {
   BrokerStatsConfigModal,
   type BrokerStatsConfig,
@@ -162,6 +164,41 @@ export const logPanelDefinition: PanelDefinition<LogConfig> = {
   Component: LogPanel,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConfigModal: LogConfigModal as any,
+};
+
+export const graphPanelDefinition: PanelDefinition<GraphConfig> = {
+  type: "graph",
+  label: "Graph",
+  category: "monitor",
+  icon: MdShowChart,
+  description: "Numeric payloads plotted over time",
+  preview: (
+    <div className="flex flex-col justify-center h-full gap-1 p-2">
+      <svg viewBox="0 0 100 40" className="w-full">
+        <path
+          d="M0,34 L20,24 L40,28 L60,12 L80,18 L100,6 L100,40 L0,40 Z"
+          className="text-primary"
+          fill="currentColor"
+          fillOpacity="0.15"
+          stroke="none"
+        />
+        <polyline
+          points="0,34 20,24 40,28 60,12 80,18 100,6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          className="text-primary"
+        />
+      </svg>
+      <span className="text-[10px] text-base-content/50 font-mono text-center">
+        sensor/temp
+      </span>
+    </div>
+  ),
+  Component: GraphPanel,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConfigModal: GraphConfigModal as any,
 };
 
 export const brokerStatsPanelDefinition: PanelDefinition<BrokerStatsConfig> = {

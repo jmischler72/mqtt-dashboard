@@ -26,7 +26,7 @@
 - **Drag & Drop Dashboard** — Build your own control center with resizable, draggable panels using a responsive grid layout engine
 - **Multi-Dashboard Support** — Create multiple dashboard tabs, rename, delete, and import/export dashboards as JSON files with starter templates
 - **Functional & Visual Panels** — Button (with confirmation option), Input, Log, Cron, Broker Stats, Image (URL or upload), Separator, and Markdown Text panels
-- **Topic Explorer + Wildcards** — Browse collapsible MQTT topic trees, inspect message history, navigate with breadcrumbs, and subscribe with `+` and `#` patterns
+- **Topic Explorer + Wildcards** — Browse collapsible MQTT topic trees, inspect message history and a live graph of numeric values, navigate with breadcrumbs, and subscribe with `+` and `#` patterns
 - **Message History & Retention** — Persistent history in SQLite with configurable retention periods, manual cleanup controls, and automated background pruning
 - **Multi-Broker Management** — Connect to multiple MQTT brokers concurrently, reorder priority, and monitor live telemetry & `$SYS` metrics
 - **TLS & Authentication** — Supports plain TCP, TLS/SSL (with CA cert upload or skip-verify), username/password, and mutual TLS (client certificate & key)
@@ -124,6 +124,7 @@ go build -o mqtt-dashboard .
 | **Input** | Type and send ad-hoc messages to any topic with configurable QoS and Retain flags |
 | **Toggle** | Switch a device on/off and reflect its real state from a command or separate telemetry topic, with configurable on/off payloads |
 | **Log** | Real-time message stream with persistent history, wildcards, QoS/Retain badges, and date formatting |
+| **Graph** | Numeric payloads plotted over time, seeded from stored history, with one line per topic matched by a wildcard, selectable time window, and hover readout |
 | **Cron** | Scheduled automatic publishing with visual cron builder helper, next-run countdown, and toggle switch |
 | **Stats** | Live broker statistics and message activity charts ($SYS telemetry, memory, client counts) |
 
