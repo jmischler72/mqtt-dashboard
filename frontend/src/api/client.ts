@@ -99,4 +99,52 @@ export const api = {
       memory_max: number;
       updated_at: string;
     }>(`/api/brokers/${encodeURIComponent(brokerId)}/info`),
+  getDevices: (brokerId: string) =>
+    request<Device[]>(`/api/devices?broker_id=${encodeURIComponent(brokerId)}`),
+  getDevice: (brokerId: string, id: string) =>
+    request<Device>(
+      `/api/devices/${encodeURIComponent(id)}?broker_id=${encodeURIComponent(brokerId)}`,
+    ),
+  restartDevice: (brokerId: string, id: string) =>
+    request<{ status: string; topic: string; payload: string }>(
+      `/api/devices/${encodeURIComponent(id)}/restart?broker_id=${encodeURIComponent(brokerId)}`,
+      { method: "POST" },
+    ),
+  pingDevice: (brokerId: string, id: string) =>
+    request<{ status: string; topic: string; payload: string }>(
+      `/api/devices/${encodeURIComponent(id)}/ping?broker_id=${encodeURIComponent(brokerId)}`,
+      { method: "POST" },
+    ),
+  sendDeviceCommand: (
+    brokerId: string,
+    id: string,
+    payload: string,
+    topic?: string,
+  ) =>
+    request<{ status: string; topic: string; payload: string }>(
+      `/api/devices/${encodeURIComponent(id)}/command?broker_id=${encodeURIComponent(brokerId)}`,
+      { method: "POST", body: JSON.stringify({ payload, topic }) },
+    ),
+  rescanDevices: (brokerId: string) =>
+    request<{ status: string }>(
+      `/api/devices/rescan?broker_id=${encodeURIComponent(brokerId)}`,
+      { method: "POST" },
+    ),
 };
+
+export interface Device {
+  id: string;
+  broker_id: string;
+  name: string;
+  convention: string;
+  status: "online" | "offline" | "unknown";
+  ip_address: string;
+  mac_address: string;
+  hardware: string;
+  firmware: string;
+  base_topic: string;
+  command_topic: string;
+  attributes?: Record<string, unknown>;
+  last_seen: string;
+  created_at: string;
+}

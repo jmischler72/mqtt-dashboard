@@ -524,7 +524,7 @@
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Heartbeat (enabled)",
+          "title": "Heartbeat",
           "panel_type": "cron",
           "x": 4,
           "y": 12,
@@ -542,7 +542,7 @@
           "broker_name": "Mosquitto Plain"
         },
         {
-          "title": "Nightly sweep (disabled)",
+          "title": "Nightly sweep",
           "panel_type": "cron",
           "x": 8,
           "y": 12,

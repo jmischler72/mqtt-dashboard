@@ -9,6 +9,7 @@ import (
 	"mqtt-dashboard/config"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
+	"mqtt-dashboard/devices"
 	"mqtt-dashboard/handlers"
 	"mqtt-dashboard/models"
 	"mqtt-dashboard/ws"
@@ -56,7 +57,14 @@ func main() {
 	registry.StartHistoryWriter()
 	defer registry.StopHistoryWriter()
 	initRegistrySettings(database, registry)
-	autoConnectFromDB(database, registry)
+
+	// --- Init Device registry ---
+	deviceRegistry := devices.NewDeviceRegistry(database)
+	registry.AddGlobalHandler(func(brokerID, topic string, payload []byte, qos byte, retained bool) {
+		deviceRegistry.ProcessMessage(brokerID, topic, payload)
+	})
+
+	autoConnectFromDB(database, registry, deviceRegistry)
 
 	// --- Init Cron scheduler ---
 	scheduler, err := cron.NewScheduler(registry)
@@ -84,7 +92,7 @@ func main() {
 		}
 	}
 
-	r := buildRouter(database, registry, scheduler, wsHub, "./data", frontendFS)
+	r := buildRouter(database, registry, scheduler, wsHub, "./data", frontendFS, deviceRegistry)
 
 	addr := ":8080"
 	slog.Info("server starting", "addr", addr)
@@ -94,7 +102,14 @@ func main() {
 	}
 }
 
-func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS) http.Handler {
+func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, devRegs ...*devices.DeviceRegistry) http.Handler {
+	var devRegistry *devices.DeviceRegistry
+	if len(devRegs) > 0 && devRegs[0] != nil {
+		devRegistry = devRegs[0]
+	} else {
+		devRegistry = devices.NewDeviceRegistry(database)
+	}
+
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
@@ -104,6 +119,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
 	imageH := handlers.NewImageHandler(dataDir)
+	devicesH := handlers.NewDevicesHandler(devRegistry, registry)
 
 	// --- Router ---
 	r := chi.NewRouter()
@@ -170,6 +186,14 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	r.Get("/api/explorer/history", explorerH.GetHistory)
 	r.Get("/api/explorer/activity", explorerH.GetActivity)
 
+	// Devices
+	r.Get("/api/devices", devicesH.GetDevices)
+	r.Get("/api/devices/{id}", devicesH.GetDevice)
+	r.Post("/api/devices/{id}/restart", devicesH.RestartDevice)
+	r.Post("/api/devices/{id}/ping", devicesH.PingDevice)
+	r.Post("/api/devices/{id}/command", devicesH.SendCommand)
+	r.Post("/api/devices/rescan", devicesH.RescanHistory)
+
 	// WebSocket
 	r.Get("/ws", wsHub.ServeWS)
 
@@ -192,21 +216,36 @@ func initRegistrySettings(database *sql.DB, registry *mqttclient.BrokerRegistry)
 }
 
 // autoConnectFromDB loads all enabled brokers and connects each one on startup.
-func autoConnectFromDB(database *sql.DB, registry *mqttclient.BrokerRegistry) {
+func autoConnectFromDB(database *sql.DB, registry *mqttclient.BrokerRegistry, devRegs ...*devices.DeviceRegistry) {
+	var devRegistry *devices.DeviceRegistry
+	if len(devRegs) > 0 {
+		devRegistry = devRegs[0]
+	}
+
 	rows, err := database.Query(`SELECT id, name, host, port, COALESCE(client_id,''), COALESCE(username,''), COALESCE(password,''), is_enabled, sort_order, COALESCE(auth_mode,'none'), tls_enabled, tls_skip_verify, COALESCE(ca_cert,''), COALESCE(client_cert,''), COALESCE(client_key,'') FROM mqtt_brokers WHERE is_enabled = 1 ORDER BY sort_order ASC`)
 	if err != nil {
 		return
 	}
-	defer rows.Close()
 
-	isFirst := true
+	var brokers []models.MQTTBroker
 	for rows.Next() {
 		var b models.MQTTBroker
 		if err := rows.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.Password, &b.IsEnabled, &b.SortOrder, &b.AuthMode, &b.TLSEnabled, &b.TLSSkipVerify, &b.CACert, &b.ClientCert, &b.ClientKey); err != nil {
 			continue
 		}
+		brokers = append(brokers, b)
+	}
+	rows.Close()
+
+	isFirst := true
+	for _, b := range brokers {
 		if err := registry.AddBroker(b); err != nil {
 			slog.Error("auto-connect mqtt broker", "broker", b.Name, "err", err)
+		} else if devRegistry != nil {
+			bid := b.ID
+			go func() {
+				_ = devRegistry.ScanHistory(bid)
+			}()
 		}
 		if isFirst {
 			registry.SetDefault(b.ID)

@@ -125,6 +125,31 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("migrate mqtt_history add %s: %w", col.name, err)
 		}
 	}
+
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS mqtt_devices (
+			id TEXT NOT NULL,
+			broker_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			convention TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'unknown',
+			ip_address TEXT DEFAULT '',
+			mac_address TEXT DEFAULT '',
+			hardware TEXT DEFAULT '',
+			firmware TEXT DEFAULT '',
+			base_topic TEXT NOT NULL,
+			command_topic TEXT DEFAULT '',
+			attributes_json TEXT DEFAULT '{}',
+			last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (broker_id, id)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_mqtt_devices_broker ON mqtt_devices(broker_id);
+	`); err != nil {
+		return fmt.Errorf("migrate mqtt_devices: %w", err)
+	}
+
 	return nil
 }
 

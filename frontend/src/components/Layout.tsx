@@ -25,6 +25,7 @@ function computeAggregated(statuses: BrokerStatus[]): AggregatedStatus {
 const NAV_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/explorer", label: "Explorer" },
+  { to: "/devices", label: "Devices" },
   { to: "/automations", label: "Automations" },
   { to: "/config", label: "Configuration" },
 ];
@@ -204,7 +205,7 @@ export default function Layout() {
       : activeDashboardId;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-base-200">
       {showCredits && (
         <div className="modal modal-open">
           <div className="modal-box max-w-sm">

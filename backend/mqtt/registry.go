@@ -33,7 +33,12 @@ type BrokerRegistry struct {
 	// retained flag regardless of subscription timing.
 	retainedMu sync.RWMutex
 	retained   map[retainedKey]struct{}
+
+	globalHandlers []GlobalMessageHandler
 }
+
+type GlobalMessageHandler func(brokerID, topic string, payload []byte, qos byte, retained bool)
+
 
 type retainedKey struct {
 	brokerID string
@@ -144,6 +149,12 @@ func (r *BrokerRegistry) StopHistoryWriter() {
 	r.historyWorkerWG.Wait()
 }
 
+func (r *BrokerRegistry) AddGlobalHandler(h GlobalMessageHandler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.globalHandlers = append(r.globalHandlers, h)
+}
+
 // AddBroker creates a new MQTTManager for the broker, connects it, and stores it.
 // The manager is stored even on connection failure so its ERROR status is visible.
 func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
@@ -161,6 +172,14 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 			r.markRetained(brokerID, topic, len(payload) > 0)
 		}
 		r.writeHistory(brokerID, topic, payload, qos, retained)
+
+		r.mu.RLock()
+		ghs := make([]GlobalMessageHandler, len(r.globalHandlers))
+		copy(ghs, r.globalHandlers)
+		r.mu.RUnlock()
+		for _, gh := range ghs {
+			gh(brokerID, topic, payload, qos, retained)
+		}
 	})
 	// '$SYS/*' is not matched by '#', so subscribe explicitly for broker stats
 	// and history capture.

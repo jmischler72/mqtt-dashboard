@@ -107,3 +107,27 @@ type BrokerStats struct {
 	MemoryMax          int64  `json:"memory_max"`  // bytes
 	UpdatedAt          string `json:"updated_at"`  // ISO 8601 timestamp
 }
+
+type Device struct {
+	ID           string         `json:"id"`
+	BrokerID     string         `json:"broker_id"`
+	Name         string         `json:"name"`
+	Convention   string         `json:"convention"` // "homie", "esphome", "homeassistant", "tasmota", "generic"
+	Status       string         `json:"status"`     // "online", "offline", "unknown"
+	IPAddress    string         `json:"ip_address"`
+	MACAddress   string         `json:"mac_address"`
+	Hardware     string         `json:"hardware"`
+	Firmware     string         `json:"firmware"`
+	BaseTopic    string         `json:"base_topic"`
+	CommandTopic string         `json:"command_topic"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	LastSeen     string         `json:"last_seen"`
+	CreatedAt    string         `json:"created_at"`
+}
+
+type DeviceCommandRequest struct {
+	Command string `json:"command"` // "restart", "ping", "custom"
+	Payload string `json:"payload"`
+	Topic   string `json:"topic"`
+}
+

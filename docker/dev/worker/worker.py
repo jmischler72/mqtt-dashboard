@@ -165,6 +165,12 @@ COMMAND_TOPICS = [
     "demo/actions/+",
     "test/command",
     "test/heartbeat",
+    "homie/+/command",
+    "homie/+/+/set",
+    "+/button/restart/command",
+    "+/command",
+    "cmnd/+/Restart",
+    "cmnd/+/Status",
 ]
 
 EVENTS_TOPIC = "demo/events"
@@ -223,6 +229,57 @@ def publish_demo_state(client: mqtt.Client):
         qos=1,
         retain=True,
     )
+
+
+def publish_simulated_devices(client: mqtt.Client):
+    """Publish discovery and initial state for simulated devices, retained."""
+    # 1. Kitchen Smart Plug (Homie)
+    _publish(client, "homie/kitchen-plug/$homie", "4.0.0", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$name", "Kitchen Smart Plug", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$state", "ready", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$mac", "30:AE:A4:77:88:99", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$localip", "192.168.1.112", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$implementation", "ESP8266-Relay", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$fw/name", "ESP8266-Relay", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$fw/version", "1.2.0", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/$nodes", "relay", qos=1, retain=True)
+    _publish(client, "homie/kitchen-plug/relay/power", "ON", qos=1, retain=True)
+
+    # 2. Office Air Monitor (Home Assistant Discovery / ESPHome)
+    ha_cfg = {
+        "name": "Office Air Monitor",
+        "state_topic": "office-air/sensor/co2/state",
+        "command_topic": "office-air/button/restart/command",
+        "availability_topic": "office-air/status",
+        "device": {
+            "identifiers": ["office-air"],
+            "name": "Office Air Monitor",
+            "model": "ESP32-AirSense",
+            "manufacturer": "ESPHome",
+            "sw_version": "2024.6.0",
+            "connections": [["ip", "192.168.1.120"], ["mac", "24:62:AB:F1:34:56"]],
+        },
+    }
+    _publish(client, "homeassistant/sensor/office-air/co2/config", json.dumps(ha_cfg), qos=1, retain=True)
+    _publish(client, "office-air/status", "online", qos=1, retain=True)
+    _publish(client, "office-air/version", "2024.6.0 (ESPHome)", qos=1, retain=True)
+    _publish(client, "office-air/ip", "192.168.1.120", qos=1, retain=True)
+    _publish(client, "office-air/hardware", "ESP32", qos=1, retain=True)
+    _publish(client, "office-air/sensor/co2/state", "640", qos=0, retain=False)
+
+    # 3. Living Room ESP32-S3 (ESPHome)
+    _publish(client, "livingroom-s3/status", "online", qos=1, retain=True)
+    _publish(client, "livingroom-s3/name", "Living Room ESP32-S3", qos=1, retain=True)
+    _publish(client, "livingroom-s3/mac", "48:E7:29:A0:11:BC", qos=1, retain=True)
+    _publish(client, "livingroom-s3/hardware", "ESP32-S3", qos=1, retain=True)
+    _publish(client, "livingroom-s3/version", "2024.5.1 (ESPHome)", qos=1, retain=True)
+
+    # 4. Livingroom Esp32 (Generic / Tasmota)
+    _publish(client, "livingroom-esp32/status", "online", qos=1, retain=True)
+    _publish(client, "livingroom-esp32/name", "Livingroom Esp32", qos=1, retain=True)
+    _publish(client, "livingroom-esp32/ip", "192.168.1.105", qos=1, retain=True)
+    _publish(client, "livingroom-esp32/hardware", "ESP32", qos=1, retain=True)
+
 
 
 def _as_number(text: str):
@@ -313,6 +370,9 @@ def handle_command(client: mqtt.Client, topic: str, payload: str) -> str:
     if topic.startswith("demo/actions/"):
         return f"action {topic.rsplit('/', 1)[-1]}: {payload}"
 
+    if topic.endswith("/command") or "button/restart" in topic or topic.startswith("cmnd/"):
+        return f"device command on {topic}: {payload}"
+
     return f"{topic}: {payload}"
 
 
@@ -353,6 +413,7 @@ def make_client(broker: dict) -> mqtt.Client:
             c.subscribe(filt, qos=1)
         logger.info("Listening for panel commands on %s", ", ".join(COMMAND_TOPICS))
         publish_demo_state(c)
+        publish_simulated_devices(c)
 
     def on_disconnect(c, userdata, disconnect_flags, reason_code, properties):
         if reason_code != 0:
