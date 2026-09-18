@@ -102,4 +102,18 @@ export const api = {
       memory_max: number;
       updated_at: string;
     }>(`/api/brokers/${encodeURIComponent(brokerId)}/info`),
+  getImagePresets: () => request<Array<{ name: string; url: string }>>("/api/images/presets"),
+  uploadImage: async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(BASE + "/api/images", {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<{ name: string; url: string }>;
+  },
 };

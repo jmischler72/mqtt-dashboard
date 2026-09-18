@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"mqtt-dashboard/models"
@@ -73,6 +74,9 @@ func (h *SettingsHandler) ClearHistory(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.db.Exec(`DELETE FROM mqtt_history`); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
+	}
+	if _, err := h.db.Exec(`VACUUM`); err != nil {
+		slog.Warn("vacuum failed after clear history", "err", err)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

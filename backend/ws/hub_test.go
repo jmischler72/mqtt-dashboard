@@ -405,3 +405,65 @@ func TestHub_UnregisterConcurrentSend(t *testing.T) {
 	wg.Wait()
 }
 
+func TestHub_MultiplexedPanels(t *testing.T) {
+	reg := newMockBrokerSub()
+	hub := NewHub(reg)
+
+	c := newTestClient(hub)
+	hub.Register(c)
+
+	// Panel 1 subscribes to broker1 topicA
+	hub.SubscribePanel(c, "panel1", "b1", []string{"sensor/topicA"})
+	// Panel 2 subscribes to broker2 topicB on the SAME connection
+	hub.SubscribePanel(c, "panel2", "b2", []string{"sensor/topicB"})
+
+	// Verify both MQTT subscriptions are active
+	if _, ok := reg.subscribed["b1:sensor/topicA"]; !ok {
+		t.Fatal("expected b1:sensor/topicA subscribed")
+	}
+	if _, ok := reg.subscribed["b2:sensor/topicB"]; !ok {
+		t.Fatal("expected b2:sensor/topicB subscribed")
+	}
+
+	// Trigger message on topicA
+	reg.trigger("b1", "sensor/topicA", []byte("msgA"))
+	select {
+	case msg := <-c.send:
+		if msg.Topic != "sensor/topicA" || msg.Payload != "msgA" {
+			t.Fatalf("unexpected message: %+v", msg)
+		}
+	default:
+		t.Fatal("expected msgA on client send")
+	}
+
+	// Trigger message on topicB
+	reg.trigger("b2", "sensor/topicB", []byte("msgB"))
+	select {
+	case msg := <-c.send:
+		if msg.Topic != "sensor/topicB" || msg.Payload != "msgB" {
+			t.Fatalf("unexpected message: %+v", msg)
+		}
+	default:
+		t.Fatal("expected msgB on client send")
+	}
+
+	// Unsubscribe panel1 only
+	hub.UnsubscribePanel(c, "panel1")
+
+	// topicA should be unsubscribed from broker
+	if _, ok := reg.subscribed["b1:sensor/topicA"]; ok {
+		t.Error("b1:sensor/topicA should be unsubscribed")
+	}
+	// topicB should still be subscribed
+	if _, ok := reg.subscribed["b2:sensor/topicB"]; !ok {
+		t.Error("b2:sensor/topicB should still be subscribed")
+	}
+
+	// Unregister client cleans up topicB
+	hub.Unregister(c)
+	if _, ok := reg.subscribed["b2:sensor/topicB"]; ok {
+		t.Error("b2:sensor/topicB should be unsubscribed after unregister")
+	}
+}
+
+

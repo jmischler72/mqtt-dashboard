@@ -86,12 +86,16 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		}
 		var subReq SubscribeRequest
 		if err := json.Unmarshal(raw, &subReq); err == nil && subReq.PanelID != "" {
-			c.SetPanelID(subReq.PanelID)
-			brokerID := subReq.BrokerID
-			if brokerID == "" {
-				brokerID = h.registry.DefaultBrokerID()
+			if subReq.Action == "unsubscribe" {
+				h.UnsubscribePanel(c, subReq.PanelID)
+			} else {
+				c.SetPanelID(subReq.PanelID)
+				brokerID := subReq.BrokerID
+				if brokerID == "" {
+					brokerID = h.registry.DefaultBrokerID()
+				}
+				h.SubscribePanel(c, subReq.PanelID, brokerID, subReq.Topics)
 			}
-			h.Subscribe(c, brokerID, subReq.Topics)
 		}
 	}
 }
