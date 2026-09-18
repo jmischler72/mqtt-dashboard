@@ -102,7 +102,8 @@ export const api = {
       memory_max: number;
       updated_at: string;
     }>(`/api/brokers/${encodeURIComponent(brokerId)}/info`),
-  getImagePresets: () => request<Array<{ name: string; url: string }>>("/api/images/presets"),
+  getImagePresets: () =>
+    request<Array<{ name: string; url: string }>>("/api/images/presets"),
   uploadImage: async (file: File) => {
     const form = new FormData();
     form.append("file", file);

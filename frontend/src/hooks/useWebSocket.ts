@@ -87,7 +87,7 @@ class WSConnectionManager {
         if (l.subscription.topics && l.subscription.topics.length > 0) {
           if (!parsed.topic) return;
           const matches = l.subscription.topics.some((filter) =>
-            mqttTopicMatches(filter, parsed.topic!)
+            mqttTopicMatches(filter, parsed.topic!),
           );
           if (!matches) return;
         }
@@ -131,7 +131,7 @@ class WSConnectionManager {
       this.activeSubscriptions.delete(panelId);
       if (this.socket?.readyState === WebSocket.OPEN) {
         this.socket.send(
-          JSON.stringify({ action: "unsubscribe", panel_id: panelId })
+          JSON.stringify({ action: "unsubscribe", panel_id: panelId }),
         );
       }
     }
