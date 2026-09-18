@@ -528,13 +528,13 @@ export default function AutomationsPage() {
             <span>Loading automations...</span>
           </div>
         ) : jobs.length === 0 ? (
-          <div className="card bg-base-100 border border-base-300 shadow-sm p-12 text-center max-w-md mx-auto mt-8">
-            <div className="flex flex-col items-center gap-2">
+          <div className="card bg-base-100 border border-base-300 shadow-sm p-16 text-center w-full">
+            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
               <MdAutoMode className="text-4xl text-base-content/30" />
               <p className="text-base font-semibold text-base-content/70">
                 No automations configured
               </p>
-              <p className="text-xs text-base-content/50 max-w-xs">
+              <p className="text-xs text-base-content/50">
                 Create a Cron panel on any dashboard to automate periodic MQTT
                 messages.
               </p>
@@ -547,23 +547,10 @@ export default function AutomationsPage() {
               </Link>
             </div>
           </div>
-        ) : displayedJobs.length === 0 ? (
-          <div className="card bg-base-100 border border-base-300 shadow-sm p-8 text-center max-w-md mx-auto mt-8">
-            <p className="text-sm text-base-content/60">
-              No matching automations
-            </p>
-            <button
-              type="button"
-              className="btn btn-xs btn-ghost text-primary mt-2"
-              onClick={handleResetAllFilters}
-            >
-              Reset filters
-            </button>
-          </div>
         ) : (
-          <div className="card bg-base-100 border border-base-300 shadow-sm overflow-hidden">
+          <div className="card bg-base-100 border border-base-300 shadow-sm overflow-hidden w-full">
             <div className="overflow-x-auto">
-              <table className="table">
+              <table className="table w-full">
                 <thead>
                   <tr className="border-b border-base-300 text-xs bg-base-200/50">
                     {/* ── Column: Go to Dashboard ──────── */}
@@ -839,231 +826,255 @@ export default function AutomationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-base-200">
-                  {displayedJobs.map((job) => {
-                    const isToggling = togglingIds.has(job.panel_id);
-                    const topicList = job.topic
-                      .split(",")
-                      .map((t) => t.trim())
-                      .filter(Boolean);
-
-                    return (
-                      <tr
-                        key={job.panel_id}
-                        className={`hover:bg-base-200/50 transition-colors ${
-                          !job.enabled ? "opacity-60" : ""
-                        }`}
-                      >
-                        {/* Go to Panel */}
-                        <td className="align-middle text-center py-3 px-3">
-                          <div
-                            className="tooltip tooltip-right"
-                            data-tip="Go to panel"
+                  {displayedJobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-16 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <p className="text-sm font-medium text-base-content/60">
+                            No matching automations
+                          </p>
+                          <p className="text-xs text-base-content/40">
+                            Try adjusting or clearing your column filters
+                          </p>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost text-primary mt-1"
+                            onClick={handleResetAllFilters}
                           >
-                            <Link
-                              to={`/dashboard?dashboard=${encodeURIComponent(
-                                job.dashboard_id,
-                              )}&panel=${encodeURIComponent(job.panel_id)}`}
-                              className="btn btn-ghost btn-xs btn-square"
-                              aria-label="Go to panel"
+                            Reset all filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedJobs.map((job) => {
+                      const isToggling = togglingIds.has(job.panel_id);
+                      const topicList = job.topic
+                        .split(",")
+                        .map((t) => t.trim())
+                        .filter(Boolean);
+
+                      return (
+                        <tr
+                          key={job.panel_id}
+                          className={`hover:bg-base-200/50 transition-colors ${
+                            !job.enabled ? "opacity-60" : ""
+                          }`}
+                        >
+                          {/* Go to Panel */}
+                          <td className="align-middle text-center py-3 px-3">
+                            <div
+                              className="tooltip tooltip-right"
+                              data-tip="Go to panel"
                             >
-                              <RiExternalLinkLine className="text-sm" />
-                            </Link>
-                          </div>
-                        </td>
-
-                        {/* Status dot + toggle */}
-                        <td className="text-center align-middle py-3 px-4">
-                          <div
-                            className="tooltip tooltip-right inline-flex items-center gap-1.5"
-                            data-tip={
-                              job.enabled ? "Active — click to pause" : "Paused"
-                            }
-                          >
-                            <span
-                              className={`w-2 h-2 rounded-full shrink-0 ${
-                                job.enabled ? "bg-success" : "bg-neutral"
-                              }`}
-                            />
-                            <input
-                              type="checkbox"
-                              className="toggle toggle-xs toggle-primary"
-                              checked={job.enabled}
-                              disabled={isToggling}
-                              onChange={() => handleToggle(job)}
-                            />
-                          </div>
-                        </td>
-
-                        {/* Automation Name & Dashboard */}
-                        <td className="align-middle py-3 px-4">
-                          <div className="flex flex-col gap-0.5 min-w-[140px]">
-                            <span className="font-semibold text-xs text-base-content">
-                              {job.panel_title || "Untitled"}
-                            </span>
-                            <span className="text-[11px] text-base-content/50 flex items-center gap-1">
-                              <MdLayers className="text-xs shrink-0" />
-                              <span
-                                className="truncate max-w-[170px]"
-                                title={job.dashboard_name}
+                              <Link
+                                to={`/dashboard?dashboard=${encodeURIComponent(
+                                  job.dashboard_id,
+                                )}&panel=${encodeURIComponent(job.panel_id)}`}
+                                className="btn btn-ghost btn-xs btn-square"
+                                aria-label="Go to panel"
                               >
-                                {job.dashboard_name || "Default"}
-                              </span>
-                            </span>
-                          </div>
-                        </td>
+                                <RiExternalLinkLine className="text-sm" />
+                              </Link>
+                            </div>
+                          </td>
 
-                        {/* Topic (Separate Column with Truncation) */}
-                        <td className="align-middle py-3 px-4 max-w-[200px]">
-                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            {topicList.map((t, idx) => (
-                              <div
-                                key={idx}
-                                className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
-                              >
-                                <Link
-                                  to={`/explorer?topic=${encodeURIComponent(t)}${
-                                    job.broker_id
-                                      ? `&broker=${encodeURIComponent(job.broker_id)}`
-                                      : ""
-                                  }`}
-                                  className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
-                                  title={`Show "${t}" in Explorer`}
-                                >
-                                  <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
-                                  <span className="truncate">{t}</span>
-                                </Link>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                  title="Copy topic"
-                                  onClick={() =>
-                                    handleCopy(
-                                      `topic-${job.panel_id}-${idx}`,
-                                      t,
-                                    )
-                                  }
-                                >
-                                  {copiedId ===
-                                  `topic-${job.panel_id}-${idx}` ? (
-                                    <MdCheck className="text-success text-xs" />
-                                  ) : (
-                                    <MdContentCopy className="text-[10px]" />
-                                  )}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-
-                        {/* Payload (Separate Column with QoS/Retain Flags next to it & Ellipsis) */}
-                        <td className="align-middle py-3 px-4 max-w-[280px]">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {/* QoS flag next to payload */}
-                            <span
-                              className="badge badge-xs badge-neutral font-mono shrink-0"
-                              title={`QoS ${job.qos}`}
+                          {/* Status dot + toggle */}
+                          <td className="text-center align-middle py-3 px-4">
+                            <div
+                              className="tooltip tooltip-right inline-flex items-center gap-1.5"
+                              data-tip={
+                                job.enabled
+                                  ? "Active — click to pause"
+                                  : "Paused"
+                              }
                             >
-                              Q{job.qos}
-                            </span>
-
-                            {/* Retain flag next to payload */}
-                            {job.retain && (
                               <span
-                                className="badge badge-xs badge-warning font-mono shrink-0"
-                                title="Retained message"
-                              >
-                                R
-                              </span>
-                            )}
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  job.enabled ? "bg-success" : "bg-neutral"
+                                }`}
+                              />
+                              <input
+                                type="checkbox"
+                                className="toggle toggle-xs toggle-primary"
+                                checked={job.enabled}
+                                disabled={isToggling}
+                                onChange={() => handleToggle(job)}
+                              />
+                            </div>
+                          </td>
 
-                            {/* Payload snippet with Ellipsis */}
-                            {job.payload ? (
-                              <div
-                                className="flex items-center gap-1 bg-base-200/70 px-2 py-0.5 rounded font-mono text-[11px] text-base-content/80 min-w-0 flex-1 overflow-hidden"
-                                title={job.payload}
-                              >
-                                <span className="truncate flex-1 block">
-                                  {job.payload}
+                          {/* Automation Name & Dashboard */}
+                          <td className="align-middle py-3 px-4">
+                            <div className="flex flex-col gap-0.5 min-w-[140px]">
+                              <span className="font-semibold text-xs text-base-content">
+                                {job.panel_title || "Untitled"}
+                              </span>
+                              <span className="text-[11px] text-base-content/50 flex items-center gap-1">
+                                <MdLayers className="text-xs shrink-0" />
+                                <span
+                                  className="truncate max-w-[170px]"
+                                  title={job.dashboard_name}
+                                >
+                                  {job.dashboard_name || "Default"}
                                 </span>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                  title="Copy payload"
-                                  onClick={() =>
-                                    handleCopy(
-                                      `payload-${job.panel_id}`,
-                                      job.payload,
-                                    )
-                                  }
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Topic (Separate Column with Truncation) */}
+                          <td className="align-middle py-3 px-4 max-w-[200px]">
+                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                              {topicList.map((t, idx) => (
+                                <div
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
                                 >
-                                  {copiedId === `payload-${job.panel_id}` ? (
-                                    <MdCheck className="text-success text-xs" />
-                                  ) : (
-                                    <MdContentCopy className="text-[10px]" />
-                                  )}
-                                </button>
+                                  <Link
+                                    to={`/explorer?topic=${encodeURIComponent(t)}${
+                                      job.broker_id
+                                        ? `&broker=${encodeURIComponent(job.broker_id)}`
+                                        : ""
+                                    }`}
+                                    className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
+                                    title={`Show "${t}" in Explorer`}
+                                  >
+                                    <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
+                                    <span className="truncate">{t}</span>
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
+                                    title="Copy topic"
+                                    onClick={() =>
+                                      handleCopy(
+                                        `topic-${job.panel_id}-${idx}`,
+                                        t,
+                                      )
+                                    }
+                                  >
+                                    {copiedId ===
+                                    `topic-${job.panel_id}-${idx}` ? (
+                                      <MdCheck className="text-success text-xs" />
+                                    ) : (
+                                      <MdContentCopy className="text-[10px]" />
+                                    )}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+
+                          {/* Payload (Separate Column with QoS/Retain Flags next to it & Ellipsis) */}
+                          <td className="align-middle py-3 px-4 max-w-[280px]">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {/* QoS flag next to payload */}
+                              <span
+                                className="badge badge-xs badge-neutral font-mono shrink-0"
+                                title={`QoS ${job.qos}`}
+                              >
+                                Q{job.qos}
+                              </span>
+
+                              {/* Retain flag next to payload */}
+                              {job.retain && (
+                                <span
+                                  className="badge badge-xs badge-warning font-mono shrink-0"
+                                  title="Retained message"
+                                >
+                                  R
+                                </span>
+                              )}
+
+                              {/* Payload snippet with Ellipsis */}
+                              {job.payload ? (
+                                <div
+                                  className="flex items-center gap-1 bg-base-200/70 px-2 py-0.5 rounded font-mono text-[11px] text-base-content/80 min-w-0 flex-1 overflow-hidden"
+                                  title={job.payload}
+                                >
+                                  <span className="truncate flex-1 block">
+                                    {job.payload}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
+                                    title="Copy payload"
+                                    onClick={() =>
+                                      handleCopy(
+                                        `payload-${job.panel_id}`,
+                                        job.payload,
+                                      )
+                                    }
+                                  >
+                                    {copiedId === `payload-${job.panel_id}` ? (
+                                      <MdCheck className="text-success text-xs" />
+                                    ) : (
+                                      <MdContentCopy className="text-[10px]" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-base-content/30 italic">
+                                  (empty)
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Schedule */}
+                          <td className="align-middle py-3 px-4">
+                            <div className="flex flex-col gap-0.5 min-w-[130px]">
+                              <div className="flex items-center gap-1 text-xs font-medium">
+                                <MdSchedule className="text-xs text-base-content/50 shrink-0" />
+                                <span>{formatSchedule(job.cron_expr)}</span>
+                              </div>
+                              <span className="font-mono text-[10px] text-base-content/40 pl-4">
+                                {job.cron_expr}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Next Run */}
+                          <td className="align-middle whitespace-nowrap py-3 px-4">
+                            {job.enabled && job.next_run ? (
+                              <div
+                                className="tooltip tooltip-top text-left"
+                                data-tip={`Exact: ${formatExactTime(job.next_run)}${
+                                  job.prev_run
+                                    ? ` | Prev: ${formatExactTime(job.prev_run)}`
+                                    : ""
+                                }`}
+                              >
+                                <span className="text-primary font-medium text-xs block">
+                                  {formatCountdown(job.next_run, currentTimeMs)}
+                                </span>
+                                <span className="text-[10px] text-base-content/40 block">
+                                  {formatExactTime(job.next_run)}
+                                </span>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-base-content/30 italic">
-                                (empty)
+                              <span className="badge badge-xs badge-neutral">
+                                paused
                               </span>
                             )}
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Schedule */}
-                        <td className="align-middle py-3 px-4">
-                          <div className="flex flex-col gap-0.5 min-w-[130px]">
-                            <div className="flex items-center gap-1 text-xs font-medium">
-                              <MdSchedule className="text-xs text-base-content/50 shrink-0" />
-                              <span>{formatSchedule(job.cron_expr)}</span>
-                            </div>
-                            <span className="font-mono text-[10px] text-base-content/40 pl-4">
-                              {job.cron_expr}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Next Run */}
-                        <td className="align-middle whitespace-nowrap py-3 px-4">
-                          {job.enabled && job.next_run ? (
-                            <div
-                              className="tooltip tooltip-top text-left"
-                              data-tip={`Exact: ${formatExactTime(job.next_run)}${
-                                job.prev_run
-                                  ? ` | Prev: ${formatExactTime(job.prev_run)}`
-                                  : ""
-                              }`}
-                            >
-                              <span className="text-primary font-medium text-xs block">
-                                {formatCountdown(job.next_run, currentTimeMs)}
-                              </span>
-                              <span className="text-[10px] text-base-content/40 block">
-                                {formatExactTime(job.next_run)}
+                          {/* Broker */}
+                          <td className="align-middle py-3 px-4">
+                            <div className="flex items-center gap-1 text-xs text-base-content/70 min-w-[120px]">
+                              <RiServerLine className="text-xs text-base-content/40 shrink-0" />
+                              <span
+                                className="truncate max-w-[130px]"
+                                title={job.broker_name}
+                              >
+                                {job.broker_name || "Default"}
                               </span>
                             </div>
-                          ) : (
-                            <span className="badge badge-xs badge-neutral">
-                              paused
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Broker */}
-                        <td className="align-middle py-3 px-4">
-                          <div className="flex items-center gap-1 text-xs text-base-content/70 min-w-[120px]">
-                            <RiServerLine className="text-xs text-base-content/40 shrink-0" />
-                            <span
-                              className="truncate max-w-[130px]"
-                              title={job.broker_name}
-                            >
-                              {job.broker_name || "Default"}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
