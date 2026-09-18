@@ -397,14 +397,6 @@ func TestDeletePanel_RemovesCronJob(t *testing.T) {
 	}
 }
 
-type mockInvalidator struct {
-	invalidated []string
-}
-
-func (m *mockInvalidator) InvalidatePanelMeta(panelID string) {
-	m.invalidated = append(m.invalidated, panelID)
-}
-
 func TestUpdatePanel_InvalidatesCache(t *testing.T) {
 	database := setupTestDB(t)
 	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Old', 'button', 0, 0, 4, 4)`)

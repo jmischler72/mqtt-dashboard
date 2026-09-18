@@ -15,9 +15,11 @@ import (
 func newCronRouter(h *handlers.CronHandler) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/api/cron", h.ListCronJobs)
+	r.Post("/api/cron/{panelId}", h.UpsertCron)
 	r.Put("/api/cron/{panelId}", h.UpsertCron)
 	r.Delete("/api/cron/{panelId}", h.DeleteCron)
 	r.Put("/api/cron/{panelId}/toggle", h.ToggleCron)
+	r.Get("/api/cron/{panelId}", h.GetCronStatus)
 	r.Get("/api/cron/{panelId}/status", h.GetCronStatus)
 	return r
 }
@@ -35,7 +37,7 @@ func TestUpsertCron_Success(t *testing.T) {
 		"payload":   "ping",
 		"enabled":   true,
 	})
-	req := httptest.NewRequest(http.MethodPut, "/api/cron/panel1", body)
+	req := httptest.NewRequest(http.MethodPost, "/api/cron/panel1", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -164,7 +166,7 @@ func TestGetCronStatus_Success(t *testing.T) {
 	h := handlers.NewCronHandler(database, sched)
 	r := newCronRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/cron/panel1/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/cron/panel1", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 

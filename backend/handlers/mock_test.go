@@ -175,3 +175,12 @@ func (m *mockScheduler) GetJobs() []*cron.JobInfo {
 	}
 	return res
 }
+
+type mockInvalidator struct {
+	invalidated []string
+}
+
+func (m *mockInvalidator) InvalidatePanelMeta(panelID string) {
+	m.invalidated = append(m.invalidated, panelID)
+}
+

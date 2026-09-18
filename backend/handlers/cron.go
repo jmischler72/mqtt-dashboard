@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"mqtt-dashboard/cron"
 )
 
 type CronHandler struct {
@@ -201,6 +203,13 @@ func (h *CronHandler) ListCronJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
+	schedJobMap := make(map[string]*cron.JobInfo)
+	if h.scheduler != nil {
+		for _, j := range h.scheduler.GetJobs() {
+			schedJobMap[j.PanelID] = j
+		}
+	}
+
 	jobs := make([]ScheduledJobItem, 0)
 	for rows.Next() {
 		var panelID, panelTitle, panelType, dashboardID, dashboardName, layoutBrokerID, cfgStr string
@@ -249,25 +258,13 @@ func (h *CronHandler) ListCronJobs(w http.ResponseWriter, r *http.Request) {
 			Enabled:       cfg.Enabled,
 		}
 
-		if info, ok := h.scheduler.GetJob(panelID); ok {
+		if info, ok := schedJobMap[panelID]; ok {
 			item.Enabled = info.Enabled
 			if !info.NextRun.IsZero() {
 				item.NextRun = &info.NextRun
 			}
 			if !info.PrevRun.IsZero() {
 				item.PrevRun = &info.PrevRun
-			}
-		} else if cfg.Enabled && cfg.CronExpr != "" && cfg.Topic != "" {
-			if err := h.scheduler.AddJob(panelID, brokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err == nil {
-				if info, ok := h.scheduler.GetJob(panelID); ok {
-					item.Enabled = info.Enabled
-					if !info.NextRun.IsZero() {
-						item.NextRun = &info.NextRun
-					}
-					if !info.PrevRun.IsZero() {
-						item.PrevRun = &info.PrevRun
-					}
-				}
 			}
 		}
 

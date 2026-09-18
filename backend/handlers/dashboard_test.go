@@ -423,3 +423,27 @@ func TestDeleteDashboard_RemovesCronJobs(t *testing.T) {
 		t.Error("expected cron job to be removed from scheduler when dashboard deleted")
 	}
 }
+
+func TestDeleteDashboard_InvalidatesCache(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('d2', 'Second')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'd2', 'Btn', 'button', 0, 0, 4, 4)`)
+
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	inv := &mockInvalidator{}
+	h.SetInvalidator(inv)
+	r := newDashboardRouter(h)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/dashboards/d2", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if len(inv.invalidated) != 1 || inv.invalidated[0] != "p1" {
+		t.Errorf("expected p1 to be invalidated, got %+v", inv.invalidated)
+	}
+}
+

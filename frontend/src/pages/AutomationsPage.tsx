@@ -500,7 +500,14 @@ export default function AutomationsPage() {
     }
 
     return result;
-  }, [jobs, searchQuery, filters, sort, currentTimeMs, selectedDashboardId]);
+  }, [
+    jobs,
+    searchQuery,
+    filters,
+    sort,
+    selectedDashboardId,
+    filters.nextRun === "soon" ? currentTimeMs : 0,
+  ]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-base-200/40">

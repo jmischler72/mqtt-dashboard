@@ -13,12 +13,17 @@ import (
 )
 
 type DashboardHandler struct {
-	db        *sql.DB
-	scheduler CronScheduler
+	db          *sql.DB
+	scheduler   CronScheduler
+	invalidator PanelMetaInvalidator
 }
 
 func NewDashboardHandler(db *sql.DB, scheduler CronScheduler) *DashboardHandler {
 	return &DashboardHandler{db: db, scheduler: scheduler}
+}
+
+func (h *DashboardHandler) SetInvalidator(invalidator PanelMetaInvalidator) {
+	h.invalidator = invalidator
 }
 
 func (h *DashboardHandler) ListDashboards(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +302,12 @@ func (h *DashboardHandler) DeleteDashboard(w http.ResponseWriter, r *http.Reques
 	if err := tx.Commit(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if h.invalidator != nil {
+		for _, pid := range panelIDs {
+			h.invalidator.InvalidatePanelMeta(pid)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
