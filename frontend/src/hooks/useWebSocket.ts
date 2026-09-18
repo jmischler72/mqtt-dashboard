@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 interface UseWebSocketOptions {
   onMessage: (data: string) => void;
@@ -171,10 +171,7 @@ const wsManager = new WSConnectionManager();
 let nextListenerId = 1;
 
 export function useWebSocket(options: UseWebSocketOptions) {
-  const listenerIdRef = useRef<string>("");
-  if (!listenerIdRef.current) {
-    listenerIdRef.current = `ws-sub-${nextListenerId++}`;
-  }
+  const [listenerId] = useState(() => `ws-sub-${nextListenerId++}`);
   const currentPanelId = useRef<string | undefined>(undefined);
 
   const onMessageRef = useRef(options.onMessage);
@@ -188,26 +185,28 @@ export function useWebSocket(options: UseWebSocketOptions) {
   }, [options.onMessage, options.onOpen, options.onClose]);
 
   useEffect(() => {
-    const id = listenerIdRef.current;
     wsManager.register({
-      id,
+      id: listenerId,
       onMessage: (data) => onMessageRef.current(data),
       onOpen: () => onOpenRef.current?.(),
       onClose: () => onCloseRef.current?.(),
     });
 
     return () => {
-      wsManager.unregister(id, currentPanelId.current);
+      wsManager.unregister(listenerId, currentPanelId.current);
     };
-  }, []);
+  }, [listenerId]);
 
-  const subscribe = useCallback((msg: object) => {
-    const payload = msg as SubscriptionPayload;
-    if (payload.panel_id) {
-      currentPanelId.current = payload.panel_id;
-    }
-    wsManager.subscribe(listenerIdRef.current, payload);
-  }, []);
+  const subscribe = useCallback(
+    (msg: object) => {
+      const payload = msg as SubscriptionPayload;
+      if (payload.panel_id) {
+        currentPanelId.current = payload.panel_id;
+      }
+      wsManager.subscribe(listenerId, payload);
+    },
+    [listenerId],
+  );
 
   return { subscribe };
 }
