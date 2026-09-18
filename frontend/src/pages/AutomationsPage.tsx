@@ -185,7 +185,9 @@ export default function AutomationsPage() {
     try {
       const [data, dList] = await Promise.all([
         api.getScheduledJobs(),
-        api.getDashboards().catch(() => []),
+        api
+          .get<Array<{ id: string; name: string }>>("/api/dashboards")
+          .catch(() => []),
       ]);
       setJobs(data);
       if (dList.length > 0) setDashboards(dList);
@@ -198,7 +200,12 @@ export default function AutomationsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.getScheduledJobs(), api.getDashboards().catch(() => [])])
+    Promise.all([
+      api.getScheduledJobs(),
+      api
+        .get<Array<{ id: string; name: string }>>("/api/dashboards")
+        .catch(() => []),
+    ])
       .then(([data, dList]) => {
         if (!cancelled) {
           setJobs(data);
