@@ -39,7 +39,44 @@ type Client struct {
 	topics   []string
 	send     chan WSMessage
 	hub      *Hub
+	mu       sync.Mutex
+	closed   bool
 }
+
+// SetPanelID sets the client's associated panel ID safely under lock.
+func (c *Client) SetPanelID(panelID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.panelID = panelID
+}
+
+// Send non-blockingly sends a message to the client, stamped with the client's panelID.
+// It returns false if the client is already closed or if the channel buffer is full.
+func (c *Client) Send(msg WSMessage) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return false
+	}
+	msg.PanelID = c.panelID
+	select {
+	case c.send <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
+// Close marks the client as closed and safely closes the send channel once.
+func (c *Client) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.closed {
+		c.closed = true
+		close(c.send)
+	}
+}
+
 
 // brokerTopic is a composite key for routing: one broker × one topic.
 type brokerTopic struct {
@@ -93,7 +130,7 @@ func (h *Hub) Unregister(c *Client) {
 	slog.Debug("ws client unregistered", "client_id", c.id)
 
 	delete(h.clients, c.id)
-	close(c.send)
+	c.Close()
 
 	for _, topic := range c.topics {
 		h.removeTopicClient(brokerTopic{c.brokerID, topic}, c.id)
@@ -198,12 +235,7 @@ func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler
 			SourceDashboardID: sourceDashboard,
 		}
 		for _, c := range clients {
-			msg.PanelID = c.panelID
-			select {
-			case c.send <- msg:
-			default:
-				// Drop message if channel is full
-			}
+			c.Send(msg)
 		}
 	}
 }

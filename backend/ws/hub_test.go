@@ -342,3 +342,66 @@ func TestResolvePanelMeta_NegativeCaching(t *testing.T) {
 	// Invalidate works cleanly even on un-cached or negative-cached
 	hub.InvalidatePanelMeta("nonexistent")
 }
+
+func TestClient_ConcurrentSendAndClose(t *testing.T) {
+	c := &Client{
+		id:   "test-concurrent",
+		send: make(chan WSMessage, 10),
+	}
+
+	var wg sync.WaitGroup
+	// Goroutine sending messages
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 1000; j++ {
+				c.Send(WSMessage{Topic: "test", Payload: "hello"})
+			}
+		}()
+	}
+
+	// Goroutine closing client
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.Close()
+	}()
+
+	wg.Wait()
+	// Must not panic and Send must return false after Close
+	if c.Send(WSMessage{Topic: "test"}) {
+		t.Error("Send on closed client returned true, want false")
+	}
+}
+
+func TestHub_UnregisterConcurrentSend(t *testing.T) {
+	reg := newMockBrokerSub()
+	hub := NewHub(reg)
+
+	c := newTestClient(hub)
+	hub.Register(c)
+	hub.Subscribe(c, "b1", []string{"sensor/temp"})
+
+	var wg sync.WaitGroup
+	// Trigger messages from MQTT handler
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 500; j++ {
+				reg.trigger("b1", "sensor/temp", []byte("42"))
+			}
+		}()
+	}
+
+	// Concurrently unregister client
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		hub.Unregister(c)
+	}()
+
+	wg.Wait()
+}
+

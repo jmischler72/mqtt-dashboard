@@ -182,6 +182,9 @@ func (r *BrokerRegistry) AddBroker(broker models.MQTTBroker) error {
 	mgr := NewManager()
 	err := mgr.Connect(broker)
 	r.mu.Lock()
+	if old, exists := r.clients[broker.ID]; exists && old != nil {
+		old.Disconnect()
+	}
 	r.clients[broker.ID] = mgr
 	r.mu.Unlock()
 	// Subscribe '#' for history capture. MQTTManager prevents overlapping MQTT

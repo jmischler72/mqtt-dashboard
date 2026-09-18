@@ -420,3 +420,35 @@ func TestGetHistory_ReturnsSourcePanelMeta(t *testing.T) {
 	}
 }
 
+func TestGetHistory_Limit(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewExplorerHandler(database)
+	r := newExplorerRouter(h)
+
+	for i := 1; i <= 10; i++ {
+		database.Exec(`INSERT INTO mqtt_history (broker_id, topic, payload, timestamp) VALUES ('b1', 'sensor/limit', ?, DATETIME('now', '+' || ? || ' seconds'))`, i, i)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/explorer/history?broker_id=b1&topic=sensor/limit&limit=3", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var records []struct {
+		Payload string `json:"payload"`
+	}
+	decodeJSON(t, rec.Body, &records)
+
+	if len(records) != 3 {
+		t.Fatalf("expected 3 records, got %d", len(records))
+	}
+	// The 3 most recent should be 8, 9, 10 in chronological (ascending) order
+	if records[0].Payload != "8" || records[1].Payload != "9" || records[2].Payload != "10" {
+		t.Errorf("expected payloads [8, 9, 10], got [%s, %s, %s]", records[0].Payload, records[1].Payload, records[2].Payload)
+	}
+}
+
+

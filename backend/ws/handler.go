@@ -86,7 +86,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		}
 		var subReq SubscribeRequest
 		if err := json.Unmarshal(raw, &subReq); err == nil && subReq.PanelID != "" {
-			c.panelID = subReq.PanelID
+			c.SetPanelID(subReq.PanelID)
 			brokerID := subReq.BrokerID
 			if brokerID == "" {
 				brokerID = h.registry.DefaultBrokerID()

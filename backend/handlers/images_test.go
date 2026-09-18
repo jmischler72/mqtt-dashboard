@@ -213,3 +213,46 @@ func TestImageListPresets_IgnoresDirsAndNonImages(t *testing.T) {
 		t.Fatalf("expected only valid.png in presets, got %+v", presets)
 	}
 }
+
+func TestImageServe_SVGSecurityHeaders(t *testing.T) {
+	dir := t.TempDir()
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	svgContent := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><text>hello</text></svg>`)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, uploadRequest(t, "icon.svg", svgContent))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("upload status = %d, want 201", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/images/icon.svg", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("serve status = %d, want 200", rec.Code)
+	}
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp != "default-src 'none'" {
+		t.Errorf("Content-Security-Policy = %q, want %q", csp, "default-src 'none'")
+	}
+	nosniff := rec.Header().Get("X-Content-Type-Options")
+	if nosniff != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want %q", nosniff, "nosniff")
+	}
+}
+
+func TestImageUpload_ExceedsMaxBytes(t *testing.T) {
+	dir := t.TempDir()
+	h := handlers.NewImageHandler(dir)
+	r := newImageRouter(h)
+
+	// 9 MiB exceeds maxImageUpload (8 MiB)
+	hugeData := bytes.Repeat([]byte("A"), 9<<20)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, uploadRequest(t, "huge.png", hugeData))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("upload status = %d, want 400 Bad Request for oversized upload", rec.Code)
+	}
+}
+
