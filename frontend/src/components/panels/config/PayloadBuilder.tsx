@@ -8,16 +8,16 @@ import {
   VALUE_TOKEN,
   findLiterals,
   hasToken,
-  keepOneToken,
-  offsetAfterKeepOneToken,
   readShape,
   renderPayload,
 } from "../payloadShape";
 import MessageHistory from "./MessageHistory";
 import {
+  TOKEN_ATTR,
   paintTemplate,
   readSelectionOffsets,
   readTemplate,
+  removeChipFromEditor,
   setCaret,
 } from "./tokenEditor";
 import PreviewBox from "./PreviewBox";
@@ -128,6 +128,7 @@ export default function PayloadBuilder({
   note = "Sent exactly as written.",
 }: PayloadBuilderProps) {
   const [covered, setCovered] = useState("");
+  const coveredIndex = useRef<number | null>(null);
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
   const [position, setPosition] = useState<number | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -153,8 +154,27 @@ export default function PayloadBuilder({
   const useMessage = (payload: string, index: number) => {
     onChange(markFirstNumber(payload, acceptsChip));
     setCovered(acceptsChip ? (firstNumber(payload)?.text ?? "") : "");
+    coveredIndex.current = 0;
     setUsedIndex(index);
     setPosition(null);
+  };
+
+  const handleRemoveChip = (chip: HTMLElement) => {
+    const host = box.current;
+    if (!host) return;
+    const { template: next, caret } = removeChipFromEditor(
+      host,
+      chip,
+      covered,
+    );
+    painted.current = next;
+    onChange(next);
+    if (!hasToken(next)) {
+      setCovered("");
+      coveredIndex.current = null;
+    }
+    host.focus();
+    setCaret(host, caret);
   };
 
   useEffect(() => {
@@ -162,8 +182,9 @@ export default function PayloadBuilder({
     if (!host) return;
     if (painted.current === value) return;
 
-    paintTemplate(host, value, acceptsChip);
+    paintTemplate(host, value, acceptsChip, covered, coveredIndex.current);
     painted.current = value;
+    coveredIndex.current = null;
 
     const caret = pendingCaret.current;
     pendingCaret.current = null;
@@ -171,7 +192,7 @@ export default function PayloadBuilder({
       host.focus();
       setCaret(host, caret);
     }
-  }, [value, acceptsChip]);
+  }, [value, acceptsChip, covered]);
 
   return (
     <div className="flex flex-col gap-2.5 min-w-0">
@@ -201,28 +222,28 @@ export default function PayloadBuilder({
         aria-label={reading ? "Message shape" : "Message"}
         data-placeholder={placeholder}
         spellCheck={false}
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          const removeBtn = target.closest("[data-remove-token]");
+          if (removeBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const chip = removeBtn.closest<HTMLElement>(`[${TOKEN_ATTR}]`);
+            if (chip) handleRemoveChip(chip);
+          }
+        }}
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.closest("[data-remove-token]")) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         onInput={(e) => {
           const host = e.currentTarget;
           const raw = readTemplate(host);
-          const next = acceptsChip ? keepOneToken(raw) : raw;
-
-          if (next === raw) {
-            painted.current = next;
-          } else {
-            // A second chip was spelled out and has been dropped. The box still
-            // shows it, so leave `painted` on what is there and let the repaint
-            // run; the caret moves back only past the removals that were
-            // actually before it — a chip typed *ahead* of an existing one wins,
-            // and it is the older one behind the caret that goes.
-            painted.current = raw;
-            const at = readSelectionOffsets(host)?.start ?? raw.length;
-            pendingCaret.current = Math.min(
-              next.length,
-              offsetAfterKeepOneToken(raw, at),
-            );
-          }
-
-          onChange(next);
+          painted.current = raw;
+          onChange(raw);
           setUsedIndex(null);
         }}
         onPaste={(e) => {
@@ -255,7 +276,10 @@ export default function PayloadBuilder({
             pendingCaret.current = at;
           }}
           covered={covered}
-          onCoveredChange={setCovered}
+          onCoveredChange={(text, idx) => {
+            setCovered(text);
+            coveredIndex.current = idx ?? null;
+          }}
         />
       ) : (
         note && <span className="text-[11px] text-base-content/50">{note}</span>
