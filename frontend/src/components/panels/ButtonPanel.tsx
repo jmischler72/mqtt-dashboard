@@ -83,8 +83,6 @@ export function ButtonConfigModal({
     }),
   ]);
 
-  const topicCount = topic.split(",").filter((t) => t.trim()).length;
-
   return (
     <PanelConfigModal
       icon={MdSmartButton}
@@ -101,8 +99,6 @@ export function ButtonConfigModal({
     >
       <ConfigGroup heading="Publish">
         <BrokerTopicCard
-          title="Publishes to"
-          summary={topicCount > 1 ? `${topicCount} topics` : undefined}
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}

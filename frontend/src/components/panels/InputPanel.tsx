@@ -71,8 +71,6 @@ export function InputConfigModal({
     ...topicRules({ topic }),
   ]);
 
-  const topicCount = topic.split(",").filter((t) => t.trim()).length;
-
   return (
     <PanelConfigModal
       icon={MdInput}
@@ -94,8 +92,6 @@ export function InputConfigModal({
     >
       <ConfigGroup heading="Publish">
         <BrokerTopicCard
-          title="Publishes to"
-          summary={topicCount > 1 ? `${topicCount} topics` : undefined}
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}

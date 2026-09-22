@@ -1,11 +1,11 @@
 import type { ComponentType, ReactNode } from "react";
 import { useEffect } from "react";
-import BrokerStatusPill from "./BrokerStatusPill";
 import type { BrokerPresence } from "./brokerPresence";
 
 export interface PanelConfigModalProps {
   icon?: ComponentType<{ size?: number; className?: string }>;
   title: string;
+  /** @deprecated Broker status is now displayed inline next to each broker picker. */
   brokerStatus?: BrokerPresence;
   /**
    * The single most important reason Save is off, already phrased as a
@@ -20,14 +20,14 @@ export interface PanelConfigModalProps {
 
 /**
  * The shell every panel config modal wears: a fixed header carrying the panel's
- * own icon and the live broker state, a scrolling body, and a footer that never
+ * own icon and title, a scrolling body, and a footer that never
  * scrolls away — so a Save that cannot be pressed always says why without the
  * user hunting for the field that broke.
  */
 export default function PanelConfigModal({
   icon: Icon,
   title,
-  brokerStatus,
+  brokerStatus: _brokerStatus,
   blockerReason,
   onCancel,
   onSave,
@@ -56,7 +56,6 @@ export default function PanelConfigModal({
           <h3 className="font-bold text-[15px] leading-tight truncate">
             {title}
           </h3>
-          {brokerStatus && <BrokerStatusPill presence={brokerStatus} />}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-[20px] pt-3.5 pb-4">

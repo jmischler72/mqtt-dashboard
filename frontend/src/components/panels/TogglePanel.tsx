@@ -258,7 +258,6 @@ export function ToggleConfigModal({
     >
       <ConfigGroup heading="Publish">
         <BrokerTopicCard
-          title="Publishes to"
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}

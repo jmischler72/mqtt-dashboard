@@ -234,7 +234,6 @@ export function SliderConfigModal({
     >
       <ConfigGroup heading="Publish">
         <BrokerTopicCard
-          title="Publishes to"
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}
