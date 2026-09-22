@@ -319,6 +319,7 @@ export function SliderConfigModal({
               rangeUsable ? { min: minNum, max: maxNum, step: stepNum } : null
             }
             placeholder={`{"brightness":${VALUE_TOKEN}}`}
+            previewCard
           />
           {fieldErrors.payload && (
             <span className="text-[11px] text-warning">
@@ -390,6 +391,7 @@ export function SliderConfigModal({
               topic={stateTopic}
               unit={unit}
               placeholder={`{"brightness":${VALUE_TOKEN}}`}
+              previewCard
             />
             <button
               type="button"

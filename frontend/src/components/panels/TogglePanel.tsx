@@ -285,7 +285,18 @@ export function ToggleConfigModal({
           // Both states, because the difference between them is the point
           summary={
             configured ? (
-              <span className="font-mono">{`${summaryOn}  /  ${summaryOff}`}</span>
+              <span
+                className="inline-flex items-center gap-1.5 min-w-0 max-w-full font-mono text-[11px]"
+                title={`${summaryOn} / ${summaryOff}`}
+              >
+                <span className="truncate min-w-0 max-w-[110px] sm:max-w-[170px]">
+                  {summaryOn}
+                </span>
+                <span className="text-base-content/40 shrink-0">/</span>
+                <span className="truncate min-w-0 max-w-[110px] sm:max-w-[170px]">
+                  {summaryOff}
+                </span>
+              </span>
             ) : (
               <span className="text-base-content/50">not configured</span>
             )

@@ -35,7 +35,7 @@ describe("BrokerTopicCard", () => {
 
     // Header elements
     expect(screen.getByText("Broker & Topic")).toBeInTheDocument();
-    expect(screen.getByText(/Main Broker : living-room\/lamp/)).toBeInTheDocument();
+    expect(screen.queryByText(/Main Broker : living-room\/lamp/)).toBeNull();
 
     // Connected status dot should have bg-success
     const greenDot = document.querySelector(".w-1\\.5.h-1\\.5.bg-success");
@@ -81,11 +81,13 @@ describe("BrokerTopicCard", () => {
     await userEvent.click(toggleButton);
     expect(toggleButton).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("textbox", { name: "Topic" })).toBeNull();
+    expect(screen.getByText(/Main Broker : living-room\/lamp/)).toBeInTheDocument();
 
     // Click to expand again
     await userEvent.click(toggleButton);
     expect(toggleButton).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
+    expect(screen.queryByText(/Main Broker : living-room\/lamp/)).toBeNull();
   });
 
   it("respects defaultOpen=false", () => {
@@ -103,6 +105,7 @@ describe("BrokerTopicCard", () => {
     const toggleButton = screen.getByRole("button", { name: /Broker & Topic/ });
     expect(toggleButton).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("textbox", { name: "Topic" })).toBeNull();
+    expect(screen.getByText(/Main Broker : sensors\/temp/)).toBeInTheDocument();
   });
 
   it("renders bare mode without disclosure card wrapper", () => {
@@ -132,6 +135,7 @@ describe("BrokerTopicCard", () => {
         onBrokerChange={() => {}}
         topic=""
         onTopicChange={() => {}}
+        defaultOpen={false}
       />,
     );
 

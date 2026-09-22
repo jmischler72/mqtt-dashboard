@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import type { BrokerStatus } from "../../../hooks/useBrokers";
 import BrokerSelect from "./BrokerSelect";
 import DisclosureCard from "./DisclosureCard";
-import FieldRow from "./FieldRow";
 import NoBrokersNotice from "./NoBrokersNotice";
 import TopicField from "./TopicField";
 
@@ -63,20 +62,14 @@ export default function BrokerTopicCard({
   defaultOpen = true,
 }: BrokerTopicCardProps) {
   const rows = (
-    <>
-      <FieldRow label="Broker">
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <div className="join w-full min-w-0">
         <BrokerSelect
           value={brokerId}
           onChange={onBrokerChange}
           brokers={brokers}
+          joined
         />
-      </FieldRow>
-
-      <FieldRow
-        label="Topic"
-        invalid={Boolean(topicError)}
-        help={topicError ?? help}
-      >
         <TopicField
           value={topic}
           onChange={onTopicChange}
@@ -84,11 +77,22 @@ export default function BrokerTopicCard({
           invalid={Boolean(topicError)}
           onExplore={onExplore}
           brokerId={brokerId}
+          joined
         />
-      </FieldRow>
+      </div>
+
+      {topicError ? (
+        <span className="text-[11px] leading-relaxed text-warning pl-1">
+          {topicError}
+        </span>
+      ) : help ? (
+        <span className="text-[10.5px] leading-relaxed text-base-content/40 pl-1">
+          {help}
+        </span>
+      ) : null}
 
       {children}
-    </>
+    </div>
   );
 
   const content = brokers.length === 0 ? <NoBrokersNotice /> : rows;

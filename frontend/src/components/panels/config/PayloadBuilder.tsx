@@ -12,6 +12,7 @@ import {
   renderPayload,
 } from "../payloadShape";
 import MessageHistory from "./MessageHistory";
+import PreviewBox from "./PreviewBox";
 import {
   TOKEN_ATTR,
   paintTemplate,
@@ -20,8 +21,8 @@ import {
   removeChipFromEditor,
   setCaret,
 } from "./tokenEditor";
-import PreviewBox from "./PreviewBox";
 import ValueChipControls from "./ValueChipControls";
+import { RiCloseLine } from "react-icons/ri";
 
 export interface PayloadHistory {
   messages: RecentMessage[];
@@ -59,6 +60,11 @@ export interface PayloadBuilderProps {
    */
   showPreview?: boolean;
   /**
+   * Whether to render preview as a standalone PreviewBox card below the editor
+   * instead of an integrated footer bar. Defaults to true when a range is present.
+   */
+  previewCard?: boolean;
+  /**
    * False for a panel with no runtime value (button, cron): the chip would
    * publish an empty hole, so it is never offered.
    */
@@ -91,12 +97,10 @@ export interface PayloadBuilderProps {
   note?: string | null;
 }
 
-/** The bytes box's own class list — monospace, wrapping, nothing clever. */
+/** The bytes box's own class list — monospace, wrapping, inside integrated container. */
 const boxClass =
-  "w-full rounded-lg border border-base-300 dark:border-base-100 bg-base-300 " +
-  "px-2.5 py-2 font-mono text-xs leading-relaxed break-all cursor-text " +
+  "w-full pl-2.5 py-2 font-mono text-xs leading-relaxed break-all cursor-text " +
   "min-h-[2.25rem] max-h-40 overflow-auto whitespace-pre-wrap outline-none " +
-  "focus:border-primary " +
   "empty:before:content-[attr(data-placeholder)] empty:before:text-base-content/40";
 
 /**
@@ -117,6 +121,7 @@ export default function PayloadBuilder({
   history,
   showHistory = true,
   showPreview = true,
+  previewCard,
   acceptsChip = true,
   allowBlankShape = false,
   readPath,
@@ -125,8 +130,9 @@ export default function PayloadBuilder({
   range,
   previewValue,
   unit,
-  note = "Sent exactly as written.",
+  note,
 }: PayloadBuilderProps) {
+  const isPreviewCard = previewCard ?? Boolean(range);
   const [covered, setCovered] = useState("");
   const coveredIndex = useRef<number | null>(null);
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
@@ -194,74 +200,128 @@ export default function PayloadBuilder({
     }
   }, [value, acceptsChip, covered]);
 
-  return (
-    <div className="flex flex-col gap-2.5 min-w-0">
-      {showHistory && (
-        <MessageHistory
-          topic={topic}
-          messages={messages}
-          loading={loading}
-          actions={[
-            { key: "use", label: "use this message", onUse: useMessage },
-          ]}
-          usedKey={usedIndex === null ? null : `${usedIndex}:use`}
-        />
-      )}
+  const historyNode = showHistory ? (
+    <MessageHistory
+      topic={topic}
+      messages={messages}
+      loading={loading}
+      actions={[
+        { key: "use", label: "use this message", onUse: useMessage },
+      ]}
+      usedKey={usedIndex === null ? null : `${usedIndex}:use`}
+    />
+  ) : null;
 
-      {/* A contenteditable rather than a textarea, so the token can be the
-          chip that says what it is rather than the literal characters
-          "{value}". The chip is atomic — it cannot be typed inside or
-          half-deleted — and everything around it is ordinary text editing. */}
-      <div
-        ref={box}
-        className={boxClass}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-multiline="true"
-        aria-label={reading ? "Message shape" : "Message"}
-        data-placeholder={placeholder}
-        spellCheck={false}
-        onMouseDown={(e) => {
-          const target = e.target as HTMLElement;
-          const removeBtn = target.closest("[data-remove-token]");
-          if (removeBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            const chip = removeBtn.closest<HTMLElement>(`[${TOKEN_ATTR}]`);
-            if (chip) handleRemoveChip(chip);
-          }
-        }}
-        onClick={(e) => {
-          const target = e.target as HTMLElement;
-          if (target.closest("[data-remove-token]")) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-        onInput={(e) => {
-          const host = e.currentTarget;
-          const raw = readTemplate(host);
-          painted.current = raw;
-          onChange(raw);
-          setUsedIndex(null);
-        }}
-        onPaste={(e) => {
-          // Paste plain text: clipboard HTML would drag styling in, and worse,
-          // markup that reads back as payload it never contained.
-          e.preventDefault();
-          document.execCommand(
-            "insertText",
-            false,
-            e.clipboardData.getData("text/plain"),
-          );
-        }}
-      />
+  return (
+    <div className="flex flex-col gap-2 min-w-0">
+      {/* Integrated editor container with border and embedded preview footer */}
+      <div className="rounded-lg border border-base-300 dark:border-base-100 bg-base-300 overflow-hidden focus-within:border-primary transition-colors flex flex-col">
+        {/* A contenteditable rather than a textarea, so the token can be the
+            chip that says what it is rather than the literal characters
+            "{value}". The chip is atomic — it cannot be typed inside or
+            half-deleted — and everything around it is ordinary text editing. */}
+        <div className="relative">
+          <div
+            ref={box}
+            className={`${boxClass} ${value.length > 0 ? "pr-8" : "pr-2.5"}`}
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            aria-multiline="true"
+            aria-label={reading ? "Message shape" : "Message"}
+            data-placeholder={placeholder}
+            spellCheck={false}
+            onMouseDown={(e) => {
+              const target = e.target as HTMLElement;
+              const removeBtn = target.closest("[data-remove-token]");
+              if (removeBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const chip = removeBtn.closest<HTMLElement>(`[${TOKEN_ATTR}]`);
+                if (chip) handleRemoveChip(chip);
+              }
+            }}
+            onClick={(e) => {
+              const target = e.target as HTMLElement;
+              if (target.closest("[data-remove-token]")) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+            onInput={(e) => {
+              const host = e.currentTarget;
+              const raw = readTemplate(host);
+              painted.current = raw;
+              onChange(raw);
+              setUsedIndex(null);
+            }}
+            onPaste={(e) => {
+              // Paste plain text: clipboard HTML would drag styling in, and worse,
+              // markup that reads back as payload it never contained.
+              e.preventDefault();
+              document.execCommand(
+                "insertText",
+                false,
+                e.clipboardData.getData("text/plain"),
+              );
+            }}
+          />
+
+          {value.length > 0 && (
+            <button
+              type="button"
+              title="Clear message"
+              aria-label="Clear message"
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={() => {
+                onChange("");
+                setCovered("");
+                coveredIndex.current = null;
+                setUsedIndex(null);
+                setPosition(null);
+                box.current?.focus();
+              }}
+              className="absolute right-1.5 top-1.5 btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content cursor-pointer"
+            >
+              <RiCloseLine className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {!showPreview || isPreviewCard ? null : reading ? (
+          <ReadPreview
+            value={value}
+            latest={latest}
+            topic={topic}
+            chip={chip}
+            allowBlankShape={allowBlankShape}
+            readPath={readPath}
+            readsText={readsText}
+            unit={unit}
+            asCard={false}
+          />
+        ) : (
+          acceptsChip && (
+            <WritePreview
+              value={value}
+              chip={chip}
+              range={range ?? null}
+              previewValue={previewValue}
+              position={position}
+              onPosition={setPosition}
+              asCard={false}
+            />
+          )
+        )}
+      </div>
 
       {acceptsChip ? (
         <ValueChipControls
           mode={mode}
           value={value}
+          history={historyNode}
           onChange={(next) => {
             // A chip action that changes nothing repaints nothing, so the caret
             // it asked for would sit in the ref and fire on some later,
@@ -282,30 +342,47 @@ export default function PayloadBuilder({
           }}
         />
       ) : (
-        note && <span className="text-[11px] text-base-content/50">{note}</span>
+        (historyNode || note) && (
+          <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+            {note ? (
+              <span className="text-[11px] text-base-content/50">{note}</span>
+            ) : (
+              <span />
+            )}
+            {historyNode && (
+              <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                {historyNode}
+              </div>
+            )}
+          </div>
+        )
       )}
 
-      {!showPreview ? null : reading ? (
-        <ReadPreview
-          value={value}
-          latest={latest}
-          topic={topic}
-          chip={chip}
-          allowBlankShape={allowBlankShape}
-          readPath={readPath}
-          readsText={readsText}
-          unit={unit}
-        />
-      ) : (
-        acceptsChip && (
-          <WritePreview
+      {showPreview && isPreviewCard && (
+        reading ? (
+          <ReadPreview
             value={value}
+            latest={latest}
+            topic={topic}
             chip={chip}
-            range={range ?? null}
-            previewValue={previewValue}
-            position={position}
-            onPosition={setPosition}
+            allowBlankShape={allowBlankShape}
+            readPath={readPath}
+            readsText={readsText}
+            unit={unit}
+            asCard={true}
           />
+        ) : (
+          acceptsChip && (
+            <WritePreview
+              value={value}
+              chip={chip}
+              range={range ?? null}
+              previewValue={previewValue}
+              position={position}
+              onPosition={setPosition}
+              asCard={true}
+            />
+          )
         )
       )}
     </div>
@@ -357,6 +434,7 @@ function WritePreview({
   previewValue,
   position,
   onPosition,
+  asCard = false,
 }: {
   value: string;
   chip: boolean;
@@ -364,18 +442,57 @@ function WritePreview({
   previewValue?: string;
   position: number | null;
   onPosition: (next: number) => void;
+  asCard?: boolean;
 }) {
-  if (!chip) {
+  if (asCard) {
+    if (!chip) {
+      return (
+        <PreviewBox
+          problem={
+            value.trim() === ""
+              ? "Nothing to send yet."
+              : `No ${TOKEN_LABEL} chip in message.`
+          }
+        />
+      );
+    }
+
+    if (range) {
+      const midpoint =
+        range.min +
+        Math.round((range.max - range.min) / 2 / range.step) * range.step;
+      const at = position ?? midpoint;
+
+      return (
+        <PreviewBox note="Move the handle.">
+          <div className="flex flex-col gap-2 min-w-0">
+            <input
+              type="range"
+              aria-label="Preview position"
+              className="range range-primary range-xs w-full"
+              min={range.min}
+              max={range.max}
+              step={range.step}
+              value={at}
+              onChange={(e) => onPosition(Number(e.target.value))}
+            />
+            <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+          </div>
+        </PreviewBox>
+      );
+    }
+
     return (
-      <PreviewBox
-        problem={
-          value.trim() === ""
-            ? "Nothing to send yet."
-            : `No ${TOKEN_LABEL} chip — every publish sends these exact bytes.`
-        }
-      />
+      <PreviewBox>
+        <PreviewLine
+          label="Sends"
+          bytes={renderPayload(value, previewValue ?? "")}
+        />
+      </PreviewBox>
     );
   }
+
+  if (!chip) return null;
 
   if (range) {
     const midpoint =
@@ -384,31 +501,29 @@ function WritePreview({
     const at = position ?? midpoint;
 
     return (
-      <PreviewBox note="Move the handle.">
-        <div className="flex flex-col gap-2 min-w-0">
-          <input
-            type="range"
-            aria-label="Preview position"
-            className="range range-primary range-xs w-full"
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            value={at}
-            onChange={(e) => onPosition(Number(e.target.value))}
-          />
-          <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
-        </div>
-      </PreviewBox>
+      <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-2 flex flex-col gap-1.5 min-w-0">
+        <input
+          type="range"
+          aria-label="Preview position"
+          className="range range-primary range-xs w-full"
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={at}
+          onChange={(e) => onPosition(Number(e.target.value))}
+        />
+        <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+      </div>
     );
   }
 
   return (
-    <PreviewBox>
+    <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 min-w-0">
       <PreviewLine
         label="Sends"
         bytes={renderPayload(value, previewValue ?? "")}
       />
-    </PreviewBox>
+    </div>
   );
 }
 
@@ -421,6 +536,7 @@ function ReadPreview({
   readPath,
   readsText,
   unit,
+  asCard = false,
 }: {
   value: string;
   latest: RecentMessage | null;
@@ -430,29 +546,72 @@ function ReadPreview({
   readPath?: string;
   readsText?: boolean;
   unit?: string;
+  asCard?: boolean;
 }) {
   const blank = value.trim() === "";
 
-  // "No sample yet" and "the shape does not fit" are different problems and are
-  // never collapsed into one another — nothing published yet is not a mistake.
-  if (!latest) {
+  if (asCard) {
+    if (!latest) {
+      return (
+        <PreviewBox
+          problem={
+            topic.trim() === ""
+              ? "No topic yet."
+              : "Waiting for messages…"
+          }
+        />
+      );
+    }
+
+    if ((blank && !allowBlankShape) || (!blank && !chip)) {
+      return <PreviewBox problem={`Click {${TOKEN_LABEL}} to mark value`} />;
+    }
+
+    const read = readShape(value, latest.payload, readPath);
+
+    if (!read.found) {
+      return (
+        <PreviewBox>
+          <PreviewLine label="Latest" bytes={latest.payload} />
+          <span className="text-[11px] leading-relaxed text-warning">
+            Pattern mismatch with latest message
+          </span>
+        </PreviewBox>
+      );
+    }
+
     return (
-      <PreviewBox
-        problem={
-          topic.trim() === ""
-            ? "No topic yet."
-            : "Nothing heard on this topic yet."
-        }
-      />
+      <PreviewBox>
+        <PreviewLine label="Latest" bytes={latest.payload} />
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="shrink-0 w-12 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
+            Reads
+          </span>
+          <span className="flex-1 min-w-0 font-mono font-semibold text-xs truncate text-success">
+            {readsText ? read.text : String(read.value)}
+            {unit ? ` ${unit}` : ""}
+          </span>
+        </div>
+      </PreviewBox>
     );
   }
 
-  if (blank && !allowBlankShape) {
-    return <PreviewBox problem="Nothing marked to read." />;
+  if (!latest) {
+    if (topic.trim() === "") return null;
+    return (
+      <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 text-[11px] text-base-content/40 italic flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-base-content/30 shrink-0" />
+        <span>Waiting for messages…</span>
+      </div>
+    );
   }
 
-  if (!blank && !chip) {
-    return <PreviewBox problem="Nothing marked to read." />;
+  if ((blank && !allowBlankShape) || (!blank && !chip)) {
+    return (
+      <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 text-[11px] text-base-content/40">
+        Click {TOKEN_LABEL} to mark value
+      </div>
+    );
   }
 
   // Read it exactly the way the panel will, so the two can never disagree:
@@ -462,33 +621,32 @@ function ReadPreview({
 
   if (!read.found) {
     return (
-      <PreviewBox>
+      <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
         <PreviewLine label="Latest" bytes={latest.payload} />
         <span className="text-[11px] leading-relaxed text-warning">
-          This shape doesn't match the message above. Adjust it, or start from a
-          message and mark the value.
+          Pattern mismatch with latest message
         </span>
-      </PreviewBox>
+      </div>
     );
   }
 
   return (
-    <PreviewBox note="What the panel reads.">
+    <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
       <PreviewLine label="Latest" bytes={latest.payload} />
       <div className="flex items-baseline gap-2 min-w-0">
-        <span className="shrink-0 w-[46px] text-[9px] font-semibold uppercase tracking-[0.09em] text-base-content/50">
+        <span className="shrink-0 w-12 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
           Reads
         </span>
-        <span className="flex-1 min-w-0 font-mono font-semibold text-[15px] truncate text-success">
+        <span className="flex-1 min-w-0 font-mono font-semibold text-xs truncate text-success">
           {readsText ? read.text : String(read.value)}
           {unit ? ` ${unit}` : ""}
         </span>
       </div>
-    </PreviewBox>
+    </div>
   );
 }
 
-/** One labelled row of bytes inside a `PreviewBox`. */
+/** One labelled row of bytes inside a preview. */
 export function PreviewLine({
   label,
   bytes,
@@ -498,7 +656,7 @@ export function PreviewLine({
 }) {
   return (
     <div className="flex items-start gap-2 min-w-0">
-      <span className="shrink-0 w-[46px] pt-0.5 text-[9px] font-semibold uppercase tracking-[0.09em] text-base-content/50">
+      <span className="shrink-0 w-12 pt-0.5 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
         {label}
       </span>
       <span className="flex-1 min-w-0 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">

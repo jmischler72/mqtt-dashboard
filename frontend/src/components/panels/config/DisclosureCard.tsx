@@ -44,8 +44,8 @@ export default function DisclosureCard({
           {open ? "▼" : "▶"}
         </span>
         <span className="text-[11px] font-semibold shrink-0">{title}</span>
-        {summary && (
-          <span className="ml-auto min-w-0 truncate text-[11.5px] text-base-content/60">
+        {!open && summary && (
+          <span className="ml-auto min-w-0 max-w-[70%] flex items-center justify-end text-[11.5px] text-base-content/60 overflow-hidden">
             {summary}
           </span>
         )}

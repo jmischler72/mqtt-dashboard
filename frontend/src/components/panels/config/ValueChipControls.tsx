@@ -1,4 +1,5 @@
-import { RiAddLine, RiCloseLine } from "react-icons/ri";
+import type { ReactNode } from "react";
+import { RiAddLine } from "react-icons/ri";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
@@ -35,6 +36,8 @@ export interface ValueChipControlsProps {
   onCoveredChange: (covered: string, tokenIndex?: number) => void;
   /** "read" marks the value to pull out; "write" marks where one drops in. */
   mode: "write" | "read";
+  /** Dropdown or controls for sample message history. */
+  history?: ReactNode;
 }
 
 /**
@@ -49,6 +52,7 @@ export default function ValueChipControls({
   covered,
   onCoveredChange,
   mode,
+  history,
 }: ValueChipControlsProps) {
   const literals = findLiterals(value);
 
@@ -63,7 +67,7 @@ export default function ValueChipControls({
   };
 
   return (
-    <div className="flex flex-col gap-[7px] min-w-0">
+    <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
         <button
           type="button"
@@ -107,22 +111,13 @@ export default function ValueChipControls({
             {literal.text}
           </button>
         ))}
-
-        {value.length > 0 && (
-          <button
-            type="button"
-            title="Clear message"
-            aria-label="Clear message"
-            onClick={() => {
-              onChange("");
-              onCoveredChange("");
-            }}
-            className="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content ml-auto cursor-pointer"
-          >
-            <RiCloseLine className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
+
+      {history && (
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          {history}
+        </div>
+      )}
     </div>
   );
 }
