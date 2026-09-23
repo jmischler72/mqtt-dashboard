@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
+import { RiAddLine } from "react-icons/ri";
 import {
   TOKEN_LABEL,
-  clearToken,
+  VALUE_TOKEN,
   findLiterals,
-  hasToken,
   markLiteral,
   placeToken,
 } from "../payloadShape";
@@ -31,54 +32,47 @@ export interface ValueChipControlsProps {
    * The text the chip currently covers. Remembered so removing the chip puts
    * back exactly what it replaced rather than a value the user never typed.
    */
-  covered: string;
-  onCoveredChange: (covered: string) => void;
+  onCoveredChange: (covered: string, tokenIndex?: number) => void;
   /** "read" marks the value to pull out; "write" marks where one drops in. */
   mode: "write" | "read";
+  /** Dropdown or controls for sample message history. */
+  history?: ReactNode;
 }
 
 /**
- * The chip controls under the bytes box: place the one `{value}` mark, move it,
- * take it away, or hand it straight to a literal already in the box.
- *
- * There is exactly one mark and it works in both directions — the same chip
- * that says "the panel's value goes here" when publishing says "read the value
- * from here" when subscribing.
+ * The chip controls under the bytes box: insert `{value}` marks or hand
+ * it straight to a literal already in the box.
  */
 export default function ValueChipControls({
   value,
   onChange,
   getSelection,
   onCaret,
-  covered,
   onCoveredChange,
   mode,
+  history,
 }: ValueChipControlsProps) {
-  const present = hasToken(value);
   const literals = findLiterals(value);
 
   const place = () => {
     // No caret in the box yet: the end of the payload is the honest guess.
     const at = getSelection() ?? { start: value.length, end: value.length };
-    // Whatever this drop covers is what a later removal hands back: the text
-    // the user actually replaced, never a value they never typed.
-    const placed = placeToken(value, at.start, at.end, covered);
+    const placed = placeToken(value, at.start, at.end);
+    const tokenIndex = value.slice(0, at.start).split(VALUE_TOKEN).length - 1;
     onCaret?.(placed.caret);
-    onCoveredChange(placed.covered);
+    onCoveredChange(placed.covered, tokenIndex);
     onChange(placed.template);
   };
 
   return (
-    <div className="flex flex-col gap-[7px] min-w-0">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
         <button
           type="button"
           title={
-            present
-              ? "Move the mark to the caret, or onto the selected text"
-              : mode === "read"
-                ? "Mark the part of the message the panel reads: click where it sits, or select it first"
-                : "Mark where the panel's value goes: click the spot, or select the text it replaces"
+            mode === "read"
+              ? "Mark the part of the message the panel reads: click where it sits, or select it first"
+              : "Insert {value}: click where it goes, or select the text it replaces"
           }
           // mousedown, not click: the default would move focus out of the box
           // and take the selection being aimed at with it.
@@ -86,41 +80,42 @@ export default function ValueChipControls({
             e.preventDefault();
             place();
           }}
-          className="inline-flex items-center h-6 px-2.5 rounded-full border border-primary bg-primary/10 font-mono text-[11px] cursor-pointer"
+          className="btn btn-xs btn-outline btn-primary rounded-full font-mono gap-1 h-6 min-h-0 text-[11px] cursor-pointer"
         >
-          {present ? `↦ move ${TOKEN_LABEL}` : `+ ${TOKEN_LABEL}`}
+          <RiAddLine className="w-3 h-3" />
+          <span>{TOKEN_LABEL}</span>
         </button>
-
-        {present && (
-          <button
-            type="button"
-            title="Remove the mark"
-            onClick={() => {
-              onChange(clearToken(value, covered));
-              onCoveredChange("");
-            }}
-            className="inline-flex items-center h-6 px-2.5 rounded-full border border-base-300 dark:border-base-100 bg-base-100 font-mono text-[11px] text-base-content/70 cursor-pointer"
-          >
-            {TOKEN_LABEL} ✕
-          </button>
-        )}
 
         {literals.map((literal) => (
           <button
             key={`${literal.start}-${literal.text}`}
             type="button"
-            title={`Mark ${literal.text}`}
+            title={`Replace "${literal.text}" with {${TOKEN_LABEL}}`}
             onClick={() => {
-              const result = markLiteral(value, literal, covered);
-              onCoveredChange(result.previous);
+              const result = markLiteral(value, literal);
+              const tokenIndex =
+                value.slice(0, literal.start).split(VALUE_TOKEN).length - 1;
+              onCoveredChange(result.previous, tokenIndex);
               onChange(result.template);
+              onCaret?.(
+                literal.start +
+                  (literal.text.startsWith('"')
+                    ? VALUE_TOKEN.length + 2
+                    : VALUE_TOKEN.length),
+              );
             }}
-            className="inline-flex items-center h-6 px-2.5 rounded-full border border-base-300 dark:border-base-100 bg-base-100 font-mono text-[11px] cursor-pointer hover:border-primary"
+            className="badge badge-sm badge-outline hover:badge-primary font-mono cursor-pointer transition-colors h-6 px-2 text-[11px]"
           >
             {literal.text}
           </button>
         ))}
       </div>
+
+      {history && (
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          {history}
+        </div>
+      )}
     </div>
   );
 }

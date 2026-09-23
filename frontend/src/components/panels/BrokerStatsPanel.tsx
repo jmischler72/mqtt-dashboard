@@ -121,7 +121,6 @@ export function BrokerStatsConfigModal({
     >
       <ConfigGroup heading="Read">
         <BrokerTopicCard
-          title="Counts traffic on"
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}

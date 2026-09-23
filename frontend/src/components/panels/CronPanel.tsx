@@ -108,8 +108,6 @@ export function CronConfigModal({
     }),
   ]);
 
-  const topicCount = topic.split(",").filter((t) => t.trim()).length;
-
   return (
     <PanelConfigModal
       icon={MdSchedule}
@@ -179,8 +177,6 @@ export function CronConfigModal({
         </ConfigCard>
 
         <BrokerTopicCard
-          title="Publishes to"
-          summary={topicCount > 1 ? `${topicCount} topics` : undefined}
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}

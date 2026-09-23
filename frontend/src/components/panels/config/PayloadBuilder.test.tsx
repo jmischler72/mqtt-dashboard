@@ -115,13 +115,38 @@ describe("starting from a message", () => {
 });
 
 describe("a payload that spells the chip out", () => {
-  it("keeps one chip when the bytes typed in name a second", () => {
+  it("allows multiple chips when the bytes typed in name a second", () => {
     render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
     const box = screen.getByRole("textbox");
     box.append(document.createTextNode(VALUE_TOKEN));
     fireEvent.input(box);
-    // Two would publish the value twice and read nothing back
-    expect(template()).toBe(`{"a":${VALUE_TOKEN}}`);
+    expect(template()).toBe(`{"a":${VALUE_TOKEN}}${VALUE_TOKEN}`);
+  });
+
+  it("removes a chip when clicking its inline remove button", () => {
+    render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
+    const box = screen.getByRole("textbox");
+    const removeBtn = box.querySelector("[data-remove-token]");
+    expect(removeBtn).toBeTruthy();
+    fireEvent.mouseDown(removeBtn!);
+    expect(template()).toBe('{"a":}');
+  });
+
+  it("restores the replaced literal when removing the chip", () => {
+    render(<Builder initial='{"temp":21.5}' payloads={[]} />);
+    // Click the detected literal "21.5"
+    fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
+    expect(template()).toBe(`{"temp":${VALUE_TOKEN}}`);
+
+    // Click the inline remove button on the chip
+    const box = screen.getByRole("textbox");
+    const removeBtn = box.querySelector("[data-remove-token]");
+    expect(removeBtn).toBeTruthy();
+    fireEvent.mouseDown(removeBtn!);
+
+    // The literal is restored and remains detected
+    expect(template()).toBe('{"temp":21.5}');
+    expect(screen.getByRole("button", { name: /21\.5/ })).toBeTruthy();
   });
 
   it("leaves those characters alone for a panel that publishes them", () => {

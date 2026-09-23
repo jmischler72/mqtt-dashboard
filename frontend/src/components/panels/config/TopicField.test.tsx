@@ -37,4 +37,18 @@ describe("TopicField", () => {
 
     expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
   });
+
+  it("renders status icon with tooltip for a single topic when brokerId is provided", () => {
+    const { container } = render(
+      <TopicField
+        value="sensors/temp"
+        brokerId="broker-1"
+        onChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
+    const tooltip = container.querySelector(".tooltip");
+    expect(tooltip).toBeInTheDocument();
+  });
 });

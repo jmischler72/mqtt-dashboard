@@ -18,6 +18,9 @@ export default defineConfig({
   server: {
     // Served through the shared dev proxy at http://<worktree>.localhost
     allowedHosts: [".localhost"],
+    watch: {
+      usePolling: true,
+    },
     hmr: {
       clientPort: Number(process.env.VITE_HMR_CLIENT_PORT ?? 5173),
     },

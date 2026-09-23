@@ -205,28 +205,17 @@ describe("placing the token", () => {
     expect(placed.template.slice(0, placed.caret)).toBe(`{"b":${T}`);
   });
 
-  it("moves an existing token rather than adding a second", () => {
+  it("allows multiple tokens when placing a second", () => {
     const template = `{"a":${T},"b":9}`;
     const nine = template.indexOf("9");
-    const placed = placeToken(template, nine, nine + 1, "1");
-    expect(placed.template).toBe(`{"a":1,"b":${T}}`);
-    expect(placed.template.split(T)).toHaveLength(2);
+    const placed = placeToken(template, nine, nine + 1);
+    expect(placed.template).toBe(`{"a":${T},"b":${T}}`);
+    expect(placed.template.split(T)).toHaveLength(3);
   });
 
-  it("stays put when dropped where it already is", () => {
-    // Repeated taps of the button: the caret sits just past the chip each time
-    let template = `{"b":${T}}`;
-    for (let i = 0; i < 3; i++) {
-      // The caret sits just past the chip after each tap
-      const placed = placeToken(template, 5 + T.length, 5 + T.length);
-      expect(placed.template).toBe(`{"b":${T}}`);
-      template = placed.template;
-    }
-  });
-
-  it("accounts for the restored constant when placing the caret", () => {
-    const placed = placeToken(`${T} C`, T.length + 2, T.length + 2, "20");
-    expect(placed.template).toBe(`20 C${T}`);
+  it("places the caret just past the added token", () => {
+    const placed = placeToken(`${T} C`, T.length + 2, T.length + 2);
+    expect(placed.template).toBe(`${T} C${T}`);
     expect(placed.caret).toBe(placed.template.length);
   });
 });

@@ -702,39 +702,19 @@ export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
 }
 
 /**
- * Move the token onto `literal`. Only one token may exist, so wherever it was
- * gets a constant handed back — the value it held before it was marked.
+ * Move the token onto `literal`.
  */
 export function markLiteral(
   template: string,
   literal: TemplateLiteral,
-  restore: string,
 ): { template: string; previous: string } {
   const quoted = literal.text.startsWith('"');
   const previous = quoted ? literal.text.slice(1, -1) : literal.text;
 
-  let next =
+  const next =
     template.slice(0, literal.start) +
     (quoted ? `"${VALUE_TOKEN}"` : VALUE_TOKEN) +
     template.slice(literal.end);
-
-  // Index of the token we just placed, so the older ones can be filled back in
-  const keepAt = quoted ? literal.start + 1 : literal.start;
-
-  const positions: number[] = [];
-  let at = next.indexOf(VALUE_TOKEN);
-  while (at !== -1) {
-    positions.push(at);
-    at = next.indexOf(VALUE_TOKEN, at + 1);
-  }
-
-  for (let i = positions.length - 1; i >= 0; i--) {
-    if (positions[i] === keepAt) continue;
-    next =
-      next.slice(0, positions[i]) +
-      restore +
-      next.slice(positions[i] + VALUE_TOKEN.length);
-  }
 
   return { template: next, previous };
 }
@@ -761,47 +741,21 @@ export function describeTemplate(template: string): string {
  * selected. A selection of zero width is a caret, so this both inserts and
  * replaces depending on what they did.
  *
- * Only one token can exist, so a token already sitting elsewhere hands its spot
- * back to the constant it displaced — the same trade `clearToken` makes. The
- * offsets come from the box, which shows the token spelled out, so they are
- * translated onto the text with the token taken back out before anything is
- * cut; without that, repeated taps of the button would walk the chip rightwards
- * by its own length each time.
- *
  * Returns where the caret belongs afterwards, just past the token, and the text
- * the token now covers so a later removal can put it back.
+ * the token now covers.
  */
 export function placeToken(
   template: string,
   start: number,
   end: number,
-  restore = "",
 ): { template: string; caret: number; covered: string } {
-  const at = template.indexOf(VALUE_TOKEN);
-  const stripped =
-    at === -1 ? template : template.split(VALUE_TOKEN).join(restore);
-
-  // An offset inside the token itself has no counterpart in the stripped text,
-  // so it collapses onto where the token began.
-  const translate = (offset: number) => {
-    if (at === -1) return Math.min(offset, stripped.length);
-    if (offset <= at) return offset;
-    if (offset >= at + VALUE_TOKEN.length) {
-      return Math.min(
-        offset - VALUE_TOKEN.length + restore.length,
-        stripped.length,
-      );
-    }
-    return at;
-  };
-
-  const from = translate(start);
-  const to = Math.max(from, translate(end));
+  const from = Math.max(0, Math.min(start, template.length));
+  const to = Math.max(from, Math.min(end, template.length));
 
   return {
-    template: stripped.slice(0, from) + VALUE_TOKEN + stripped.slice(to),
+    template: template.slice(0, from) + VALUE_TOKEN + template.slice(to),
     caret: from + VALUE_TOKEN.length,
-    covered: stripped.slice(from, to),
+    covered: template.slice(from, to),
   };
 }
 

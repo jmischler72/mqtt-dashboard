@@ -117,7 +117,6 @@ export function LogConfigModal({
     >
       <ConfigGroup heading="Read">
         <BrokerTopicCard
-          title="Reads from"
           brokers={brokerStatuses}
           brokerId={selectedBrokerId}
           onBrokerChange={setSelectedBrokerId}
