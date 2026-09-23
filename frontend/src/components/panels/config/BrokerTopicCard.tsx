@@ -105,7 +105,10 @@ export default function BrokerTopicCard({
   const dotColor = brokerDotColor[brokerStatus] ?? "bg-neutral";
 
   const defaultSummary = topic.trim() ? (
-    <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] truncate max-w-full">
+    <span
+      className="inline-flex items-center gap-1.5 font-mono text-[10.5px] truncate max-w-full"
+      title={`${brokerName ? `${brokerName}: ` : ""}${topic}`}
+    >
       {broker && (
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
       )}

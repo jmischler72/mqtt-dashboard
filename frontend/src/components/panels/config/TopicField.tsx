@@ -49,6 +49,7 @@ export default function TopicField({
         <div
           className="tooltip tooltip-left shrink-0 flex items-center justify-center w-5"
           data-tip="Checking topic messages..."
+          title="Checking topic messages..."
         >
           <RiMessage3Line className="text-sm text-base-content/40 animate-pulse shrink-0" />
         </div>
@@ -71,6 +72,7 @@ export default function TopicField({
         <div
           className="tooltip tooltip-left shrink-0 flex items-center justify-center w-5"
           data-tip={tooltipMsg}
+          title={tooltipMsg}
         >
           <RiMessage3Line className={`text-sm shrink-0 ${iconColor}`} />
         </div>
@@ -85,6 +87,7 @@ export default function TopicField({
         <div
           className="tooltip tooltip-left shrink-0 flex items-center justify-center w-5"
           data-tip={tooltipMsg}
+          title={tooltipMsg}
         >
           <RiMessage3Line className={`text-sm shrink-0 ${iconColor}`} />
         </div>

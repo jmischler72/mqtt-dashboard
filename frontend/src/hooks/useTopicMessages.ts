@@ -60,6 +60,10 @@ export function useTopicMessages(
     byTopic: {},
   });
 
+  const [subId] = useState(
+    () => `topic-preview-${Math.random().toString(36).slice(2, 9)}`,
+  );
+
   // Live WebSocket listener
   const { subscribe } = useWebSocket({
     onMessage: (msgStr) => {
@@ -99,16 +103,11 @@ export function useTopicMessages(
   });
 
   useEffect(() => {
-    if (!brokerId || topics.length === 0) return;
-    subscribe({
-      panel_id: `topic-preview-${currentKey}`,
-      broker_id: brokerId,
-      topics,
-    });
-  }, [brokerId, currentKey, topics, subscribe]);
-
-  useEffect(() => {
     if (!brokerId || topics.length === 0) {
+      subscribe({
+        action: "unsubscribe",
+        panel_id: subId,
+      });
       return;
     }
 
@@ -120,6 +119,12 @@ export function useTopicMessages(
         loading: true,
         totalCount: topics.length,
       }));
+
+      subscribe({
+        panel_id: subId,
+        broker_id: brokerId,
+        topics,
+      });
 
       Promise.all(
         topics.map((t) =>
@@ -174,7 +179,7 @@ export function useTopicMessages(
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [brokerId, currentKey, topics]);
+  }, [brokerId, currentKey, topics, subId, subscribe]);
 
   if (!brokerId || topics.length === 0) {
     return {

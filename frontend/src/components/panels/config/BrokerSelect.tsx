@@ -59,6 +59,9 @@ export default function BrokerSelect({
           data-tip={
             selected ? `${selected.name}: ${statusLabel}` : "No broker selected"
           }
+          title={
+            selected ? `${selected.name}: ${statusLabel}` : "No broker selected"
+          }
         >
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
@@ -87,6 +90,9 @@ export default function BrokerSelect({
       <div
         className="tooltip tooltip-left shrink-0 flex items-center justify-center w-5"
         data-tip={
+          selected ? `${selected.name}: ${statusLabel}` : "No broker selected"
+        }
+        title={
           selected ? `${selected.name}: ${statusLabel}` : "No broker selected"
         }
       >
