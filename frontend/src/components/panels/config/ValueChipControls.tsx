@@ -32,7 +32,6 @@ export interface ValueChipControlsProps {
    * The text the chip currently covers. Remembered so removing the chip puts
    * back exactly what it replaced rather than a value the user never typed.
    */
-  covered: string;
   onCoveredChange: (covered: string, tokenIndex?: number) => void;
   /** "read" marks the value to pull out; "write" marks where one drops in. */
   mode: "write" | "read";
@@ -49,7 +48,6 @@ export default function ValueChipControls({
   onChange,
   getSelection,
   onCaret,
-  covered,
   onCoveredChange,
   mode,
   history,
@@ -59,7 +57,7 @@ export default function ValueChipControls({
   const place = () => {
     // No caret in the box yet: the end of the payload is the honest guess.
     const at = getSelection() ?? { start: value.length, end: value.length };
-    const placed = placeToken(value, at.start, at.end, covered);
+    const placed = placeToken(value, at.start, at.end);
     const tokenIndex = value.slice(0, at.start).split(VALUE_TOKEN).length - 1;
     onCaret?.(placed.caret);
     onCoveredChange(placed.covered, tokenIndex);
@@ -94,7 +92,7 @@ export default function ValueChipControls({
             type="button"
             title={`Replace "${literal.text}" with {${TOKEN_LABEL}}`}
             onClick={() => {
-              const result = markLiteral(value, literal, covered);
+              const result = markLiteral(value, literal);
               const tokenIndex =
                 value.slice(0, literal.start).split(VALUE_TOKEN).length - 1;
               onCoveredChange(result.previous, tokenIndex);

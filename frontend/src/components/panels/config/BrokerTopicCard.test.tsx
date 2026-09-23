@@ -22,20 +22,19 @@ const mockBrokers: BrokerStatus[] = [
 ];
 
 describe("BrokerTopicCard", () => {
-  it("renders as a collapsible disclosure card with default 'Broker & Topic' title open by default", () => {
+  it("renders open by default when topic is empty", () => {
     render(
       <BrokerTopicCard
         brokers={mockBrokers}
         brokerId="broker-1"
         onBrokerChange={() => {}}
-        topic="living-room/lamp"
+        topic=""
         onTopicChange={() => {}}
       />,
     );
 
     // Header elements
     expect(screen.getByText("Broker & Topic")).toBeInTheDocument();
-    expect(screen.queryByText(/Main Broker : living-room\/lamp/)).toBeNull();
 
     // Connected status dot should have bg-success
     const greenDot = document.querySelector(".w-1\\.5.h-1\\.5.bg-success");
@@ -43,10 +42,12 @@ describe("BrokerTopicCard", () => {
 
     // Fields should be visible
     expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Broker" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Broker" }),
+    ).toBeInTheDocument();
   });
 
-  it("renders red dot for disconnected broker status", () => {
+  it("renders red dot for disconnected broker status in summary when closed", () => {
     render(
       <BrokerTopicCard
         title="Publishes to"
@@ -62,8 +63,7 @@ describe("BrokerTopicCard", () => {
     expect(redDot).toBeInTheDocument();
   });
 
-
-  it("toggles collapse and expand on header click", async () => {
+  it("is closed by default when filled and toggles on click", async () => {
     render(
       <BrokerTopicCard
         brokers={mockBrokers}
@@ -75,22 +75,28 @@ describe("BrokerTopicCard", () => {
     );
 
     const toggleButton = screen.getByRole("button", { name: /Broker & Topic/ });
+    expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: "Topic" })).toBeNull();
+    expect(
+      screen.getByText(/Main Broker : living-room\/lamp/),
+    ).toBeInTheDocument();
+
+    // Click to expand
+    await userEvent.click(toggleButton);
     expect(toggleButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
+    expect(screen.queryByText(/Main Broker : living-room\/lamp/)).toBeNull();
 
     // Click to collapse
     await userEvent.click(toggleButton);
     expect(toggleButton).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("textbox", { name: "Topic" })).toBeNull();
-    expect(screen.getByText(/Main Broker : living-room\/lamp/)).toBeInTheDocument();
-
-    // Click to expand again
-    await userEvent.click(toggleButton);
-    expect(toggleButton).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
-    expect(screen.queryByText(/Main Broker : living-room\/lamp/)).toBeNull();
+    expect(
+      screen.getByText(/Main Broker : living-room\/lamp/),
+    ).toBeInTheDocument();
   });
 
-  it("respects defaultOpen=false", () => {
+  it("respects defaultOpen=true when filled", () => {
     render(
       <BrokerTopicCard
         brokers={mockBrokers}
@@ -98,14 +104,31 @@ describe("BrokerTopicCard", () => {
         onBrokerChange={() => {}}
         topic="sensors/temp"
         onTopicChange={() => {}}
-        defaultOpen={false}
+        defaultOpen={true}
       />,
     );
 
     const toggleButton = screen.getByRole("button", { name: /Broker & Topic/ });
-    expect(toggleButton).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("textbox", { name: "Topic" })).toBeNull();
-    expect(screen.getByText(/Main Broker : sensors\/temp/)).toBeInTheDocument();
+    expect(toggleButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
+  });
+
+  it("opens by default when there is a topicError even if topic is filled", () => {
+    render(
+      <BrokerTopicCard
+        brokers={mockBrokers}
+        brokerId="broker-1"
+        onBrokerChange={() => {}}
+        topic="sensors/temp"
+        onTopicChange={() => {}}
+        topicError="Invalid topic format"
+      />,
+    );
+
+    const toggleButton = screen.getByRole("button", { name: /Broker & Topic/ });
+    expect(toggleButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
+    expect(screen.getByText("Invalid topic format")).toBeInTheDocument();
   });
 
   it("renders bare mode without disclosure card wrapper", () => {

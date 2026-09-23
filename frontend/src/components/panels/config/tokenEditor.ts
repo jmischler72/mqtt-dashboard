@@ -52,7 +52,7 @@ export function paintTemplate(
 
   template.split(VALUE_TOKEN).forEach((chunk, index) => {
     if (index > 0) {
-      let cov = "";
+      let cov: string;
       if (tokenIdx === insertAt) {
         cov = newCovered;
       } else if (tokenIdx < insertAt) {

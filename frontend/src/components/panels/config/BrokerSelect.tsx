@@ -26,7 +26,7 @@ export default function BrokerSelect({
   joined = false,
 }: BrokerSelectProps) {
   const selected = brokers.find((b) => b.id === value) ?? brokers[0];
-  const status = selected?.status ?? "DISABLED";
+  const status = (selected?.status ?? "DISABLED").toUpperCase();
   const dotColor = brokerDotColor[status] ?? "bg-neutral";
   const statusLabel =
     status === "CONNECTED"
@@ -50,18 +50,14 @@ export default function BrokerSelect({
           {brokers.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
-              {b.status !== "CONNECTED"
-                ? ` (${b.status.toLowerCase()})`
-                : ""}
+              {b.status !== "CONNECTED" ? ` (${b.status.toLowerCase()})` : ""}
             </option>
           ))}
         </select>
         <div
           className="tooltip tooltip-bottom shrink-0 flex items-center justify-center"
           data-tip={
-            selected
-              ? `${selected.name}: ${statusLabel}`
-              : "No broker selected"
+            selected ? `${selected.name}: ${statusLabel}` : "No broker selected"
           }
         >
           <span
@@ -84,18 +80,14 @@ export default function BrokerSelect({
         {brokers.map((b) => (
           <option key={b.id} value={b.id}>
             {b.name}
-            {b.status !== "CONNECTED"
-              ? ` (${b.status.toLowerCase()})`
-              : ""}
+            {b.status !== "CONNECTED" ? ` (${b.status.toLowerCase()})` : ""}
           </option>
         ))}
       </select>
       <div
         className="tooltip tooltip-left shrink-0 flex items-center justify-center w-5"
         data-tip={
-          selected
-            ? `${selected.name}: ${statusLabel}`
-            : "No broker selected"
+          selected ? `${selected.name}: ${statusLabel}` : "No broker selected"
         }
       >
         <span
@@ -106,4 +98,3 @@ export default function BrokerSelect({
     </div>
   );
 }
-

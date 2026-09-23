@@ -39,14 +39,8 @@ export default function TopicField({
   const remove = (index: number) =>
     onChange(topics.filter((_, at) => at !== index).join(", "));
 
-  const {
-    hasMessages,
-    loading,
-    lastSeen,
-    totalCount,
-    activeCount,
-    byTopic,
-  } = useTopicMessages(brokerId, value);
+  const { hasMessages, loading, lastSeen, totalCount, activeCount, byTopic } =
+    useTopicMessages(brokerId, value);
 
   let statusIcon: ReactNode = null;
   if (brokerId) {

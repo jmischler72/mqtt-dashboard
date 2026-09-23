@@ -27,7 +27,7 @@ export interface BrokerTopicCardProps {
   bare?: boolean;
   /** Extra rows belonging to the same destination, e.g. a schedule. */
   children?: ReactNode;
-  /** Whether the card starts open. Defaults to true. */
+  /** Whether the card starts open. Defaults to false when filled, true when empty. */
   defaultOpen?: boolean;
 }
 
@@ -59,7 +59,7 @@ export default function BrokerTopicCard({
   help,
   bare,
   children,
-  defaultOpen = true,
+  defaultOpen,
 }: BrokerTopicCardProps) {
   const rows = (
     <div className="flex flex-col gap-1.5 min-w-0">
@@ -107,9 +107,7 @@ export default function BrokerTopicCard({
   const defaultSummary = topic.trim() ? (
     <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] truncate max-w-full">
       {broker && (
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
-        />
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
       )}
       <span className="truncate">
         {brokerName ? `${brokerName} : ` : ""}
@@ -122,15 +120,19 @@ export default function BrokerTopicCard({
     </span>
   );
 
+  const isFilled = Boolean(topic.trim());
+  const initialOpen =
+    Boolean(topicError) ||
+    (defaultOpen !== undefined ? defaultOpen : !isFilled);
+
   return (
     <DisclosureCard
       title={title}
       summary={summary ?? defaultSummary}
-      defaultOpen={defaultOpen || Boolean(topicError)}
+      defaultOpen={initialOpen}
       invalid={Boolean(topicError)}
     >
       {content}
     </DisclosureCard>
   );
 }
-

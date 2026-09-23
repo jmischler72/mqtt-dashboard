@@ -208,7 +208,7 @@ describe("placing the token", () => {
   it("allows multiple tokens when placing a second", () => {
     const template = `{"a":${T},"b":9}`;
     const nine = template.indexOf("9");
-    const placed = placeToken(template, nine, nine + 1, "1");
+    const placed = placeToken(template, nine, nine + 1);
     expect(placed.template).toBe(`{"a":${T},"b":${T}}`);
     expect(placed.template.split(T)).toHaveLength(3);
   });

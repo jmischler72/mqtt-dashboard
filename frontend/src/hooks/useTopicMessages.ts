@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useWebSocket, mqttTopicMatches } from "./useWebSocket";
 
@@ -33,10 +33,14 @@ export function useTopicMessages(
   brokerId?: string,
   topic?: string,
 ): TopicMessageStatus {
-  const topics = (topic ?? "")
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
+  const topics = useMemo(
+    () =>
+      (topic ?? "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+    [topic],
+  );
   const currentKey = `${brokerId ?? ""}\u0000${topics.join(",")}`;
 
   const [state, setState] = useState<{
@@ -66,7 +70,10 @@ export function useTopicMessages(
           setState((prev) => {
             if (prev.key !== currentKey) return prev;
             const prevDetail = prev.byTopic[matched];
-            if (prevDetail?.hasMessages && prevDetail?.lastSeen === "just now") {
+            if (
+              prevDetail?.hasMessages &&
+              prevDetail?.lastSeen === "just now"
+            ) {
               return prev;
             }
             const nextByTopic = {
@@ -94,11 +101,11 @@ export function useTopicMessages(
   useEffect(() => {
     if (!brokerId || topics.length === 0) return;
     subscribe({
-      panel_id: "topic-preview",
+      panel_id: `topic-preview-${currentKey}`,
       broker_id: brokerId,
       topics,
     });
-  }, [brokerId, currentKey, subscribe]);
+  }, [brokerId, currentKey, topics, subscribe]);
 
   useEffect(() => {
     if (!brokerId || topics.length === 0) {
@@ -117,7 +124,7 @@ export function useTopicMessages(
       Promise.all(
         topics.map((t) =>
           api
-            .getExplorerHistory(brokerId, t, 1)
+            .getExplorerHistory(brokerId, t)
             .then((records) => ({
               topic: t,
               hasMessages: Boolean(records && records.length > 0),
@@ -167,7 +174,7 @@ export function useTopicMessages(
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [brokerId, currentKey]);
+  }, [brokerId, currentKey, topics]);
 
   if (!brokerId || topics.length === 0) {
     return {

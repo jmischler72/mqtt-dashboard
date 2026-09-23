@@ -27,7 +27,6 @@ export interface PanelConfigModalProps {
 export default function PanelConfigModal({
   icon: Icon,
   title,
-  brokerStatus: _brokerStatus,
   blockerReason,
   onCancel,
   onSave,

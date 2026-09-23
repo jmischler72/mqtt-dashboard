@@ -464,7 +464,6 @@ describe("PanelConfigModal", () => {
 
     expect(screen.getByText("Test Modal")).toBeInTheDocument();
     expect(screen.getByText("Modal Body Content")).toBeInTheDocument();
-    expect(screen.getByText("CONNECTED")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledTimes(1);

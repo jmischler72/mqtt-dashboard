@@ -52,5 +52,3 @@ describe("TopicField", () => {
     expect(tooltip).toBeInTheDocument();
   });
 });
-
-

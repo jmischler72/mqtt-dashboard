@@ -168,11 +168,7 @@ export default function PayloadBuilder({
   const handleRemoveChip = (chip: HTMLElement) => {
     const host = box.current;
     if (!host) return;
-    const { template: next, caret } = removeChipFromEditor(
-      host,
-      chip,
-      covered,
-    );
+    const { template: next, caret } = removeChipFromEditor(host, chip, covered);
     painted.current = next;
     onChange(next);
     if (!hasToken(next)) {
@@ -205,9 +201,7 @@ export default function PayloadBuilder({
       topic={topic}
       messages={messages}
       loading={loading}
-      actions={[
-        { key: "use", label: "use this message", onUse: useMessage },
-      ]}
+      actions={[{ key: "use", label: "use this message", onUse: useMessage }]}
       usedKey={usedIndex === null ? null : `${usedIndex}:use`}
     />
   ) : null;
@@ -335,7 +329,6 @@ export default function PayloadBuilder({
           onCaret={(at) => {
             pendingCaret.current = at;
           }}
-          covered={covered}
           onCoveredChange={(text, idx) => {
             setCovered(text);
             coveredIndex.current = idx ?? null;
@@ -358,8 +351,9 @@ export default function PayloadBuilder({
         )
       )}
 
-      {showPreview && isPreviewCard && (
-        reading ? (
+      {showPreview &&
+        isPreviewCard &&
+        (reading ? (
           <ReadPreview
             value={value}
             latest={latest}
@@ -383,8 +377,7 @@ export default function PayloadBuilder({
               asCard={true}
             />
           )
-        )
-      )}
+        ))}
     </div>
   );
 }
@@ -555,9 +548,7 @@ function ReadPreview({
       return (
         <PreviewBox
           problem={
-            topic.trim() === ""
-              ? "No topic yet."
-              : "Waiting for messages…"
+            topic.trim() === "" ? "No topic yet." : "Waiting for messages…"
           }
         />
       );

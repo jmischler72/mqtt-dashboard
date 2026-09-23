@@ -707,7 +707,6 @@ export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
 export function markLiteral(
   template: string,
   literal: TemplateLiteral,
-  _restore = "",
 ): { template: string; previous: string } {
   const quoted = literal.text.startsWith('"');
   const previous = quoted ? literal.text.slice(1, -1) : literal.text;
@@ -749,7 +748,6 @@ export function placeToken(
   template: string,
   start: number,
   end: number,
-  _restore = "",
 ): { template: string; caret: number; covered: string } {
   const from = Math.max(0, Math.min(start, template.length));
   const to = Math.max(from, Math.min(end, template.length));
