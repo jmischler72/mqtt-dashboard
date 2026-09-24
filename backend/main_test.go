@@ -313,8 +313,15 @@ func TestBuildRouter_MountsBasePath(t *testing.T) {
 		}
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/mqtt-dashboard/dashboard", nil)
 	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if !strings.Contains(rec.Body.String(), `<base href="/mqtt-dashboard/">`) {
+		t.Errorf("prefixed SPA page did not inject base tag: %q", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("unprefixed health status = %d, want 404", rec.Code)
