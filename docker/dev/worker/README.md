@@ -70,13 +70,13 @@ The thermostat's measured temperature chases its setpoint rather than jumping, s
 
 ## Seeded dashboards
 
-`docker/dev/config.json` seeds three dashboards covering all 12 panel types against the topics above:
+`docker/dev/seed.json` seeds three dashboards covering all 12 panel types against the topics above:
 
 - **Showcase · Monitors** — gauges (all three renderings), graphs (all three curves), stats, each group with a debug log of the exact messages it reads.
 - **Showcase · Controls** — toggles, sliders, buttons, inputs and crons, all wired to the devices above, with debug logs showing commands out and the worker's replies.
 - **Showcase · Layout** — text, separator and image, the panel types that never touch a broker.
 
-Dashboards are only seeded when one of that name has **no panels**. To pick up edits to `config.json`, delete `backend/data/mqtt-dashboard.db` and restart the stack.
+Dashboards are only seeded when one of that name has **no panels**. To pick up edits to `seed.json`, delete `backend/data/mqtt-dashboard.db` and restart the stack.
 
 ---
 

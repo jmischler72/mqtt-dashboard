@@ -7,6 +7,12 @@ import {
   PreviewBox,
 } from "./config";
 import { api } from "../../api/client";
+import { appPath } from "../../runtime";
+
+function resolveImageSrc(src?: string): string | undefined {
+  if (!src) return src;
+  return src.startsWith("/api/images/") ? appPath(src) : src;
+}
 
 export interface ImageConfig {
   src?: string;
@@ -170,7 +176,7 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
                       onClick={() => setSrc(p.url)}
                     >
                       <img
-                        src={p.url}
+                        src={resolveImageSrc(p.url)}
                         alt={p.name}
                         className="w-full h-full object-cover"
                       />
@@ -196,7 +202,7 @@ export function ImageConfigModal({ config, onSave, onClose }: ModalProps) {
           <div className="h-32 flex items-center justify-center">
             {src && (
               <img
-                src={src}
+                src={resolveImageSrc(src)}
                 alt="preview"
                 className="max-h-full max-w-full object-contain"
               />
@@ -232,9 +238,11 @@ export default function ImagePanel({ config }: ImagePanelProps) {
     );
   }
 
+  const src = resolveImageSrc(config.src);
+
   return (
     <img
-      src={config.src}
+      src={src}
       alt=""
       className="h-full w-full object-contain"
       onError={() => setBroken(true)}

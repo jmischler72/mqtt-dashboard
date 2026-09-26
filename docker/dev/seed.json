@@ -673,7 +673,7 @@
           "w": 6,
           "h": 2,
           "config_json": {
-            "markdown": "### Re-seeding\n\nThese dashboards are seeded from `docker/dev/config.json` **only when a dashboard of that name has no panels**. To pick up edits, delete the dev database (`backend/data/mqtt-dashboard.db`) and restart the stack."
+            "markdown": "### Re-seeding\n\nThese dashboards are seeded from `docker/dev/seed.json` **only when a dashboard of that name has no panels**. To pick up edits, delete the dev database (`backend/data/mqtt-dashboard.db`) and restart the stack."
           }
         },
         {

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -33,7 +34,7 @@ type runtimeConfigFile struct {
 		Level string `toml:"level"`
 	} `toml:"logging"`
 	Seed struct {
-		ConfigFile string `toml:"config_file"`
+		File string `toml:"file"`
 	} `toml:"seed"`
 }
 
@@ -57,7 +58,7 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 		if err := toml.Unmarshal(data, &fromFile); err != nil {
 			return RuntimeConfig{}, fmt.Errorf("parse MQTT_DASHBOARD_CONFIG %q: %w", file, err)
 		}
-		applyRuntimeFile(&cfg, fromFile)
+		applyRuntimeFile(&cfg, fromFile, file)
 	}
 
 	applyEnv(&cfg)
@@ -67,7 +68,7 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 	return cfg, nil
 }
 
-func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile) {
+func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile, tomlPath string) {
 	if fromFile.Server.HTTPAddr != "" {
 		cfg.HTTPAddr = fromFile.Server.HTTPAddr
 	}
@@ -80,8 +81,12 @@ func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile) {
 	if fromFile.Logging.Level != "" {
 		cfg.LogLevel = fromFile.Logging.Level
 	}
-	if fromFile.Seed.ConfigFile != "" {
-		cfg.SeedConfigFile = fromFile.Seed.ConfigFile
+	if fromFile.Seed.File != "" {
+		seedPath := fromFile.Seed.File
+		if !filepath.IsAbs(seedPath) && tomlPath != "" {
+			seedPath = filepath.Join(filepath.Dir(tomlPath), seedPath)
+		}
+		cfg.SeedConfigFile = seedPath
 	}
 }
 
@@ -95,12 +100,7 @@ func applyEnv(cfg *RuntimeConfig) {
 	if value := os.Getenv("MQTT_DASHBOARD_DATA_DIR"); value != "" {
 		cfg.DataDir = value
 	}
-	// CONFIG_FILE and LOG_LEVEL are established public variables. Keep them as
-	// aliases, while allowing the namespaced variants to override TOML values.
-	if value := os.Getenv("CONFIG_FILE"); value != "" {
-		cfg.SeedConfigFile = value
-	}
-	if value := os.Getenv("MQTT_DASHBOARD_CONFIG_FILE"); value != "" {
+	if value := os.Getenv("MQTT_DASHBOARD_SEED_FILE"); value != "" {
 		cfg.SeedConfigFile = value
 	}
 	if value := os.Getenv("MQTT_DASHBOARD_LOG_LEVEL"); value != "" {
