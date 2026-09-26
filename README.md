@@ -133,7 +133,7 @@ data_dir = "/var/lib/mqtt-dashboard"
 level = "info"
 
 [seed]
-config_file = "/etc/mqtt-dashboard/config.json"
+file = "/etc/mqtt-dashboard/seed.json"
 ```
 
 The supported environment overrides are:
@@ -144,11 +144,10 @@ The supported environment overrides are:
 | `MQTT_DASHBOARD_HTTP_ADDR` | HTTP listen address, for example `127.0.0.1:8080` |
 | `MQTT_DASHBOARD_BASE_PATH` | Mount path, `/` or a path such as `/mqtt-dashboard/` |
 | `MQTT_DASHBOARD_DATA_DIR` | Directory containing the SQLite database and uploaded images |
-| `MQTT_DASHBOARD_CONFIG_FILE` | JSON file used to seed brokers, settings, and dashboards |
-| `MQTT_DASHBOARD_LOG_LEVEL` | Go `slog` log level |
+| `MQTT_DASHBOARD_SEED_FILE` | JSON file used to seed brokers, settings, and dashboards |
+| `MQTT_DASHBOARD_LOG_LEVEL` | Go `slog` log level (also respects `LOG_LEVEL`) |
 
-`CONFIG_FILE` and `LOG_LEVEL` remain supported as aliases for existing
-deployments. The legacy `CONFIG_FILE` JSON is for initial application data;
+The seed file JSON is for initial application data on first startup;
 changes made in the UI are persisted to SQLite rather than written back to the
 JSON file.
 
@@ -162,6 +161,8 @@ ProxyPassReverse /mqtt-dashboard/ http://127.0.0.1:8080/mqtt-dashboard/
 
 The frontend uses relative asset URLs and receives its document base from the
 server, so the same binary can serve either `/` or a configured base path.
+
+For complete systemd service configuration and an Apache HTTPS/WebSocket reverse-proxy setup, see the [Native & Reverse-Proxy Deployment Guide](docs/alternative-deployments.md).
 
 ---
 
@@ -200,7 +201,7 @@ MQTT Dashboard supports comprehensive MQTT protocol and security features:
 - **QoS (0, 1, 2)** Quality of Service levels for publishing and subscriptions
 - **Retain flag** to ensure latest state is preserved for new subscribers
 - **$SYS Topics** monitoring and optional retention recording
-- **Initial Configuration Seeding** via `CONFIG_FILE` or `config.json`
+- **Initial Configuration Seeding** via `MQTT_DASHBOARD_SEED_FILE` or `seed.json`
 
 For detailed security setup and dev broker configurations, see [docs/auth-and-tls.md](docs/auth-and-tls.md).
 

@@ -33,7 +33,7 @@ type runtimeConfigFile struct {
 		Level string `toml:"level"`
 	} `toml:"logging"`
 	Seed struct {
-		ConfigFile string `toml:"config_file"`
+		File string `toml:"file"`
 	} `toml:"seed"`
 }
 
@@ -80,8 +80,8 @@ func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile) {
 	if fromFile.Logging.Level != "" {
 		cfg.LogLevel = fromFile.Logging.Level
 	}
-	if fromFile.Seed.ConfigFile != "" {
-		cfg.SeedConfigFile = fromFile.Seed.ConfigFile
+	if fromFile.Seed.File != "" {
+		cfg.SeedConfigFile = fromFile.Seed.File
 	}
 }
 
@@ -95,12 +95,7 @@ func applyEnv(cfg *RuntimeConfig) {
 	if value := os.Getenv("MQTT_DASHBOARD_DATA_DIR"); value != "" {
 		cfg.DataDir = value
 	}
-	// CONFIG_FILE and LOG_LEVEL are established public variables. Keep them as
-	// aliases, while allowing the namespaced variants to override TOML values.
-	if value := os.Getenv("CONFIG_FILE"); value != "" {
-		cfg.SeedConfigFile = value
-	}
-	if value := os.Getenv("MQTT_DASHBOARD_CONFIG_FILE"); value != "" {
+	if value := os.Getenv("MQTT_DASHBOARD_SEED_FILE"); value != "" {
 		cfg.SeedConfigFile = value
 	}
 	if value := os.Getenv("MQTT_DASHBOARD_LOG_LEVEL"); value != "" {

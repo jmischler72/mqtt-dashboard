@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"log/slog"
 	"mqtt-dashboard/config"
@@ -111,11 +112,12 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	dashboardH.SetInvalidator(wsHub)
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
-	imageH := handlers.NewImageHandler(dataDir, basePath)
+	imageH := handlers.NewImageHandler(dataDir)
 
 	// --- Router ---
 	app := chi.NewRouter()
-	app.Use(skipLoggerForPaths(middleware.Logger, "/api/brokers/status"))
+	statusEndpoint := strings.TrimSuffix(basePath, "/") + "/api/brokers/status"
+	app.Use(skipLoggerForPaths(middleware.Logger, statusEndpoint))
 	app.Use(middleware.Recoverer)
 	app.Use(corsMiddleware)
 
@@ -265,22 +267,28 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 
 // spaHandler wraps a file server to serve index.html for unknown paths (client-side routing).
 func spaHandler(distFS fs.FS, h http.Handler, basePath string) http.Handler {
+	indexHTML, indexErr := precomputeIndexHTML(distFS, basePath)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.NotFound(w, r)
+			return
+		}
 		requestPath := r.URL.Path
 		if basePath != "/" {
 			requestPath = strings.TrimPrefix(requestPath, strings.TrimSuffix(basePath, "/"))
 		}
-		path := strings.TrimPrefix(requestPath, "/")
+		trimmed := strings.TrimPrefix(requestPath, "/")
+		if trimmed == "api" || strings.HasPrefix(trimmed, "api/") {
+			http.NotFound(w, r)
+			return
+		}
+		path := trimmed
 		if path == "" {
 			path = "index.html"
 		}
-		if _, err := fs.Stat(distFS, path); err != nil {
-			// File not found — serve index.html so React Router handles the path.
-			serveIndex(w, distFS, basePath)
-			return
-		}
-		if path == "index.html" {
-			serveIndex(w, distFS, basePath)
+		stat, err := fs.Stat(distFS, path)
+		if err != nil || stat.IsDir() || path == "index.html" {
+			serveIndex(w, indexHTML, indexErr)
 			return
 		}
 		r2 := r.Clone(r.Context())
@@ -289,23 +297,30 @@ func spaHandler(distFS fs.FS, h http.Handler, basePath string) http.Handler {
 	})
 }
 
-// serveIndex inserts a document base at request time. The production frontend
-// is built with relative asset URLs, so one embedded binary can be mounted at
-// either / or a validated sub-path without a separate frontend build.
-func serveIndex(w http.ResponseWriter, distFS fs.FS, basePath string) {
+// precomputeIndexHTML reads and injects the document base into index.html once at startup.
+func precomputeIndexHTML(distFS fs.FS, basePath string) ([]byte, error) {
 	data, err := fs.ReadFile(distFS, "index.html")
 	if err != nil {
-		http.Error(w, "frontend index not found", http.StatusInternalServerError)
-		return
+		return nil, errors.New("frontend index not found")
 	}
 	const marker = "</head>"
-	base := `<base href="` + basePath + `">`
 	if !strings.Contains(string(data), marker) {
-		http.Error(w, "frontend index is invalid", http.StatusInternalServerError)
+		return nil, errors.New("frontend index is invalid")
+	}
+	base := `<base href="` + basePath + `">`
+	return []byte(strings.Replace(string(data), marker, base+marker, 1)), nil
+}
+
+// serveIndex writes the precomputed index.html. The production frontend
+// is built with relative asset URLs, so one embedded binary can be mounted at
+// either / or a validated sub-path without a separate frontend build.
+func serveIndex(w http.ResponseWriter, indexHTML []byte, err error) {
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(strings.Replace(string(data), marker, base+marker, 1)))
+	_, _ = w.Write(indexHTML)
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
