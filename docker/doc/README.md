@@ -6,7 +6,7 @@ This directory contains ready-to-use Docker Compose setups for **MQTT Dashboard*
 
 ### 1. All-in-One with Integrated Mosquitto Broker (`docker-compose.with-broker.yml`)
 
-Starts **MQTT Dashboard** and an **Eclipse Mosquitto (v2)** broker together. Pre-configures the connection automatically via `config.json`.
+Starts **MQTT Dashboard** and an **Eclipse Mosquitto (v2)** broker together. Pre-configures the connection automatically via `seed.json`.
 
 ```bash
 docker compose -f docker/doc/docker-compose.with-broker.yml up -d

@@ -44,7 +44,7 @@ func uploadRequest(t *testing.T, filename string, content []byte) *http.Request 
 
 func TestImageUploadListServeDelete(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	// Upload
@@ -98,7 +98,7 @@ func TestImageUploadListServeDelete(t *testing.T) {
 
 func TestImageUploadRejectsBadExtension(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	rec := httptest.NewRecorder()
@@ -110,7 +110,7 @@ func TestImageUploadRejectsBadExtension(t *testing.T) {
 
 func TestImageServeRejectsTraversal(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	// chi cleans paths, so target the sanitizer directly via a non-whitelisted name.
@@ -123,7 +123,7 @@ func TestImageServeRejectsTraversal(t *testing.T) {
 
 func TestImageUpload_InvalidMultipartForm(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/images", strings.NewReader("bad content"))
@@ -138,7 +138,7 @@ func TestImageUpload_InvalidMultipartForm(t *testing.T) {
 
 func TestImageUpload_MissingFileField(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	var buf bytes.Buffer
@@ -159,7 +159,7 @@ func TestImageUpload_MissingFileField(t *testing.T) {
 
 func TestImageDelete_NotFoundAndInvalid(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	// Non-existent image file
@@ -179,7 +179,7 @@ func TestImageDelete_NotFoundAndInvalid(t *testing.T) {
 
 func TestImageServe_NotFound(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	rec := httptest.NewRecorder()
@@ -196,7 +196,7 @@ func TestImageListPresets_IgnoresDirsAndNonImages(t *testing.T) {
 	os.WriteFile(filepath.Join(imagesDir, "file.txt"), []byte("text"), 0o600)
 	os.WriteFile(filepath.Join(imagesDir, "valid.png"), []byte("png"), 0o600)
 
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	rec := httptest.NewRecorder()
@@ -216,7 +216,7 @@ func TestImageListPresets_IgnoresDirsAndNonImages(t *testing.T) {
 
 func TestImageServe_SVGSecurityHeaders(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	svgContent := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><text>hello</text></svg>`)
@@ -244,7 +244,7 @@ func TestImageServe_SVGSecurityHeaders(t *testing.T) {
 
 func TestImageUpload_ExceedsMaxBytes(t *testing.T) {
 	dir := t.TempDir()
-	h := handlers.NewImageHandler(dir, "/")
+	h := handlers.NewImageHandler(dir)
 	r := newImageRouter(h)
 
 	// 9 MiB exceeds maxImageUpload (8 MiB)

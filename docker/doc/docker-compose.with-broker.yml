@@ -6,10 +6,10 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - CONFIG_FILE=/app/config.json
+      - MQTT_DASHBOARD_SEED_FILE=/app/seed.json
     volumes:
       - dashboard_data:/app/data
-      - ./config.json:/app/config.json:ro
+      - ./seed.json:/app/seed.json:ro
     depends_on:
       mosquitto:
         condition: service_healthy

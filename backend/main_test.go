@@ -337,3 +337,134 @@ func TestBuildRouter_MountsBasePath(t *testing.T) {
 		t.Errorf("prefixed asset body = %q, want JavaScript asset", rec.Body.String())
 	}
 }
+
+func TestSpaHandler_RejectsNonGetHeadMethods(t *testing.T) {
+	testFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}
+	h := spaHandler(testFS, http.NotFoundHandler(), "/")
+
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch} {
+		req := httptest.NewRequest(method, "/some/path", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s /some/path status = %d, want 404", method, rec.Code)
+		}
+	}
+}
+
+func TestSpaHandler_RejectsApiPaths(t *testing.T) {
+	testFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}
+	hRoot := spaHandler(testFS, http.NotFoundHandler(), "/")
+	for _, p := range []string{"/api", "/api/", "/api/typo", "/api/publish"} {
+		req := httptest.NewRequest(http.MethodGet, p, nil)
+		rec := httptest.NewRecorder()
+		hRoot.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s status = %d, want 404", p, rec.Code)
+		}
+	}
+
+	hSub := spaHandler(testFS, http.NotFoundHandler(), "/mqtt-dashboard/")
+	for _, p := range []string{"/mqtt-dashboard/api", "/mqtt-dashboard/api/", "/mqtt-dashboard/api/typo"} {
+		req := httptest.NewRequest(http.MethodGet, p, nil)
+		rec := httptest.NewRecorder()
+		hSub.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s under subpath status = %d, want 404", p, rec.Code)
+		}
+	}
+}
+
+func TestSpaHandler_DirectoryFallback(t *testing.T) {
+	fileServerCalled := false
+	dummyServer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fileServerCalled = true
+		w.WriteHeader(http.StatusMovedPermanently)
+	})
+
+	testFS := fstest.MapFS{
+		"index.html":    &fstest.MapFile{Data: []byte("<html><head></head>index</html>")},
+		"assets/app.js": &fstest.MapFile{Data: []byte("console.log('hi')")},
+	}
+
+	h := spaHandler(testFS, dummyServer, "/")
+	req := httptest.NewRequest(http.MethodGet, "/assets", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if fileServerCalled {
+		t.Error("spaHandler should not delegate directory path to file server")
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("directory fallback status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "index") {
+		t.Errorf("directory fallback body = %q, want index.html content", rec.Body.String())
+	}
+}
+
+func TestSpaHandler_HeadMethod(t *testing.T) {
+	testFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}
+	h := spaHandler(testFS, http.NotFoundHandler(), "/")
+	req := httptest.NewRequest(http.MethodHead, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HEAD /dashboard status = %d, want 200", rec.Code)
+	}
+}
+
+func TestBuildRouter_SkipLoggerForStatusUnderBasePath(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	registry := mqttclient.NewRegistry(database)
+	scheduler, err := cron.NewScheduler(registry)
+	if err != nil {
+		t.Fatalf("NewScheduler: %v", err)
+	}
+	router := buildRouter(database, registry, scheduler, ws.NewHub(registry, database), t.TempDir(), fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}, "/mqtt-dashboard/")
+
+	req := httptest.NewRequest(http.MethodGet, "/mqtt-dashboard/api/brokers/status", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status endpoint under base_path status = %d, want 200", rec.Code)
+	}
+}
+
+func TestSkipLoggerForPaths_WithBasePath(t *testing.T) {
+	loggerCalled := false
+	mockLogger := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			loggerCalled = true
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	basePath := "/mqtt-dashboard/"
+	statusEndpoint := strings.TrimSuffix(basePath, "/") + "/api/brokers/status"
+	mw := skipLoggerForPaths(mockLogger, statusEndpoint)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/mqtt-dashboard/api/brokers/status", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if loggerCalled {
+		t.Error("logger should not be called for skipped statusEndpoint under base_path")
+	}
+}

@@ -19,7 +19,7 @@ func TestSeedBrokersFromConfig(t *testing.T) {
 	cfgPath := tmpDir + "/config.json"
 	os.WriteFile(cfgPath, []byte(`{"brokers":[{"name":"Test Config Broker","host":"localhost","port":1883,"is_enabled":true}]}`), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var count int
@@ -49,7 +49,7 @@ func TestSeedBrokersFromConfig_NonExistentFile(t *testing.T) {
 	}
 	defer database.Close()
 
-	t.Setenv("CONFIG_FILE", "/non/existent/path/config.json")
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", "/non/existent/path/config.json")
 	SeedBrokersFromConfig(database)
 
 	var count int
@@ -70,7 +70,7 @@ func TestSeedBrokersFromConfig_InvalidJSON(t *testing.T) {
 	cfgPath := tmpDir + "/bad_config.json"
 	os.WriteFile(cfgPath, []byte(`{ invalid json`), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var count int
@@ -95,7 +95,7 @@ func TestSeedBrokersFromConfig_ArrayFormat(t *testing.T) {
 	]`
 	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var count int
@@ -150,7 +150,7 @@ func TestSeedBrokersFromConfig_ObjectFormatWithBrokersAndSettings(t *testing.T) 
 	}`
 	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	// Verify broker TLS settings
@@ -196,7 +196,7 @@ func TestSeedBrokersFromConfig_SettingsOnly(t *testing.T) {
 	}`
 	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var retentionHours int
@@ -227,7 +227,7 @@ func TestSeedBrokersFromConfig_DeduplicationByHostAndPort(t *testing.T) {
 	]`
 	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var count int
@@ -275,7 +275,7 @@ func TestSeedBrokersFromConfig_CertFilePaths(t *testing.T) {
 	}`
 	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var authMode, caCert, clientCert, clientKey string
@@ -345,7 +345,7 @@ func TestSeedDashboardsAndPanelsFromConfig(t *testing.T) {
 	}`
 	os.WriteFile(cfgPath, []byte(jsonContent), 0600)
 
-	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", cfgPath)
 	SeedBrokersFromConfig(database)
 
 	var dashID, dashName string
@@ -388,6 +388,28 @@ func TestSeedDashboardsAndPanelsFromConfig(t *testing.T) {
 	database.QueryRow(`SELECT COUNT(*) FROM dashboard_layouts WHERE dashboard_id = ?`, dashID).Scan(&panelCountAfter)
 	if panelCountAfter != 2 {
 		t.Errorf("Re-seeding should not duplicate panels, got %d", panelCountAfter)
+	}
+}
+
+func TestSeedBrokersFromConfig_IgnoresLegacyConfigFileEnv(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer database.Close()
+
+	tmpDir := t.TempDir()
+	cfgPath := tmpDir + "/legacy_config.json"
+	os.WriteFile(cfgPath, []byte(`{"brokers":[{"name":"Legacy Broker","host":"localhost","port":1883}]}`), 0600)
+
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", "")
+	t.Setenv("CONFIG_FILE", cfgPath)
+	SeedBrokersFromConfig(database)
+
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM mqtt_brokers WHERE name = 'Legacy Broker'`).Scan(&count)
+	if count != 0 {
+		t.Errorf("Expected 0 brokers because legacy CONFIG_FILE must be ignored, got %d", count)
 	}
 }
 
