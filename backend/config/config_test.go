@@ -413,3 +413,20 @@ func TestSeedBrokersFromConfig_IgnoresLegacyConfigFileEnv(t *testing.T) {
 	}
 }
 
+func TestSeedBrokersFromPath_EmptyPathDoesNotSeed(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer database.Close()
+
+	// Calling with empty path should immediately return without error or insertion
+	SeedBrokersFromPath(database, "")
+
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM mqtt_brokers`).Scan(&count)
+	if count != 0 {
+		t.Errorf("Expected 0 brokers for empty path, got %d", count)
+	}
+}
+

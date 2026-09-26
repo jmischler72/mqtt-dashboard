@@ -359,7 +359,7 @@ func TestSpaHandler_RejectsApiPaths(t *testing.T) {
 		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
 	}
 	hRoot := spaHandler(testFS, http.NotFoundHandler(), "/")
-	for _, p := range []string{"/api", "/api/", "/api/typo", "/api/publish"} {
+	for _, p := range []string{"/api", "/api/", "/api/typo", "/api/publish", "//api", "//api/", "//api/typo"} {
 		req := httptest.NewRequest(http.MethodGet, p, nil)
 		rec := httptest.NewRecorder()
 		hRoot.ServeHTTP(rec, req)
@@ -369,13 +369,30 @@ func TestSpaHandler_RejectsApiPaths(t *testing.T) {
 	}
 
 	hSub := spaHandler(testFS, http.NotFoundHandler(), "/mqtt-dashboard/")
-	for _, p := range []string{"/mqtt-dashboard/api", "/mqtt-dashboard/api/", "/mqtt-dashboard/api/typo"} {
+	for _, p := range []string{"/mqtt-dashboard/api", "/mqtt-dashboard/api/", "/mqtt-dashboard/api/typo", "/mqtt-dashboard//api", "/mqtt-dashboard//api/typo"} {
 		req := httptest.NewRequest(http.MethodGet, p, nil)
 		rec := httptest.NewRecorder()
 		hSub.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("GET %s under subpath status = %d, want 404", p, rec.Code)
 		}
+	}
+}
+
+func TestSpaHandler_ConsecutiveSlashesServeStaticAsset(t *testing.T) {
+	testFS := fstest.MapFS{
+		"index.html":    &fstest.MapFile{Data: []byte("<html><head></head>index</html>")},
+		"assets/app.js": &fstest.MapFile{Data: []byte("console.log('hi')")},
+	}
+	h := spaHandler(testFS, http.FileServer(http.FS(testFS)), "/")
+	req := httptest.NewRequest(http.MethodGet, "//assets/app.js", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("//assets/app.js status = %d, want 200", rec.Code)
+	}
+	if rec.Body.String() != "console.log('hi')" {
+		t.Errorf("//assets/app.js body = %q, want static asset", rec.Body.String())
 	}
 }
 

@@ -101,3 +101,25 @@ func TestLoadRuntimeConfig_RejectsInvalidBasePath(t *testing.T) {
 		t.Fatal("LoadRuntimeConfig accepted a base path with '..'")
 	}
 }
+
+func TestLoadRuntimeConfig_RelativeSeedFileResolvesRelativeToTOML(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "config.toml")
+	contents := `[seed]
+file = "relative-seed.json"
+`
+	if err := os.WriteFile(tomlPath, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MQTT_DASHBOARD_CONFIG", tomlPath)
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", "")
+
+	cfg, err := LoadRuntimeConfig()
+	if err != nil {
+		t.Fatalf("LoadRuntimeConfig: %v", err)
+	}
+	expected := filepath.Join(dir, "relative-seed.json")
+	if cfg.SeedConfigFile != expected {
+		t.Fatalf("expected relative seed file to resolve to %q, got %q", expected, cfg.SeedConfigFile)
+	}
+}

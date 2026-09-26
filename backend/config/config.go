@@ -61,41 +61,21 @@ func ResolveCertContent(val string, baseDir string) string {
 }
 
 // SeedBrokersFromConfig reads initial broker configurations, settings, and dashboards
-// from a JSON file (MQTT_DASHBOARD_SEED_FILE or default paths) and seeds them into the database.
+// from a JSON file (MQTT_DASHBOARD_SEED_FILE) and seeds them into the database.
 func SeedBrokersFromConfig(database *sql.DB) {
 	SeedBrokersFromPath(database, os.Getenv("MQTT_DASHBOARD_SEED_FILE"))
 }
 
 // SeedBrokersFromPath reads initial broker configurations, settings, and
-// dashboards from an explicit JSON file. An empty path retains the historical
-// default-path lookup.
+// dashboards from an explicit JSON file. If configFile is empty, no seeding occurs.
 func SeedBrokersFromPath(database *sql.DB, configFile string) {
-	if database == nil {
-		return
-	}
-
-	if configFile == "" {
-		candidates := []string{
-			"./data/seed.json",
-			"./seed/seed.json",
-			"./data/config.json",
-			"./config/config.json",
-		}
-		for _, c := range candidates {
-			if _, err := os.Stat(c); err == nil {
-				configFile = c
-				break
-			}
-		}
-	}
-
-	if configFile == "" {
+	if database == nil || configFile == "" {
 		return
 	}
 
 	data, err := os.ReadFile(configFile)
 	if err != nil {
-		slog.Error("failed to read config file", "file", configFile, "err", err)
+		slog.Error("failed to read seed file", "file", configFile, "err", err)
 		return
 	}
 
@@ -108,7 +88,7 @@ func SeedBrokersFromPath(database *sql.DB, configFile string) {
 	if err := json.Unmarshal(data, &configObj); err == nil && (len(configObj.Brokers) > 0 || configObj.Settings != nil || len(configObj.Dashboards) > 0) {
 		configBrokers = configObj.Brokers
 		configDashboards = configObj.Dashboards
-		slog.Info("loaded initial config file object", "file", configFile, "brokers_count", len(configBrokers), "dashboards_count", len(configDashboards), "has_settings", configObj.Settings != nil)
+		slog.Info("loaded initial seed file object", "file", configFile, "brokers_count", len(configBrokers), "dashboards_count", len(configDashboards), "has_settings", configObj.Settings != nil)
 		if configObj.Settings != nil {
 			retention := configObj.Settings.RetentionPeriodHours
 			if retention <= 0 {
@@ -119,15 +99,15 @@ func SeedBrokersFromPath(database *sql.DB, configFile string) {
 				retention, configObj.Settings.SaveSysTopics,
 			)
 			if err != nil {
-				slog.Error("failed to seed settings from config file", "err", err)
+				slog.Error("failed to seed settings from seed file", "err", err)
 			} else {
-				slog.Info("seeded settings from config file", "retention_hours", retention, "save_sys_topics", configObj.Settings.SaveSysTopics)
+				slog.Info("seeded settings from seed file", "retention_hours", retention, "save_sys_topics", configObj.Settings.SaveSysTopics)
 			}
 		}
 	} else if err := json.Unmarshal(data, &configBrokers); err == nil && len(configBrokers) > 0 {
-		slog.Info("loaded initial brokers from config file array", "file", configFile, "count", len(configBrokers))
+		slog.Info("loaded initial brokers from seed file array", "file", configFile, "count", len(configBrokers))
 	} else {
-		slog.Error("failed to parse config file", "file", configFile, "err", err)
+		slog.Error("failed to parse seed file", "file", configFile, "err", err)
 		return
 	}
 
@@ -177,14 +157,14 @@ func SeedBrokersFromPath(database *sql.DB, configFile string) {
 			continue
 		}
 
-		slog.Info("seeding initial broker from config file", "name", b.Name, "host", b.Host, "port", b.Port)
+		slog.Info("seeding initial broker from seed file", "name", b.Name, "host", b.Host, "port", b.Port)
 		_, err = database.Exec(
 			`INSERT INTO mqtt_brokers (id, name, host, port, client_id, username, password, is_enabled, sort_order, auth_mode, tls_enabled, tls_skip_verify, ca_cert, client_cert, client_key)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			b.ID, b.Name, b.Host, b.Port, b.ClientID, b.Username, b.Password, b.IsEnabled, i, b.AuthMode, b.TLSEnabled, b.TLSSkipVerify, b.CACert, b.ClientCert, b.ClientKey,
 		)
 		if err != nil {
-			slog.Error("failed to insert initial broker from config file", "broker", b.Name, "err", err)
+			slog.Error("failed to insert initial broker from seed file", "broker", b.Name, "err", err)
 		}
 	}
 
@@ -229,11 +209,11 @@ func SeedBrokersFromPath(database *sql.DB, configFile string) {
 			if err != nil {
 				_, err = database.Exec(`INSERT INTO dashboards (id, name) VALUES (?, ?)`, dashID, d.Name)
 				if err != nil {
-					slog.Error("failed to create dashboard from config file", "dashboard", d.Name, "err", err)
+					slog.Error("failed to create dashboard from seed file", "dashboard", d.Name, "err", err)
 					continue
 				}
 				existingDashID = dashID
-				slog.Info("seeded dashboard from config file", "id", dashID, "name", d.Name)
+				slog.Info("seeded dashboard from seed file", "id", dashID, "name", d.Name)
 			}
 
 			var panelCount int

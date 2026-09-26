@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -57,7 +58,7 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 		if err := toml.Unmarshal(data, &fromFile); err != nil {
 			return RuntimeConfig{}, fmt.Errorf("parse MQTT_DASHBOARD_CONFIG %q: %w", file, err)
 		}
-		applyRuntimeFile(&cfg, fromFile)
+		applyRuntimeFile(&cfg, fromFile, file)
 	}
 
 	applyEnv(&cfg)
@@ -67,7 +68,7 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 	return cfg, nil
 }
 
-func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile) {
+func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile, tomlPath string) {
 	if fromFile.Server.HTTPAddr != "" {
 		cfg.HTTPAddr = fromFile.Server.HTTPAddr
 	}
@@ -81,7 +82,11 @@ func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile) {
 		cfg.LogLevel = fromFile.Logging.Level
 	}
 	if fromFile.Seed.File != "" {
-		cfg.SeedConfigFile = fromFile.Seed.File
+		seedPath := fromFile.Seed.File
+		if !filepath.IsAbs(seedPath) && tomlPath != "" {
+			seedPath = filepath.Join(filepath.Dir(tomlPath), seedPath)
+		}
+		cfg.SeedConfigFile = seedPath
 	}
 }
 

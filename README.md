@@ -201,7 +201,7 @@ MQTT Dashboard supports comprehensive MQTT protocol and security features:
 - **QoS (0, 1, 2)** Quality of Service levels for publishing and subscriptions
 - **Retain flag** to ensure latest state is preserved for new subscribers
 - **$SYS Topics** monitoring and optional retention recording
-- **Initial Configuration Seeding** via `MQTT_DASHBOARD_SEED_FILE` or `seed.json`
+- **Initial Configuration Seeding** via TOML `[seed] file` or `MQTT_DASHBOARD_SEED_FILE`
 
 For detailed security setup and dev broker configurations, see [docs/auth-and-tls.md](docs/auth-and-tls.md).
 

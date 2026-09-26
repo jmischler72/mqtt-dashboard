@@ -130,9 +130,9 @@ func (h *ImageHandler) ServeImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if strings.ToLower(filepath.Ext(name)) == ".svg" {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
 	}
 	http.ServeFile(w, r, path)
 }

@@ -84,6 +84,9 @@ func TestImageUploadListServeDelete(t *testing.T) {
 	if !bytes.Equal(rec.Body.Bytes(), png) {
 		t.Fatalf("served bytes do not match uploaded content")
 	}
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", rec.Header().Get("X-Content-Type-Options"))
+	}
 
 	// Delete
 	rec = httptest.NewRecorder()

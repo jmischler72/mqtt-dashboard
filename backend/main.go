@@ -15,6 +15,7 @@ import (
 	"mqtt-dashboard/ws"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -277,7 +278,8 @@ func spaHandler(distFS fs.FS, h http.Handler, basePath string) http.Handler {
 		if basePath != "/" {
 			requestPath = strings.TrimPrefix(requestPath, strings.TrimSuffix(basePath, "/"))
 		}
-		trimmed := strings.TrimPrefix(requestPath, "/")
+		cleanPath := path.Clean("/" + requestPath)
+		trimmed := strings.TrimPrefix(cleanPath, "/")
 		if trimmed == "api" || strings.HasPrefix(trimmed, "api/") {
 			http.NotFound(w, r)
 			return
@@ -337,10 +339,10 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// skipLoggerForPaths wraps a middleware logger to skip logging requests matching specific path prefixes
-func skipLoggerForPaths(logger func(http.Handler) http.Handler, skipPrefixes ...string) func(http.Handler) http.Handler {
-	skip := make(map[string]struct{}, len(skipPrefixes))
-	for _, p := range skipPrefixes {
+// skipLoggerForPaths wraps a middleware logger to skip logging requests matching specific exact paths
+func skipLoggerForPaths(logger func(http.Handler) http.Handler, skipPaths ...string) func(http.Handler) http.Handler {
+	skip := make(map[string]struct{}, len(skipPaths))
+	for _, p := range skipPaths {
 		skip[p] = struct{}{}
 	}
 	return func(next http.Handler) http.Handler {
