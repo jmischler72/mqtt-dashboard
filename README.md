@@ -100,58 +100,7 @@ go build -o mqtt-dashboard .
 ```
 </details>
 
-### Runtime configuration
-
-The server defaults to `:8080`, serves from `/`, and stores its data in
-`./data`. These defaults preserve the Docker and standalone behaviour above.
-
-For a native deployment, set `MQTT_DASHBOARD_CONFIG` to a TOML file. Values
-are resolved in this order: built-in defaults, TOML, then environment
-variables.
-
-```toml
-# /etc/mqtt-dashboard/config.toml
-[server]
-http_addr = "127.0.0.1:8080"
-base_path = "/mqtt-dashboard/"
-
-[storage]
-data_dir = "/var/lib/mqtt-dashboard"
-
-[logging]
-level = "info"
-
-[seed]
-file = "/etc/mqtt-dashboard/seed.json"
-```
-
-The supported environment overrides are:
-
-| Variable | Description |
-| --- | --- |
-| `MQTT_DASHBOARD_CONFIG` | Optional TOML runtime configuration file |
-| `MQTT_DASHBOARD_HTTP_ADDR` | HTTP listen address, for example `127.0.0.1:8080` |
-| `MQTT_DASHBOARD_BASE_PATH` | Mount path, `/` or a path such as `/mqtt-dashboard/` |
-| `MQTT_DASHBOARD_DATA_DIR` | Directory containing the SQLite database and uploaded images |
-| `MQTT_DASHBOARD_SEED_FILE` | JSON file used to seed brokers, settings, and dashboards |
-| `MQTT_DASHBOARD_LOG_LEVEL` | Go `slog` log level (also respects `LOG_LEVEL`) |
-
-The seed file JSON is for initial application data on first startup;
-changes made in the UI are persisted to SQLite rather than written back to the
-JSON file.
-
-When using a sub-path behind a reverse proxy, preserve that path while
-forwarding requests:
-
-```apache
-ProxyPass        /mqtt-dashboard/ http://127.0.0.1:8080/mqtt-dashboard/
-ProxyPassReverse /mqtt-dashboard/ http://127.0.0.1:8080/mqtt-dashboard/
-```
-
-The frontend uses relative asset URLs and receives its document base from the
-server, so the same binary can serve either `/` or a configured base path.
-
-For complete systemd service configuration and an Apache HTTPS/WebSocket reverse-proxy setup, see the [Native & Reverse-Proxy Deployment Guide](docs/alternative-deployments.md).
+> 💡 **Looking for custom configuration?** MQTT Dashboard runs out of the box with zero configuration (`:8080`, data stored in `./data`). To customize ports, storage paths, reverse-proxy sub-paths, or pre-seed brokers and dashboards, see the **[Configuration & Seeding Guide](docs/configuration.md)**.
 
 ---
 
@@ -201,7 +150,7 @@ Deep-dive architecture and development guides are available in the [`docs/`](doc
 
 - 📘 **[Payload Shaping & Template Guide](docs/payload-shaping.md)** — Dynamic value extraction, loose JSON parsing, and device examples (Zigbee2MQTT, Tasmota, Shelly).
 - 🛠️ **[Panel Architecture & Developer Guide](docs/panel-development-guide.md)** — Anatomy of `PanelDefinition`, UI primitives, validation rules, and step-by-step panel creation tutorial.
-- ⚙️ **[Configuration Seeding & GitOps](docs/configuration-seeding.md)** — Declarative `seed.json` schema, broker auto-provisioning, TLS certificates, and Kubernetes GitOps setups.
+- ⚙️ **[Configuration & Seeding Guide](docs/configuration.md)** — Two-tier runtime configuration (env vars, TOML), declarative `seed.json` schema, and GitOps provisioning.
 - 🚀 **[Native & Reverse-Proxy Deployment Guide](docs/alternative-deployments.md)** — Systemd service configuration, reverse proxy setup (Apache/Nginx), and sub-path routing.
 - ⏰ **[Automations & Cron Engine](docs/automations-and-scheduler.md)** — In-memory scheduling with `gocron v2`, origin attribution, toggle APIs, and retention pruning.
 - 🔌 **[WebSocket Protocol Specification](docs/websocket-protocol.md)** — Wire protocol frames, topic subscription multiplexing, and client backpressure.

@@ -1,10 +1,77 @@
-# Initial Configuration Seeding & GitOps
+# Configuration & Seeding Guide
 
-This document specifies the declarative seed file schema (`seed.json` / `MQTT_DASHBOARD_SEED_FILE`) used by MQTT Dashboard, explains the startup seeding lifecycle, and provides guidelines for headless Docker and Kubernetes GitOps deployments.
+This guide covers everything you need to know about configuring MQTT Dashboard, from host environment variables and native TOML configuration to declarative GitOps database seeding.
 
 ---
 
-## Overview
+## Two Tiers of Configuration
+
+MQTT Dashboard separates **Server Runtime Configuration** (infrastructure) from **Application Seeding** (initial database state):
+
+| Layer | Responsibility | Mechanism | Format | Lifecycle |
+|---|---|---|---|---|
+| **Tier 1: Server Runtime** | Listen address, mount path, data directory, log level | Environment variables or `config.toml` | Key-value / TOML | Evaluated on every process launch. Changes take effect upon restart. |
+| **Tier 2: Initial Application Seed** | Initial brokers, credentials, TLS certificates, dashboards & panels | `MQTT_DASHBOARD_SEED_FILE` or `[seed] file` in TOML | Structured JSON (`seed.json`) | Injected into SQLite on first startup or additive merge. Runtime user edits are saved directly to SQLite. |
+
+This separation ensures that complex dashboard structures (nested grids, JSON payload configs) remain in natural JSON format, while server process parameters remain lightweight and standard across Docker and native environments.
+
+---
+
+## Tier 1: Server Runtime Configuration
+
+The Go binary runs with sensible defaults out of the box (`:8080`, `/`, `./data`, `info`). For Docker deployments, environment variables are recommended. For native systemd installations, a TOML configuration file can be used.
+
+### Precedence Order
+
+Configuration values are resolved in the following priority:
+1. **Built-in defaults** (used when nothing is specified)
+2. **TOML configuration file** (specified via `MQTT_DASHBOARD_CONFIG`)
+3. **Environment variables** (highest precedence, overrides TOML values)
+
+### Configuration Reference
+
+| Environment Variable | TOML Key (`config.toml`) | Default | Description |
+|---|---|---|---|
+| `MQTT_DASHBOARD_HTTP_ADDR` | `server.http_addr` | `:8080` | Listen host and port (e.g. `:8080` or `127.0.0.1:8080`) |
+| `MQTT_DASHBOARD_BASE_PATH` | `server.base_path` | `/` | Application mount path (e.g. `/` or `/mqtt-dashboard/`) |
+| `MQTT_DASHBOARD_DATA_DIR` | `storage.data_dir` | `./data` | Directory where SQLite database and images are stored |
+| `MQTT_DASHBOARD_LOG_LEVEL` | `logging.level` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
+| `MQTT_DASHBOARD_SEED_FILE` | `seed.file` | _None_ | Path to `seed.json` file for pre-populating data |
+| `MQTT_DASHBOARD_CONFIG` | _N/A_ | _None_ | Path to an optional TOML configuration file |
+
+> [!NOTE]
+> `base_path` must start and end with `/` (e.g., `/mqtt-dashboard/`). When running behind a reverse proxy sub-path, ensure the reverse proxy preserves this path. See the [Native & Reverse-Proxy Deployment Guide](alternative-deployments.md) for complete Apache and systemd recipes.
+
+### TOML Configuration File (`config.toml`)
+
+An annotated example file is provided in the repository root as [`config.example.toml`](../config.example.toml):
+
+```toml
+[server]
+http_addr = ":8080"
+base_path = "/"
+
+[storage]
+data_dir = "./data"
+
+[logging]
+level = "info"
+
+# Optional: seed initial brokers or dashboards on first boot
+# [seed]
+# file = "./seed.json"
+```
+
+To run the binary with a TOML configuration:
+
+```bash
+export MQTT_DASHBOARD_CONFIG="/path/to/config.toml"
+./mqtt-dashboard
+```
+
+---
+
+## Tier 2: Initial Application Seeding (`seed.json`)
 
 While MQTT Dashboard allows full management of brokers, dashboards, and settings via its web UI, production and homelab deployments often require **declarative, repeatable provisioning**.
 
@@ -13,11 +80,11 @@ Using declarative configuration seeding:
 - Deployments can run headlessly without manual browser interaction.
 - Fleet deployments across multiple environments (staging, production, edge nodes) can be managed via GitOps repositories.
 
----
-
-## Seed File Schema Specification
+### Seed File Schema Specification
 
 The seed file can be provided either as an **object** (defining brokers, settings, and dashboards) or as a **flat array** of brokers. It is loaded from the path specified by the `MQTT_DASHBOARD_SEED_FILE` environment variable, or via the `[seed] file` parameter in the TOML runtime configuration.
+
+A starter template is provided in the repository root as [`seed.example.json`](../seed.example.json).
 
 ```
                     Startup Configuration Pipeline

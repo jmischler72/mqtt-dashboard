@@ -6,3 +6,7 @@ ignore
 coverage.out
 # Generated per-worktree dev env
 docker/dev/.env
+
+# Local runtime configuration & seed files
+config.toml
+seed.json
