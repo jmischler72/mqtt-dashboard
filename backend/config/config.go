@@ -63,11 +63,17 @@ func ResolveCertContent(val string, baseDir string) string {
 // SeedBrokersFromConfig reads initial broker configurations, settings, and dashboards
 // from a JSON file (CONFIG_FILE or default paths) and seeds them into the database.
 func SeedBrokersFromConfig(database *sql.DB) {
+	SeedBrokersFromPath(database, os.Getenv("CONFIG_FILE"))
+}
+
+// SeedBrokersFromPath reads initial broker configurations, settings, and
+// dashboards from an explicit JSON file. An empty path retains the historical
+// default-path lookup.
+func SeedBrokersFromPath(database *sql.DB, configFile string) {
 	if database == nil {
 		return
 	}
 
-	configFile := os.Getenv("CONFIG_FILE")
 	if configFile == "" {
 		candidates := []string{"./data/config.json", "./config/config.json"}
 		for _, c := range candidates {
@@ -271,4 +277,3 @@ func SeedBrokersFromConfig(database *sql.DB) {
 		}
 	}
 }
-

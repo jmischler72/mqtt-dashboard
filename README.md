@@ -111,6 +111,58 @@ go build -o mqtt-dashboard .
 ./mqtt-dashboard
 ```
 
+### Runtime configuration
+
+The server defaults to `:8080`, serves from `/`, and stores its data in
+`./data`. These defaults preserve the Docker and standalone behaviour above.
+
+For a native deployment, set `MQTT_DASHBOARD_CONFIG` to a TOML file. Values
+are resolved in this order: built-in defaults, TOML, then environment
+variables.
+
+```toml
+# /etc/mqtt-dashboard/config.toml
+[server]
+http_addr = "127.0.0.1:8080"
+base_path = "/mqtt-dashboard/"
+
+[storage]
+data_dir = "/var/lib/mqtt-dashboard"
+
+[logging]
+level = "info"
+
+[seed]
+config_file = "/etc/mqtt-dashboard/config.json"
+```
+
+The supported environment overrides are:
+
+| Variable | Description |
+| --- | --- |
+| `MQTT_DASHBOARD_CONFIG` | Optional TOML runtime configuration file |
+| `MQTT_DASHBOARD_HTTP_ADDR` | HTTP listen address, for example `127.0.0.1:8080` |
+| `MQTT_DASHBOARD_BASE_PATH` | Mount path, `/` or a path such as `/mqtt-dashboard/` |
+| `MQTT_DASHBOARD_DATA_DIR` | Directory containing the SQLite database and uploaded images |
+| `MQTT_DASHBOARD_CONFIG_FILE` | JSON file used to seed brokers, settings, and dashboards |
+| `MQTT_DASHBOARD_LOG_LEVEL` | Go `slog` log level |
+
+`CONFIG_FILE` and `LOG_LEVEL` remain supported as aliases for existing
+deployments. The legacy `CONFIG_FILE` JSON is for initial application data;
+changes made in the UI are persisted to SQLite rather than written back to the
+JSON file.
+
+When using a sub-path behind a reverse proxy, preserve that path while
+forwarding requests:
+
+```apache
+ProxyPass        /mqtt-dashboard/ http://127.0.0.1:8080/mqtt-dashboard/
+ProxyPassReverse /mqtt-dashboard/ http://127.0.0.1:8080/mqtt-dashboard/
+```
+
+The frontend uses relative asset URLs and receives its document base from the
+server, so the same binary can serve either `/` or a configured base path.
+
 ---
 
 ## 🖼️ Panel Types

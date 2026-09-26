@@ -8,6 +8,7 @@ require (
 	github.com/go-co-op/gocron/v2 v2.22.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/pelletier/go-toml/v2 v2.2.4
 	modernc.org/sqlite v1.59.0
 )
 

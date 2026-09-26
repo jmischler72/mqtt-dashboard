@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  // Relative asset URLs let the embedded frontend be served from a runtime
+  // base path. The Go server inserts the document <base> element.
+  base: "./",
   plugins: [react(), tailwindcss()],
   // Defaults to <root>/node_modules/.vite. The dev container keeps node_modules
   // outside the bind-mounted worktree, so it overrides this (see
