@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.13.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.12.0...v1.13.0) (2026-09-27)
+
+
+### Features
+
+* add runtime deployment configuration ([#186](https://github.com/jmischler72/mqtt-dashboard/issues/186)) ([810c858](https://github.com/jmischler72/mqtt-dashboard/commit/810c8585e644d96d1961ba41bf8500fc68f52295))
+
+
+### Bug Fixes
+
+* **runtime:** resolve sub-path routing, image resolution, and seed configuration ([#187](https://github.com/jmischler72/mqtt-dashboard/issues/187)) ([#190](https://github.com/jmischler72/mqtt-dashboard/issues/190)) ([d78b4c8](https://github.com/jmischler72/mqtt-dashboard/commit/d78b4c85e688a789fdf59e14064ace8555dc13d2))
+
 ## [1.12.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.11.0...v1.12.0) (2026-09-23)
 
 
