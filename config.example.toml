@@ -1,0 +1,36 @@
+# MQTT Dashboard Runtime Configuration Example
+#
+# Specify this file when running the server:
+#   export MQTT_DASHBOARD_CONFIG="config.toml"
+#   ./mqtt-dashboard
+#
+# Values are resolved in this order:
+#   1. Built-in defaults
+#   2. This TOML file
+#   3. Environment variables (highest priority)
+
+[server]
+# Address and port to bind to.
+# Defaults to ":8080" (all network interfaces).
+# Use "127.0.0.1:8080" if binding strictly to loopback behind a local reverse proxy.
+http_addr = ":8080"
+
+# Application base URL path. Must begin and end with "/".
+# Defaults to "/".
+# Set to a sub-path such as "/mqtt-dashboard/" when mounted behind a reverse proxy.
+base_path = "/"
+
+[storage]
+# Directory where the SQLite database and uploaded images are stored.
+# Defaults to "./data".
+data_dir = "./data"
+
+[logging]
+# Log verbosity: "debug", "info", "warn", or "error".
+# Defaults to "info".
+level = "info"
+
+# Optional: Initial seeding file for brokers, settings, and dashboards on first boot.
+# If omitted or left empty, no initial database seeding takes place.
+# [seed]
+# file = "./seed.json"

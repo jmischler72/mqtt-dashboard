@@ -25,7 +25,7 @@ flowchart LR
 
 <a id="systemd-service-deployment"></a>
 
-This section runs the compiled MQTT Dashboard binary as an unprivileged, restartable system service. It assumes the runtime configuration described in the [README](../README.md#runtime-configuration) is in `/etc/mqtt-dashboard/config.toml`.
+This section runs the compiled MQTT Dashboard binary as an unprivileged, restartable system service. It assumes the runtime configuration described in the [Configuration & Seeding Guide](configuration.md#tier-1-server-runtime-configuration) is in `/etc/mqtt-dashboard/config.toml`.
 
 ### 1. Create Service Account and Directories
 
@@ -64,7 +64,7 @@ level = "info"
 > [!NOTE]
 > `base_path` must be `/` or an absolute URL path ending in `/`. The server, REST API, WebSocket endpoint, frontend router, uploaded-image URLs, and static assets all use this value.
 
-See the [README](../README.md#runtime-configuration) for the complete list of runtime options and their environment-variable overrides.
+See the [Configuration & Seeding Guide](configuration.md) for the complete list of runtime options and their environment-variable overrides.
 
 ### 3. Create the systemd Service Unit
 
