@@ -14,6 +14,7 @@ import (
 type LayoutHandler struct {
 	db          *sql.DB
 	scheduler   CronScheduler
+	logicEngine LogicEngine
 	invalidator PanelMetaInvalidator
 }
 
@@ -27,6 +28,10 @@ func NewLayoutHandler(db *sql.DB, scheduler ...CronScheduler) *LayoutHandler {
 
 func (h *LayoutHandler) SetInvalidator(invalidator PanelMetaInvalidator) {
 	h.invalidator = invalidator
+}
+
+func (h *LayoutHandler) SetLogicEngine(engine LogicEngine) {
+	h.logicEngine = engine
 }
 
 func (h *LayoutHandler) GetLayouts(w http.ResponseWriter, r *http.Request) {
@@ -208,6 +213,9 @@ func (h *LayoutHandler) DeletePanel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if h.scheduler != nil {
 		h.scheduler.RemoveJob(id)
+	}
+	if h.logicEngine != nil {
+		h.logicEngine.RemoveRule(id)
 	}
 	res, err := h.db.Exec(`DELETE FROM dashboard_layouts WHERE id = ?`, id)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
+	"mqtt-dashboard/logic"
 	mqttclient "mqtt-dashboard/mqtt"
 	"mqtt-dashboard/ws"
 )
@@ -247,6 +248,45 @@ func TestLoadCronJobsFromDB(t *testing.T) {
 	loadCronJobsFromDB(dbClosed, scheduler)
 }
 
+func TestLoadLogicRulesFromDB(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+
+	registry := mqttclient.NewRegistry(database)
+	engine := logic.NewEngine(registry)
+	defer engine.Stop()
+
+	// Insert various layouts: valid logic, invalid json, empty topics, non-logic panel
+	_, err = database.Exec(`
+		INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, config_json, broker_id)
+		VALUES 
+			('p1', 'default', 'Logic 1', 'logic', '{"source_topic":"sensors/temp","target_topic":"fan/set","payload":"ON","enabled":true}', 'b1'),
+			('p2', 'default', 'Logic Bad JSON', 'logic', 'invalid json', 'b1'),
+			('p3', 'default', 'Logic Empty Source', 'logic', '{"source_topic":""}', 'b1'),
+			('p4', 'default', 'Button Panel', 'button', '{}', 'b1')
+	`)
+	if err != nil {
+		t.Fatalf("insert layouts: %v", err)
+	}
+
+	loadLogicRulesFromDB(database, engine)
+
+	if _, ok := engine.GetRule("p1"); !ok {
+		t.Error("expected rule p1 to be loaded")
+	}
+	if _, ok := engine.GetRule("p2"); ok {
+		t.Error("expected rule p2 not to be loaded")
+	}
+
+	// Test with closed DB
+	dbClosed, _ := db.InitDB(":memory:")
+	dbClosed.Close()
+	loadLogicRulesFromDB(dbClosed, engine)
+}
+
 func TestBuildRouter(t *testing.T) {
 	database, err := db.InitDB(":memory:")
 	if err != nil {
@@ -259,12 +299,14 @@ func TestBuildRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewScheduler: %v", err)
 	}
+	logicEngine := logic.NewEngine(registry)
+	defer logicEngine.Stop()
 	wsHub := ws.NewHub(registry)
 	testFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<html>app</html>")},
 	}
 
-	router := buildRouter(database, registry, scheduler, wsHub, t.TempDir(), testFS)
+	router := buildRouter(database, registry, scheduler, logicEngine, wsHub, t.TempDir(), testFS)
 
 	// Health check
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)

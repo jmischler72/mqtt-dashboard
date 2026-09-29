@@ -10,6 +10,7 @@ import (
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
 	"mqtt-dashboard/handlers"
+	"mqtt-dashboard/logic"
 	"mqtt-dashboard/models"
 	"mqtt-dashboard/ws"
 	"net/http"
@@ -71,6 +72,11 @@ func main() {
 		slog.Error("start pruning job", "err", err)
 	}
 
+	// --- Init Logic engine ---
+	logicEngine := logic.NewEngine(registry)
+	defer logicEngine.Stop()
+	loadLogicRulesFromDB(database, logicEngine)
+
 	// --- Init WebSocket hub ---
 	wsHub := ws.NewHub(registry, database)
 
@@ -84,7 +90,7 @@ func main() {
 		}
 	}
 
-	r := buildRouter(database, registry, scheduler, wsHub, "./data", frontendFS)
+	r := buildRouter(database, registry, scheduler, logicEngine, wsHub, "./data", frontendFS)
 
 	addr := ":8080"
 	slog.Info("server starting", "addr", addr)
@@ -94,15 +100,23 @@ func main() {
 	}
 }
 
-func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS) http.Handler {
+func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, wsHub *ws.Hub, dataDir string, frontendFS fs.FS) http.Handler {
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
 	layoutH.SetInvalidator(wsHub)
+	layoutH.SetLogicEngine(logicEngine)
 	publishH := handlers.NewPublishHandler(database, registry)
 	cronH := handlers.NewCronHandler(database, scheduler)
+	logicH := handlers.NewLogicHandler(database, logicEngine)
+	automationsH := handlers.NewAutomationsHandler(
+		database,
+		handlers.NewCronAutomationProvider(database, scheduler),
+		handlers.NewLogicAutomationProvider(database, logicEngine),
+	)
 	dashboardH := handlers.NewDashboardHandler(database, scheduler)
 	dashboardH.SetInvalidator(wsHub)
+	dashboardH.SetLogicEngine(logicEngine)
 	settingsH := handlers.NewSettingsHandler(database, registry)
 	explorerH := handlers.NewExplorerHandler(database)
 	imageH := handlers.NewImageHandler(dataDir)
@@ -145,12 +159,21 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	// Publish
 	r.Post("/api/publish", publishH.Publish)
 
+	// Automations (generalized)
+	r.Get("/api/automations", automationsH.ListAutomations)
+	r.Put("/api/automations/{panelId}/toggle", automationsH.ToggleAutomation)
+
 	// Cron
-	r.Get("/api/cron", cronH.ListCronJobs)
 	r.Post("/api/cron/{panelId}", cronH.UpsertCron)
 	r.Delete("/api/cron/{panelId}", cronH.DeleteCron)
 	r.Put("/api/cron/{panelId}/toggle", cronH.ToggleCron)
 	r.Get("/api/cron/{panelId}", cronH.GetCronStatus)
+
+	// Logic
+	r.Post("/api/logic/{panelId}", logicH.UpsertLogic)
+	r.Delete("/api/logic/{panelId}", logicH.DeleteLogic)
+	r.Put("/api/logic/{panelId}/toggle", logicH.ToggleLogic)
+	r.Get("/api/logic/{panelId}", logicH.GetLogicStatus)
 
 	// Settings
 	r.Get("/api/settings", settingsH.GetSettings)
@@ -248,6 +271,33 @@ func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
 		}
 		if err := scheduler.AddJob(panelID, bID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err != nil {
 			slog.Error("load cron job", "panel_id", panelID, "err", err)
+		}
+	}
+}
+
+// loadLogicRulesFromDB reloads all logic panel rules from the database on startup.
+func loadLogicRulesFromDB(database *sql.DB, engine logic.LogicEngine) {
+	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'logic'`)
+	if err != nil {
+		slog.Error("load logic rules", "err", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var panelID, cfgJSON, brokerID string
+		if err := rows.Scan(&panelID, &cfgJSON, &brokerID); err != nil {
+			continue
+		}
+		var rule logic.Rule
+		if err := json.Unmarshal([]byte(cfgJSON), &rule); err != nil || rule.SourceTopic == "" || rule.TargetTopic == "" {
+			continue
+		}
+		rule.PanelID = panelID
+		if rule.BrokerID == "" {
+			rule.BrokerID = brokerID
+		}
+		if err := engine.AddRule(&rule); err != nil {
+			slog.Error("load logic rule", "panel_id", panelID, "err", err)
 		}
 	}
 }

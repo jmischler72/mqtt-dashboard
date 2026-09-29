@@ -7,6 +7,7 @@ import {
   buttonPanelDefinition,
   inputPanelDefinition,
   cronPanelDefinition,
+  logicPanelDefinition,
   togglePanelDefinition,
   sliderPanelDefinition,
   textPanelDefinition,
@@ -22,6 +23,7 @@ registerPanel(brokerStatsPanelDefinition);
 registerPanel(buttonPanelDefinition);
 registerPanel(inputPanelDefinition);
 registerPanel(cronPanelDefinition);
+registerPanel(logicPanelDefinition);
 registerPanel(togglePanelDefinition);
 registerPanel(sliderPanelDefinition);
 registerPanel(textPanelDefinition);

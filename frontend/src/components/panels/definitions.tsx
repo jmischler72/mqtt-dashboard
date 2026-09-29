@@ -5,6 +5,7 @@ import {
   MdSmartButton,
   MdInput,
   MdSchedule,
+  MdAutoMode,
   MdNotes,
   MdHorizontalRule,
   MdImage,
@@ -27,6 +28,8 @@ import ButtonPanel, {
 } from "./ButtonPanel";
 import InputPanel, { InputConfigModal, type InputConfig } from "./InputPanel";
 import CronPanel, { CronConfigModal, type CronConfig } from "./CronPanel";
+import LogicPanel, { LogicConfigModal, type LogicConfig } from "./LogicPanel";
+import { mqttTopicMatches } from "./logicUtils";
 import TextPanel, { TextConfigModal, type TextConfig } from "./TextPanel";
 import SeparatorPanel, {
   SeparatorConfigModal,
@@ -339,6 +342,93 @@ export const cronPanelDefinition: PanelDefinition<CronConfig> = {
   Component: CronPanel,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConfigModal: CronConfigModal as any,
+};
+
+export const logicPanelDefinition: PanelDefinition<LogicConfig> = {
+  type: "logic",
+  label: "Logic",
+  category: "control",
+  icon: MdAutoMode,
+  description: "Automate MQTT publishes based on incoming topic values",
+  resolvePickedTopic: (_existing, picked) => picked,
+  isEmpty: (config) =>
+    !config?.source_topic?.trim() || !config?.target_topic?.trim()
+      ? {
+          message: "No rule configured — open settings to configure logic",
+          actionLabel: "Configure Logic",
+        }
+      : null,
+  validateConfig: (config): ValidationResult => {
+    const source = (config?.source_topic ?? "").trim();
+    if (!source) {
+      return {
+        isValid: false,
+        warning: "Trigger topic is required",
+        errors: { source_topic: "Trigger topic is required" },
+      };
+    }
+    const target = (config?.target_topic ?? "").trim();
+    if (!target) {
+      return {
+        isValid: false,
+        warning: "Target topic is required",
+        errors: { target_topic: "Target topic is required" },
+      };
+    }
+    if (target.includes("+") || target.includes("#")) {
+      return {
+        isValid: false,
+        warning: "Cannot publish to wildcard topics (+ or #)",
+        errors: { target_topic: "Cannot publish to wildcard topics (+ or #)" },
+      };
+    }
+    const targets = target.split(",").map((t) => t.trim());
+    if (targets.some((t) => mqttTopicMatches(source, t))) {
+      return {
+        isValid: false,
+        warning:
+          "Target topic cannot match trigger topic (infinite loop prevention)",
+        errors: { target_topic: "Target topic cannot match trigger topic" },
+      };
+    }
+    return { isValid: true };
+  },
+  getHeaderMeta: (config) => {
+    const source = config?.source_topic?.trim();
+    const target = config?.target_topic?.trim();
+    return {
+      topicSummary:
+        source && target
+          ? `${source} → ${target}`
+          : source || target || "not configured",
+      payloadPreview: config?.payload,
+    };
+  },
+  onSaveConfig: async (panelId, config, brokerId) => {
+    await api.post(`/api/logic/${panelId}`, {
+      ...config,
+      broker_id: brokerId,
+    });
+  },
+  preview: (
+    <div className="flex flex-col gap-2 p-1.5 h-full text-xs justify-center">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] bg-base-200 px-1.5 py-0.5 rounded truncate max-w-[120px]">
+          sensors/temp
+        </span>
+        <span className="badge badge-xs badge-success">enabled</span>
+      </div>
+      <div className="flex items-center gap-1 text-[11px] text-base-content/70">
+        <span>IF value &gt; 30</span>
+      </div>
+      <div className="flex items-center gap-1 font-mono text-[10px] text-primary">
+        <span>THEN "ON" → fan/set</span>
+      </div>
+    </div>
+  ),
+  Component: LogicPanel,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConfigModal: LogicConfigModal as any,
 };
 
 export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {

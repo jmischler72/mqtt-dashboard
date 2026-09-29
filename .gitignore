@@ -6,3 +6,5 @@ ignore
 coverage.out
 # Generated per-worktree dev env
 docker/dev/.env
+
+.DS_Store

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"mqtt-dashboard/cron"
+	"mqtt-dashboard/logic"
 	"mqtt-dashboard/models"
 )
 
@@ -184,3 +185,84 @@ func (m *mockInvalidator) InvalidatePanelMeta(panelID string) {
 	m.invalidated = append(m.invalidated, panelID)
 }
 
+// mockLogicEngine implements handlers.LogicEngine.
+type mockLogicEngine struct {
+	mu          sync.Mutex
+	rules       map[string]*logic.Rule
+	statuses    map[string]*logic.RuleStatus
+	addErr      error
+	toggleErr   error
+	removeCalls []string
+	addCalls    int
+}
+
+func newMockLogicEngine() *mockLogicEngine {
+	return &mockLogicEngine{
+		rules:    make(map[string]*logic.Rule),
+		statuses: make(map[string]*logic.RuleStatus),
+	}
+}
+
+func (m *mockLogicEngine) AddRule(rule *logic.Rule) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.addCalls++
+	if m.addErr != nil {
+		return m.addErr
+	}
+	cp := *rule
+	m.rules[rule.PanelID] = &cp
+	m.statuses[rule.PanelID] = &logic.RuleStatus{
+		PanelID:      rule.PanelID,
+		Enabled:      rule.Enabled,
+		CurrentState: "idle",
+	}
+	return nil
+}
+
+func (m *mockLogicEngine) RemoveRule(panelID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.removeCalls = append(m.removeCalls, panelID)
+	delete(m.rules, panelID)
+	delete(m.statuses, panelID)
+}
+
+func (m *mockLogicEngine) ToggleRule(panelID string, enabled bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.toggleErr != nil {
+		return m.toggleErr
+	}
+	rule, ok := m.rules[panelID]
+	if !ok {
+		return fmt.Errorf("rule %q not found", panelID)
+	}
+	rule.Enabled = enabled
+	if st, ok2 := m.statuses[panelID]; ok2 {
+		st.Enabled = enabled
+	}
+	return nil
+}
+
+func (m *mockLogicEngine) GetRule(panelID string) (*logic.Rule, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rule, ok := m.rules[panelID]
+	if !ok {
+		return nil, false
+	}
+	cp := *rule
+	return &cp, true
+}
+
+func (m *mockLogicEngine) GetStatus(panelID string) (*logic.RuleStatus, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	st, ok := m.statuses[panelID]
+	if !ok {
+		return nil, false
+	}
+	cp := *st
+	return &cp, true
+}
