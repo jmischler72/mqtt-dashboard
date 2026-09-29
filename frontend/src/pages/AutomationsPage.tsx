@@ -478,13 +478,9 @@ export default function AutomationsPage() {
             return a.cron_expr.localeCompare(b.cron_expr) * dir;
           case "next_run": {
             const timeA =
-              a.enabled && a.next_run
-                ? new Date(a.next_run).getTime()
-                : NaN;
+              a.enabled && a.next_run ? new Date(a.next_run).getTime() : NaN;
             const timeB =
-              b.enabled && b.next_run
-                ? new Date(b.next_run).getTime()
-                : NaN;
+              b.enabled && b.next_run ? new Date(b.next_run).getTime() : NaN;
             const hasA = !Number.isNaN(timeA);
             const hasB = !Number.isNaN(timeB);
             if (!hasA && !hasB) return 0;
