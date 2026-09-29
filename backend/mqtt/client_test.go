@@ -159,6 +159,34 @@ func TestUnsubscribe_KeepsRemainingHandlers(t *testing.T) {
 	}
 }
 
+func TestUnsubscribe_RemovesSpecificHandler(t *testing.T) {
+	m := NewManager()
+	var h1Called, h2Called bool
+	h1 := func(string, []byte, byte, bool, string) { h1Called = true }
+	h2 := func(string, []byte, byte, bool, string) { h2Called = true }
+
+	m.Subscribe("test", h1) //nolint
+	m.Subscribe("test", h2) //nolint
+
+	// Specifically unsubscribe h1; h2 must remain
+	m.Unsubscribe("test", h1)
+
+	if len(m.subs["test"]) != 1 {
+		t.Fatalf("subs count = %d, want 1 after unsubscribe", len(m.subs["test"]))
+	}
+
+	for _, h := range m.subs["test"] {
+		h("test", []byte("msg"), 0, false, "")
+	}
+
+	if h1Called {
+		t.Error("h1 was called but was unsubscribed")
+	}
+	if !h2Called {
+		t.Error("h2 was not called but should have remained subscribed")
+	}
+}
+
 func TestUnsubscribe_NonExistentTopicNoError(t *testing.T) {
 	m := NewManager()
 	// Should not panic
@@ -806,5 +834,3 @@ func TestConnect_GeneratesUniqueClientID(t *testing.T) {
 		t.Errorf("expected unique client IDs, both got %q", id1)
 	}
 }
-
-

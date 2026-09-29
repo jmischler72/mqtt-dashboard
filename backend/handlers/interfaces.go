@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"mqtt-dashboard/cron"
+	"mqtt-dashboard/logic"
 	"mqtt-dashboard/models"
 )
 
@@ -24,6 +25,15 @@ type CronScheduler interface {
 	ToggleJob(panelID string, enabled bool) error
 	GetJob(panelID string) (*cron.JobInfo, bool)
 	GetJobs() []*cron.JobInfo
+}
+
+// LogicEngine is the interface for managing event-driven logic rules.
+type LogicEngine interface {
+	AddRule(rule *logic.Rule) error
+	RemoveRule(panelID string)
+	ToggleRule(panelID string, enabled bool) error
+	GetRule(panelID string) (*logic.Rule, bool)
+	GetStatus(panelID string) (*logic.RuleStatus, bool)
 }
 
 // PanelMetaInvalidator invalidates cached metadata for a panel.

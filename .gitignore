@@ -10,3 +10,4 @@ docker/dev/.env
 # Local runtime configuration & seed files
 config.toml
 seed.json
+.DS_Store

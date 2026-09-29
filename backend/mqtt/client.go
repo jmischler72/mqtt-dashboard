@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -331,7 +332,7 @@ func (m *MQTTManager) Subscribe(topic string, handler MessageHandler) error {
 	return token.Error()
 }
 
-func (m *MQTTManager) Unsubscribe(topic string, _ MessageHandler) {
+func (m *MQTTManager) Unsubscribe(topic string, handler MessageHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -339,7 +340,24 @@ func (m *MQTTManager) Unsubscribe(topic string, _ MessageHandler) {
 	if !ok || len(handlers) == 0 {
 		return
 	}
-	handlers = handlers[:len(handlers)-1]
+
+	targetIdx := -1
+	if handler != nil {
+		targetPtr := reflect.ValueOf(handler).Pointer()
+		for i := len(handlers) - 1; i >= 0; i-- {
+			if handlers[i] != nil && reflect.ValueOf(handlers[i]).Pointer() == targetPtr {
+				targetIdx = i
+				break
+			}
+		}
+	}
+
+	if targetIdx >= 0 {
+		handlers = append(handlers[:targetIdx], handlers[targetIdx+1:]...)
+	} else {
+		handlers = handlers[:len(handlers)-1]
+	}
+
 	if len(handlers) > 0 {
 		m.subs[topic] = handlers
 		return

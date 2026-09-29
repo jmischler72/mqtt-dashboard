@@ -14,7 +14,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export interface ScheduledJob {
+export interface AutomationItem {
   panel_id: string;
   panel_title: string;
   panel_type: string;
@@ -22,14 +22,19 @@ export interface ScheduledJob {
   dashboard_name: string;
   broker_id: string;
   broker_name: string;
-  cron_expr: string;
-  topic: string;
+  enabled: boolean;
+  target_topic: string;
+  source_topic?: string;
   payload: string;
   qos: number;
   retain: boolean;
-  enabled: boolean;
+  trigger_type: string; // "schedule" | "event" | "manual"
+  trigger_summary: string;
+  trigger_detail: string;
   next_run?: string;
-  prev_run?: string;
+  last_run?: string;
+  run_count?: number;
+  status_detail?: string;
 }
 
 export const api = {
@@ -41,11 +46,13 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
-  getScheduledJobs: (enabledOnly = false) =>
-    request<ScheduledJob[]>(`/api/cron${enabledOnly ? "?enabled=true" : ""}`),
-  toggleCronJob: (panelId: string, enabled: boolean) =>
+  getAutomations: (enabledOnly = false) =>
+    request<AutomationItem[]>(
+      `/api/automations${enabledOnly ? "?enabled=true" : ""}`,
+    ),
+  toggleAutomation: (panelId: string, enabled: boolean) =>
     request<{ enabled: boolean }>(
-      `/api/cron/${encodeURIComponent(panelId)}/toggle`,
+      `/api/automations/${encodeURIComponent(panelId)}/toggle`,
       {
         method: "PUT",
         body: JSON.stringify({ enabled }),
@@ -55,7 +62,7 @@ export const api = {
     request<string[]>(
       `/api/explorer/tree?broker_id=${encodeURIComponent(brokerId)}`,
     ),
-  getExplorerHistory: (brokerId: string, topic: string) =>
+  getExplorerHistory: (brokerId: string, topic: string, limit?: number) =>
     request<
       Array<{
         id: number;
@@ -70,7 +77,7 @@ export const api = {
         source_dashboard_id?: string;
       }>
     >(
-      `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}`,
+      `/api/explorer/history?broker_id=${encodeURIComponent(brokerId)}&topic=${encodeURIComponent(topic)}${limit !== undefined ? `&limit=${limit}` : ""}`,
     ),
   getActivity: (
     brokerId: string,
