@@ -478,17 +478,14 @@ export default function AutomationsPage() {
             return a.cron_expr.localeCompare(b.cron_expr) * dir;
           case "next_run": {
             const timeA =
-              a.enabled && a.next_run
-                ? new Date(a.next_run).getTime()
-                : dir === 1
-                  ? Infinity
-                  : -Infinity;
+              a.enabled && a.next_run ? new Date(a.next_run).getTime() : NaN;
             const timeB =
-              b.enabled && b.next_run
-                ? new Date(b.next_run).getTime()
-                : dir === 1
-                  ? Infinity
-                  : -Infinity;
+              b.enabled && b.next_run ? new Date(b.next_run).getTime() : NaN;
+            const hasA = !Number.isNaN(timeA);
+            const hasB = !Number.isNaN(timeB);
+            if (!hasA && !hasB) return 0;
+            if (!hasA) return 1;
+            if (!hasB) return -1;
             return (timeA - timeB) * dir;
           }
           case "broker":
