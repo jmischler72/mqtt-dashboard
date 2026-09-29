@@ -130,17 +130,24 @@ export function useTopicMessages(
         topics.map((t) =>
           api
             .getExplorerHistory(brokerId, t)
-            .then((records) => ({
-              topic: t,
-              hasMessages: Boolean(records && records.length > 0),
-              lastSeen:
-                records && records.length > 0 && records[0]?.timestamp
-                  ? formatAgo(records[0].timestamp)
+            .then((records) => {
+              const newestRecord =
+                records && records.length > 0
+                  ? records[records.length - 1]
+                  : undefined;
+              return {
+                topic: t,
+                hasMessages: Boolean(records && records.length > 0),
+                rawTimestamp: newestRecord?.timestamp,
+                lastSeen: newestRecord?.timestamp
+                  ? formatAgo(newestRecord.timestamp) || undefined
                   : undefined,
-            }))
+              };
+            })
             .catch(() => ({
               topic: t,
               hasMessages: false,
+              rawTimestamp: undefined,
               lastSeen: undefined,
             })),
         ),
@@ -148,7 +155,9 @@ export function useTopicMessages(
         if (cancelled) return;
         const byTopic: Record<string, TopicDetail> = {};
         let activeCount = 0;
-        let newestLastSeen: string | undefined;
+        let newestTimestamp: string | undefined;
+        let newestTime = -Infinity;
+        let fallbackLastSeen: string | undefined;
 
         for (const res of results) {
           byTopic[res.topic] = {
@@ -157,8 +166,15 @@ export function useTopicMessages(
           };
           if (res.hasMessages) {
             activeCount++;
-            if (!newestLastSeen && res.lastSeen) {
-              newestLastSeen = res.lastSeen;
+            if (res.rawTimestamp) {
+              const time = new Date(res.rawTimestamp).getTime();
+              if (!Number.isNaN(time) && time > newestTime) {
+                newestTime = time;
+                newestTimestamp = res.rawTimestamp;
+              }
+            }
+            if (!fallbackLastSeen && res.lastSeen) {
+              fallbackLastSeen = res.lastSeen;
             }
           }
         }
@@ -167,7 +183,9 @@ export function useTopicMessages(
           key: currentKey,
           hasMessages: activeCount > 0,
           loading: false,
-          lastSeen: newestLastSeen,
+          lastSeen: newestTimestamp
+            ? formatAgo(newestTimestamp) || undefined
+            : fallbackLastSeen,
           totalCount: topics.length,
           activeCount,
           byTopic,
