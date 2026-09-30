@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.13.0...v1.13.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **frontend:** wrong sorting in topic msg and next run in automations ([#193](https://github.com/jmischler72/mqtt-dashboard/issues/193)) ([577f31e](https://github.com/jmischler72/mqtt-dashboard/commit/577f31eb2cddfa0c65127e203c1a26c2e3a896aa))
+
 ## [1.13.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.12.0...v1.13.0) (2026-09-27)
 
 
