@@ -141,6 +141,9 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	app.Get("/api/layouts", layoutH.GetLayouts)
 	app.Post("/api/layouts", layoutH.CreatePanel)
 	app.Put("/api/layouts/batch", layoutH.BatchUpdatePositions)
+	app.Post("/api/layouts/{id}/duplicate", layoutH.DuplicatePanel)
+	app.Post("/api/layouts/{id}/move", layoutH.MovePanel)
+	app.Post("/api/layouts/{id}/copy-to", layoutH.CopyPanelTo)
 	app.Put("/api/layouts/{id}", layoutH.UpdatePanel)
 	app.Delete("/api/layouts/{id}", layoutH.DeletePanel)
 

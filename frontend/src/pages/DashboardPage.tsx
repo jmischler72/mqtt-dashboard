@@ -10,6 +10,7 @@ import PanelLibraryModal from "../components/PanelLibraryModal";
 import { getPanelDefinition } from "../components/panels";
 import type { BrokerStatus } from "../hooks/useBrokers";
 import { useIsMobile } from "../hooks/useIsMobile";
+import type { Dashboard } from "../components/DashboardSelector";
 
 type GridLayout = {
   i: string;
@@ -51,17 +52,38 @@ type LayoutContext = {
   brokerStatuses: BrokerStatus[];
   panelLibraryOpen: boolean;
   setPanelLibraryOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  dashboards: Dashboard[];
+  switchDashboard: (id: string) => void;
 };
 
 export default function DashboardPage() {
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [gridWidth, setGridWidth] = useState(1200);
-  const [newPanelId, setNewPanelId] = useState<string | null>(null);
+  const [highlightedPanelId, setHighlightedPanelId] = useState<string | null>(
+    null,
+  );
+  const pendingHighlightRef = useRef<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [openConfigPanels, setOpenConfigPanels] = useState<Set<string>>(
     new Set(),
   );
   const [hasAnyModalOpen, setHasAnyModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, []);
   const [pendingPickerReturn, setPendingPickerReturn] = useState<{
     panelId: string;
     topic: string;
@@ -99,10 +121,11 @@ export default function DashboardPage() {
     brokerStatuses,
     panelLibraryOpen,
     setPanelLibraryOpen,
+    dashboards,
+    switchDashboard,
   } = useOutletContext<LayoutContext>();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
-  const highlightedTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
     const checkAnyModalOpen = () => {
@@ -254,7 +277,7 @@ export default function DashboardPage() {
         title: `${getPanelDefinition(panelType)?.label ?? "New"} Panel`,
       });
       setPanels((prev) => [...prev, panel]);
-      setNewPanelId(panel.id);
+      triggerHighlight(panel.id);
     } catch (error) {
       void error;
     }
@@ -287,13 +310,75 @@ export default function DashboardPage() {
     setPendingPickerReturn(null);
   }, []);
 
+  const triggerHighlight = useCallback((panelId: string) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+
+    // Briefly clear highlight to ensure the CSS animation re-triggers even for same panel
+    setHighlightedPanelId(null);
+
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedPanelId(panelId);
+
+      scrollTimerRef.current = setTimeout(() => {
+        const el = document.getElementById(`panel-${panelId}`);
+        if (el) {
+          const target = el.closest(".react-grid-item") ?? el;
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 200);
+
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlightedPanelId((curr) => (curr === panelId ? null : curr));
+      }, 2200);
+    }, 30);
+  }, []);
+
+  const addDuplicatedPanel = useCallback(
+    (copy: Panel) => {
+      setPanels((prev) => [...prev, copy]);
+      triggerHighlight(copy.id);
+      setToast({ msg: `Duplicated “${copy.title}”`, ok: true });
+    },
+    [triggerHighlight],
+  );
+
+  const handlePanelCopy = useCallback(
+    (newPanelId: string, targetDashboardId: string) => {
+      const targetDash = dashboards.find((d) => d.id === targetDashboardId);
+      setToast({
+        msg: `Copied to “${targetDash?.name ?? "dashboard"}”`,
+        ok: true,
+      });
+      pendingHighlightRef.current = newPanelId;
+      switchDashboard(targetDashboardId);
+    },
+    [dashboards, switchDashboard],
+  );
+
+  const handlePanelMove = useCallback(
+    (panelId: string, targetDashboardId: string) => {
+      const panel = panels.find((p) => p.id === panelId);
+      removePanel(panelId);
+      const targetDash = dashboards.find((d) => d.id === targetDashboardId);
+      setToast({
+        msg: `Moved “${panel?.title ?? "panel"}” to “${targetDash?.name ?? "dashboard"}”`,
+        ok: true,
+      });
+      pendingHighlightRef.current = panelId;
+      switchDashboard(targetDashboardId);
+    },
+    [panels, dashboards, switchDashboard],
+  );
+
   const renderPanelWrapper = (panel: Panel) => (
     <PanelWrapper
       panel={panel}
       editMode={editMode}
       brokerStatuses={brokerStatuses}
       activeDashboardId={activeDashboardId}
-      highlight={panel.id === newPanelId}
+      dashboards={dashboards}
+      highlight={panel.id === highlightedPanelId}
       pickerReturnTopic={
         pendingPickerReturn?.panelId === panel.id
           ? pendingPickerReturn.topic
@@ -311,64 +396,48 @@ export default function DashboardPage() {
       }
       onDelete={() => removePanel(panel.id)}
       onUpdate={updatePanel}
+      onDuplicate={addDuplicatedPanel}
+      onCopy={handlePanelCopy}
+      onMove={handlePanelMove}
       onConfigModalChange={handleConfigModalChange}
       onPickerConsumed={handlePickerConsumed}
     />
   );
 
+  // Consume pending highlight when target dashboard's panels finish loading
   useEffect(() => {
-    if (!newPanelId) return;
-    // Defer scroll to let ReactGridLayout finish positioning the new item
-    const scrollTimer = setTimeout(() => {
-      const el = document.getElementById(`panel-${newPanelId}`);
-      if (el) {
-        // Scroll the RGL grid item wrapper (positioned ancestor) into view
-        const target = el.closest(".react-grid-item") ?? el;
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (isLoadingLayout || panels.length === 0) return;
+    if (pendingHighlightRef.current) {
+      const targetId = pendingHighlightRef.current;
+      if (panels.some((p) => p.id === targetId)) {
+        pendingHighlightRef.current = null;
+        triggerHighlight(targetId);
       }
-    }, 150);
-    const clearTimer = setTimeout(() => setNewPanelId(null), 2200);
-    return () => {
-      clearTimeout(scrollTimer);
-      clearTimeout(clearTimer);
-    };
-  }, [newPanelId]);
+    }
+  }, [panels, isLoadingLayout, triggerHighlight]);
 
+  // Handle direct URL query param highlight (e.g. from Explorer jump link)
   useEffect(() => {
     const targetPanelId = searchParams.get("panel");
-    if (!targetPanelId) {
-      highlightedTargetRef.current = null;
-      return;
-    }
-    if (isLoadingLayout || panels.length === 0) return;
-    if (highlightedTargetRef.current === targetPanelId) return;
-
-    const exists = panels.some((p) => p.id === targetPanelId);
-    if (!exists) return;
-
-    highlightedTargetRef.current = targetPanelId;
-    const highlightTimer = setTimeout(() => {
-      setNewPanelId(targetPanelId);
-    }, 0);
-
-    const cleanupTimer = setTimeout(() => {
-      highlightedTargetRef.current = null;
+    if (!targetPanelId || isLoadingLayout || panels.length === 0) return;
+    if (panels.some((p) => p.id === targetPanelId)) {
+      triggerHighlight(targetPanelId);
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
           next.delete("panel");
-          next.delete("dashboard");
           return next;
         },
         { replace: true },
       );
-    }, 2500);
-
-    return () => {
-      clearTimeout(highlightTimer);
-      clearTimeout(cleanupTimer);
-    };
-  }, [searchParams, isLoadingLayout, panels, setSearchParams]);
+    }
+  }, [
+    searchParams,
+    isLoadingLayout,
+    panels,
+    triggerHighlight,
+    setSearchParams,
+  ]);
 
   return (
     <>
@@ -485,6 +554,15 @@ export default function DashboardPage() {
         onClose={() => setPanelLibraryOpen(false)}
         onPick={(type) => addPanel(type)}
       />
+      {toast && (
+        <div className="toast toast-top toast-end z-50">
+          <div
+            className={`alert ${toast.ok ? "alert-success" : "alert-error"} text-xs py-2 px-3 shadow-lg`}
+          >
+            <span>{toast.msg}</span>
+          </div>
+        </div>
+      )}
     </>
   );
 }

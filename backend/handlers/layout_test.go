@@ -20,6 +20,9 @@ func newLayoutRouter(h *handlers.LayoutHandler) chi.Router {
 	r.Put("/api/layouts/{id}", h.UpdatePanel)
 	r.Delete("/api/layouts/{id}", h.DeletePanel)
 	r.Put("/api/layouts/batch", h.BatchUpdatePositions)
+	r.Post("/api/layouts/{id}/duplicate", h.DuplicatePanel)
+	r.Post("/api/layouts/{id}/move", h.MovePanel)
+	r.Post("/api/layouts/{id}/copy-to", h.CopyPanelTo)
 	return r
 }
 
@@ -438,5 +441,156 @@ func TestDeletePanel_InvalidatesCache(t *testing.T) {
 	}
 	if len(inv.invalidated) != 1 || inv.invalidated[0] != "p1" {
 		t.Errorf("expected p1 to be invalidated, got %+v", inv.invalidated)
+	}
+}
+
+func TestDuplicatePanel_Success(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('p1', 'default', 'Temp Sensor', 'gauge', 2, 1, 4, 3, '{"min":0,"max":100}', 'broker-1')`)
+
+	h := handlers.NewLayoutHandler(database)
+	r := newLayoutRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/p1/duplicate", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+
+	var p models.DashboardPanel
+	decodeJSON(t, rec.Body, &p)
+	if p.ID == "p1" || p.ID == "" {
+		t.Errorf("expected new unique ID, got %q", p.ID)
+	}
+	if p.Title != "Temp Sensor copy" {
+		t.Errorf("expected title 'Temp Sensor copy', got %q", p.Title)
+	}
+	if p.DashboardID != "default" {
+		t.Errorf("expected dashboard_id 'default', got %q", p.DashboardID)
+	}
+	if p.PanelType != "gauge" {
+		t.Errorf("expected panel_type 'gauge', got %q", p.PanelType)
+	}
+	if p.BrokerID != "broker-1" {
+		t.Errorf("expected broker_id 'broker-1', got %q", p.BrokerID)
+	}
+	// maxY should be at y=1+3=4
+	if p.Y != 4 {
+		t.Errorf("expected Y=4, got %d", p.Y)
+	}
+}
+
+func TestDuplicatePanel_NotFound(t *testing.T) {
+	database := setupTestDB(t)
+	h := handlers.NewLayoutHandler(database)
+	r := newLayoutRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/nonexistent/duplicate", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestMovePanel_Success(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('dash-2', 'Dashboard 2')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Panel 1', 'button', 0, 0, 4, 3)`)
+
+	h := handlers.NewLayoutHandler(database)
+	inv := &mockInvalidator{}
+	h.SetInvalidator(inv)
+	r := newLayoutRouter(h)
+
+	body := jsonBody(t, map[string]string{"dashboard_id": "dash-2"})
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/p1/move", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+
+	var p models.DashboardPanel
+	decodeJSON(t, rec.Body, &p)
+	if p.DashboardID != "dash-2" {
+		t.Errorf("expected dashboard_id 'dash-2', got %q", p.DashboardID)
+	}
+	if p.ID != "p1" {
+		t.Errorf("expected ID 'p1', got %q", p.ID)
+	}
+	if len(inv.invalidated) != 1 || inv.invalidated[0] != "p1" {
+		t.Errorf("expected p1 to be invalidated, got %+v", inv.invalidated)
+	}
+
+	// Verify in database
+	var dbDashID string
+	err := database.QueryRow(`SELECT dashboard_id FROM dashboard_layouts WHERE id = 'p1'`).Scan(&dbDashID)
+	if err != nil {
+		t.Fatalf("query row: %v", err)
+	}
+	if dbDashID != "dash-2" {
+		t.Errorf("database dashboard_id = %q, want 'dash-2'", dbDashID)
+	}
+}
+
+func TestMovePanel_TargetNotFound(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Panel 1', 'button', 0, 0, 4, 3)`)
+
+	h := handlers.NewLayoutHandler(database)
+	r := newLayoutRouter(h)
+
+	body := jsonBody(t, map[string]string{"dashboard_id": "nonexistent-dash"})
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/p1/move", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestCopyPanelTo_Success(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('dash-2', 'Dashboard 2')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Panel 1', 'button', 0, 0, 4, 3)`)
+
+	h := handlers.NewLayoutHandler(database)
+	r := newLayoutRouter(h)
+
+	body := jsonBody(t, map[string]string{"dashboard_id": "dash-2"})
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/p1/copy-to", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+
+	var copy models.DashboardPanel
+	decodeJSON(t, rec.Body, &copy)
+	if copy.DashboardID != "dash-2" {
+		t.Errorf("expected dashboard_id 'dash-2', got %q", copy.DashboardID)
+	}
+	if copy.ID == "p1" || copy.ID == "" {
+		t.Errorf("expected new unique ID, got %q", copy.ID)
+	}
+
+	// Verify original still exists in default dashboard
+	var origDashID string
+	err := database.QueryRow(`SELECT dashboard_id FROM dashboard_layouts WHERE id = 'p1'`).Scan(&origDashID)
+	if err != nil {
+		t.Fatalf("query row for original: %v", err)
+	}
+	if origDashID != "default" {
+		t.Errorf("original panel dashboard_id = %q, want 'default'", origDashID)
 	}
 }

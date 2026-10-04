@@ -8,11 +8,13 @@ import {
   RiHashtag,
   RiErrorWarningLine,
 } from "react-icons/ri";
+import { MdContentCopy } from "react-icons/md";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import type { BrokerStatus } from "../hooks/useBrokers";
+import type { Dashboard } from "./DashboardSelector";
 import { IoIosArrowDown } from "react-icons/io";
 import {
   getPanelDefinition,
@@ -28,12 +30,16 @@ interface Props {
   editMode: boolean;
   brokerStatuses: BrokerStatus[];
   activeDashboardId: string;
+  dashboards?: Dashboard[];
   highlight?: boolean;
   pickerReturnTopic?: string;
   pickerReturnBrokerId?: string;
   pickerReturnDraftConfig?: unknown;
   onDelete: () => void;
   onUpdate: (p: Panel) => void;
+  onDuplicate?: (p: Panel) => void;
+  onCopy?: (panelId: string, targetDashboardId: string) => void;
+  onMove?: (panelId: string, targetDashboardId: string) => void;
   onConfigModalChange: (panelId: string, isOpen: boolean) => void;
   onPickerConsumed?: () => void;
 }
@@ -51,12 +57,16 @@ export default function PanelWrapper({
   editMode,
   brokerStatuses,
   activeDashboardId,
+  dashboards,
   highlight,
   pickerReturnTopic,
   pickerReturnBrokerId,
   pickerReturnDraftConfig,
   onDelete,
   onUpdate,
+  onDuplicate,
+  onCopy,
+  onMove,
   onConfigModalChange,
   onPickerConsumed,
 }: Props) {
@@ -74,6 +84,8 @@ export default function PanelWrapper({
   const [isMetaRegionHovered, setIsMetaRegionHovered] = useState(false);
   const [isTopicSummaryHovered, setIsTopicSummaryHovered] = useState(false);
   const [isPayloadHovered, setIsPayloadHovered] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [topicPopoverPos, setTopicPopoverPos] = useState<{
     top: number;
     left: number;
@@ -197,6 +209,52 @@ export default function PanelWrapper({
     }
   };
 
+  const handleDuplicate = async () => {
+    setActionBusy(true);
+    try {
+      const copy = await api.post<Panel>(
+        `/api/layouts/${panel.id}/duplicate`,
+        {},
+      );
+      setCopyModalOpen(false);
+      onDuplicate?.(copy);
+    } catch (error) {
+      void error;
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleCopyTo = async (targetDashboardId: string) => {
+    setActionBusy(true);
+    try {
+      const copy = await api.post<Panel>(`/api/layouts/${panel.id}/copy-to`, {
+        dashboard_id: targetDashboardId,
+      });
+      setCopyModalOpen(false);
+      onCopy?.(copy.id, targetDashboardId);
+    } catch (error) {
+      void error;
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleMoveTo = async (targetDashboardId: string) => {
+    setActionBusy(true);
+    try {
+      await api.post<Panel>(`/api/layouts/${panel.id}/move`, {
+        dashboard_id: targetDashboardId,
+      });
+      setCopyModalOpen(false);
+      onMove?.(panel.id, targetDashboardId);
+    } catch (error) {
+      void error;
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const handleOpenConfig = useCallback(() => {
     const panelEl = panelRef.current;
     if (!panelEl) {
@@ -279,6 +337,11 @@ export default function PanelWrapper({
   };
 
   const brokerStatus = brokerStatuses.find((bs) => bs.id === panel.broker_id);
+  const currentDashboard = dashboards?.find((d) => d.id === activeDashboardId);
+  const currentDashboardName = currentDashboard?.name ?? "This dashboard";
+  const otherDashboards = (dashboards ?? []).filter(
+    (d) => d.id !== activeDashboardId,
+  );
   const dotColor =
     brokerDotColor[brokerStatus?.status ?? "DISABLED"] ?? "bg-neutral";
   const panelConfig = (panel.config_json ?? {}) as Record<string, unknown>;
@@ -464,6 +527,15 @@ export default function PanelWrapper({
                   </span>
                 )}
                 <button
+                  type="button"
+                  className="btn btn-ghost btn-xs no-drag"
+                  title="Copy or move panel"
+                  onClick={() => setCopyModalOpen(true)}
+                >
+                  <MdContentCopy className="text-base" />
+                </button>
+                <button
+                  type="button"
                   className="btn btn-ghost btn-xs no-drag"
                   title="Configure"
                   onClick={handleOpenConfig}
@@ -676,6 +748,111 @@ export default function PanelWrapper({
             <pre className="text-[11px] font-mono whitespace-pre-wrap max-h-28 overflow-auto max-w-60">
               {headerMeta.payloadPreview}
             </pre>
+          </div>,
+          document.body,
+        )}
+      {copyModalOpen &&
+        createPortal(
+          <div className="modal modal-open z-50">
+            <div className="modal-box max-w-sm p-4">
+              <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
+                <MdContentCopy className="text-base text-primary" />
+                Copy or Move Panel
+              </h3>
+              <p className="text-xs text-base-content/70 mb-3 truncate">
+                Destination for{" "}
+                <span className="font-semibold text-base-content">
+                  “{panel.title}”
+                </span>
+                :
+              </p>
+
+              {/* Current dashboard (Duplicate) */}
+              <div className="border border-base-300 rounded-lg p-2.5 bg-base-200/50 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold truncate">
+                    {currentDashboardName}
+                  </div>
+                  <div className="text-[10px] text-base-content/60">
+                    Current dashboard
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-primary shrink-0"
+                  onClick={handleDuplicate}
+                  disabled={actionBusy}
+                >
+                  Duplicate
+                </button>
+              </div>
+
+              {/* Other dashboards (Copy or Move) */}
+              {otherDashboards.length > 0 && (
+                <>
+                  <div className="divider my-2 text-[10px] uppercase tracking-wider text-base-content/50">
+                    Other dashboards
+                  </div>
+                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+                    {otherDashboards.map((d) => (
+                      <div
+                        key={d.id}
+                        className="flex items-center justify-between gap-2 p-2 rounded-lg border border-base-200 hover:border-base-300 bg-base-100"
+                      >
+                        <span
+                          className="text-xs font-medium truncate flex-1"
+                          title={d.name}
+                        >
+                          {d.name}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost border border-base-300 hover:border-primary"
+                            onClick={() => handleCopyTo(d.id)}
+                            disabled={actionBusy}
+                            title={`Copy to ${d.name} (keeps original)`}
+                          >
+                            Copy
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-outline btn-warning"
+                            onClick={() => handleMoveTo(d.id)}
+                            disabled={actionBusy}
+                            title={`Move to ${d.name} (deletes from this dashboard)`}
+                          >
+                            Move
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2.5 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/20 text-[11px] text-warning">
+                    <RiErrorWarningLine className="shrink-0 text-sm" />
+                    <span>
+                      <strong>Move</strong> deletes the panel from this
+                      dashboard.
+                    </span>
+                  </div>
+                </>
+              )}
+
+              <div className="modal-action mt-3">
+                <button
+                  type="button"
+                  className="btn btn-xs btn-ghost"
+                  onClick={() => setCopyModalOpen(false)}
+                  disabled={actionBusy}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+            <div
+              className="modal-backdrop"
+              onClick={() => !actionBusy && setCopyModalOpen(false)}
+            />
           </div>,
           document.body,
         )}
