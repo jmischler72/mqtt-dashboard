@@ -182,6 +182,7 @@ export default function Layout() {
   }, [backendReady, location.search, dashboards, activeDashboardId]);
 
   const switchDashboard = (id: string) => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     setActiveDashboardId(id);
     if (id) {
       localStorage.setItem(ACTIVE_DASHBOARD_KEY, id);
@@ -635,6 +636,8 @@ export default function Layout() {
               brokerStatuses,
               panelLibraryOpen,
               setPanelLibraryOpen,
+              dashboards,
+              switchDashboard,
             }}
           />
         )}

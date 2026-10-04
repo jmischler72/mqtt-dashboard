@@ -225,6 +225,177 @@ func (h *LayoutHandler) DeletePanel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *LayoutHandler) duplicatePanelTo(srcID, targetDashboardID string, appendCopyTitle bool) (*models.DashboardPanel, error) {
+	row := h.db.QueryRow(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ?`, srcID)
+	var src models.DashboardPanel
+	var cfgJSON string
+	if err := row.Scan(&src.ID, &src.DashboardID, &src.Title, &src.PanelType, &src.X, &src.Y, &src.W, &src.H, &cfgJSON, &src.BrokerID); err != nil {
+		return nil, err
+	}
+	src.ConfigJSON = json.RawMessage(cfgJSON)
+
+	if targetDashboardID == "" {
+		targetDashboardID = src.DashboardID
+	}
+	title := src.Title
+	if appendCopyTitle {
+		title += " copy"
+	}
+
+	var maxY int
+	h.db.QueryRow(`SELECT COALESCE(MAX(y + h), 0) FROM dashboard_layouts WHERE dashboard_id = ?`, targetDashboardID).Scan(&maxY) //nolint
+
+	copy_ := models.DashboardPanel{
+		ID:          uuid.New().String(),
+		DashboardID: targetDashboardID,
+		Title:       title,
+		PanelType:   src.PanelType,
+		X:           src.X,
+		Y:           maxY,
+		W:           src.W,
+		H:           src.H,
+		ConfigJSON:  src.ConfigJSON,
+		BrokerID:    src.BrokerID,
+	}
+
+	_, err := h.db.Exec(
+		`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		copy_.ID, copy_.DashboardID, copy_.Title, copy_.PanelType, copy_.X, copy_.Y, copy_.W, copy_.H, string(copy_.ConfigJSON), copy_.BrokerID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-register cron job if duplicating a cron panel.
+	if copy_.PanelType == "cron" && h.scheduler != nil {
+		var cfg struct {
+			CronExpr string `json:"cron_expr"`
+			Topic    string `json:"topic"`
+			Payload  string `json:"payload"`
+			QoS      int    `json:"qos"`
+			Retain   bool   `json:"retain"`
+			Enabled  bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(copy_.ConfigJSON, &cfg); err == nil && cfg.CronExpr != "" {
+			_ = h.scheduler.AddJob(copy_.ID, copy_.BrokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled)
+		}
+	}
+
+	return &copy_, nil
+}
+
+func (h *LayoutHandler) DuplicatePanel(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	copy_, err := h.duplicatePanelTo(id, "", true)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(copy_)
+}
+
+func (h *LayoutHandler) MovePanel(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req struct {
+		DashboardID string `json:"dashboard_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.DashboardID == "" {
+		http.Error(w, "dashboard_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify target dashboard exists.
+	var exists string
+	if err := h.db.QueryRow(`SELECT id FROM dashboards WHERE id = ?`, req.DashboardID).Scan(&exists); err != nil {
+		http.Error(w, "target dashboard not found", http.StatusNotFound)
+		return
+	}
+
+	row := h.db.QueryRow(`SELECT id, dashboard_id, title, panel_type, x, y, w, h, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ?`, id)
+	var p models.DashboardPanel
+	var cfgJSON string
+	if err := row.Scan(&p.ID, &p.DashboardID, &p.Title, &p.PanelType, &p.X, &p.Y, &p.W, &p.H, &cfgJSON, &p.BrokerID); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	p.ConfigJSON = json.RawMessage(cfgJSON)
+
+	if p.DashboardID == req.DashboardID {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(p)
+		return
+	}
+
+	// Place at the bottom of the target dashboard.
+	var maxY int
+	h.db.QueryRow(`SELECT COALESCE(MAX(y + h), 0) FROM dashboard_layouts WHERE dashboard_id = ?`, req.DashboardID).Scan(&maxY) //nolint
+
+	p.DashboardID = req.DashboardID
+	p.Y = maxY
+
+	_, err := h.db.Exec(
+		`UPDATE dashboard_layouts SET dashboard_id = ?, y = ? WHERE id = ?`,
+		p.DashboardID, p.Y, id,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if h.invalidator != nil {
+		h.invalidator.InvalidatePanelMeta(id)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(p)
+}
+
+func (h *LayoutHandler) CopyPanelTo(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req struct {
+		DashboardID string `json:"dashboard_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.DashboardID == "" {
+		http.Error(w, "dashboard_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify target dashboard exists.
+	var exists string
+	if err := h.db.QueryRow(`SELECT id FROM dashboards WHERE id = ?`, req.DashboardID).Scan(&exists); err != nil {
+		http.Error(w, "target dashboard not found", http.StatusNotFound)
+		return
+	}
+
+	copy_, err := h.duplicatePanelTo(id, req.DashboardID, false)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(copy_)
+}
+
 func (h *LayoutHandler) BatchUpdatePositions(w http.ResponseWriter, r *http.Request) {
 	var req models.BatchLayoutUpdate
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
