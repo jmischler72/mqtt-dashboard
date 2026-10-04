@@ -431,7 +431,13 @@ export default function DashboardPage() {
         { replace: true },
       );
     }
-  }, [searchParams, isLoadingLayout, panels, triggerHighlight, setSearchParams]);
+  }, [
+    searchParams,
+    isLoadingLayout,
+    panels,
+    triggerHighlight,
+    setSearchParams,
+  ]);
 
   return (
     <>

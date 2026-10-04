@@ -760,7 +760,11 @@ export default function PanelWrapper({
                 Copy or Move Panel
               </h3>
               <p className="text-xs text-base-content/70 mb-3 truncate">
-                Destination for <span className="font-semibold text-base-content">“{panel.title}”</span>:
+                Destination for{" "}
+                <span className="font-semibold text-base-content">
+                  “{panel.title}”
+                </span>
+                :
               </p>
 
               {/* Current dashboard (Duplicate) */}
@@ -795,7 +799,10 @@ export default function PanelWrapper({
                         key={d.id}
                         className="flex items-center justify-between gap-2 p-2 rounded-lg border border-base-200 hover:border-base-300 bg-base-100"
                       >
-                        <span className="text-xs font-medium truncate flex-1" title={d.name}>
+                        <span
+                          className="text-xs font-medium truncate flex-1"
+                          title={d.name}
+                        >
                           {d.name}
                         </span>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -824,7 +831,8 @@ export default function PanelWrapper({
                   <div className="flex items-center gap-1.5 mt-2.5 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/20 text-[11px] text-warning">
                     <RiErrorWarningLine className="shrink-0 text-sm" />
                     <span>
-                      <strong>Move</strong> deletes the panel from this dashboard.
+                      <strong>Move</strong> deletes the panel from this
+                      dashboard.
                     </span>
                   </div>
                 </>
