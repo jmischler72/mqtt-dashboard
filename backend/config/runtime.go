@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -20,12 +21,14 @@ type RuntimeConfig struct {
 	DataDir        string
 	SeedConfigFile string
 	LogLevel       string
+	DemoMode       bool
 }
 
 type runtimeConfigFile struct {
 	Server struct {
 		HTTPAddr string `toml:"http_addr"`
 		BasePath string `toml:"base_path"`
+		DemoMode *bool  `toml:"demo_mode"`
 	} `toml:"server"`
 	Storage struct {
 		DataDir string `toml:"data_dir"`
@@ -75,6 +78,9 @@ func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile, tomlPath s
 	if fromFile.Server.BasePath != "" {
 		cfg.BasePath = fromFile.Server.BasePath
 	}
+	if fromFile.Server.DemoMode != nil {
+		cfg.DemoMode = *fromFile.Server.DemoMode
+	}
 	if fromFile.Storage.DataDir != "" {
 		cfg.DataDir = fromFile.Storage.DataDir
 	}
@@ -107,6 +113,11 @@ func applyEnv(cfg *RuntimeConfig) {
 		cfg.LogLevel = value
 	} else if value := os.Getenv("LOG_LEVEL"); value != "" {
 		cfg.LogLevel = value
+	}
+	if value := os.Getenv("MQTT_DASHBOARD_DEMO_MODE"); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			cfg.DemoMode = b
+		}
 	}
 }
 

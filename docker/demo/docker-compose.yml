@@ -1,15 +1,22 @@
 services:
   mqtt-dashboard:
-    build:
-      context: ../..
-      dockerfile: Dockerfile
+    image: ghcr.io/jmischler72/mqtt-dashboard:latest
+    pull_policy: always
     restart: unless-stopped
+    environment:
+      - MQTT_DASHBOARD_DEMO_MODE=true
+      - MQTT_DASHBOARD_SEED_FILE=/app/dev-seed.json
     volumes:
       - data_volume:/app/data
 
   mosquitto:
     image: eclipse-mosquitto:2
     restart: unless-stopped
+    networks:
+      default:
+      dokploy-network:
+        aliases:
+          - mosquitto
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
@@ -28,6 +35,9 @@ services:
       - BROKER_PLAIN_HOST=mosquitto
       - BROKER_PLAIN_PORT=1883
 
+networks:
+  dokploy-network:
+    external: true
 
 volumes:
   data_volume:

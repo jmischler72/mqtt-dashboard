@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MdMenu, MdEdit, MdAdd, MdKeyboardArrowUp } from "react-icons/md";
+import { RiCloseLine, RiExternalLinkLine } from "react-icons/ri";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
 // Injected by docker/dev/docker-compose-dev.yml, one per worktree
@@ -75,6 +76,14 @@ export default function Layout() {
   });
   const [dashboardsLoading, setDashboardsLoading] = useState(true);
   const [backendReady, setBackendReady] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoBannerDismissed, setDemoBannerDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem("mqtt_demo_banner_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const flyoutRef = useRef<HTMLDivElement>(null);
   const flyoutTriggerRef = useRef<HTMLButtonElement>(null);
@@ -82,13 +91,25 @@ export default function Layout() {
   const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onDashboard = location.pathname === "/dashboard";
 
+  const dismissDemoBanner = () => {
+    setDemoBannerDismissed(true);
+    try {
+      sessionStorage.setItem("mqtt_demo_banner_dismissed", "1");
+    } catch {
+      // Ignore storage errors (e.g. disabled or restricted storage)
+    }
+  };
+
   // Health check with retry until backend responds
   useEffect(() => {
     const check = () =>
       api
-        .get("/api/health")
-        .then(() => {
+        .get<{ status: string; demo_mode?: boolean }>("/api/health")
+        .then((res) => {
           setBackendReady(true);
+          if (res?.demo_mode) {
+            setDemoMode(true);
+          }
           if (healthRetryRef.current) {
             clearInterval(healthRetryRef.current);
             healthRetryRef.current = null;
@@ -290,6 +311,23 @@ export default function Layout() {
               </div>
             )}
 
+            {/* Demo mode information */}
+            {demoMode && (
+              <div className="mt-4 pt-3 border-t border-base-300 text-xs">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="badge badge-sm badge-warning font-semibold">
+                    Demo Mode Active
+                  </span>
+                </div>
+                <p className="text-base-content/70">
+                  This instance is running in demo mode with simulated sensors
+                  and IoT devices. You can freely create and edit panels, test
+                  dashboard layouts, and publish messages. Data and
+                  configurations are periodically reset.
+                </p>
+              </div>
+            )}
+
             <div className="modal-action">
               <button
                 className="btn btn-sm btn-ghost"
@@ -306,6 +344,50 @@ export default function Layout() {
         </div>
       )}
       <div className="sticky top-0 z-40 relative">
+        {/* Demo instance banner */}
+        {demoMode && !demoBannerDismissed && !barHidden && (
+          <div
+            role="region"
+            aria-label="Demo instance notice"
+            className="bg-warning/10 border-b border-warning/30 px-4 py-1.5 flex items-center justify-between text-xs text-base-content/90"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="badge badge-warning badge-xs font-semibold uppercase tracking-wider shrink-0">
+                Demo
+              </span>
+              <span className="truncate">
+                <span className="hidden sm:inline">
+                  Interactive demo instance with simulated IoT telemetry. Feel
+                  free to explore and edit — changes reset periodically.
+                </span>
+                <span className="sm:hidden">
+                  Demo instance with simulated telemetry. Resets periodically.
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 ml-3">
+              <a
+                href="https://github.com/jmischler72/mqtt-dashboard"
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-ghost btn-xs gap-1 font-normal opacity-75 hover:opacity-100"
+                title="View repository on GitHub"
+              >
+                <span className="hidden md:inline">GitHub</span>
+                <RiExternalLinkLine className="text-xs" />
+              </a>
+              <button
+                onClick={dismissDemoBanner}
+                className="btn btn-ghost btn-xs btn-square text-base-content/60 hover:text-base-content"
+                aria-label="Dismiss demo banner"
+                title="Dismiss banner"
+              >
+                <RiCloseLine className="text-sm" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {barHidden && (
           /* Focus mode, per the Claude Design mock: the bar collapses to a thin
              strip that keeps the edit accent and broker health visible. */
@@ -638,6 +720,7 @@ export default function Layout() {
               setPanelLibraryOpen,
               dashboards,
               switchDashboard,
+              demoMode,
             }}
           />
         )}

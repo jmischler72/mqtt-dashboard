@@ -26,6 +26,7 @@ RUN mkdir -p /app/data
 WORKDIR /app
 
 COPY --from=backend-builder /app/mqtt-dashboard .
+COPY docker/dev/dev-seed.json /app/dev-seed.json
 
 RUN chown -R appuser:appgroup /app
 USER appuser

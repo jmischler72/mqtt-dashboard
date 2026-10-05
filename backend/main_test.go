@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -483,5 +484,57 @@ func TestSkipLoggerForPaths_WithBasePath(t *testing.T) {
 
 	if loggerCalled {
 		t.Error("logger should not be called for skipped statusEndpoint under base_path")
+	}
+}
+
+func TestBuildRouter_DemoMode(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	registry := mqttclient.NewRegistry(database)
+	scheduler, err := cron.NewScheduler(registry)
+	if err != nil {
+		t.Fatalf("NewScheduler: %v", err)
+	}
+
+	router := buildRouter(database, registry, scheduler, ws.NewHub(registry, database), t.TempDir(), fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}, "/", true)
+
+	// Health check with demo_mode
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("health status = %d, want 200", rec.Code)
+	}
+	var healthResp struct {
+		Status   string `json:"status"`
+		DemoMode bool   `json:"demo_mode"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&healthResp); err != nil {
+		t.Fatalf("decode health resp: %v", err)
+	}
+	if healthResp.Status != "ok" || !healthResp.DemoMode {
+		t.Fatalf("unexpected health response: %+v", healthResp)
+	}
+
+	// Runtime config endpoint
+	req = httptest.NewRequest(http.MethodGet, "/api/config", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("config status = %d, want 200", rec.Code)
+	}
+	var configResp struct {
+		DemoMode bool `json:"demo_mode"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&configResp); err != nil {
+		t.Fatalf("decode config resp: %v", err)
+	}
+	if !configResp.DemoMode {
+		t.Fatalf("expected demo_mode to be true in /api/config, got false")
 	}
 }
