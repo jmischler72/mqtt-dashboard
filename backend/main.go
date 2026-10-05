@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -100,11 +101,22 @@ func main() {
 	r := buildRouter(database, registry, scheduler, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode)
 
 	serverURL := formatServerURL(runtimeConfig.HTTPAddr, runtimeConfig.BasePath)
+	printBanner(os.Stderr, version, serverURL, runtimeConfig.DataDir, runtimeConfig.DemoMode)
 	slog.Info("server starting", "version", version, "url", serverURL, "addr", runtimeConfig.HTTPAddr, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
 	if err := http.ListenAndServe(runtimeConfig.HTTPAddr, r); err != nil {
 		slog.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func printBanner(w io.Writer, version, serverURL, dataDir string, demoMode bool) {
+	tag := ""
+	if demoMode {
+		tag = " (demo mode)"
+	}
+	fmt.Fprintf(w, "\n  MQTT Dashboard v%s%s\n", version, tag)
+	fmt.Fprintf(w, "  ➜  Local:   %s\n", serverURL)
+	fmt.Fprintf(w, "  ➜  Storage: %s\n\n", dataDir)
 }
 
 func formatServerURL(addr, basePath string) string {

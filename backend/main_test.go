@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -563,4 +564,31 @@ func TestFormatServerURL(t *testing.T) {
 		}
 	}
 }
+
+func TestPrintBanner(t *testing.T) {
+	var buf bytes.Buffer
+	printBanner(&buf, "1.14.0", "http://localhost:8080/", "./data", false)
+	out := buf.String()
+
+	if !strings.Contains(out, "MQTT Dashboard v1.14.0") {
+		t.Errorf("banner missing version header, got %q", out)
+	}
+	if !strings.Contains(out, "➜  Local:   http://localhost:8080/") {
+		t.Errorf("banner missing local URL, got %q", out)
+	}
+	if !strings.Contains(out, "➜  Storage: ./data") {
+		t.Errorf("banner missing storage line, got %q", out)
+	}
+	if strings.Contains(out, "demo mode") {
+		t.Errorf("banner unexpectedly contained demo mode, got %q", out)
+	}
+
+	buf.Reset()
+	printBanner(&buf, "1.14.0", "http://localhost:8080/", "./data", true)
+	outDemo := buf.String()
+	if !strings.Contains(outDemo, "(demo mode)") {
+		t.Errorf("banner missing demo mode indicator, got %q", outDemo)
+	}
+}
+
 
