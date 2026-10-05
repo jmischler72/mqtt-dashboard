@@ -20,6 +20,10 @@ http_addr = ":8080"
 # Set to a sub-path such as "/mqtt-dashboard/" when mounted behind a reverse proxy.
 base_path = "/"
 
+# Optional: Enable demo mode banner in the UI for showcase/demo environments.
+# Defaults to false.
+# demo_mode = true
+
 [storage]
 # Directory where the SQLite database and uploaded images are stored.
 # Defaults to "./data".

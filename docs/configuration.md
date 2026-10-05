@@ -37,6 +37,7 @@ Configuration values are resolved in the following priority:
 | `MQTT_DASHBOARD_DATA_DIR` | `storage.data_dir` | `./data` | Directory where SQLite database and images are stored |
 | `MQTT_DASHBOARD_LOG_LEVEL` | `logging.level` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
 | `MQTT_DASHBOARD_SEED_FILE` | `seed.file` | _None_ | Path to `seed.json` file for pre-populating data |
+| `MQTT_DASHBOARD_DEMO_MODE` | `server.demo_mode` | `false` | Enable demo mode banner in the UI for showcase instances |
 | `MQTT_DASHBOARD_CONFIG` | _N/A_ | _None_ | Path to an optional TOML configuration file |
 
 > [!NOTE]

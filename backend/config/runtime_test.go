@@ -14,12 +14,13 @@ func TestLoadRuntimeConfig_Defaults(t *testing.T) {
 	t.Setenv("MQTT_DASHBOARD_SEED_FILE", "")
 	t.Setenv("MQTT_DASHBOARD_LOG_LEVEL", "")
 	t.Setenv("LOG_LEVEL", "")
+	t.Setenv("MQTT_DASHBOARD_DEMO_MODE", "")
 
 	cfg, err := LoadRuntimeConfig()
 	if err != nil {
 		t.Fatalf("LoadRuntimeConfig: %v", err)
 	}
-	if cfg.HTTPAddr != ":8080" || cfg.BasePath != "/" || cfg.DataDir != "./data" || cfg.LogLevel != "info" || cfg.SeedConfigFile != "" {
+	if cfg.HTTPAddr != ":8080" || cfg.BasePath != "/" || cfg.DataDir != "./data" || cfg.LogLevel != "info" || cfg.SeedConfigFile != "" || cfg.DemoMode {
 		t.Fatalf("unexpected defaults: %#v", cfg)
 	}
 }
@@ -123,3 +124,61 @@ file = "relative-seed.json"
 		t.Fatalf("expected relative seed file to resolve to %q, got %q", expected, cfg.SeedConfigFile)
 	}
 }
+
+func TestLoadRuntimeConfig_DemoMode(t *testing.T) {
+	t.Run("server.demo_mode in TOML", func(t *testing.T) {
+		dir := t.TempDir()
+		tomlPath := filepath.Join(dir, "config.toml")
+		contents := `[server]
+demo_mode = true
+`
+		if err := os.WriteFile(tomlPath, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MQTT_DASHBOARD_CONFIG", tomlPath)
+		t.Setenv("MQTT_DASHBOARD_DEMO_MODE", "")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if !cfg.DemoMode {
+			t.Fatal("expected DemoMode to be true from server.demo_mode in TOML")
+		}
+	})
+
+	t.Run("env overrides TOML", func(t *testing.T) {
+		dir := t.TempDir()
+		tomlPath := filepath.Join(dir, "config.toml")
+		contents := `[server]
+demo_mode = true
+`
+		if err := os.WriteFile(tomlPath, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MQTT_DASHBOARD_CONFIG", tomlPath)
+		t.Setenv("MQTT_DASHBOARD_DEMO_MODE", "false")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if cfg.DemoMode {
+			t.Fatal("expected DemoMode to be false due to MQTT_DASHBOARD_DEMO_MODE=false override")
+		}
+	})
+
+	t.Run("env MQTT_DASHBOARD_DEMO_MODE=true without TOML", func(t *testing.T) {
+		t.Setenv("MQTT_DASHBOARD_CONFIG", "")
+		t.Setenv("MQTT_DASHBOARD_DEMO_MODE", "true")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if !cfg.DemoMode {
+			t.Fatal("expected DemoMode to be true from MQTT_DASHBOARD_DEMO_MODE=true")
+		}
+	})
+}
+

@@ -59,3 +59,10 @@ jobs:
                   cache-to: type=gha,mode=max
                   build-args: |
                       VERSION=${{ needs.release-please.outputs.version }}
+
+            - name: Trigger Dokploy redeploy
+              if: env.DOKPLOY_WEBHOOK_URL != ''
+              env:
+                  DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+              run: |
+                  curl -fsS -X POST "$DOKPLOY_WEBHOOK_URL"
