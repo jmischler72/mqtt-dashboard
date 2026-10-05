@@ -5,8 +5,10 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"mqtt-dashboard/config"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
@@ -97,11 +99,36 @@ func main() {
 
 	r := buildRouter(database, registry, scheduler, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode)
 
-	slog.Info("server starting", "version", version, "addr", runtimeConfig.HTTPAddr, "base_path", runtimeConfig.BasePath, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
+	serverURL := formatServerURL(runtimeConfig.HTTPAddr, runtimeConfig.BasePath)
+	slog.Info("server starting", "version", version, "url", serverURL, "addr", runtimeConfig.HTTPAddr, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
 	if err := http.ListenAndServe(runtimeConfig.HTTPAddr, r); err != nil {
 		slog.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func formatServerURL(addr, basePath string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if strings.HasPrefix(addr, ":") {
+			host = "localhost"
+			port = strings.TrimPrefix(addr, ":")
+		} else {
+			host = "localhost"
+			port = addr
+		}
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	base := "/" + strings.Trim(basePath, "/")
+	if base != "/" {
+		base += "/"
+	}
+	if port == "80" {
+		return fmt.Sprintf("http://%s%s", host, base)
+	}
+	return fmt.Sprintf("http://%s:%s%s", host, port, base)
 }
 
 func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, basePath string, demoMode ...bool) http.Handler {

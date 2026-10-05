@@ -538,3 +538,29 @@ func TestBuildRouter_DemoMode(t *testing.T) {
 		t.Fatalf("expected demo_mode to be true in /api/config, got false")
 	}
 }
+
+func TestFormatServerURL(t *testing.T) {
+	tests := []struct {
+		addr     string
+		basePath string
+		want     string
+	}{
+		{addr: ":8080", basePath: "/", want: "http://localhost:8080/"},
+		{addr: ":8080", basePath: "", want: "http://localhost:8080/"},
+		{addr: "0.0.0.0:8080", basePath: "/", want: "http://localhost:8080/"},
+		{addr: "127.0.0.1:8080", basePath: "/", want: "http://127.0.0.1:8080/"},
+		{addr: "192.168.1.50:9000", basePath: "/mqtt-dashboard", want: "http://192.168.1.50:9000/mqtt-dashboard/"},
+		{addr: "192.168.1.50:9000", basePath: "/mqtt-dashboard/", want: "http://192.168.1.50:9000/mqtt-dashboard/"},
+		{addr: ":80", basePath: "/", want: "http://localhost/"},
+		{addr: "localhost:8080", basePath: "/", want: "http://localhost:8080/"},
+		{addr: "invalid-addr", basePath: "/", want: "http://localhost:invalid-addr/"},
+	}
+
+	for _, tt := range tests {
+		got := formatServerURL(tt.addr, tt.basePath)
+		if got != tt.want {
+			t.Errorf("formatServerURL(%q, %q) = %q, want %q", tt.addr, tt.basePath, got, tt.want)
+		}
+	}
+}
+
