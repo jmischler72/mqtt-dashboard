@@ -39,7 +39,7 @@ sudo install -d -m 0755 /etc/mqtt-dashboard
 sudo install -d -m 0755 /opt/mqtt-dashboard
 ```
 
-Install the compiled binary at a stable path, for example `/opt/mqtt-dashboard/mqtt-dashboard`. The service account needs read and execute permissions on the binary, and read permission on the TOML configuration file.
+Download the pre-compiled binary from [GitHub Releases](https://github.com/jmischler72/mqtt-dashboard/releases) (or build from source) and install it at `/opt/mqtt-dashboard/mqtt-dashboard`. The service account needs read and execute permissions on the binary, and read permission on the TOML configuration file.
 
 ### 2. Configure the Application (`/etc/mqtt-dashboard/config.toml`)
 
