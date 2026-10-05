@@ -28,6 +28,8 @@ import (
 //go:embed dist/*
 var embeddedFiles embed.FS
 
+var version = "dev"
+
 func main() {
 	runtimeConfig, err := config.LoadRuntimeConfig()
 	if err != nil {
@@ -95,7 +97,7 @@ func main() {
 
 	r := buildRouter(database, registry, scheduler, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode)
 
-	slog.Info("server starting", "addr", runtimeConfig.HTTPAddr, "base_path", runtimeConfig.BasePath, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
+	slog.Info("server starting", "version", version, "addr", runtimeConfig.HTTPAddr, "base_path", runtimeConfig.BasePath, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
 	if err := http.ListenAndServe(runtimeConfig.HTTPAddr, r); err != nil {
 		slog.Error("server", "err", err)
 		os.Exit(1)
@@ -129,6 +131,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"status":    "ok",
+			"version":   version,
 			"demo_mode": isDemo,
 		})
 	})

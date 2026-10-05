@@ -25,7 +25,7 @@ COPY --from=frontend-builder /frontend/dist ./dist
 ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o mqtt-dashboard .
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -trimpath -o mqtt-dashboard .
 
 # Stage 3: Minimal production image
 FROM alpine:3.24
