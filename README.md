@@ -83,7 +83,7 @@ docker compose -f docker/doc/docker-compose.with-broker.yml up -d
 <details>
 <summary><strong>💪 Option: Build from Source</strong></summary>
 
-Requirements: Go 1.26+, Node.js 22+
+Requirements: Go 1.27+, Node.js 22+
 
 ```bash
 git clone https://github.com/jmischler72/mqtt-dashboard.git
@@ -162,7 +162,7 @@ Deep-dive architecture and development guides are available in the [`docs/`](doc
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, DaisyUI v5, react-grid-layout
-- **Backend**: Go 1.26, Chi Router, Eclipse Paho MQTT
+- **Backend**: Go 1.27, Chi Router, Eclipse Paho MQTT
 - **Database**: SQLite (pure Go via `modernc.org/sqlite`, WAL mode)
 - **Scheduling & Realtime**: `gocron v2`, Gorilla WebSocket
 - **Deployment**: Single binary, Alpine Docker container (`ghcr.io/jmischler72/mqtt-dashboard`)

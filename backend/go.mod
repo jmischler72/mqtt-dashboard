@@ -1,6 +1,6 @@
 module mqtt-dashboard
 
-go 1.26.3
+go 1.27.0
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
