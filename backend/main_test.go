@@ -570,11 +570,11 @@ func TestPrintBanner(t *testing.T) {
 	printBanner(&buf, "1.14.0", "http://localhost:8080/", "./data", false)
 	out := buf.String()
 
-	if !strings.Contains(out, "MQTT Dashboard v1.14.0") {
+	if !strings.Contains(out, "MQTT Dashboard v-1.14.0") {
 		t.Errorf("banner missing version header, got %q", out)
 	}
-	if !strings.Contains(out, "➜  Local:   http://localhost:8080/") {
-		t.Errorf("banner missing local URL, got %q", out)
+	if !strings.Contains(out, "➜  URL:   http://localhost:8080/") {
+		t.Errorf("banner missing URL, got %q", out)
 	}
 	if !strings.Contains(out, "➜  Storage: ./data") {
 		t.Errorf("banner missing storage line, got %q", out)
