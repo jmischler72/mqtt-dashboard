@@ -114,8 +114,8 @@ func printBanner(w io.Writer, version, serverURL, dataDir string, demoMode bool)
 	if demoMode {
 		tag = " (demo mode)"
 	}
-	fmt.Fprintf(w, "\n  MQTT Dashboard v%s%s\n", version, tag)
-	fmt.Fprintf(w, "  ➜  Local:   %s\n", serverURL)
+	fmt.Fprintf(w, "\n  MQTT Dashboard v-%s%s\n", version, tag)
+	fmt.Fprintf(w, "  ➜  URL:   %s\n", serverURL)
 	fmt.Fprintf(w, "  ➜  Storage: %s\n\n", dataDir)
 }
 
