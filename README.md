@@ -48,7 +48,7 @@ Existing tools are either **purely ephemeral topic viewers** (where configuratio
 
 ## 🚀 Quick Start
 
-### Option A: Already have an MQTT broker? (Standalone)
+### 🐳 Option A: Docker (Recommended)
 
 Run the lightweight container and connect to your broker via the web UI:
 
@@ -61,46 +61,28 @@ docker run -d \
   ghcr.io/jmischler72/mqtt-dashboard:latest
 ```
 
-*(Or run `docker compose -f docker/doc/docker-compose.yml up -d`)*
+*(Or use Docker Compose: `docker compose -f docker/doc/docker-compose.yml up -d`)*
+
+---
+
+### 📦 Option B: Standalone Binary (Linux, macOS, Windows)
+
+No Docker or Node.js required. Download the single executable for your platform from **[GitHub Releases](https://github.com/jmischler72/mqtt-dashboard/releases)** and run:
+
+```bash
+# Example for Linux / macOS
+./mqtt-dashboard
+```
 
 Open **[http://localhost:8080](http://localhost:8080)** and start building!
 
 ---
 
-### Option B: Need an all-in-one test stack? (Dashboard + Mosquitto)
-
-If you don't have a broker running locally, launch the complete stack with an integrated **Eclipse Mosquitto** broker in one command:
-
-```bash
-git clone https://github.com/jmischler72/mqtt-dashboard.git
-cd mqtt-dashboard
-docker compose -f docker/doc/docker-compose.with-broker.yml up -d
-```
-
-- **Dashboard UI**: [http://localhost:8080](http://localhost:8080) (pre-configured)
-- **Mosquitto Broker**: `localhost:1883`
-
-<details>
-<summary><strong>💪 Option: Build from Source</strong></summary>
-
-Requirements: Go 1.27+, Node.js 22+
-
-```bash
-git clone https://github.com/jmischler72/mqtt-dashboard.git
-cd mqtt-dashboard
-
-# Build frontend
-cd frontend && npm ci && npm run build && cd ..
-
-# Build backend (embeds frontend into a single standalone binary)
-cd backend
-cp -r ../frontend/dist ./dist
-go build -o mqtt-dashboard .
-./mqtt-dashboard
-```
-</details>
-
-> 💡 **Looking for custom configuration?** MQTT Dashboard runs out of the box with zero configuration (`:8080`, data stored in `./data`). To customize ports, storage paths, reverse-proxy sub-paths, or pre-seed brokers and dashboards, see the **[Configuration & Seeding Guide](docs/configuration.md)**.
+> 🛠️ **More Deployment & Developer Options:**
+> - **[All-in-One Compose with Mosquitto](docker/doc/docker-compose.with-broker.yml)** — Launch a complete test stack with an integrated broker (`docker compose -f docker/doc/docker-compose.with-broker.yml up -d`).
+> - **[Building from Source](docs/building-from-source.md)** — Instructions to compile the standalone binary or build the Docker container locally.
+> - **[Configuration & Seeding Guide](docs/configuration.md)** — Custom ports, storage paths, reverse-proxy sub-paths, and broker/dashboard auto-seeding.
+> - **[systemd & Reverse-Proxy Guide](docs/systemd-apache-deployment.md)** — Production deployment as an unprivileged Linux service behind Apache.
 
 ---
 
