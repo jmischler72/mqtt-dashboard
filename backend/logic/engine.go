@@ -125,6 +125,7 @@ func (e *Engine) AddRule(rule *Rule) error {
 
 	if ruleCopy.Enabled {
 		e.setupRuleSubscriptionsLocked(&ruleCopy)
+		e.evaluateInitialStateLocked(&ruleCopy, st)
 	}
 
 	return nil
@@ -180,6 +181,9 @@ func (e *Engine) ToggleRule(panelID string, enabled bool) error {
 			st.sustainedFired = false
 		}
 		e.setupRuleSubscriptionsLocked(rule)
+		if st != nil {
+			e.evaluateInitialStateLocked(rule, st)
+		}
 	}
 
 	return nil
@@ -230,6 +234,8 @@ func (e *Engine) GetStatus(panelID string) (*RuleStatus, bool) {
 		} else if rule.CooldownSec > 0 && !st.lastFired.IsZero() && now.Sub(st.lastFired) < time.Duration(rule.CooldownSec)*time.Second {
 			remaining := int(math.Ceil((time.Duration(rule.CooldownSec)*time.Second - now.Sub(st.lastFired)).Seconds()))
 			status.CurrentState = fmt.Sprintf("cooling down %ds", remaining)
+		} else if rule.Mode == "sustained" && st.sustainedFired {
+			status.CurrentState = "fired"
 		} else if rule.Mode == "sustained" && !st.trueSince.IsZero() && !st.sustainedFired {
 			elapsed := int(now.Sub(st.trueSince).Seconds())
 			targetSec := rule.SustainedSec
@@ -529,3 +535,48 @@ func (e *Engine) executeAction(panelID string, action *Action) {
 		}
 	}
 }
+
+// PrimeCache seeds the engine's guard and value cache for a broker topic.
+func (e *Engine) PrimeCache(brokerID, topic, payload string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.setGuardValueLocked(brokerID, topic, payload)
+}
+
+// evaluateInitialStateLocked evaluates the rule against cached topic payloads if available.
+func (e *Engine) evaluateInitialStateLocked(rule *Rule, st *ruleState) {
+	if !rule.Enabled || st.tripped {
+		return
+	}
+	ruleBrokerID := e.effectiveBroker(rule.BrokerID)
+	top := strings.TrimSpace(rule.SourceTopic)
+	if top == "" && len(rule.Conditions) > 0 {
+		top = strings.TrimSpace(rule.Conditions[0].Topic)
+	}
+	cache := e.guardCache[ruleBrokerID]
+	if cache == nil {
+		return
+	}
+	payload, ok := cache[top]
+	if !ok {
+		return
+	}
+	now := e.now()
+	msg := Message{BrokerID: ruleBrokerID, Topic: top, Payload: []byte(payload)}
+	guardLookup := e.guardLookupLocked()
+	_ = evaluate(rule, st, msg, guardLookup, now)
+
+	if rule.Mode == "sustained" {
+		if st.lastMatched && st.timer == nil && !st.sustainedFired {
+			sec := rule.SustainedSec
+			if sec <= 0 {
+				sec = 10
+			}
+			panelID := rule.PanelID
+			st.timer = time.AfterFunc(time.Duration(sec)*time.Second, func() {
+				e.onSustainedTimer(panelID)
+			})
+		}
+	}
+}
+

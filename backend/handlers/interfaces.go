@@ -34,6 +34,7 @@ type LogicEngine interface {
 	ToggleRule(panelID string, enabled bool) error
 	GetRule(panelID string) (*logic.Rule, bool)
 	GetStatus(panelID string) (*logic.RuleStatus, bool)
+	PrimeCache(brokerID, topic, payload string)
 }
 
 // PanelMetaInvalidator invalidates cached metadata for a panel.

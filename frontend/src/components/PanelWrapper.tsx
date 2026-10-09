@@ -8,7 +8,7 @@ import {
   RiHashtag,
   RiErrorWarningLine,
 } from "react-icons/ri";
-import { MdContentCopy } from "react-icons/md";
+import { MdContentCopy, MdHorizontalRule } from "react-icons/md";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -74,6 +74,12 @@ export default function PanelWrapper({
   const def = getPanelDefinition(panel.panel_type);
   const panelWarning = defaultValidateWarning(def, panel.config_json);
   const [showConfig, setShowConfig] = useState(false);
+  const [focusConditionIndex, setFocusConditionIndex] = useState<
+    number | undefined
+  >(undefined);
+  const [focusSection, setFocusSection] = useState<
+    "conditions" | "publish" | undefined
+  >(undefined);
   const [capturedPicker, setCapturedPicker] = useState<{
     topic?: string;
     brokerId?: string;
@@ -161,6 +167,8 @@ export default function PanelWrapper({
   const closeConfigModal = useCallback(() => {
     setShowConfig(false);
     setCapturedPicker({});
+    setFocusConditionIndex(undefined);
+    setFocusSection(undefined);
   }, []);
 
   // cfg = panel-specific config, brokerId = the broker assignment for this panel
@@ -255,39 +263,51 @@ export default function PanelWrapper({
     }
   };
 
-  const handleOpenConfig = useCallback(() => {
-    const panelEl = panelRef.current;
-    if (!panelEl) {
-      setShowConfig(true);
-      return;
-    }
+  const handleOpenConfig = useCallback(
+    (options?: {
+      conditionIndex?: number;
+      focusSection?: "conditions" | "publish";
+    }) => {
+      if (options?.conditionIndex !== undefined) {
+        setFocusConditionIndex(options.conditionIndex);
+        setFocusSection("conditions");
+      } else if (options?.focusSection !== undefined) {
+        setFocusSection(options.focusSection);
+      }
+      const panelEl = panelRef.current;
+      if (!panelEl) {
+        setShowConfig(true);
+        return;
+      }
 
-    if (openConfigTimeoutRef.current) {
-      clearTimeout(openConfigTimeoutRef.current);
-      openConfigTimeoutRef.current = null;
-    }
+      if (openConfigTimeoutRef.current) {
+        clearTimeout(openConfigTimeoutRef.current);
+        openConfigTimeoutRef.current = null;
+      }
 
-    const rect = panelEl.getBoundingClientRect();
-    const margin = 24;
-    const outOfView =
-      rect.top < margin || rect.bottom > window.innerHeight - margin;
+      const rect = panelEl.getBoundingClientRect();
+      const margin = 24;
+      const outOfView =
+        rect.top < margin || rect.bottom > window.innerHeight - margin;
 
-    if (!outOfView) {
-      setShowConfig(true);
-      return;
-    }
+      if (!outOfView) {
+        setShowConfig(true);
+        return;
+      }
 
-    panelEl.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "nearest",
-    });
+      panelEl.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
 
-    openConfigTimeoutRef.current = setTimeout(() => {
-      setShowConfig(true);
-      openConfigTimeoutRef.current = null;
-    }, 280);
-  }, []);
+      openConfigTimeoutRef.current = setTimeout(() => {
+        setShowConfig(true);
+        openConfigTimeoutRef.current = null;
+      }, 280);
+    },
+    [],
+  );
 
   const onPickerConsumedRef = useRef(onPickerConsumed);
   useEffect(() => {
@@ -352,6 +372,8 @@ export default function PanelWrapper({
   const isSeparator = panel.panel_type === "separator";
   const sepOrientation =
     (panelConfig as { orientation?: string })?.orientation ?? "horizontal";
+  const isVerticalSeparator = isSeparator && sepOrientation === "vertical";
+  const isNarrowSeparator = isSeparator && (panel.w ?? 1) <= 1;
   const showMetaPopover =
     !isVisual &&
     (isPinned ||
@@ -393,7 +415,7 @@ export default function PanelWrapper({
           message={emptyInfo.message}
           actionLabel={emptyInfo.actionLabel}
           icon={emptyInfo.icon}
-          onConfigure={handleOpenConfig}
+          onConfigure={() => handleOpenConfig()}
           editMode={editMode}
         />
       );
@@ -419,6 +441,7 @@ export default function PanelWrapper({
             config_json: nextCfg,
           });
         }}
+        onOpenConfig={handleOpenConfig}
       />
     );
   };
@@ -438,6 +461,10 @@ export default function PanelWrapper({
     const mergedConfig = {
       ...cfg,
       ...(capturedPicker.draftConfig as Record<string, unknown> | undefined),
+      ...(focusConditionIndex !== undefined
+        ? { _focusCondition: focusConditionIndex }
+        : {}),
+      ...(focusSection !== undefined ? { _focusSection: focusSection } : {}),
     };
 
     return createPortal(
@@ -450,6 +477,8 @@ export default function PanelWrapper({
         onPickTopic={handlePickTopic}
         initialTopic={initialTopic}
         initialBrokerId={capturedPicker.brokerId}
+        initialConditionIndex={focusConditionIndex}
+        initialFocusSection={focusSection}
       />,
       document.body,
     );
@@ -465,8 +494,82 @@ export default function PanelWrapper({
             : `flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
         }
       >
-        {/* Header — hidden for visual panels in view mode */}
-        {(!isVisual || editMode) && (
+        {/* Header — specialized compact layout for narrow separators (vertical or horizontal at w <= 1), standard header otherwise */}
+        {isNarrowSeparator && editMode ? (
+          <div
+            className="flex flex-col items-center gap-1 p-1 bg-base-200 border-b border-base-300 shrink-0 drag-handle cursor-grab active:cursor-grabbing"
+            title={`${isVerticalSeparator ? "Vertical" : "Horizontal"} Separator — drag to move`}
+          >
+            {/* Top drag handle indicator */}
+            <div className="w-full flex items-center justify-center py-0.5 text-base-content/40 hover:text-base-content relative">
+              {panelWarning && (panel.h ?? 1) <= 1 && (
+                <span
+                  className="absolute left-0.5 text-warning flex items-center justify-center"
+                  title="Configuration warning — check panel parameters"
+                >
+                  <RiErrorWarningLine className="text-warning text-xs shrink-0" />
+                </span>
+              )}
+              <MdHorizontalRule
+                className={`${isVerticalSeparator ? "rotate-90" : ""} text-xs`}
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div
+              className={`flex items-center justify-center no-drag ${
+                (panel.h ?? 1) <= 1
+                  ? "flex-row gap-0.5 w-full"
+                  : "flex-col gap-1"
+              }`}
+            >
+              {panelWarning && (panel.h ?? 1) > 1 && (
+                <span
+                  className="text-warning flex items-center justify-center w-6 h-6 rounded-sm bg-warning/10 border border-warning/30"
+                  title="Configuration warning — check panel parameters"
+                >
+                  <RiErrorWarningLine className="text-warning text-xs shrink-0" />
+                </span>
+              )}
+              <button
+                type="button"
+                className={`btn btn-ghost btn-xs btn-square no-drag ${
+                  (panel.h ?? 1) <= 1 ? "h-5 w-5 min-h-5 p-0" : ""
+                }`}
+                title="Copy or move panel"
+                onClick={() => setCopyModalOpen(true)}
+              >
+                <MdContentCopy
+                  className={(panel.h ?? 1) <= 1 ? "text-xs" : "text-sm"}
+                />
+              </button>
+              <button
+                type="button"
+                className={`btn btn-ghost btn-xs btn-square no-drag ${
+                  (panel.h ?? 1) <= 1 ? "h-5 w-5 min-h-5 p-0" : ""
+                }`}
+                title="Configure"
+                onClick={() => handleOpenConfig()}
+              >
+                <RiSettings3Line
+                  className={(panel.h ?? 1) <= 1 ? "text-xs" : "text-sm"}
+                />
+              </button>
+              <button
+                type="button"
+                className={`btn btn-ghost btn-xs btn-square text-error no-drag ${
+                  (panel.h ?? 1) <= 1 ? "h-5 w-5 min-h-5 p-0" : ""
+                }`}
+                title="Delete"
+                onClick={handleDelete}
+              >
+                <RiCloseLine
+                  className={(panel.h ?? 1) <= 1 ? "text-xs" : "text-sm"}
+                />
+              </button>
+            </div>
+          </div>
+        ) : (!isVisual || editMode) && (
           <div
             className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
           >
@@ -528,7 +631,7 @@ export default function PanelWrapper({
                 )}
                 <button
                   type="button"
-                  className="btn btn-ghost btn-xs no-drag"
+                  className="btn btn-ghost btn-xs btn-square no-drag"
                   title="Copy or move panel"
                   onClick={() => setCopyModalOpen(true)}
                 >
@@ -536,14 +639,15 @@ export default function PanelWrapper({
                 </button>
                 <button
                   type="button"
-                  className="btn btn-ghost btn-xs no-drag"
+                  className="btn btn-ghost btn-xs btn-square no-drag"
                   title="Configure"
-                  onClick={handleOpenConfig}
+                  onClick={() => handleOpenConfig()}
                 >
                   <RiSettings3Line className="text-base" />
                 </button>
                 <button
-                  className="btn btn-ghost btn-xs text-error no-drag"
+                  type="button"
+                  className="btn btn-ghost btn-xs btn-square text-error no-drag"
                   title="Delete"
                   onClick={handleDelete}
                 >
@@ -687,9 +791,14 @@ export default function PanelWrapper({
           </div>
         )}
 
-        {/* Body blocks drag-start events so only header can move panels. */}
         <div
-          className={`overflow-hidden no-drag ${isSeparator && !editMode ? "h-full w-full" : "flex-1 p-2"}`}
+          className={`overflow-hidden no-drag ${
+            isSeparator
+              ? editMode
+                ? "flex-1 px-1 py-0.5"
+                : "h-full w-full"
+              : "flex-1 p-2"
+          }`}
           onPointerDownCapture={(e) => e.stopPropagation()}
           onMouseDownCapture={(e) => e.stopPropagation()}
           onTouchStartCapture={(e) => e.stopPropagation()}

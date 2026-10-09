@@ -266,3 +266,7 @@ func (m *mockLogicEngine) GetStatus(panelID string) (*logic.RuleStatus, bool) {
 	cp := *st
 	return &cp, true
 }
+
+func (m *mockLogicEngine) PrimeCache(brokerID, topic, payload string) {
+}
+

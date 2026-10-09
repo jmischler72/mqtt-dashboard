@@ -198,6 +198,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	app.Delete("/api/logic/{panelId}", logicH.DeleteLogic)
 	app.Put("/api/logic/{panelId}/toggle", logicH.ToggleLogic)
 	app.Get("/api/logic/{panelId}", logicH.GetLogicStatus)
+	app.Get("/api/logic/{panelId}/status", logicH.GetLogicStatus)
 
 	// Settings
 	app.Get("/api/settings", settingsH.GetSettings)
@@ -311,22 +312,55 @@ func loadLogicRulesFromDB(database *sql.DB, engine logic.LogicEngine) {
 		slog.Error("load logic rules", "err", err)
 		return
 	}
-	defer rows.Close()
+	type rawLogicRow struct {
+		panelID  string
+		cfgJSON  string
+		brokerID string
+	}
+	var loaded []rawLogicRow
 	for rows.Next() {
-		var panelID, cfgJSON, brokerID string
-		if err := rows.Scan(&panelID, &cfgJSON, &brokerID); err != nil {
-			continue
+		var r rawLogicRow
+		if err := rows.Scan(&r.panelID, &r.cfgJSON, &r.brokerID); err == nil {
+			loaded = append(loaded, r)
 		}
+	}
+	_ = rows.Close()
+
+	for _, item := range loaded {
 		var rule logic.Rule
-		if err := json.Unmarshal([]byte(cfgJSON), &rule); err != nil || rule.SourceTopic == "" || rule.TargetTopic == "" {
+		if err := json.Unmarshal([]byte(item.cfgJSON), &rule); err != nil || rule.SourceTopic == "" || rule.TargetTopic == "" {
 			continue
 		}
-		rule.PanelID = panelID
+		rule.PanelID = item.panelID
 		if rule.BrokerID == "" {
-			rule.BrokerID = brokerID
+			rule.BrokerID = item.brokerID
+		}
+		// Prime cache from history for source topic and all condition topics
+		top := rule.SourceTopic
+		if top == "" && len(rule.Conditions) > 0 {
+			top = rule.Conditions[0].Topic
+		}
+		if top != "" {
+			var payload string
+			if err := database.QueryRow(`SELECT payload FROM mqtt_history WHERE broker_id = ? AND topic = ? ORDER BY timestamp DESC LIMIT 1`, rule.BrokerID, top).Scan(&payload); err == nil {
+				engine.PrimeCache(rule.BrokerID, top, payload)
+			}
+		}
+		for _, c := range rule.Conditions {
+			cB := c.BrokerID
+			if cB == "" {
+				cB = rule.BrokerID
+			}
+			cT := c.Topic
+			if cT != "" {
+				var payload string
+				if err := database.QueryRow(`SELECT payload FROM mqtt_history WHERE broker_id = ? AND topic = ? ORDER BY timestamp DESC LIMIT 1`, cB, cT).Scan(&payload); err == nil {
+					engine.PrimeCache(cB, cT, payload)
+				}
+			}
 		}
 		if err := engine.AddRule(&rule); err != nil {
-			slog.Error("load logic rule", "panel_id", panelID, "err", err)
+			slog.Error("load logic rule", "panel_id", item.panelID, "err", err)
 		}
 	}
 }

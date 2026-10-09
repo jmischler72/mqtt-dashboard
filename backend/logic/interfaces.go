@@ -19,5 +19,6 @@ type LogicEngine interface {
 	ToggleRule(panelID string, enabled bool) error
 	GetRule(panelID string) (*Rule, bool)
 	GetStatus(panelID string) (*RuleStatus, bool)
+	PrimeCache(brokerID, topic, payload string)
 	Stop()
 }

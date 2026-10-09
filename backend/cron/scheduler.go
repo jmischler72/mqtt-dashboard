@@ -166,6 +166,11 @@ func (sc *Scheduler) GetJob(panelID string) (*JobInfo, bool) {
 			}
 		}
 	}
+	if sched, err := standardCronParser.Parse(info.CronExpr); err == nil {
+		if info.NextRun.Before(time.Now()) || info.NextRun.IsZero() {
+			info.NextRun = sched.Next(time.Now())
+		}
+	}
 	return info, true
 }
 
@@ -195,6 +200,11 @@ func (sc *Scheduler) GetJobs() []*JobInfo {
 		if t, ok := timingMap[panelID]; ok {
 			cp.NextRun = t.next
 			cp.PrevRun = t.prev
+		}
+		if sched, err := standardCronParser.Parse(cp.CronExpr); err == nil {
+			if cp.NextRun.Before(time.Now()) || cp.NextRun.IsZero() {
+				cp.NextRun = sched.Next(time.Now())
+			}
 		}
 		result = append(result, &cp)
 	}

@@ -84,6 +84,32 @@ func (h *LogicHandler) UpsertLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.engine != nil {
+		if h.db != nil {
+			topicsToPrime := []struct{ brokerID, topic string }{
+				{brokerID: brokerID, topic: sourceTopic},
+			}
+			for _, c := range req.Conditions {
+				cB := c.BrokerID
+				if cB == "" {
+					cB = brokerID
+				}
+				cT := c.Topic
+				if cT == "" {
+					cT = sourceTopic
+				}
+				topicsToPrime = append(topicsToPrime, struct{ brokerID, topic string }{cB, cT})
+			}
+			for _, item := range topicsToPrime {
+				if item.topic == "" {
+					continue
+				}
+				var payload string
+				if err := h.db.QueryRow(`SELECT payload FROM mqtt_history WHERE broker_id = ? AND topic = ? ORDER BY timestamp DESC LIMIT 1`, item.brokerID, item.topic).Scan(&payload); err == nil {
+					h.engine.PrimeCache(item.brokerID, item.topic, payload)
+				}
+			}
+		}
+
 		if err := h.engine.AddRule(&rule); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

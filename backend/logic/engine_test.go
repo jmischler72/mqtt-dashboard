@@ -1112,3 +1112,67 @@ func TestEngine_PerConditionBroker(t *testing.T) {
 		t.Errorf("expected b2::system/power in unsubs, got %v", broker.unsubs)
 	}
 }
+
+func TestEngine_PrimeCache_SustainedInitialState(t *testing.T) {
+	broker := newMockBrokerClient()
+	engine := logic.NewEngine(broker)
+	defer engine.Stop()
+
+	// Pre-prime cache before adding rule
+	engine.PrimeCache("b1", "sensors/humidity", "45")
+
+	rule := &logic.Rule{
+		PanelID:      "p_sustained_primed",
+		BrokerID:     "b1",
+		SourceTopic:  "sensors/humidity",
+		TargetTopic:  "fan/auto",
+		Payload:      "ON",
+		Enabled:      true,
+		Mode:         "sustained",
+		SustainedSec: 1,
+		Conditions: []logic.Condition{
+			{Operator: "gt", Value: "30"},
+		},
+	}
+
+	if err := engine.AddRule(rule); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	// Immediate check: state is holding/evaluating
+	status, ok := engine.GetStatus("p_sustained_primed")
+	if !ok {
+		t.Fatalf("expected status to exist")
+	}
+	if !strings.HasPrefix(status.CurrentState, "true for ") {
+		t.Errorf("expected state to start with 'true for ', got %q", status.CurrentState)
+	}
+
+	// Wait for sustained timer (1s) to fire
+	time.Sleep(1200 * time.Millisecond)
+
+	publishes := broker.getPublishes()
+	if len(publishes) != 1 {
+		t.Fatalf("expected 1 publish after sustained duration, got %d", len(publishes))
+	}
+	if publishes[0].Topic != "fan/auto" || publishes[0].Payload != "ON" {
+		t.Errorf("unexpected publish: %+v", publishes[0])
+	}
+
+	// After firing, status should report "fired"
+	status, _ = engine.GetStatus("p_sustained_primed")
+	if status.CurrentState != "fired" {
+		t.Errorf("expected CurrentState 'fired', got %q", status.CurrentState)
+	}
+	if status.FireCount != 1 {
+		t.Errorf("expected FireCount 1, got %d", status.FireCount)
+	}
+
+	// Sustained mode only fires once per episode while condition remains true
+	time.Sleep(1100 * time.Millisecond)
+	publishes = broker.getPublishes()
+	if len(publishes) != 1 {
+		t.Fatalf("expected 1 publish while condition remains held, got %d", len(publishes))
+	}
+}
+

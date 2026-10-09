@@ -34,10 +34,10 @@ const RANGE_OPTIONS: { value: TimeRange; pill: string }[] = [
 // How often to re-fetch the history-backed series, scaled to the range so the
 // view stays live without hammering the backend on wide windows.
 const REFRESH_MS: Record<TimeRange, number> = {
-  60: 2000,
-  300: 5000,
-  900: 10000,
-  3600: 30000,
+  60: 5000,
+  300: 10000,
+  900: 30000,
+  3600: 60000,
 };
 
 const ACCENT = "#6b5de8";

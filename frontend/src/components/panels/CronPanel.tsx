@@ -269,8 +269,8 @@ export default function CronPanel({
           ? getPreviousCronRun(config.cron_expr, targetDate)
           : null;
         const start = prev ?? (r.prev_run ? new Date(r.prev_run) : new Date());
-        setCronStart(start);
-        setNextRun(targetDate);
+        setCronStart((old) => (old?.getTime() === start.getTime() ? old : start));
+        setNextRun((old) => (old?.getTime() === targetDate.getTime() ? old : targetDate));
       })
       .catch((error) => {
         void error;
@@ -289,7 +289,8 @@ export default function CronPanel({
   useEffect(() => {
     if (!config.enabled || !nextRun) return;
     const diff = nextRun.getTime() - Date.now();
-    const delay = diff <= 0 ? 500 : diff + 200;
+    if (diff <= -2000) return;
+    const delay = Math.max(diff + 500, 2000);
     const timer = setTimeout(fetchStatus, delay);
     return () => clearTimeout(timer);
   }, [config.enabled, nextRun, fetchStatus]);

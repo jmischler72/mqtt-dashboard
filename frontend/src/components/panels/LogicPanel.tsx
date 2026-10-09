@@ -1,5 +1,20 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { RiAddLine, RiCloseLine, RiTimeLine } from "react-icons/ri";
+import {
+  RiAddLine,
+  RiCloseLine,
+  RiTimeLine,
+  RiSendPlaneLine,
+  RiPauseCircleLine,
+  RiAlertLine,
+  RiTimerLine,
+  RiFlashlightLine,
+  RiHourglassLine,
+  RiRepeatLine,
+  RiCheckboxCircleLine,
+  RiRadioButtonLine,
+  RiInformationLine,
+  RiFilter3Line,
+} from "react-icons/ri";
 import { MdAutoMode } from "react-icons/md";
 import { api } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -25,7 +40,6 @@ import {
 } from "./config";
 import {
   OPERATORS,
-  formatConditionSummary,
   formatTimeAgo,
   mqttTopicMatches,
   extractTrackedValue,
@@ -75,10 +89,18 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
     preview: (
       <div className="flex flex-col items-center justify-center gap-1 text-[11px] font-mono text-center">
         <span className="text-base-content/50">true for Xs</span>
-        <span className="badge badge-xs badge-warning">delay</span>
+        <span className="badge badge-xs badge-warning">hold once</span>
       </div>
     ),
   },
+];
+
+const CONDITION_BADGE_COLORS = [
+  "badge-primary",
+  "badge-secondary",
+  "badge-accent",
+  "badge-info",
+  "badge-neutral",
 ];
 
 export interface LogicConfig {
@@ -99,6 +121,8 @@ export interface LogicConfig {
   self_guard?: boolean;
   enabled?: boolean;
   _picking?: string; // transient picker routing marker
+  _focusCondition?: number;
+  _focusSection?: "conditions" | "publish";
 }
 
 interface LogicConfigModalProps {
@@ -114,6 +138,8 @@ interface LogicConfigModalProps {
   }) => void;
   initialTopic?: string;
   initialBrokerId?: string;
+  initialConditionIndex?: number;
+  initialFocusSection?: "conditions" | "publish";
 }
 
 export function LogicConfigModal({
@@ -125,8 +151,34 @@ export function LogicConfigModal({
   onPickTopic,
   initialTopic,
   initialBrokerId,
+  initialConditionIndex,
+  initialFocusSection,
 }: LogicConfigModalProps) {
   const fallbackBroker = defaultBrokerId(brokerStatuses);
+  const conditionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const publishRef = useRef<HTMLDivElement>(null);
+  const targetIndex = initialConditionIndex ?? config._focusCondition;
+  const targetSection = initialFocusSection ?? config._focusSection;
+
+  useEffect(() => {
+    if (targetSection === "publish" && publishRef.current) {
+      const timer = setTimeout(() => {
+        publishRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+      return () => clearTimeout(timer);
+    } else if (targetIndex !== undefined) {
+      const timer = setTimeout(() => {
+        conditionRefs.current[targetIndex]?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [targetIndex, targetSection]);
 
   // Stashed topic picker routing target
   const pickingTarget = config._picking;
@@ -350,7 +402,7 @@ export function LogicConfigModal({
       blockerReason={blockerReason}
     >
       <ConfigGroup heading="Read">
-        <ConfigCard title="Conditions" summary="Evaluated in order">
+        <ConfigCard title="Conditions">
           {conditions.length === 0 ? (
             <div className="text-xs text-base-content/50 italic py-2">
               No conditions set — triggers on every message.
@@ -392,11 +444,30 @@ export function LogicConfigModal({
                     </div>
                   )}
 
-                  <div className="rounded-lg border border-base-300 dark:border-base-100 p-3 bg-base-200/40 flex flex-col gap-2.5">
+                  <div
+                    ref={(el) => {
+                      conditionRefs.current[idx] = el;
+                    }}
+                    className={`rounded-lg border p-3 bg-base-200/40 flex flex-col gap-2.5 transition-all ${
+                      targetIndex === idx
+                        ? "border-primary ring-1 ring-primary/40 shadow-sm"
+                        : "border-base-300 dark:border-base-100"
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-mono text-base-content/70 font-semibold">
-                          Condition #{idx + 1}
+                        <span
+                          className={`badge badge-sm font-mono font-semibold ${
+                            CONDITION_BADGE_COLORS[
+                              idx % CONDITION_BADGE_COLORS.length
+                            ]
+                          }`}
+                        >
+                          {conditions.length > 1 ? (
+                            `#${idx + 1}`
+                          ) : (
+                            <RiFilter3Line size={12} />
+                          )}
                         </span>
                       </div>
                       {conditions.length > 1 && (
@@ -408,58 +479,6 @@ export function LogicConfigModal({
                         >
                           <RiCloseLine size={14} />
                         </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 items-end">
-                      <div className="form-control">
-                        <label className="label py-0.5">
-                          <span className="label-text text-[10.5px]">
-                            Operator
-                          </span>
-                        </label>
-                        <select
-                          value={cond.operator}
-                          onChange={(e) =>
-                            handleConditionChange(idx, {
-                              operator: e.target.value as LogicOperator,
-                            })
-                          }
-                          className="select select-xs select-bordered text-[11px] w-full"
-                        >
-                          {OPERATORS.map((op) => (
-                            <option key={op.value} value={op.value}>
-                              {op.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {cond.operator !== "exists" && cond.operator !== "any" ? (
-                        <div className="form-control">
-                          <label className="label py-0.5">
-                            <span className="label-text text-[10.5px]">
-                              Value
-                            </span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="expected value"
-                            value={cond.value ?? ""}
-                            onChange={(e) =>
-                              handleConditionChange(idx, {
-                                value: e.target.value,
-                              })
-                            }
-                            className="input input-xs input-bordered font-mono text-[11px] w-full"
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-base-content/40 self-center pb-1">
-                          {cond.operator === "exists"
-                            ? "Matches when field exists"
-                            : "Always matches"}
-                        </div>
                       )}
                     </div>
 
@@ -546,6 +565,58 @@ export function LogicConfigModal({
                         placeholder={`whole payload, or {"temp":${VALUE_TOKEN}}`}
                       />
                     </DisclosureCard>
+
+                    <div className="grid grid-cols-2 gap-2 items-end">
+                      <div className="form-control">
+                        <label className="label py-0.5">
+                          <span className="label-text text-[10.5px]">
+                            Operator
+                          </span>
+                        </label>
+                        <select
+                          value={cond.operator}
+                          onChange={(e) =>
+                            handleConditionChange(idx, {
+                              operator: e.target.value as LogicOperator,
+                            })
+                          }
+                          className="select select-xs select-bordered text-[11px] w-full"
+                        >
+                          {OPERATORS.map((op) => (
+                            <option key={op.value} value={op.value}>
+                              {op.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {cond.operator !== "exists" && cond.operator !== "any" ? (
+                        <div className="form-control">
+                          <label className="label py-0.5">
+                            <span className="label-text text-[10.5px]">
+                              Value
+                            </span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="expected value"
+                            value={cond.value ?? ""}
+                            onChange={(e) =>
+                              handleConditionChange(idx, {
+                                value: e.target.value,
+                              })
+                            }
+                            className="input input-xs input-bordered font-mono text-[11px] w-full"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-base-content/40 self-center pb-1">
+                          {cond.operator === "exists"
+                            ? "Matches when field exists"
+                            : "Always matches"}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -600,7 +671,7 @@ export function LogicConfigModal({
             <div className="mt-3 pt-2 border-t border-base-300 dark:border-base-100">
               <FieldRow
                 label="Sustained Duration (sec)"
-                help="Condition must remain true for this long before firing"
+                help="Condition must hold continuously for this duration before firing. Fires once and re-arms when condition clears."
               >
                 <input
                   type="number"
@@ -611,107 +682,86 @@ export function LogicConfigModal({
                   className="input input-xs input-bordered w-24 text-center font-mono"
                 />
               </FieldRow>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-base-content/60 font-mono">
+                <RiInformationLine className="shrink-0 text-info text-xs" />
+                <span>Fires once after holding. Re-arms when condition clears.</span>
+              </div>
             </div>
           )}
         </ConfigCard>
       </ConfigGroup>
 
       {/* 3. THEN (Action to publish) */}
-      <ConfigGroup heading="Publish">
-        <BrokerTopicCard
-          topic={targetTopic}
-          onTopicChange={setTargetTopic}
-          brokerId={targetBrokerId || sourceBrokerId}
-          onBrokerChange={setTargetBrokerId}
-          brokers={brokerStatuses}
-          topicError={fieldErrors.target_topic}
-          help="Target topic cannot contain wildcards or match the trigger topic."
-          onExplore={
-            onPickTopic
-              ? () =>
-                  onPickTopic({
-                    currentTopic: targetTopic,
-                    selectedBrokerId: targetBrokerId || sourceBrokerId,
-                    draftConfig: draft("target"),
-                  })
-              : undefined
-          }
-        />
-
-        <DisclosureCard
-          title="Message"
-          summary={<PayloadSummary value={payload} />}
-          defaultOpen={payload.trim() === ""}
-        >
-          <PayloadBuilder
-            mode="write"
-            value={payload}
-            onChange={setPayload}
-            brokerId={targetBrokerId || sourceBrokerId}
+      <div ref={publishRef} className="pt-5">
+        <ConfigGroup heading="Publish">
+          <BrokerTopicCard
             topic={targetTopic}
-            previewValue={conditions[0]?.value || "ON"}
-            placeholder={`{"state":${VALUE_TOKEN}}`}
+            onTopicChange={setTargetTopic}
+            brokerId={targetBrokerId || sourceBrokerId}
+            onBrokerChange={setTargetBrokerId}
+            brokers={brokerStatuses}
+            topicError={fieldErrors.target_topic}
+            help="Target topic cannot contain wildcards or match the trigger topic."
+            onExplore={
+              onPickTopic
+                ? () =>
+                    onPickTopic({
+                      currentTopic: targetTopic,
+                      selectedBrokerId: targetBrokerId || sourceBrokerId,
+                      draftConfig: draft("target"),
+                    })
+                : undefined
+            }
           />
-        </DisclosureCard>
 
-        <PublishOptionsCard
-          qos={qos}
-          onQosChange={setQos}
-          retain={retain}
-          onRetainChange={setRetain}
-        />
-
-        <ConfigCard title="Safety & State">
-          <FieldRow
-            label="Cooldown (seconds)"
-            help="Minimum quiet time between fires"
+          <DisclosureCard
+            title="Message"
+            summary={<PayloadSummary value={payload} />}
+            defaultOpen={payload.trim() === ""}
           >
-            <input
-              type="number"
-              min={0}
-              max={86400}
-              value={cooldownSec}
-              onChange={(e) => setCooldownSec(Number(e.target.value))}
-              className="input input-xs input-bordered w-20 text-center font-mono"
+            <PayloadBuilder
+              mode="write"
+              value={payload}
+              onChange={setPayload}
+              brokerId={targetBrokerId || sourceBrokerId}
+              topic={targetTopic}
+              previewValue={conditions[0]?.value || "ON"}
+              placeholder={`{"state":${VALUE_TOKEN}}`}
             />
-          </FieldRow>
+          </DisclosureCard>
 
-          <SwitchRow
-            name="Rule Enabled"
-            note="Run this automation rule actively. The configuration is kept either way."
-            on={enabled}
-            onToggle={setEnabled}
+          <PublishOptionsCard
+            qos={qos}
+            onQosChange={setQos}
+            retain={retain}
+            onRetainChange={setRetain}
           />
-        </ConfigCard>
-      </ConfigGroup>
-    </PanelConfigModal>
-  );
-}
 
-function renderPayloadPreview(payload?: string) {
-  if (!payload || payload.trim() === "") {
-    return <span className="text-base-content/40 italic">(no payload)</span>;
-  }
-  // Matches {value}, {{value}}, {val}, {{val}}
-  const tokenRegex = /(?:\{\{|\{)(?:value|val)(?:\}\}|\})/g;
-  const parts = payload.split(tokenRegex);
-
-  return (
-    <span className="font-mono text-xs truncate">
-      {parts.map((part, idx) => (
-        <span key={idx}>
-          {idx > 0 && (
-            <span
-              className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-full border border-primary/40 bg-primary/20 text-primary font-mono text-[10.5px] font-semibold leading-none align-middle select-none"
-              title="Value from trigger condition"
+          <ConfigCard title="Safety & State">
+            <FieldRow
+              label="Cooldown (seconds)"
+              help="Minimum quiet time between fires"
             >
-              value
-            </span>
-          )}
-          {part}
-        </span>
-      ))}
-    </span>
+              <input
+                type="number"
+                min={0}
+                max={86400}
+                value={cooldownSec}
+                onChange={(e) => setCooldownSec(Number(e.target.value))}
+                className="input input-xs input-bordered w-20 text-center font-mono"
+              />
+            </FieldRow>
+
+            <SwitchRow
+              name="Rule Enabled"
+              note="Run this automation rule actively. The configuration is kept either way."
+              on={enabled}
+              onToggle={setEnabled}
+            />
+          </ConfigCard>
+        </ConfigGroup>
+      </div>
+    </PanelConfigModal>
   );
 }
 
@@ -720,6 +770,10 @@ interface LogicPanelProps {
   brokerId?: string;
   config: LogicConfig;
   onConfigChange?: (cfg: Partial<LogicConfig>) => void;
+  onOpenConfig?: (options?: {
+    conditionIndex?: number;
+    focusSection?: "conditions" | "publish";
+  }) => void;
 }
 
 export default function LogicPanel({
@@ -727,6 +781,7 @@ export default function LogicPanel({
   brokerId,
   config,
   onConfigChange,
+  onOpenConfig,
 }: LogicPanelProps) {
   const { ref: containerRef, size } = usePanelSize<HTMLDivElement>();
   const [status, setStatus] = useState<RuleStatus | null>(null);
@@ -878,13 +933,21 @@ export default function LogicPanel({
   ]);
 
   // Pulse effect when last_fired changes
+  const isInitialStatusRef = useRef(true);
   const lastFiredRef = useRef<string | undefined>(status?.last_fired);
   useEffect(() => {
-    if (status?.last_fired && status.last_fired !== lastFiredRef.current) {
-      lastFiredRef.current = status.last_fired;
-      setPulse(true);
-      const timer = setTimeout(() => setPulse(false), 1500);
-      return () => clearTimeout(timer);
+    if (status?.last_fired) {
+      if (isInitialStatusRef.current) {
+        isInitialStatusRef.current = false;
+        lastFiredRef.current = status.last_fired;
+        return;
+      }
+      if (status.last_fired !== lastFiredRef.current) {
+        lastFiredRef.current = status.last_fired;
+        setPulse(true);
+        const timer = setTimeout(() => setPulse(false), 1500);
+        return () => clearTimeout(timer);
+      }
     }
   }, [status?.last_fired]);
 
@@ -902,14 +965,6 @@ export default function LogicPanel({
   };
 
   const isConfigured = Boolean(primaryTopic && config.target_topic?.trim());
-
-  if (!isConfigured) {
-    return (
-      <div className="flex items-center justify-center h-full text-base-content/40 text-xs p-2 text-center">
-        No rule configured — open settings to configure logic
-      </div>
-    );
-  }
 
   // Sizing & responsive toggle
   const availW = Math.max(80, (size.width || 260) - 16);
@@ -961,9 +1016,190 @@ export default function LogicPanel({
     c0?.json_path,
     c0?.read_template,
   );
-  const firstCondSummary = c0
-    ? formatConditionSummary(c0)
-    : "any incoming message";
+
+  // Live timer for sustained mode holding duration
+  const [holdingElapsed, setHoldingElapsed] = useState(0);
+  const matchStartTimeRef = useRef<number | null>(null);
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (status?.current_state && config.mode === "sustained") {
+      const match = status.current_state.match(/true for (\d+)s \/ (\d+)s/);
+      if (match) {
+        const backendElapsed = parseInt(match[1], 10);
+        if (!isNaN(backendElapsed)) {
+          const expectedStart = Date.now() - backendElapsed * 1000;
+          if (
+            matchStartTimeRef.current === null ||
+            Math.abs(matchStartTimeRef.current - expectedStart) > 2000
+          ) {
+            matchStartTimeRef.current = expectedStart;
+          }
+        }
+      } else if (status.current_state === "fired") {
+        firedRef.current = true;
+      }
+    }
+  }, [status?.current_state, config.mode]);
+
+  useEffect(() => {
+    if (
+      !config.enabled ||
+      config.mode !== "sustained" ||
+      !isMatch ||
+      isCoolingDown ||
+      isTripped
+    ) {
+      matchStartTimeRef.current = null;
+      firedRef.current = false;
+      return;
+    }
+
+    if (matchStartTimeRef.current === null) {
+      matchStartTimeRef.current = Date.now();
+    }
+
+    const target = config.sustained_sec ?? 10;
+    const interval = setInterval(() => {
+      if (matchStartTimeRef.current !== null && !firedRef.current) {
+        const elapsed = Math.floor(
+          (Date.now() - matchStartTimeRef.current) / 1000,
+        );
+        if (elapsed >= target) {
+          firedRef.current = true;
+          setPulse(true);
+          setTimeout(() => setPulse(false), 1500);
+          fetchStatus();
+          setTimeout(fetchStatus, 500);
+          setHoldingElapsed(target);
+        } else {
+          setHoldingElapsed(elapsed);
+        }
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [
+    config.enabled,
+    config.mode,
+    config.sustained_sec,
+    isMatch,
+    isCoolingDown,
+    isTripped,
+    fetchStatus,
+  ]);
+
+  const effectiveHoldingElapsed =
+    config.enabled &&
+    config.mode === "sustained" &&
+    isMatch &&
+    !isCoolingDown &&
+    !isTripped
+      ? holdingElapsed
+      : 0;
+
+  const firingStatus = useMemo(() => {
+    if (!config.enabled) {
+      return {
+        label: "Paused",
+        Icon: RiPauseCircleLine,
+        iconColor: "text-base-content/40",
+        textColor: "text-base-content/50",
+        title: "Rule is paused",
+      };
+    }
+    if (isTripped) {
+      return {
+        label: "Tripped",
+        Icon: RiAlertLine,
+        iconColor: "text-error animate-pulse",
+        textColor: "text-error font-semibold",
+        title: "Rule tripped due to fire rate limit",
+      };
+    }
+    if (isCoolingDown) {
+      const match = status?.current_state?.match(/cooling down (\d+)s/i);
+      const remainingLabel = match ? ` (${match[1]}s)` : "";
+      return {
+        label: `Cooldown${remainingLabel}`,
+        Icon: RiTimerLine,
+        iconColor: "text-warning",
+        textColor: "text-warning font-semibold",
+        title: "Cooling down before next evaluation",
+      };
+    }
+    if (pulse) {
+      return {
+        label: "Fired!",
+        Icon: RiFlashlightLine,
+        iconColor: "text-success animate-bounce",
+        textColor: "text-success font-bold",
+        title: "Rule action triggered",
+      };
+    }
+    if (isMatch) {
+      if (config.mode === "sustained") {
+        const targetSec = config.sustained_sec ?? 10;
+        if (status?.current_state === "fired" || effectiveHoldingElapsed >= targetSec) {
+          return {
+            label: "Sustained (fired • waiting for reset)",
+            Icon: RiCheckboxCircleLine,
+            iconColor: "text-success",
+            textColor: "text-success font-semibold",
+            title: "Condition sustained and action fired. Will re-arm when condition clears.",
+          };
+        }
+        return {
+          label: `Holding (${effectiveHoldingElapsed}s / ${targetSec}s)`,
+          Icon: RiHourglassLine,
+          iconColor: "text-success",
+          textColor: "text-success font-semibold",
+          title: "Condition is holding. Will fire when duration reaches target.",
+        };
+      }
+      if (config.mode === "count") {
+        return {
+          label: `Counting (${config.count ?? 5}x)`,
+          Icon: RiRepeatLine,
+          iconColor: "text-success",
+          textColor: "text-success font-semibold",
+          title: "Counting condition matches within window",
+        };
+      }
+      return {
+        label: config.mode === "on_change" ? "Armed" : "Firing",
+        Icon: RiCheckboxCircleLine,
+        iconColor: "text-success",
+        textColor: "text-success font-semibold",
+        title: "Condition matched",
+      };
+    }
+    return {
+      label: "Idle (waiting for match)",
+      Icon: RiRadioButtonLine,
+      iconColor: "text-base-content/40",
+      textColor: "text-base-content/50",
+    };
+  }, [
+    config.enabled,
+    config.mode,
+    config.sustained_sec,
+    config.count,
+    effectiveHoldingElapsed,
+    isTripped,
+    isCoolingDown,
+    pulse,
+    status?.current_state,
+    isMatch,
+  ]);
+
+  if (!isConfigured) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/40 text-xs p-2 text-center">
+        No rule configured — open settings to configure logic
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1010,84 +1246,44 @@ export default function LogicPanel({
 
       {/* 2. Center Content: IF card and THEN card */}
       <div
-        className={`flex flex-col flex-1 justify-center gap-2 min-h-0 my-auto ${
+        className={`flex flex-col flex-1 gap-2.5 min-h-0 py-2.5 ${
           !config.enabled ? "opacity-60" : ""
         }`}
       >
         {/* IF Condition Card */}
-        <div className="flex flex-col rounded-lg border border-base-300 dark:border-base-content/15 bg-base-200/50 p-2 gap-1.5 min-w-0">
+        <div className="flex flex-col flex-1 min-h-0 rounded-lg border border-base-300 dark:border-base-content/15 bg-base-200/50 px-3.5 py-3.5 justify-center overflow-hidden">
           {conditions.length <= 1 ? (
-            <>
-              <div className="flex items-center justify-between gap-1.5 min-w-0">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="badge badge-sm badge-warning font-bold font-mono shrink-0">
-                    IF
-                  </span>
-                  <span
-                    className="text-xs font-mono font-semibold text-base-content/90 truncate"
-                    title={firstCondSummary}
-                  >
-                    {firstCondSummary}
-                  </span>
-                </div>
-
-                {c0Payload === null ? (
-                  <span className="badge badge-sm badge-ghost font-mono text-base-content/40 shrink-0">
-                    waiting
-                  </span>
-                ) : isMatch ? (
-                  <span className="badge badge-sm badge-success font-mono font-medium shrink-0">
-                    ✓ Match
-                  </span>
-                ) : (
-                  <span className="badge badge-sm badge-ghost font-mono text-base-content/50 shrink-0">
-                    No match
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between gap-1.5 text-xs font-mono min-w-0 pt-0.5">
-                <span
-                  className="truncate text-base-content/50 flex-1 min-w-0"
-                  title={c0Topic || primaryTopic}
-                >
-                  {c0Topic || primaryTopic}
+            <div className="flex flex-col items-center justify-center gap-2 min-w-0 my-auto py-1">
+              <button
+                type="button"
+                onClick={() => onOpenConfig?.({ conditionIndex: 0 })}
+                className={`badge ${availH >= 220 ? "badge-md px-2.5" : "badge-sm px-2"} font-mono font-semibold cursor-pointer hover:opacity-80 transition-all ${CONDITION_BADGE_COLORS[0]}`}
+                title="Configure condition"
+              >
+                <RiFilter3Line className={availH >= 220 ? "text-sm" : "text-xs"} />
+              </button>
+              <div
+                className={`inline-flex items-center justify-center min-w-0 max-w-[85%] rounded-lg border font-mono shadow-inner transition-colors ${
+                  availH >= 220
+                    ? "text-2xl font-bold px-4 py-2"
+                    : "text-lg font-bold px-3 py-1.5"
+                } ${
+                  c0Payload === null
+                    ? "bg-base-100 dark:bg-base-300/40 border-base-300/70 dark:border-base-content/10 text-base-content/40"
+                    : isMatch
+                      ? "bg-success/15 border-success/50 text-success"
+                      : "bg-base-100 dark:bg-base-300/40 border-base-300/70 dark:border-base-content/10 text-base-content/85"
+                }`}
+                title={c0Value}
+              >
+                <span className="truncate block max-w-full">
+                  {c0Payload === null ? "—" : c0Value || "—"}
                 </span>
-                {c0Payload !== null && (
-                  <span
-                    className="font-bold text-sm text-base-content truncate max-w-[45%] text-right shrink-0 ml-1.5"
-                    title={c0Value}
-                  >
-                    {c0Value}
-                  </span>
-                )}
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              {/* Header row: IF badge on left, overall match on right */}
-              <div className="flex items-center justify-between gap-1.5 min-w-0">
-                <span className="badge badge-sm badge-warning font-bold font-mono shrink-0">
-                  IF
-                </span>
-
-                {c1Payload === null ? (
-                  <span className="badge badge-sm badge-ghost font-mono text-base-content/40 shrink-0">
-                    waiting
-                  </span>
-                ) : isMatch ? (
-                  <span className="badge badge-sm badge-success font-mono font-medium shrink-0">
-                    ✓ Match
-                  </span>
-                ) : (
-                  <span className="badge badge-sm badge-ghost font-mono text-base-content/50 shrink-0">
-                    No match
-                  </span>
-                )}
-              </div>
-
-              {/* Stacked conditions */}
-              <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[140px] pr-0.5">
+            <div className="flex flex-col flex-1 min-h-0 gap-2 overflow-y-auto px-1 py-0.5">
+              <div className="my-auto flex flex-col gap-2 w-full">
                 {conditions.map((c, i) => {
                   const cTopic = c.topic || primaryTopic;
                   const cBroker = c.broker_id || primaryBroker;
@@ -1097,7 +1293,6 @@ export default function LogicPanel({
                   const condMatch =
                     cPayload !== null &&
                     evaluateClientCondition(cRaw, c.operator, c.value);
-                  const condSummary = formatConditionSummary(c);
                   const joinLabel = c.join
                     ? c.join.toUpperCase()
                     : config.match === "any"
@@ -1105,103 +1300,91 @@ export default function LogicPanel({
                       : "AND";
 
                   return (
-                    <div key={i} className="flex flex-col gap-1">
+                    <div key={i} className="flex flex-col gap-1.5 shrink-0">
                       {i > 0 && (
-                        <div className="flex items-center gap-1.5 my-0.5">
-                          <div className="h-px flex-1 bg-base-300 dark:bg-base-content/10" />
-                          <span className="text-[10px] font-mono font-bold text-base-content/40 uppercase tracking-wider px-1">
+                        <div className="flex items-center justify-center my-0.5">
+                          <span className="text-[10px] font-mono font-bold text-base-content/40 uppercase tracking-wider px-2 py-0.5 rounded bg-base-300/40">
                             {joinLabel}
                           </span>
-                          <div className="h-px flex-1 bg-base-300 dark:bg-base-content/10" />
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <div className="flex items-center justify-between gap-1.5 min-w-0">
-                          <span
-                            className="text-xs font-mono font-semibold text-base-content/90 truncate flex-1 min-w-0"
-                            title={condSummary}
-                          >
-                            {condSummary}
+                      <div className="flex items-center justify-center gap-2.5 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => onOpenConfig?.({ conditionIndex: i })}
+                          className={`badge ${availH >= 220 ? "badge-md" : "badge-sm"} font-mono font-semibold cursor-pointer hover:opacity-80 transition-all ${
+                            CONDITION_BADGE_COLORS[
+                              i % CONDITION_BADGE_COLORS.length
+                            ]
+                          }`}
+                          title={`Configure condition #${i + 1}`}
+                        >
+                          #{i + 1}
+                        </button>
+                        <div
+                          className={`inline-flex items-center justify-center min-w-0 max-w-[70%] rounded-md border font-mono shadow-inner transition-colors ${
+                            availH >= 220 ? "text-sm px-3 py-1.5" : "text-xs px-2.5 py-1"
+                          } ${
+                            cPayload === null
+                              ? "bg-base-100 dark:bg-base-300/40 border-base-300/70 dark:border-base-content/10 text-base-content/40"
+                              : condMatch
+                                ? "bg-success/15 border-success/50 text-success font-bold"
+                                : "bg-base-100 dark:bg-base-300/40 border-base-300/70 dark:border-base-content/10 text-base-content/80 font-medium"
+                          }`}
+                          title={cVal}
+                        >
+                          <span className="truncate block max-w-full">
+                            {cPayload === null ? "—" : cVal || "—"}
                           </span>
-                          {cPayload !== null && (
-                            <span
-                              className="font-bold text-sm text-base-content truncate max-w-[45%] text-right shrink-0 ml-1.5"
-                              title={cVal}
-                            >
-                              {cVal}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between gap-1.5 text-xs font-mono min-w-0 text-base-content/50">
-                          <span
-                            className="truncate flex-1 min-w-0"
-                            title={cTopic}
-                          >
-                            {cTopic}
-                          </span>
-                          {cPayload === null ? (
-                            <span className="text-base-content/40 text-xs shrink-0 ml-1">
-                              waiting
-                            </span>
-                          ) : condMatch ? (
-                            <span className="text-success text-xs font-semibold shrink-0 ml-1">
-                              ✓ match
-                            </span>
-                          ) : (
-                            <span className="text-base-content/40 text-xs shrink-0 ml-1">
-                              no match
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </>
+            </div>
           )}
         </div>
 
-        {/* THEN Action Card */}
+        {/* Action / Firing Summary Card */}
         <div
-          className={`flex flex-col rounded-lg border p-2 gap-1.5 min-w-0 transition-colors duration-300 ${
+          className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border min-w-0 transition-colors duration-300 shrink-0 ${
             isTripped
-              ? "bg-error/10 border-error/40 text-error"
-              : pulse
-                ? "bg-success/15 border-success text-success shadow-sm"
-                : "bg-base-200/50 border-base-300 dark:border-base-content/15"
+              ? "bg-error/10 border-error/40"
+              : isCoolingDown
+                ? "bg-warning/10 border-warning/30"
+                : pulse
+                  ? "bg-success/15 border-success shadow-sm"
+                  : isMatch && config.enabled
+                    ? "bg-success/10 border-success/30"
+                    : "bg-base-200/50 border-base-300 dark:border-base-content/15"
           }`}
         >
-          <div className="flex items-center justify-between gap-1.5 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-              <span className="badge badge-sm badge-success font-bold font-mono shrink-0">
-                THEN
-              </span>
-              <span className="text-xs font-mono text-base-content/50 shrink-0">
-                publish →
-              </span>
-              <span
-                className="text-xs font-mono font-semibold text-base-content/90 truncate flex-1 min-w-0"
-                title={config.target_topic}
-              >
-                {config.target_topic || "—"}
-              </span>
-            </div>
-            {pulse && (
-              <span className="badge badge-sm badge-success font-mono font-bold shrink-0 animate-pulse">
-                Fired
-              </span>
-            )}
+          <div
+            className="flex items-center gap-2.5 min-w-0 flex-1"
+            title={firingStatus.title}
+          >
+            <firingStatus.Icon
+              className={`text-base shrink-0 ${firingStatus.iconColor}`}
+            />
+            <span
+              className={`text-sm font-mono font-medium truncate ${firingStatus.textColor}`}
+            >
+              {firingStatus.label}
+            </span>
           </div>
 
-          <div
-            className="flex items-center min-w-0 px-2.5 py-1.5 rounded-md bg-base-100 dark:bg-base-300/40 border border-base-300/70 dark:border-base-content/10 font-mono text-xs text-base-content/90 truncate shadow-inner"
-            title={config.payload}
+          <button
+            type="button"
+            onClick={() => onOpenConfig?.({ focusSection: "publish" })}
+            className="badge badge-md badge-neutral hover:badge-primary font-mono cursor-pointer transition-colors p-2.5 gap-1 shrink-0"
+            title={`Publish action: ${config.target_topic || "No topic"}${
+              config.payload ? ` → "${config.payload}"` : ""
+            }`}
           >
-            {renderPayloadPreview(config.payload)}
-          </div>
+            <RiSendPlaneLine size={15} />
+          </button>
         </div>
       </div>
 

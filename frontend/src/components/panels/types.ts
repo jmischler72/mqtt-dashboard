@@ -26,6 +26,10 @@ export interface PanelRenderProps<TConfig = Record<string, unknown>> {
   brokerId: string;
   config: TConfig;
   onConfigChange?: (newConfig: Partial<TConfig>) => void;
+  onOpenConfig?: (options?: {
+    conditionIndex?: number;
+    focusSection?: "conditions" | "publish";
+  }) => void;
 }
 
 export interface PanelConfigModalProps<TConfig = Record<string, unknown>> {
@@ -41,6 +45,8 @@ export interface PanelConfigModalProps<TConfig = Record<string, unknown>> {
   }) => void;
   initialTopic?: string;
   initialBrokerId?: string;
+  initialConditionIndex?: number;
+  initialFocusSection?: "conditions" | "publish";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

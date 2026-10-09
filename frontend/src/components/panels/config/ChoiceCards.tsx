@@ -58,13 +58,6 @@ export default function ChoiceCards<T extends string>({
             {option.preview}
           </div>
           <span className="text-[10.5px] font-semibold">{option.label}</span>
-          <span className="text-[9.5px] text-center text-base-content/50">
-            {option.disabled
-              ? (option.disabledNote ?? "")
-              : value === option.id
-                ? "selected"
-                : ""}
-          </span>
         </button>
       ))}
     </div>
