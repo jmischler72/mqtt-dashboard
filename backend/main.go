@@ -5,8 +5,11 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"mqtt-dashboard/config"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
@@ -28,6 +31,8 @@ import (
 
 //go:embed dist/*
 var embeddedFiles embed.FS
+
+var version = "dev"
 
 func main() {
 	runtimeConfig, err := config.LoadRuntimeConfig()
@@ -101,11 +106,47 @@ func main() {
 
 	r := buildRouter(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode)
 
-	slog.Info("server starting", "addr", runtimeConfig.HTTPAddr, "base_path", runtimeConfig.BasePath, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
+	serverURL := formatServerURL(runtimeConfig.HTTPAddr, runtimeConfig.BasePath)
+	printBanner(os.Stderr, version, serverURL, runtimeConfig.DataDir, runtimeConfig.DemoMode)
+	slog.Info("server starting", "version", version, "url", serverURL, "addr", runtimeConfig.HTTPAddr, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
 	if err := http.ListenAndServe(runtimeConfig.HTTPAddr, r); err != nil {
 		slog.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func printBanner(w io.Writer, version, serverURL, dataDir string, demoMode bool) {
+	tag := ""
+	if demoMode {
+		tag = " (demo mode)"
+	}
+	fmt.Fprintf(w, "\n  MQTT Dashboard v-%s%s\n", version, tag)
+	fmt.Fprintf(w, "  ➜  URL:   %s\n", serverURL)
+	fmt.Fprintf(w, "  ➜  Storage: %s\n\n", dataDir)
+}
+
+func formatServerURL(addr, basePath string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if strings.HasPrefix(addr, ":") {
+			host = "localhost"
+			port = strings.TrimPrefix(addr, ":")
+		} else {
+			host = "localhost"
+			port = addr
+		}
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	base := "/" + strings.Trim(basePath, "/")
+	if base != "/" {
+		base += "/"
+	}
+	if port == "80" {
+		return fmt.Sprintf("http://%s%s", host, base)
+	}
+	return fmt.Sprintf("http://%s:%s%s", host, port, base)
 }
 
 func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, basePath string, demoMode ...bool) http.Handler {
@@ -142,6 +183,7 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"status":    "ok",
+			"version":   version,
 			"demo_mode": isDemo,
 		})
 	})

@@ -1,0 +1,20 @@
+.git
+.github
+.gitignore
+.herdr
+.DS_Store
+
+# Local application & test data
+backend/data/
+*.db
+*.out
+coverage.out
+
+# Frontend dependencies & build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Documentation & design assets
+docs/
+assets/

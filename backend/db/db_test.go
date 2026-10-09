@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"mqtt-dashboard/db"
@@ -107,5 +108,24 @@ func TestInitDB_InvalidPath(t *testing.T) {
 	_, err := db.InitDB("/nonexistent_directory_12345/database.db")
 	if err == nil {
 		t.Error("expected error opening db in non-existent directory")
+	}
+}
+
+func TestInitDB_Idempotent(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "idempotent.db")
+	d1, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("first InitDB: %v", err)
+	}
+	d1.Close()
+
+	d2, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("second InitDB: %v", err)
+	}
+	defer d2.Close()
+
+	if err := d2.Ping(); err != nil {
+		t.Fatalf("Ping after second InitDB: %v", err)
 	}
 }
