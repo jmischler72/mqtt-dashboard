@@ -240,7 +240,6 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	app.Delete("/api/logic/{panelId}", logicH.DeleteLogic)
 	app.Put("/api/logic/{panelId}/toggle", logicH.ToggleLogic)
 	app.Get("/api/logic/{panelId}", logicH.GetLogicStatus)
-	app.Get("/api/logic/{panelId}/status", logicH.GetLogicStatus)
 
 	// Settings
 	app.Get("/api/settings", settingsH.GetSettings)

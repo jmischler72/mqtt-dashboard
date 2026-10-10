@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tidwall/gjson"
+
 	"mqtt-dashboard/mqtt"
 )
 
@@ -52,9 +54,9 @@ func ValidateRule(r *Rule) error {
 			return fmt.Errorf("cannot publish to wildcard topics (+ or #)")
 		}
 		// Infinite loop guard: if target broker is same as source/condition broker,
-		// target topic must not match any condition topic filter.
+		// target topic must not match any condition topic filter (checked symmetrically).
 		sameBroker := r.TargetBrokerID == r.BrokerID || r.TargetBrokerID == "" || r.BrokerID == ""
-		if sameBroker && mqtt.TopicMatches(r.SourceTopic, t) {
+		if sameBroker && (mqtt.TopicMatches(r.SourceTopic, t) || mqtt.TopicMatches(t, r.SourceTopic)) {
 			return fmt.Errorf("target topic %q matches source topic %q (infinite loop prevention)", t, r.SourceTopic)
 		}
 		for _, c := range r.Conditions {
@@ -67,7 +69,7 @@ func ValidateRule(r *Rule) error {
 				cBroker = r.BrokerID
 			}
 			sameCondBroker := r.TargetBrokerID == cBroker || r.TargetBrokerID == "" || cBroker == ""
-			if sameCondBroker && mqtt.TopicMatches(cTopic, t) {
+			if sameCondBroker && (mqtt.TopicMatches(cTopic, t) || mqtt.TopicMatches(t, cTopic)) {
 				return fmt.Errorf("target topic %q matches condition topic %q (infinite loop prevention)", t, cTopic)
 			}
 		}
@@ -107,7 +109,7 @@ func ValidateRule(r *Rule) error {
 	return nil
 }
 
-// resolveJSONPath resolves dot-notation or bracket path within a JSON payload.
+// resolveJSONPath resolves dot-notation or bracket path within a JSON payload using gjson.
 func resolveJSONPath(payload []byte, path string) (string, bool) {
 	trimmedPath := strings.TrimSpace(path)
 	if trimmedPath == "" {
@@ -117,66 +119,32 @@ func resolveJSONPath(payload []byte, path string) (string, bool) {
 		return "", false
 	}
 
-	var root any
-	if err := json.Unmarshal(payload, &root); err != nil {
-		return "", false
-	}
-
 	// Normalize foo[0].bar -> foo.0.bar
 	normalized := strings.ReplaceAll(trimmedPath, "[", ".")
 	normalized = strings.ReplaceAll(normalized, "]", "")
-	segments := strings.Split(normalized, ".")
 
-	curr := root
-	for _, seg := range segments {
-		seg = strings.TrimSpace(seg)
-		if seg == "" {
-			continue
-		}
-
-		if curr == nil {
-			return "", false
-		}
-
-		switch obj := curr.(type) {
-		case map[string]any:
-			val, exists := obj[seg]
-			if !exists {
-				return "", false
-			}
-			curr = val
-		case []any:
-			idx, err := strconv.Atoi(seg)
-			if err != nil || idx < 0 || idx >= len(obj) {
-				return "", false
-			}
-			curr = obj[idx]
-		default:
-			return "", false
-		}
+	res := gjson.GetBytes(payload, normalized)
+	if !res.Exists() {
+		return "", false
 	}
 
-	switch v := curr.(type) {
-	case nil:
+	switch res.Type {
+	case gjson.Null:
 		return "null", true
-	case string:
-		return v, true
-	case bool:
-		if v {
-			return "true", true
-		}
+	case gjson.True:
+		return "true", true
+	case gjson.False:
 		return "false", true
-	case float64:
+	case gjson.Number:
+		v := res.Num
 		if v == math.Trunc(v) && !math.IsNaN(v) && !math.IsInf(v, 0) {
 			return strconv.FormatInt(int64(v), 10), true
 		}
 		return strconv.FormatFloat(v, 'f', -1, 64), true
+	case gjson.String:
+		return res.Str, true
 	default:
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprint(v), true
-		}
-		return string(bytes), true
+		return res.Raw, true
 	}
 }
 
@@ -292,23 +260,26 @@ func extractValueFromPayload(raw string, jsonPath, readTemplate string) (string,
 
 	// If the payload is a composite JSON object/array, but target field/stencil was not found,
 	// fail closed.
-	var root any
-	if err := json.Unmarshal([]byte(raw), &root); err == nil {
-		switch v := root.(type) {
-		case map[string]any, []any:
+	if gjson.Valid(raw) {
+		res := gjson.Parse(raw)
+		if res.IsObject() || res.IsArray() {
 			return "", false
-		case string:
-			return v, true
-		case float64:
+		}
+		switch res.Type {
+		case gjson.String:
+			return res.Str, true
+		case gjson.Number:
+			v := res.Num
 			if v == math.Trunc(v) && !math.IsNaN(v) && !math.IsInf(v, 0) {
 				return strconv.FormatInt(int64(v), 10), true
 			}
 			return strconv.FormatFloat(v, 'f', -1, 64), true
-		case bool:
-			if v {
-				return "true", true
-			}
+		case gjson.True:
+			return "true", true
+		case gjson.False:
 			return "false", true
+		case gjson.Null:
+			return "null", true
 		default:
 			return strings.TrimSpace(raw), true
 		}

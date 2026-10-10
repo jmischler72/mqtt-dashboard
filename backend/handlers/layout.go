@@ -202,6 +202,46 @@ func (h *LayoutHandler) UpdatePanel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if p.PanelType == "logic" && h.logicEngine != nil {
+		var cfg logicConfigJSON
+		if err := json.Unmarshal(p.ConfigJSON, &cfg); err == nil && (cfg.SourceTopic != "" || len(cfg.Conditions) > 0) && cfg.TargetTopic != "" {
+			bID := cfg.BrokerID
+			if bID == "" {
+				bID = cfg.SourceBrokerID
+			}
+			if bID == "" && len(cfg.Conditions) > 0 && cfg.Conditions[0].BrokerID != "" {
+				bID = cfg.Conditions[0].BrokerID
+			}
+			if bID == "" {
+				bID = p.BrokerID
+			}
+			sTopic := cfg.SourceTopic
+			if sTopic == "" && len(cfg.Conditions) > 0 {
+				sTopic = cfg.Conditions[0].Topic
+			}
+			rule := logic.Rule{
+				PanelID:        id,
+				BrokerID:       bID,
+				SourceTopic:    sTopic,
+				Match:          cfg.Match,
+				Conditions:     cfg.Conditions,
+				Mode:           cfg.Mode,
+				Count:          cfg.Count,
+				WindowSec:      cfg.WindowSec,
+				SustainedSec:   cfg.SustainedSec,
+				TargetTopic:    cfg.TargetTopic,
+				TargetBrokerID: cfg.TargetBrokerID,
+				Payload:        cfg.Payload,
+				QoS:            byte(cfg.QoS),
+				Retain:         cfg.Retain,
+				CooldownSec:    cfg.CooldownSec,
+				Enabled:        cfg.Enabled,
+			}
+			_ = h.logicEngine.AddRule(&rule)
+		}
+	}
+
 	if h.invalidator != nil {
 		h.invalidator.InvalidatePanelMeta(id)
 	}

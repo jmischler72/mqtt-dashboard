@@ -161,6 +161,67 @@ func (h *LogicHandler) DeleteLogic(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// recoverLogicRuleFromDB loads and re-registers a logic rule from SQLite if it is not currently registered in the engine.
+func recoverLogicRuleFromDB(db *sql.DB, engine LogicEngine, panelID string, overrideEnabled ...bool) (*logic.Rule, error) {
+	if db == nil || engine == nil {
+		return nil, fmt.Errorf("db or engine is nil")
+	}
+	var cfgStr, brokerID string
+	err := db.QueryRow(`SELECT COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ? AND panel_type = 'logic'`, panelID).Scan(&cfgStr, &brokerID)
+	if err != nil {
+		return nil, err
+	}
+	var cfg logicConfigJSON
+	if err := json.Unmarshal([]byte(cfgStr), &cfg); err != nil || (cfg.SourceTopic == "" && len(cfg.Conditions) == 0) || cfg.TargetTopic == "" {
+		return nil, fmt.Errorf("invalid or incomplete logic configuration")
+	}
+
+	bID := cfg.BrokerID
+	if bID == "" {
+		bID = cfg.SourceBrokerID
+	}
+	if bID == "" && len(cfg.Conditions) > 0 && cfg.Conditions[0].BrokerID != "" {
+		bID = cfg.Conditions[0].BrokerID
+	}
+	if bID == "" {
+		bID = brokerID
+	}
+
+	sTopic := cfg.SourceTopic
+	if sTopic == "" && len(cfg.Conditions) > 0 {
+		sTopic = cfg.Conditions[0].Topic
+	}
+
+	enabled := cfg.Enabled
+	if len(overrideEnabled) > 0 {
+		enabled = overrideEnabled[0]
+	}
+
+	rule := logic.Rule{
+		PanelID:        panelID,
+		BrokerID:       bID,
+		SourceTopic:    sTopic,
+		Match:          cfg.Match,
+		Conditions:     cfg.Conditions,
+		Mode:           cfg.Mode,
+		Count:          cfg.Count,
+		WindowSec:      cfg.WindowSec,
+		SustainedSec:   cfg.SustainedSec,
+		TargetTopic:    cfg.TargetTopic,
+		TargetBrokerID: cfg.TargetBrokerID,
+		Payload:        cfg.Payload,
+		QoS:            byte(cfg.QoS),
+		Retain:         cfg.Retain,
+		CooldownSec:    cfg.CooldownSec,
+		Enabled:        enabled,
+	}
+
+	if err := engine.AddRule(&rule); err != nil {
+		return nil, err
+	}
+	return &rule, nil
+}
+
 func (h *LogicHandler) ToggleLogic(w http.ResponseWriter, r *http.Request) {
 	panelID := chi.URLParam(r, "panelId")
 	var req struct {
@@ -178,38 +239,8 @@ func (h *LogicHandler) ToggleLogic(w http.ResponseWriter, r *http.Request) {
 
 	// If rule was not yet registered in engine, attempt lazy recovery from DB
 	if toggleErr != nil && h.db != nil {
-		row := h.db.QueryRow(`SELECT COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ?`, panelID)
-		var cfgStr, brokerID string
-		if err := row.Scan(&cfgStr, &brokerID); err == nil {
-			var cfg logicConfigJSON
-			if json.Unmarshal([]byte(cfgStr), &cfg) == nil && cfg.SourceTopic != "" && cfg.TargetTopic != "" {
-				bID := cfg.BrokerID
-				if bID == "" {
-					bID = brokerID
-				}
-				rule := logic.Rule{
-					PanelID:        panelID,
-					BrokerID:       bID,
-					SourceTopic:    cfg.SourceTopic,
-					Match:          cfg.Match,
-					Conditions:     cfg.Conditions,
-					Mode:           cfg.Mode,
-					Count:          cfg.Count,
-					WindowSec:      cfg.WindowSec,
-					SustainedSec:   cfg.SustainedSec,
-					TargetTopic:    cfg.TargetTopic,
-					TargetBrokerID: cfg.TargetBrokerID,
-					Payload:        cfg.Payload,
-					QoS:            byte(cfg.QoS),
-					Retain:         cfg.Retain,
-					CooldownSec:    cfg.CooldownSec,
-					Enabled:        req.Enabled,
-				}
-				if h.engine != nil {
-					_ = h.engine.AddRule(&rule)
-				}
-				toggleErr = nil
-			}
+		if _, err := recoverLogicRuleFromDB(h.db, h.engine, panelID, req.Enabled); err == nil {
+			toggleErr = nil
 		}
 	}
 
@@ -247,37 +278,9 @@ func (h *LogicHandler) GetLogicStatus(w http.ResponseWriter, r *http.Request) {
 
 	if !ok && h.db != nil {
 		// Attempt lazy re-registration recovery from DB
-		var cfgStr, brokerID string
-		if err := h.db.QueryRow(`SELECT COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ? AND panel_type = 'logic'`, panelID).Scan(&cfgStr, &brokerID); err == nil {
-			var cfg logicConfigJSON
-			if json.Unmarshal([]byte(cfgStr), &cfg) == nil && cfg.SourceTopic != "" && cfg.TargetTopic != "" {
-				bID := cfg.BrokerID
-				if bID == "" {
-					bID = brokerID
-				}
-				rule := logic.Rule{
-					PanelID:        panelID,
-					BrokerID:       bID,
-					SourceTopic:    cfg.SourceTopic,
-					Match:          cfg.Match,
-					Conditions:     cfg.Conditions,
-					Mode:           cfg.Mode,
-					Count:          cfg.Count,
-					WindowSec:      cfg.WindowSec,
-					SustainedSec:   cfg.SustainedSec,
-					TargetTopic:    cfg.TargetTopic,
-					TargetBrokerID: cfg.TargetBrokerID,
-					Payload:        cfg.Payload,
-					QoS:            byte(cfg.QoS),
-					Retain:         cfg.Retain,
-					CooldownSec:    cfg.CooldownSec,
-					Enabled:        cfg.Enabled,
-				}
-				if h.engine != nil {
-					if addErr := h.engine.AddRule(&rule); addErr == nil {
-						status, ok = h.engine.GetStatus(panelID)
-					}
-				}
+		if _, err := recoverLogicRuleFromDB(h.db, h.engine, panelID); err == nil {
+			if h.engine != nil {
+				status, ok = h.engine.GetStatus(panelID)
 			}
 		}
 	}

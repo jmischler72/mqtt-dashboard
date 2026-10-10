@@ -265,41 +265,8 @@ func (p *LogicAutomationProvider) Toggle(panelID string, enabled bool) error {
 	}
 	err := p.engine.ToggleRule(panelID, enabled)
 	if err != nil && p.db != nil {
-		// Attempt lazy re-registration recovery from DB
-		var cfgStr, layoutBrokerID string
-		if dbErr := p.db.QueryRow(`SELECT COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE id = ?`, panelID).Scan(&cfgStr, &layoutBrokerID); dbErr == nil {
-			var cfg logicConfigJSON
-			if json.Unmarshal([]byte(cfgStr), &cfg) == nil && (cfg.TargetTopic != "" || cfg.SourceTopic != "") {
-				bID := cfg.BrokerID
-				if bID == "" {
-					bID = layoutBrokerID
-				}
-				sTopic := cfg.SourceTopic
-				if sTopic == "" && len(cfg.Conditions) > 0 {
-					sTopic = cfg.Conditions[0].Topic
-				}
-				rule := logic.Rule{
-					PanelID:        panelID,
-					BrokerID:       bID,
-					SourceTopic:    sTopic,
-					Match:          cfg.Match,
-					Conditions:     cfg.Conditions,
-					Mode:           cfg.Mode,
-					Count:          cfg.Count,
-					WindowSec:      cfg.WindowSec,
-					SustainedSec:   cfg.SustainedSec,
-					TargetTopic:    cfg.TargetTopic,
-					TargetBrokerID: cfg.TargetBrokerID,
-					Payload:        cfg.Payload,
-					QoS:            byte(cfg.QoS),
-					Retain:         cfg.Retain,
-					CooldownSec:    cfg.CooldownSec,
-					Enabled:        enabled,
-				}
-				if addErr := p.engine.AddRule(&rule); addErr == nil {
-					return nil
-				}
-			}
+		if _, recErr := recoverLogicRuleFromDB(p.db, p.engine, panelID, enabled); recErr == nil {
+			return nil
 		}
 	}
 	return err

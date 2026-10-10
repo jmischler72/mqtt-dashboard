@@ -383,7 +383,9 @@ export const logicPanelDefinition: PanelDefinition<LogicConfig> = {
       };
     }
     const targets = target.split(",").map((t) => t.trim());
-    if (targets.some((t) => mqttTopicMatches(source, t))) {
+    if (
+      targets.some((t) => mqttTopicMatches(source, t) || mqttTopicMatches(t, source))
+    ) {
       return {
         isValid: false,
         warning:
