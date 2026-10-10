@@ -569,104 +569,106 @@ export default function PanelWrapper({
               </button>
             </div>
           </div>
-        ) : (!isVisual || editMode) && (
-          <div
-            className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
-          >
-            {!isVisual && (
-              <div
-                data-testid="panel-meta-anchor"
-                className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
-                onMouseEnter={handleMetaRegionEnter}
-                onMouseLeave={handleMetaRegionLeave}
-              >
-                <button
-                  type="button"
-                  aria-label="Broker status details"
-                  className={`w-2 h-2 rounded-full ${dotColor} ${brokerStatus?.status === "CONNECTED" ? "status-dot-hover-hint" : ""}`}
-                  onClick={(e) => e.stopPropagation()}
-                />
+        ) : (
+          (!isVisual || editMode) && (
+            <div
+              className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
+            >
+              {!isVisual && (
                 <div
-                  className="transition-transform"
-                  style={{
-                    transform: showMetaPopover
-                      ? "rotate(180deg)"
-                      : "rotate(0deg)",
-                  }}
+                  data-testid="panel-meta-anchor"
+                  className="shrink-0 no-drag flex items-center gap-1 px-1 py-1 rounded-full"
+                  onMouseEnter={handleMetaRegionEnter}
+                  onMouseLeave={handleMetaRegionLeave}
                 >
-                  {!isPinned && <IoIosArrowDown />}
+                  <button
+                    type="button"
+                    aria-label="Broker status details"
+                    className={`w-2 h-2 rounded-full ${dotColor} ${brokerStatus?.status === "CONNECTED" ? "status-dot-hover-hint" : ""}`}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div
+                    className="transition-transform"
+                    style={{
+                      transform: showMetaPopover
+                        ? "rotate(180deg)"
+                        : "rotate(0deg)",
+                    }}
+                  >
+                    {!isPinned && <IoIosArrowDown />}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {editingTitle ? (
-              <input
-                autoFocus
-                className="input input-xs flex-1 font-semibold no-drag"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={saveTitle}
-                onKeyDown={(e) => e.key === "Enter" && saveTitle()}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <div className="flex-1 min-w-0">
-                <span
-                  className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? "cursor-text" : ""}`}
-                  onDoubleClick={() => editMode && setEditingTitle(true)}
-                >
-                  {title}
-                </span>
-              </div>
-            )}
-            {editMode ? (
-              <div className="flex items-center gap-1 shrink-0 no-drag">
-                {panelWarning && (
+              {editingTitle ? (
+                <input
+                  autoFocus
+                  className="input input-xs flex-1 font-semibold no-drag"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={saveTitle}
+                  onKeyDown={(e) => e.key === "Enter" && saveTitle()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <div className="flex-1 min-w-0">
                   <span
-                    className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
-                    title="Configuration warning — check panel parameters"
+                    className={`inline-block max-w-full font-semibold text-sm truncate ${editMode ? "cursor-text" : ""}`}
+                    onDoubleClick={() => editMode && setEditingTitle(true)}
                   >
-                    <RiErrorWarningLine className="text-warning text-sm shrink-0" />
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs btn-square no-drag"
-                  title="Copy or move panel"
-                  onClick={() => setCopyModalOpen(true)}
-                >
-                  <MdContentCopy className="text-base" />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs btn-square no-drag"
-                  title="Configure"
-                  onClick={() => handleOpenConfig()}
-                >
-                  <RiSettings3Line className="text-base" />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs btn-square text-error no-drag"
-                  title="Delete"
-                  onClick={handleDelete}
-                >
-                  <RiCloseLine className="text-base" />
-                </button>
-              </div>
-            ) : (
-              panelWarning && (
-                <div className="flex items-center gap-1 shrink-0 no-drag">
-                  <span
-                    className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
-                    title="Configuration warning — check panel parameters"
-                  >
-                    <RiErrorWarningLine className="text-warning text-sm shrink-0" />
+                    {title}
                   </span>
                 </div>
-              )
-            )}
-          </div>
+              )}
+              {editMode ? (
+                <div className="flex items-center gap-1 shrink-0 no-drag">
+                  {panelWarning && (
+                    <span
+                      className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
+                      title="Configuration warning — check panel parameters"
+                    >
+                      <RiErrorWarningLine className="text-warning text-sm shrink-0" />
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs btn-square no-drag"
+                    title="Copy or move panel"
+                    onClick={() => setCopyModalOpen(true)}
+                  >
+                    <MdContentCopy className="text-base" />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs btn-square no-drag"
+                    title="Configure"
+                    onClick={() => handleOpenConfig()}
+                  >
+                    <RiSettings3Line className="text-base" />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs btn-square text-error no-drag"
+                    title="Delete"
+                    onClick={handleDelete}
+                  >
+                    <RiCloseLine className="text-base" />
+                  </button>
+                </div>
+              ) : (
+                panelWarning && (
+                  <div className="flex items-center gap-1 shrink-0 no-drag">
+                    <span
+                      className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
+                      title="Configuration warning — check panel parameters"
+                    >
+                      <RiErrorWarningLine className="text-warning text-sm shrink-0" />
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          )
         )}
 
         {showMetaPopover && (

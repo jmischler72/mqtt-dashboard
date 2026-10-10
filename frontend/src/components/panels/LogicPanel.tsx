@@ -684,7 +684,9 @@ export function LogicConfigModal({
               </FieldRow>
               <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-base-content/60 font-mono">
                 <RiInformationLine className="shrink-0 text-info text-xs" />
-                <span>Fires once after holding. Re-arms when condition clears.</span>
+                <span>
+                  Fires once after holding. Re-arms when condition clears.
+                </span>
               </div>
             </div>
           )}
@@ -1140,13 +1142,17 @@ export default function LogicPanel({
     if (isMatch) {
       if (config.mode === "sustained") {
         const targetSec = config.sustained_sec ?? 10;
-        if (status?.current_state === "fired" || effectiveHoldingElapsed >= targetSec) {
+        if (
+          status?.current_state === "fired" ||
+          effectiveHoldingElapsed >= targetSec
+        ) {
           return {
             label: "Sustained (fired • waiting for reset)",
             Icon: RiCheckboxCircleLine,
             iconColor: "text-success",
             textColor: "text-success font-semibold",
-            title: "Condition sustained and action fired. Will re-arm when condition clears.",
+            title:
+              "Condition sustained and action fired. Will re-arm when condition clears.",
           };
         }
         return {
@@ -1154,7 +1160,8 @@ export default function LogicPanel({
           Icon: RiHourglassLine,
           iconColor: "text-success",
           textColor: "text-success font-semibold",
-          title: "Condition is holding. Will fire when duration reaches target.",
+          title:
+            "Condition is holding. Will fire when duration reaches target.",
         };
       }
       if (config.mode === "count") {
@@ -1260,7 +1267,9 @@ export default function LogicPanel({
                 className={`badge ${availH >= 220 ? "badge-md px-2.5" : "badge-sm px-2"} font-mono font-semibold cursor-pointer hover:opacity-80 transition-all ${CONDITION_BADGE_COLORS[0]}`}
                 title="Configure condition"
               >
-                <RiFilter3Line className={availH >= 220 ? "text-sm" : "text-xs"} />
+                <RiFilter3Line
+                  className={availH >= 220 ? "text-sm" : "text-xs"}
+                />
               </button>
               <div
                 className={`inline-flex items-center justify-center min-w-0 max-w-[85%] rounded-lg border font-mono shadow-inner transition-colors ${
@@ -1324,7 +1333,9 @@ export default function LogicPanel({
                         </button>
                         <div
                           className={`inline-flex items-center justify-center min-w-0 max-w-[70%] rounded-md border font-mono shadow-inner transition-colors ${
-                            availH >= 220 ? "text-sm px-3 py-1.5" : "text-xs px-2.5 py-1"
+                            availH >= 220
+                              ? "text-sm px-3 py-1.5"
+                              : "text-xs px-2.5 py-1"
                           } ${
                             cPayload === null
                               ? "bg-base-100 dark:bg-base-300/40 border-base-300/70 dark:border-base-content/10 text-base-content/40"

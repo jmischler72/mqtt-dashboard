@@ -1345,8 +1345,9 @@ export default function AutomationsPage() {
                                 <span>
                                   {job.trigger_summary || job.panel_type}
                                 </span>
-                                {job.trigger_detail && (
-                                  job.conditions && job.conditions.length > 0 ? (
+                                {job.trigger_detail &&
+                                  (job.conditions &&
+                                  job.conditions.length > 0 ? (
                                     <div
                                       className="tooltip tooltip-top before:whitespace-pre-line before:max-w-xs before:text-left before:font-mono before:text-[11px]"
                                       data-tip={getConditionsTooltip(job)}
@@ -1362,8 +1363,7 @@ export default function AutomationsPage() {
                                     <span className="badge badge-xs badge-ghost font-mono text-[10px]">
                                       {job.trigger_detail}
                                     </span>
-                                  )
-                                )}
+                                  ))}
                               </div>
                               {job.enabled ? (
                                 <span className="badge badge-xs badge-ghost font-mono text-[9px] w-fit">

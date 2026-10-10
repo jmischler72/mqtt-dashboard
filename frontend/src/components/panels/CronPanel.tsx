@@ -269,8 +269,12 @@ export default function CronPanel({
           ? getPreviousCronRun(config.cron_expr, targetDate)
           : null;
         const start = prev ?? (r.prev_run ? new Date(r.prev_run) : new Date());
-        setCronStart((old) => (old?.getTime() === start.getTime() ? old : start));
-        setNextRun((old) => (old?.getTime() === targetDate.getTime() ? old : targetDate));
+        setCronStart((old) =>
+          old?.getTime() === start.getTime() ? old : start,
+        );
+        setNextRun((old) =>
+          old?.getTime() === targetDate.getTime() ? old : targetDate,
+        );
       })
       .catch((error) => {
         void error;
