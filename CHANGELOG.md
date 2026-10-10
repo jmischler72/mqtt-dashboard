@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.14.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.13.1...v1.14.0) (2026-10-10)
+
+
+### Features
+
+* **demo:** add demo notice banner and deployment configuration ([#199](https://github.com/jmischler72/mqtt-dashboard/issues/199)) ([#201](https://github.com/jmischler72/mqtt-dashboard/issues/201)) ([6d1bc0c](https://github.com/jmischler72/mqtt-dashboard/commit/6d1bc0c7de080b50022556d4cf1105d94f97c567))
+* **layout:** add duplicate and copy/move panel across dashboards ([#197](https://github.com/jmischler72/mqtt-dashboard/issues/197)) ([#198](https://github.com/jmischler72/mqtt-dashboard/issues/198)) ([cbb51da](https://github.com/jmischler72/mqtt-dashboard/commit/cbb51da3f42caf0b6082da32f09bcf12fc834e21))
+* **logic-panel:** add panel + config and entries in automations page ([#194](https://github.com/jmischler72/mqtt-dashboard/issues/194)) ([3ddc248](https://github.com/jmischler72/mqtt-dashboard/commit/3ddc248641631b7467840c048e32a12f405fafbc))
+
 ## [1.13.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.13.0...v1.13.1) (2026-09-29)
 
 
