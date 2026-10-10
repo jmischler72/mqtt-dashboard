@@ -20,8 +20,44 @@ import {
   RiFilter3Line,
   RiFilter3Fill,
 } from "react-icons/ri";
-import { api, type ScheduledJob } from "../api/client";
+import { api, type AutomationItem } from "../api/client";
 import { PRESETS, describeCron } from "../components/panels/cronUtils";
+import { formatConditionSummary } from "../components/panels/logicUtils";
+import { VALUE_TOKEN, TOKEN_LABEL } from "../components/panels/payloadShape";
+
+function renderPayloadWithChips(payload?: string, allowChips = true) {
+  const oneLine = (payload || "").replace(/\s+/g, " ").trim();
+  const normalized = oneLine.replace(/\{\{value\}\}/g, VALUE_TOKEN);
+  if (!allowChips || !normalized.includes(VALUE_TOKEN)) {
+    return oneLine;
+  }
+  return normalized.split(VALUE_TOKEN).map((chunk, index) => (
+    <span key={index}>
+      {index > 0 && (
+        <span className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5">
+          {TOKEN_LABEL}
+        </span>
+      )}
+      {chunk}
+    </span>
+  ));
+}
+
+function getConditionsTooltip(job: AutomationItem): string {
+  if (job.conditions && job.conditions.length > 0) {
+    return job.conditions
+      .map((c, idx) => {
+        const topic = c.topic?.trim() || job.source_topic || "";
+        const condWithTopic = { ...c, topic };
+        return formatConditionSummary(condWithTopic, true, idx > 0);
+      })
+      .join("\n");
+  }
+  if (job.source_topic) {
+    return `${job.source_topic} · any message`;
+  }
+  return "No conditions configured";
+}
 
 function formatCountdown(nextRunStr?: string, nowMs = Date.now()): string {
   if (!nextRunStr) return "—";
@@ -58,37 +94,68 @@ function formatSchedule(expr: string): string {
   return describeCron(expr) ?? expr;
 }
 
+function formatTriggerMode(mode?: string): string {
+  switch (mode) {
+    case "every":
+      return "Every match";
+    case "count":
+      return "Count match";
+    case "sustained":
+      return "Sustained";
+    case "on_change":
+    default:
+      return "On change";
+  }
+}
+
+function formatTimeAgo(dateStr?: string, nowMs = Date.now()): string {
+  if (!dateStr) return "";
+  const t = new Date(dateStr).getTime();
+  if (isNaN(t) || t < 1000) return "";
+  const diff = Math.max(0, nowMs - t);
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 interface ColumnFilters {
   status: "all" | "active" | "paused";
+  type: string;
   automation: string;
   topic: string;
   payload: string;
   qos: number | null;
   retain: boolean | null;
-  schedule: string;
-  nextRun: "all" | "scheduled" | "soon";
+  triggerExecution: string;
+  timing: "all" | "scheduled" | "soon";
   broker: string;
 }
 
 const DEFAULT_FILTERS: ColumnFilters = {
   status: "all",
+  type: "all",
   automation: "",
   topic: "",
   payload: "",
   qos: null,
   retain: null,
-  schedule: "",
-  nextRun: "all",
+  triggerExecution: "",
+  timing: "all",
   broker: "",
 };
 
 type SortKey =
   | "status"
+  | "type"
   | "automation"
   | "topic"
   | "payload"
-  | "schedule"
-  | "next_run"
+  | "trigger_execution"
   | "broker";
 
 type SortOrder = "asc" | "desc" | null;
@@ -137,7 +204,6 @@ function FilterPopover({
 
   const top = anchorRect.bottom + 6;
   let left = anchorRect.right - width;
-  // Ensure within window bounds with 8px margin
   if (left < 8) left = 8;
   if (left + width > window.innerWidth - 8) {
     left = window.innerWidth - width - 8;
@@ -157,7 +223,7 @@ function FilterPopover({
 }
 
 export default function AutomationsPage() {
-  const [jobs, setJobs] = useState<ScheduledJob[]>([]);
+  const [jobs, setJobs] = useState<AutomationItem[]>([]);
   const [dashboards, setDashboards] = useState<{ id: string; name: string }[]>(
     [],
   );
@@ -184,7 +250,7 @@ export default function AutomationsPage() {
     setLoading(true);
     try {
       const [data, dList] = await Promise.all([
-        api.getScheduledJobs(),
+        api.getAutomations(),
         api
           .get<Array<{ id: string; name: string }>>("/api/dashboards")
           .catch(() => []),
@@ -201,7 +267,7 @@ export default function AutomationsPage() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      api.getScheduledJobs(),
+      api.getAutomations(),
       api
         .get<Array<{ id: string; name: string }>>("/api/dashboards")
         .catch(() => []),
@@ -237,7 +303,7 @@ export default function AutomationsPage() {
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const handleToggle = async (job: ScheduledJob) => {
+  const handleToggle = async (job: AutomationItem) => {
     const nextEnabled = !job.enabled;
     setTogglingIds((prev) => new Set(prev).add(job.panel_id));
 
@@ -249,8 +315,8 @@ export default function AutomationsPage() {
     );
 
     try {
-      await api.toggleCronJob(job.panel_id, nextEnabled);
-      const updated = await api.getScheduledJobs();
+      await api.toggleAutomation(job.panel_id, nextEnabled);
+      const updated = await api.getAutomations();
       setJobs(updated);
     } catch {
       // Rollback
@@ -303,13 +369,14 @@ export default function AutomationsPage() {
   const isFilterActive = useMemo(() => {
     return (
       filters.status !== "all" ||
+      filters.type !== "all" ||
       filters.automation.trim() !== "" ||
       filters.topic.trim() !== "" ||
       filters.payload.trim() !== "" ||
       filters.qos !== null ||
       filters.retain !== null ||
-      filters.schedule.trim() !== "" ||
-      filters.nextRun !== "all" ||
+      filters.triggerExecution.trim() !== "" ||
+      filters.timing !== "all" ||
       filters.broker !== ""
     );
   }, [filters]);
@@ -318,6 +385,8 @@ export default function AutomationsPage() {
     switch (key) {
       case "status":
         return filters.status !== "all";
+      case "type":
+        return filters.type !== "all";
       case "automation":
         return filters.automation.trim() !== "";
       case "topic":
@@ -328,10 +397,10 @@ export default function AutomationsPage() {
           filters.qos !== null ||
           filters.retain !== null
         );
-      case "schedule":
-        return filters.schedule.trim() !== "";
-      case "next_run":
-        return filters.nextRun !== "all";
+      case "trigger_execution":
+        return (
+          filters.triggerExecution.trim() !== "" || filters.timing !== "all"
+        );
       case "broker":
         return filters.broker !== "";
       default:
@@ -360,6 +429,14 @@ export default function AutomationsPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [dashboards, jobs]);
 
+  const availableTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const j of jobs) {
+      if (j.panel_type) set.add(j.panel_type);
+    }
+    return Array.from(set).sort();
+  }, [jobs]);
+
   const brokerOptions = useMemo(() => {
     const set = new Set<string>();
     for (const j of jobs) {
@@ -368,7 +445,7 @@ export default function AutomationsPage() {
     return Array.from(set).sort();
   }, [jobs]);
 
-  const soonReferenceTime = filters.nextRun === "soon" ? currentTimeMs : 0;
+  const soonReferenceTime = filters.timing === "soon" ? currentTimeMs : 0;
 
   // Filter and Sort Pipeline
   const displayedJobs = useMemo(() => {
@@ -385,12 +462,22 @@ export default function AutomationsPage() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesGlobal =
-          job.topic.toLowerCase().includes(q) ||
-          job.panel_title.toLowerCase().includes(q) ||
-          job.dashboard_name.toLowerCase().includes(q) ||
-          job.broker_name.toLowerCase().includes(q) ||
-          job.cron_expr.toLowerCase().includes(q) ||
-          job.payload.toLowerCase().includes(q);
+          (job.target_topic || "").toLowerCase().includes(q) ||
+          (Boolean(job.source_topic) &&
+            job.source_topic!.toLowerCase().includes(q)) ||
+          (Boolean(job.conditions) &&
+            job.conditions!.some(
+              (c) =>
+                (c.topic && c.topic.toLowerCase().includes(q)) ||
+                (c.value && c.value.toLowerCase().includes(q)),
+            )) ||
+          (job.panel_title || "").toLowerCase().includes(q) ||
+          (job.dashboard_name || "").toLowerCase().includes(q) ||
+          (job.broker_name || "").toLowerCase().includes(q) ||
+          (job.panel_type || "").toLowerCase().includes(q) ||
+          (job.trigger_summary || "").toLowerCase().includes(q) ||
+          (job.trigger_detail || "").toLowerCase().includes(q) ||
+          (Boolean(job.payload) && job.payload!.toLowerCase().includes(q));
         if (!matchesGlobal) return false;
       }
 
@@ -398,56 +485,64 @@ export default function AutomationsPage() {
       if (filters.status === "active" && !job.enabled) return false;
       if (filters.status === "paused" && job.enabled) return false;
 
-      // 3. Automation filter
-      if (filters.automation.trim()) {
-        const qa = filters.automation.toLowerCase();
-        const matchesAuto =
-          job.panel_title.toLowerCase().includes(qa) ||
-          job.dashboard_name.toLowerCase().includes(qa);
-        if (!matchesAuto) return false;
-      }
-
-      // 4. Topic filter
-      if (filters.topic.trim()) {
-        const qt = filters.topic.toLowerCase();
-        if (!job.topic.toLowerCase().includes(qt)) return false;
-      }
-
-      // 5. Payload filter
-      if (filters.payload.trim()) {
-        const qp = filters.payload.toLowerCase();
-        if (!job.payload.toLowerCase().includes(qp)) return false;
-      }
-
-      // 6. QoS filter
-      if (filters.qos !== null && job.qos !== filters.qos) {
+      // 3. Type filter
+      if (
+        filters.type !== "all" &&
+        (job.panel_type || "").toLowerCase() !== filters.type.toLowerCase()
+      ) {
         return false;
       }
 
-      // 7. Retain filter
+      // 4. Automation filter
+      if (filters.automation.trim()) {
+        const qa = filters.automation.toLowerCase();
+        const matchesAuto =
+          (job.panel_title || "").toLowerCase().includes(qa) ||
+          (job.dashboard_name || "").toLowerCase().includes(qa);
+        if (!matchesAuto) return false;
+      }
+
+      // 5. Topic filter (target topic where sending)
+      if (filters.topic.trim()) {
+        const qt = filters.topic.toLowerCase();
+        const matchesTopic = (job.target_topic || "")
+          .toLowerCase()
+          .includes(qt);
+        if (!matchesTopic) return false;
+      }
+
+      // 6. Payload filter
+      if (filters.payload.trim()) {
+        const qp = filters.payload.toLowerCase();
+        if (!(job.payload || "").toLowerCase().includes(qp)) return false;
+      }
+      if (filters.qos !== null && job.qos !== filters.qos) {
+        return false;
+      }
       if (filters.retain !== null && job.retain !== filters.retain) {
         return false;
       }
 
-      // 8. Schedule filter
-      if (filters.schedule.trim()) {
-        const qs = filters.schedule.toLowerCase();
-        const matchesSched =
-          job.cron_expr.toLowerCase().includes(qs) ||
-          formatSchedule(job.cron_expr).toLowerCase().includes(qs);
-        if (!matchesSched) return false;
+      // 7. Trigger & Execution filter
+      if (filters.triggerExecution.trim()) {
+        const qte = filters.triggerExecution.toLowerCase();
+        const matchesTE =
+          (job.trigger_summary || "").toLowerCase().includes(qte) ||
+          (job.trigger_detail || "").toLowerCase().includes(qte) ||
+          (Boolean(job.status_detail) &&
+            job.status_detail!.toLowerCase().includes(qte));
+        if (!matchesTE) return false;
       }
-
-      // 9. Next run filter
-      if (filters.nextRun === "scheduled") {
-        if (!job.enabled || !job.next_run) return false;
-      } else if (filters.nextRun === "soon") {
+      if (filters.timing === "scheduled") {
+        if (!job.enabled) return false;
+        if (job.trigger_type === "schedule" && !job.next_run) return false;
+      } else if (filters.timing === "soon") {
         if (!job.enabled || !job.next_run) return false;
         const diffMs = new Date(job.next_run).getTime() - soonReferenceTime;
         if (diffMs > 5 * 60 * 1000 || diffMs < 0) return false;
       }
 
-      // 10. Broker filter
+      // 8. Broker filter
       if (filters.broker && job.broker_name !== filters.broker) {
         return false;
       }
@@ -465,28 +560,28 @@ export default function AutomationsPage() {
             const valB = b.enabled ? 1 : 0;
             return (valA - valB) * dir;
           }
+          case "type":
+            return (a.panel_type || "").localeCompare(b.panel_type || "") * dir;
           case "automation": {
-            const strA = `${a.panel_title} ${a.dashboard_name}`.toLowerCase();
-            const strB = `${b.panel_title} ${b.dashboard_name}`.toLowerCase();
+            const strA =
+              `${a.panel_title || ""} ${a.dashboard_name || ""}`.toLowerCase();
+            const strB =
+              `${b.panel_title || ""} ${b.dashboard_name || ""}`.toLowerCase();
             return strA.localeCompare(strB) * dir;
           }
-          case "topic":
-            return a.topic.localeCompare(b.topic) * dir;
+          case "topic": {
+            return (
+              (a.target_topic || "").localeCompare(b.target_topic || "") * dir
+            );
+          }
           case "payload":
-            return a.payload.localeCompare(b.payload) * dir;
-          case "schedule":
-            return a.cron_expr.localeCompare(b.cron_expr) * dir;
-          case "next_run": {
-            const timeA =
-              a.enabled && a.next_run ? new Date(a.next_run).getTime() : NaN;
-            const timeB =
-              b.enabled && b.next_run ? new Date(b.next_run).getTime() : NaN;
-            const hasA = !Number.isNaN(timeA);
-            const hasB = !Number.isNaN(timeB);
-            if (!hasA && !hasB) return 0;
-            if (!hasA) return 1;
-            if (!hasB) return -1;
-            return (timeA - timeB) * dir;
+            return (a.payload || "").localeCompare(b.payload || "") * dir;
+          case "trigger_execution": {
+            const strA =
+              `${a.trigger_summary || ""} ${a.trigger_detail || ""}`.toLowerCase();
+            const strB =
+              `${b.trigger_summary || ""} ${b.trigger_detail || ""}`.toLowerCase();
+            return strA.localeCompare(strB) * dir;
           }
           case "broker":
             return (
@@ -596,13 +691,13 @@ export default function AutomationsPage() {
             <table className="table w-full">
               <thead>
                 <tr className="border-b border-base-300 text-xs bg-base-200/50">
-                  {/* ── Column: Go to Dashboard ──────── */}
+                  {/* ── Column 0: Go to Dashboard ──────── */}
                   <th className="w-10 text-center py-2.5 px-3 border-r border-base-300">
                     <span className="sr-only">Go to dashboard</span>
                   </th>
 
-                  {/* ── Column: Status ────────────────── */}
-                  <th className="py-2.5 px-4 w-28 border-r border-base-300">
+                  {/* ── Column 1: Status ────────────────── */}
+                  <th className="py-2.5 px-4 w-24 border-r border-base-300">
                     <div className="flex items-center justify-between gap-1">
                       <button
                         type="button"
@@ -639,7 +734,45 @@ export default function AutomationsPage() {
                     </div>
                   </th>
 
-                  {/* ── Column: Automation ────────────── */}
+                  {/* ── Column 2: Type (NEW) ────────────── */}
+                  <th className="py-2.5 px-4 w-28 min-w-[100px] border-r border-base-300">
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
+                        onClick={() => handleSort("type")}
+                      >
+                        <span>Type</span>
+                        {sort.key === "type" ? (
+                          sort.order === "asc" ? (
+                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
+                          ) : (
+                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
+                          )
+                        ) : (
+                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
+                          isColFiltered("type")
+                            ? "text-primary bg-primary/10"
+                            : "text-base-content/40 hover:text-base-content"
+                        }`}
+                        onClick={(e) => handleOpenFilter("type", e)}
+                        title="Filter by type"
+                      >
+                        {isColFiltered("type") ? (
+                          <RiFilter3Fill className="text-xs" />
+                        ) : (
+                          <RiFilter3Line className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </th>
+
+                  {/* ── Column 3: Automation ────────────── */}
                   <th className="py-2.5 px-4 min-w-[150px] border-r border-base-300">
                     <div className="flex items-center justify-between gap-1">
                       <button
@@ -677,7 +810,7 @@ export default function AutomationsPage() {
                     </div>
                   </th>
 
-                  {/* ── Column: Topic ─────────────────── */}
+                  {/* ── Column 4: Topic ─────────────────── */}
                   <th className="py-2.5 px-4 min-w-[180px] border-r border-base-300">
                     <div className="flex items-center justify-between gap-1">
                       <button
@@ -715,8 +848,8 @@ export default function AutomationsPage() {
                     </div>
                   </th>
 
-                  {/* ── Column: Payload ───────────────── */}
-                  <th className="py-2.5 px-4 min-w-[220px] flex-1 border-r border-base-300">
+                  {/* ── Column 5: Payload ───────────────── */}
+                  <th className="py-2.5 px-4 min-w-[200px] flex-1 border-r border-base-300">
                     <div className="flex items-center justify-between gap-1">
                       <button
                         type="button"
@@ -753,16 +886,16 @@ export default function AutomationsPage() {
                     </div>
                   </th>
 
-                  {/* ── Column: Schedule ──────────────── */}
-                  <th className="py-2.5 px-4 min-w-[140px] border-r border-base-300">
+                  {/* ── Column 6: Trigger & Execution (NEW) ── */}
+                  <th className="py-2.5 px-4 min-w-[220px] border-r border-base-300">
                     <div className="flex items-center justify-between gap-1">
                       <button
                         type="button"
                         className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                        onClick={() => handleSort("schedule")}
+                        onClick={() => handleSort("trigger_execution")}
                       >
-                        <span>Schedule</span>
-                        {sort.key === "schedule" ? (
+                        <span>Trigger & Execution</span>
+                        {sort.key === "trigger_execution" ? (
                           sort.order === "asc" ? (
                             <RiArrowUpLine className="text-primary text-sm shrink-0" />
                           ) : (
@@ -775,14 +908,16 @@ export default function AutomationsPage() {
                       <button
                         type="button"
                         className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                          isColFiltered("schedule")
+                          isColFiltered("trigger_execution")
                             ? "text-primary bg-primary/10"
                             : "text-base-content/40 hover:text-base-content"
                         }`}
-                        onClick={(e) => handleOpenFilter("schedule", e)}
-                        title="Filter schedule expression"
+                        onClick={(e) =>
+                          handleOpenFilter("trigger_execution", e)
+                        }
+                        title="Filter trigger and execution details"
                       >
-                        {isColFiltered("schedule") ? (
+                        {isColFiltered("trigger_execution") ? (
                           <RiFilter3Fill className="text-xs" />
                         ) : (
                           <RiFilter3Line className="text-xs" />
@@ -791,45 +926,7 @@ export default function AutomationsPage() {
                     </div>
                   </th>
 
-                  {/* ── Column: Next Run ──────────────── */}
-                  <th className="py-2.5 px-4 min-w-[130px] border-r border-base-300">
-                    <div className="flex items-center justify-between gap-1">
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 font-semibold text-base-content/70 hover:text-base-content select-none group"
-                        onClick={() => handleSort("next_run")}
-                      >
-                        <span>Next Run</span>
-                        {sort.key === "next_run" ? (
-                          sort.order === "asc" ? (
-                            <RiArrowUpLine className="text-primary text-sm shrink-0" />
-                          ) : (
-                            <RiArrowDownLine className="text-primary text-sm shrink-0" />
-                          )
-                        ) : (
-                          <RiArrowUpDownLine className="text-base-content/20 group-hover:text-base-content/50 text-xs shrink-0" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn btn-ghost btn-xs btn-circle h-6 w-6 min-h-0 ${
-                          isColFiltered("next_run")
-                            ? "text-primary bg-primary/10"
-                            : "text-base-content/40 hover:text-base-content"
-                        }`}
-                        onClick={(e) => handleOpenFilter("next_run", e)}
-                        title="Filter next run timing"
-                      >
-                        {isColFiltered("next_run") ? (
-                          <RiFilter3Fill className="text-xs" />
-                        ) : (
-                          <RiFilter3Line className="text-xs" />
-                        )}
-                      </button>
-                    </div>
-                  </th>
-
-                  {/* ── Column: Broker ────────────────── */}
+                  {/* ── Column 7: Broker ────────────────── */}
                   <th className="py-2.5 px-4 min-w-[130px]">
                     <div className="flex items-center justify-between gap-1">
                       <button
@@ -893,8 +990,8 @@ export default function AutomationsPage() {
                           No automations configured
                         </p>
                         <p className="text-xs text-base-content/50">
-                          Create a Cron panel on any dashboard to automate
-                          periodic MQTT messages.
+                          Create a Cron or Logic panel on any dashboard to
+                          automate MQTT messages.
                         </p>
                         <Link
                           to="/dashboard"
@@ -929,7 +1026,7 @@ export default function AutomationsPage() {
                 ) : (
                   displayedJobs.map((job) => {
                     const isToggling = togglingIds.has(job.panel_id);
-                    const topicList = job.topic
+                    const targetTopics = (job.target_topic || "")
                       .split(",")
                       .map((t) => t.trim())
                       .filter(Boolean);
@@ -941,7 +1038,7 @@ export default function AutomationsPage() {
                           !job.enabled ? "opacity-60" : ""
                         }`}
                       >
-                        {/* Go to Panel */}
+                        {/* 0. Go to Panel */}
                         <td className="align-middle text-center py-3 px-3">
                           <div
                             className="tooltip tooltip-right"
@@ -959,7 +1056,7 @@ export default function AutomationsPage() {
                           </div>
                         </td>
 
-                        {/* Status dot + toggle */}
+                        {/* 1. Status dot + toggle */}
                         <td className="text-center align-middle py-3 px-4">
                           <div
                             className="tooltip tooltip-right inline-flex items-center gap-1.5"
@@ -982,7 +1079,26 @@ export default function AutomationsPage() {
                           </div>
                         </td>
 
-                        {/* Automation Name & Dashboard */}
+                        {/* 2. Type Column */}
+                        <td className="align-middle py-3 px-4">
+                          {job.panel_type === "cron" ? (
+                            <span className="badge badge-sm badge-ghost font-mono text-[10px] gap-1 shrink-0">
+                              <MdSchedule className="text-xs text-base-content/60" />
+                              CRON
+                            </span>
+                          ) : job.panel_type === "logic" ? (
+                            <span className="badge badge-sm badge-warning/20 text-warning border-warning/30 font-mono text-[10px] gap-1 shrink-0">
+                              <MdAutoMode className="text-xs" />
+                              LOGIC
+                            </span>
+                          ) : (
+                            <span className="badge badge-sm badge-neutral font-mono text-[10px] shrink-0 uppercase">
+                              {job.panel_type}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 3. Automation Name & Dashboard */}
                         <td className="align-middle py-3 px-4">
                           <div className="flex flex-col gap-0.5 min-w-[140px]">
                             {(() => {
@@ -1013,61 +1129,66 @@ export default function AutomationsPage() {
                           </div>
                         </td>
 
-                        {/* Topic (Separate Column with Truncation) */}
-                        <td className="align-middle py-3 px-4 max-w-[200px]">
-                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            {topicList.map((t, idx) => (
-                              <div
-                                key={idx}
-                                className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
-                              >
-                                <Link
-                                  to={`/explorer?topic=${encodeURIComponent(t)}${
-                                    job.broker_id
-                                      ? `&broker=${encodeURIComponent(job.broker_id)}`
-                                      : ""
-                                  }`}
-                                  className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
-                                  title={`Show "${t}" in Explorer`}
+                        {/* 4. Topic */}
+                        <td className="align-middle py-3 px-4 max-w-[220px]">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            {targetTopics.length > 0 ? (
+                              targetTopics.map((t, idx) => (
+                                <div
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
                                 >
-                                  <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
-                                  <span className="truncate">{t}</span>
-                                </Link>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                  title="Copy topic"
-                                  onClick={() =>
-                                    handleCopy(
-                                      `topic-${job.panel_id}-${idx}`,
-                                      t,
-                                    )
-                                  }
-                                >
-                                  {copiedId ===
-                                  `topic-${job.panel_id}-${idx}` ? (
-                                    <MdCheck className="text-success text-xs" />
-                                  ) : (
-                                    <MdContentCopy className="text-[10px]" />
-                                  )}
-                                </button>
-                              </div>
-                            ))}
+                                  <Link
+                                    to={`/explorer?topic=${encodeURIComponent(t)}${
+                                      job.broker_id
+                                        ? `&broker=${encodeURIComponent(
+                                            job.broker_id,
+                                          )}`
+                                        : ""
+                                    }`}
+                                    className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
+                                    title={`Topic: "${t}" in Explorer`}
+                                  >
+                                    <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
+                                    <span className="truncate">{t}</span>
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
+                                    title="Copy topic"
+                                    onClick={() =>
+                                      handleCopy(
+                                        `topic-${job.panel_id}-${idx}`,
+                                        t,
+                                      )
+                                    }
+                                  >
+                                    {copiedId ===
+                                    `topic-${job.panel_id}-${idx}` ? (
+                                      <MdCheck className="text-success text-xs" />
+                                    ) : (
+                                      <MdContentCopy className="text-[10px]" />
+                                    )}
+                                  </button>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-base-content/30 italic">
+                                (none)
+                              </span>
+                            )}
                           </div>
                         </td>
 
-                        {/* Payload (Separate Column with QoS/Retain Flags next to it & Ellipsis) */}
-                        <td className="align-middle py-3 px-4 max-w-[280px]">
+                        {/* 5. Payload */}
+                        <td className="align-middle py-3 px-4 max-w-[240px]">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            {/* QoS flag next to payload */}
                             <span
                               className="badge badge-xs badge-neutral font-mono shrink-0"
                               title={`QoS ${job.qos}`}
                             >
                               Q{job.qos}
                             </span>
-
-                            {/* Retain flag next to payload */}
                             {job.retain && (
                               <span
                                 className="badge badge-xs badge-warning font-mono shrink-0"
@@ -1076,15 +1197,16 @@ export default function AutomationsPage() {
                                 R
                               </span>
                             )}
-
-                            {/* Payload snippet with Ellipsis */}
                             {job.payload ? (
                               <div
                                 className="flex items-center gap-1 bg-base-200/70 px-2 py-0.5 rounded font-mono text-[11px] text-base-content/80 min-w-0 flex-1 overflow-hidden"
                                 title={job.payload}
                               >
                                 <span className="truncate flex-1 block">
-                                  {job.payload}
+                                  {renderPayloadWithChips(
+                                    job.payload,
+                                    job.panel_type !== "cron",
+                                  )}
                                 </span>
                                 <button
                                   type="button"
@@ -1093,7 +1215,7 @@ export default function AutomationsPage() {
                                   onClick={() =>
                                     handleCopy(
                                       `payload-${job.panel_id}`,
-                                      job.payload,
+                                      job.payload || "",
                                     )
                                   }
                                 >
@@ -1112,45 +1234,156 @@ export default function AutomationsPage() {
                           </div>
                         </td>
 
-                        {/* Schedule */}
-                        <td className="align-middle py-3 px-4">
-                          <div className="flex flex-col gap-0.5 min-w-[130px]">
-                            <div className="flex items-center gap-1 text-xs font-medium">
-                              <MdSchedule className="text-xs text-base-content/50 shrink-0" />
-                              <span>{formatSchedule(job.cron_expr)}</span>
+                        {/* 6. Trigger & Execution (Unified generalized column) */}
+                        <td className="align-middle py-3 px-4 min-w-[220px]">
+                          {job.panel_type === "cron" ? (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-xs font-medium">
+                                <MdSchedule className="text-xs text-base-content/50 shrink-0" />
+                                <span>
+                                  {formatSchedule(
+                                    job.trigger_summary || job.trigger_detail,
+                                  )}
+                                </span>
+                                <span className="font-mono text-[10px] text-base-content/40">
+                                  ({job.trigger_detail})
+                                </span>
+                              </div>
+                              {job.enabled && job.next_run ? (
+                                <div
+                                  className="tooltip tooltip-top text-left"
+                                  data-tip={`Exact: ${formatExactTime(
+                                    job.next_run,
+                                  )}${
+                                    job.last_run
+                                      ? ` | Last: ${formatExactTime(
+                                          job.last_run,
+                                        )}`
+                                      : ""
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 text-[11px]">
+                                    <span className="text-primary font-medium">
+                                      Next:{" "}
+                                      {formatCountdown(
+                                        job.next_run,
+                                        currentTimeMs,
+                                      )}
+                                    </span>
+                                    <span className="text-[10px] text-base-content/40">
+                                      ({formatExactTime(job.next_run)})
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="badge badge-xs badge-neutral w-fit">
+                                  paused
+                                </span>
+                              )}
                             </div>
-                            <span className="font-mono text-[10px] text-base-content/40 pl-4">
-                              {job.cron_expr}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Next Run */}
-                        <td className="align-middle whitespace-nowrap py-3 px-4">
-                          {job.enabled && job.next_run ? (
-                            <div
-                              className="tooltip tooltip-top text-left"
-                              data-tip={`Exact: ${formatExactTime(job.next_run)}${
-                                job.prev_run
-                                  ? ` | Prev: ${formatExactTime(job.prev_run)}`
-                                  : ""
-                              }`}
-                            >
-                              <span className="text-primary font-medium text-xs block">
-                                {formatCountdown(job.next_run, currentTimeMs)}
-                              </span>
-                              <span className="text-[10px] text-base-content/40 block">
-                                {formatExactTime(job.next_run)}
-                              </span>
+                          ) : job.panel_type === "logic" ? (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-xs font-medium">
+                                <MdAutoMode className="text-xs text-warning shrink-0" />
+                                <span>
+                                  {formatTriggerMode(job.trigger_summary)}
+                                </span>
+                                <div
+                                  className="tooltip tooltip-top before:whitespace-pre-line before:max-w-xs before:text-left before:font-mono before:text-[11px]"
+                                  data-tip={getConditionsTooltip(job)}
+                                >
+                                  <span
+                                    className="badge badge-xs badge-ghost font-mono text-[10px] cursor-help"
+                                    title={getConditionsTooltip(job)}
+                                  >
+                                    {job.trigger_detail}
+                                  </span>
+                                </div>
+                              </div>
+                              {job.enabled ? (
+                                <div
+                                  className="tooltip tooltip-top text-left"
+                                  data-tip={
+                                    job.last_run
+                                      ? `Last fired: ${new Date(
+                                          job.last_run,
+                                        ).toLocaleString()}${
+                                          job.run_count
+                                            ? ` (${job.run_count} run${job.run_count > 1 ? "s" : ""})`
+                                            : ""
+                                        }`
+                                      : "Waiting for trigger event"
+                                  }
+                                >
+                                  <div className="flex items-center gap-1.5 text-[11px]">
+                                    {job.last_run ? (
+                                      <span className="text-[10px] text-base-content/50">
+                                        Fired{" "}
+                                        {formatTimeAgo(
+                                          job.last_run,
+                                          currentTimeMs,
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-base-content/30 italic">
+                                        Never fired
+                                      </span>
+                                    )}
+                                    {job.status_detail &&
+                                      job.status_detail !== "idle" &&
+                                      job.status_detail !== "fired" && (
+                                        <span className="text-[10px] text-warning font-mono">
+                                          · {job.status_detail}
+                                        </span>
+                                      )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="badge badge-xs badge-neutral w-fit">
+                                  paused
+                                </span>
+                              )}
                             </div>
                           ) : (
-                            <span className="badge badge-xs badge-neutral">
-                              paused
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1 text-xs font-medium">
+                                <span>
+                                  {job.trigger_summary || job.panel_type}
+                                </span>
+                                {job.trigger_detail &&
+                                  (job.conditions &&
+                                  job.conditions.length > 0 ? (
+                                    <div
+                                      className="tooltip tooltip-top before:whitespace-pre-line before:max-w-xs before:text-left before:font-mono before:text-[11px]"
+                                      data-tip={getConditionsTooltip(job)}
+                                    >
+                                      <span
+                                        className="badge badge-xs badge-ghost font-mono text-[10px] cursor-help"
+                                        title={getConditionsTooltip(job)}
+                                      >
+                                        {job.trigger_detail}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="badge badge-xs badge-ghost font-mono text-[10px]">
+                                      {job.trigger_detail}
+                                    </span>
+                                  ))}
+                              </div>
+                              {job.enabled ? (
+                                <span className="badge badge-xs badge-ghost font-mono text-[9px] w-fit">
+                                  active
+                                </span>
+                              ) : (
+                                <span className="badge badge-xs badge-neutral w-fit">
+                                  paused
+                                </span>
+                              )}
+                            </div>
                           )}
                         </td>
 
-                        {/* Broker */}
+                        {/* 7. Broker */}
                         <td className="align-middle py-3 px-4">
                           <div className="flex items-center gap-1 text-xs text-base-content/70 min-w-[120px]">
                             <RiServerLine className="text-xs text-base-content/40 shrink-0" />
@@ -1172,7 +1405,7 @@ export default function AutomationsPage() {
         </div>
       </main>
 
-      {/* ── Portaled Filter Popover (Mounts in document.body to avoid table clipping & overflow) ── */}
+      {/* ── Portaled Filter Popover ── */}
       {activeFilterCol && (
         <FilterPopover
           anchorRect={filterAnchorRect}
@@ -1180,8 +1413,8 @@ export default function AutomationsPage() {
           width={
             activeFilterCol === "payload"
               ? 260
-              : activeFilterCol === "broker"
-                ? 220
+              : activeFilterCol === "trigger_execution"
+                ? 260
                 : 220
           }
         >
@@ -1208,6 +1441,34 @@ export default function AutomationsPage() {
                     }
                   />
                   <span>{st}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {activeFilterCol === "type" && (
+            <div className="flex flex-col gap-1 text-xs">
+              <span className="font-semibold text-base-content/50 uppercase tracking-wider text-[10px] px-1">
+                Automation Type
+              </span>
+              {["all", ...availableTypes].map((t) => (
+                <label
+                  key={t}
+                  className="flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer capitalize"
+                >
+                  <input
+                    type="radio"
+                    name="filter-type"
+                    className="radio radio-xs radio-primary"
+                    checked={filters.type === t}
+                    onChange={() =>
+                      setFilters((p) => ({
+                        ...p,
+                        type: t,
+                      }))
+                    }
+                  />
+                  <span>{t === "all" ? "All Types" : t.toUpperCase()}</span>
                 </label>
               ))}
             </div>
@@ -1363,29 +1624,68 @@ export default function AutomationsPage() {
             </div>
           )}
 
-          {activeFilterCol === "schedule" && (
+          {activeFilterCol === "trigger_execution" && (
             <div className="flex flex-col gap-2 text-xs">
               <span className="font-semibold text-base-content/50 uppercase tracking-wider text-[10px]">
-                Filter Schedule
+                Filter Trigger & Execution
               </span>
               <input
                 type="text"
                 className="input input-xs input-bordered w-full font-mono"
-                placeholder="e.g. * * * * * or hourly"
-                value={filters.schedule}
+                placeholder="Search trigger, conditions, mode..."
+                value={filters.triggerExecution}
                 onChange={(e) =>
                   setFilters((p) => ({
                     ...p,
-                    schedule: e.target.value,
+                    triggerExecution: e.target.value,
                   }))
                 }
                 autoFocus
               />
-              {filters.schedule && (
+
+              <div className="flex flex-col gap-1 pt-1 border-t border-base-200">
+                <span className="font-semibold text-base-content/50 uppercase tracking-wider text-[10px] px-1">
+                  Execution State
+                </span>
+                {(
+                  [
+                    { id: "all", label: "All" },
+                    { id: "scheduled", label: "Scheduled / Active" },
+                    { id: "soon", label: "Due soon (< 5m)" },
+                  ] as const
+                ).map((opt) => (
+                  <label
+                    key={opt.id}
+                    className="flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="filter-timing"
+                      className="radio radio-xs radio-primary"
+                      checked={filters.timing === opt.id}
+                      onChange={() =>
+                        setFilters((p) => ({
+                          ...p,
+                          timing: opt.id,
+                        }))
+                      }
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {(filters.triggerExecution || filters.timing !== "all") && (
                 <button
                   type="button"
-                  className="btn btn-xs btn-ghost text-error self-end"
-                  onClick={() => setFilters((p) => ({ ...p, schedule: "" }))}
+                  className="btn btn-xs btn-ghost text-error self-end mt-1"
+                  onClick={() =>
+                    setFilters((p) => ({
+                      ...p,
+                      triggerExecution: "",
+                      timing: "all",
+                    }))
+                  }
                 >
                   Clear
                 </button>
@@ -1393,44 +1693,10 @@ export default function AutomationsPage() {
             </div>
           )}
 
-          {activeFilterCol === "next_run" && (
+          {activeFilterCol === "broker" && (
             <div className="flex flex-col gap-1 text-xs">
               <span className="font-semibold text-base-content/50 uppercase tracking-wider text-[10px] px-1">
-                Next Execution
-              </span>
-              {(
-                [
-                  { id: "all", label: "All" },
-                  { id: "scheduled", label: "Scheduled only" },
-                  { id: "soon", label: "Due soon (< 5m)" },
-                ] as const
-              ).map((opt) => (
-                <label
-                  key={opt.id}
-                  className="flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="filter-nextrun"
-                    className="radio radio-xs radio-primary"
-                    checked={filters.nextRun === opt.id}
-                    onChange={() =>
-                      setFilters((p) => ({
-                        ...p,
-                        nextRun: opt.id,
-                      }))
-                    }
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          )}
-
-          {activeFilterCol === "broker" && (
-            <div className="flex flex-col gap-1 text-xs max-h-48 overflow-y-auto">
-              <span className="font-semibold text-base-content/50 uppercase tracking-wider text-[10px] px-1">
-                Broker
+                Filter by Broker
               </span>
               <label className="flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer">
                 <input
@@ -1438,9 +1704,14 @@ export default function AutomationsPage() {
                   name="filter-broker"
                   className="radio radio-xs radio-primary"
                   checked={filters.broker === ""}
-                  onChange={() => setFilters((p) => ({ ...p, broker: "" }))}
+                  onChange={() =>
+                    setFilters((p) => ({
+                      ...p,
+                      broker: "",
+                    }))
+                  }
                 />
-                <span>All brokers</span>
+                <span>All Brokers</span>
               </label>
               {brokerOptions.map((bName) => (
                 <label
@@ -1467,11 +1738,11 @@ export default function AutomationsPage() {
         </FilterPopover>
       )}
 
-      {/* Toast notifications */}
+      {/* ── Toast notification ── */}
       {toast && (
-        <div className="toast toast-top toast-end z-50">
+        <div className="toast toast-bottom toast-end z-50">
           <div
-            className={`alert ${toast.ok ? "alert-success" : "alert-error"}`}
+            className={`alert ${toast.ok ? "alert-success" : "alert-error"} text-xs py-2 px-3 shadow-lg`}
           >
             <span>{toast.msg}</span>
           </div>

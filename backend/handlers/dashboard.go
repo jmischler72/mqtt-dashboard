@@ -9,12 +9,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"mqtt-dashboard/logic"
 	"mqtt-dashboard/models"
 )
 
 type DashboardHandler struct {
 	db          *sql.DB
 	scheduler   CronScheduler
+	logicEngine LogicEngine
 	invalidator PanelMetaInvalidator
 }
 
@@ -24,6 +26,10 @@ func NewDashboardHandler(db *sql.DB, scheduler CronScheduler) *DashboardHandler 
 
 func (h *DashboardHandler) SetInvalidator(invalidator PanelMetaInvalidator) {
 	h.invalidator = invalidator
+}
+
+func (h *DashboardHandler) SetLogicEngine(engine LogicEngine) {
+	h.logicEngine = engine
 }
 
 func (h *DashboardHandler) ListDashboards(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +169,7 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 		cfg      cronConfig
 	}
 	var cronJobs []cronJob
+	var logicRules []logic.Rule
 
 	for _, p := range req.Panels {
 		if p.PanelType == "" {
@@ -209,6 +216,16 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 				cronJobs = append(cronJobs, cronJob{panelID: panelID, brokerID: brokerID, cfg: cfg})
 			}
 		}
+		if p.PanelType == "logic" {
+			var r logic.Rule
+			if err := json.Unmarshal([]byte(cfgJSON), &r); err == nil && r.SourceTopic != "" && r.TargetTopic != "" {
+				r.PanelID = panelID
+				if r.BrokerID == "" {
+					r.BrokerID = brokerID
+				}
+				logicRules = append(logicRules, r)
+			}
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -221,6 +238,16 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 		for _, j := range cronJobs {
 			if err := h.scheduler.AddJob(j.panelID, j.brokerID, j.cfg.CronExpr, j.cfg.Topic, j.cfg.Payload, byte(j.cfg.QoS), j.cfg.Retain, j.cfg.Enabled); err != nil {
 				slog.Error("import: register cron job", "panel_id", j.panelID, "err", err)
+			}
+		}
+	}
+
+	// Register logic rules after the transaction is durably committed.
+	if h.logicEngine != nil {
+		for _, r := range logicRules {
+			rule := r
+			if err := h.logicEngine.AddRule(&rule); err != nil {
+				slog.Error("import: register logic rule", "panel_id", rule.PanelID, "err", err)
 			}
 		}
 	}
@@ -278,6 +305,11 @@ func (h *DashboardHandler) DeleteDashboard(w http.ResponseWriter, r *http.Reques
 	if h.scheduler != nil {
 		for _, pid := range panelIDs {
 			h.scheduler.RemoveJob(pid)
+		}
+	}
+	if h.logicEngine != nil {
+		for _, pid := range panelIDs {
+			h.logicEngine.RemoveRule(pid)
 		}
 	}
 

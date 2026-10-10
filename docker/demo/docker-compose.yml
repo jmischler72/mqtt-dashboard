@@ -4,6 +4,7 @@ services:
     pull_policy: always
     restart: unless-stopped
     environment:
+      - LOG_LEVEL=info
       - MQTT_DASHBOARD_DEMO_MODE=true
       - MQTT_DASHBOARD_SEED_FILE=/app/dev-seed.json
     volumes:

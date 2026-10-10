@@ -8,9 +8,9 @@ Three profiles run concurrently:
   - Simple payloads: incrementing counters on test/<topic>, all brokers
   - Showcase device: the demo/ namespace on the plain broker only — smooth
                      series for the graph, and simulated devices that answer
-                     the commands the toggle, slider, button, input and cron
-                     panels publish. Without this last part those panels have
-                     nowhere to publish to and never read a state back.
+                     the commands the toggle, slider, button, input, cron and
+                     logic panels publish. Without this last part those panels
+                     have nowhere to publish to and never read a state back.
 
 The showcase stays on one broker on purpose: it ticks fast, and triplicating it
 would fill the history database with the same three copies of every point.
@@ -152,6 +152,7 @@ DEMO_STATE = {
     "fan": 40,           # demo/fan/state     — slider panel
     "setpoint": 21.0,    # demo/thermostat/state — slider with a JSON shape
     "measured": 21.0,
+    "alarm": "OFF",      # demo/alarm/state   — logic / alert panel
 }
 _state_lock = threading.Lock()
 
@@ -162,7 +163,9 @@ COMMAND_TOPICS = [
     "demo/lamp/set",
     "demo/fan/set",
     "demo/thermostat/set",
+    "demo/alarm/set",
     "demo/actions/+",
+    "demo/logic/+",
     "test/command",
     "test/heartbeat",
 ]
@@ -211,9 +214,9 @@ def publish_demo_state(client: mqtt.Client):
         fan = DEMO_STATE["fan"]
         setpoint = DEMO_STATE["setpoint"]
         measured = DEMO_STATE["measured"]
+        alarm = DEMO_STATE["alarm"]
 
-    # Three deliberately different shapes, so the panels reading them exercise
-    # three different read templates rather than the same one three times.
+    # Different shapes so panels reading them exercise different read shapes
     _publish(client, "demo/lamp/state", lamp, qos=1, retain=True)
     _publish(client, "demo/fan/state", json.dumps({"speed": fan, "unit": "%"}), qos=1, retain=True)
     _publish(
@@ -223,6 +226,7 @@ def publish_demo_state(client: mqtt.Client):
         qos=1,
         retain=True,
     )
+    _publish(client, "demo/alarm/state", alarm, qos=1, retain=True)
 
 
 def _as_number(text: str):
@@ -309,6 +313,18 @@ def handle_command(client: mqtt.Client, topic: str, payload: str) -> str:
             DEMO_STATE["setpoint"] = setpoint
         publish_demo_state(client)
         return f"thermostat → {setpoint:g}°C"
+
+    if topic == "demo/alarm/set":
+        state = _as_state(payload)
+        if state is None:
+            return f"alarm: unrecognised payload {payload!r}"
+        with _state_lock:
+            DEMO_STATE["alarm"] = state
+        publish_demo_state(client)
+        return f"alarm → {state}"
+
+    if topic.startswith("demo/logic/"):
+        return f"logic {topic.rsplit('/', 1)[-1]}: {payload}"
 
     if topic.startswith("demo/actions/"):
         return f"action {topic.rsplit('/', 1)[-1]}: {payload}"
@@ -438,6 +454,7 @@ def publish_demo_tick(client: mqtt.Client):
         DEMO_STATE["measured"] = measured
         fan = DEMO_STATE["fan"]
         lamp = DEMO_STATE["lamp"]
+        alarm = DEMO_STATE["alarm"]
 
     _publish(client, "demo/thermostat/measured", json.dumps({"value": round(measured, 2), "unit": "°C"}))
     # A single JSON document holding everything, for panels reading one topic
@@ -446,6 +463,7 @@ def publish_demo_tick(client: mqtt.Client):
         "lamp": lamp,
         "fan": {"speed": fan, "unit": "%"},
         "thermostat": {"setpoint": round(setpoint, 1), "measured": round(measured, 1)},
+        "alarm": alarm,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }))
 

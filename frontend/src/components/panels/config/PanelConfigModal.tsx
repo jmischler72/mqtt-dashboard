@@ -13,6 +13,10 @@ export interface PanelConfigModalProps {
    * button can therefore never disagree.
    */
   blockerReason?: string | null;
+  /** When provided along with onToggleEnabled, displays an enable toggle in the top-right of the header. */
+  enabled?: boolean;
+  onToggleEnabled?: (enabled: boolean) => void;
+  enabledTooltip?: string;
   onCancel: () => void;
   onSave: () => void;
   children: ReactNode;
@@ -28,6 +32,9 @@ export default function PanelConfigModal({
   icon: Icon,
   title,
   blockerReason,
+  enabled,
+  onToggleEnabled,
+  enabledTooltip,
   onCancel,
   onSave,
   children,
@@ -48,13 +55,39 @@ export default function PanelConfigModal({
           line; the 91.67% width it keeps underneath means a phone is
           unaffected — the cap only bites once there is room for it. */}
       <div className="modal-box p-0 max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
-        <div className="flex-none flex items-center gap-2.5 px-[18px] pt-[15px] pb-[13px] border-b border-base-300 dark:border-base-100">
-          <span className="w-6 h-6 shrink-0 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-            {Icon && <Icon size={13} />}
-          </span>
-          <h3 className="font-bold text-[15px] leading-tight truncate">
-            {title}
-          </h3>
+        <div className="flex-none flex items-center justify-between gap-2.5 px-[18px] pt-[15px] pb-[13px] border-b border-base-300 dark:border-base-100">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-6 h-6 shrink-0 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+              {Icon && <Icon size={13} />}
+            </span>
+            <h3 className="font-bold text-[15px] leading-tight truncate">
+              {title}
+            </h3>
+          </div>
+
+          {onToggleEnabled && (
+            <div
+              className="tooltip tooltip-left shrink-0 flex items-center"
+              data-tip={
+                enabledTooltip ??
+                (enabled
+                  ? "Enabled — click to pause"
+                  : "Disabled — click to enable")
+              }
+            >
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <span className="text-xs font-medium text-base-content/70">
+                  Enable
+                </span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary toggle-sm"
+                  checked={Boolean(enabled)}
+                  onChange={(e) => onToggleEnabled(e.target.checked)}
+                />
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-[20px] pt-3.5 pb-4">

@@ -47,9 +47,9 @@ describe("Slider header meta", () => {
 });
 
 describe("Panel Registry", () => {
-  it("registers all 11 built-in panels by default", () => {
+  it("registers all 12 built-in panels by default", () => {
     const panels = getAllPanels();
-    expect(panels.length).toBeGreaterThanOrEqual(11);
+    expect(panels.length).toBeGreaterThanOrEqual(12);
 
     const types = panels.map((p) => p.type);
     expect(types).toContain("gauge");
@@ -58,6 +58,7 @@ describe("Panel Registry", () => {
     expect(types).toContain("button");
     expect(types).toContain("input");
     expect(types).toContain("cron");
+    expect(types).toContain("logic");
     expect(types).toContain("toggle");
     expect(types).toContain("slider");
     expect(types).toContain("text");
@@ -73,7 +74,14 @@ describe("Panel Registry", () => {
 
     const controls = getPanelsByCategory("control").map((p) => p.type);
     expect(controls).toEqual(
-      expect.arrayContaining(["button", "input", "cron", "toggle", "slider"]),
+      expect.arrayContaining([
+        "button",
+        "input",
+        "cron",
+        "logic",
+        "toggle",
+        "slider",
+      ]),
     );
     expect(controls).not.toContain("gauge");
     expect(controls).not.toContain("image");
@@ -452,12 +460,7 @@ describe("PanelConfigModal", () => {
     const onSave = vi.fn();
 
     render(
-      <PanelConfigModal
-        title="Test Modal"
-        onCancel={onCancel}
-        onSave={onSave}
-        brokerStatus="connected"
-      >
+      <PanelConfigModal title="Test Modal" onCancel={onCancel} onSave={onSave}>
         <div>Modal Body Content</div>
       </PanelConfigModal>,
     );

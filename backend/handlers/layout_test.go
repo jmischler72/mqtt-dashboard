@@ -234,6 +234,41 @@ func TestUpdatePanel_AllOptionalFields(t *testing.T) {
 	}
 }
 
+func TestUpdatePanel_LogicPanelReRegisters(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('logic-update', 'default', 'Old Logic', 'logic', 0, 0, 4, 3, '{"source_topic":"sensor/old","target_topic":"actuator/out","payload":"test","enabled":true}', 'b1')`)
+
+	mockLogic := newMockLogicEngine()
+	h := handlers.NewLayoutHandler(database)
+	h.SetLogicEngine(mockLogic)
+	r := newLayoutRouter(h)
+
+	newCfg := `{"source_topic":"sensor/new","target_topic":"actuator/new","payload":"updated","enabled":true}`
+	cfgRaw := json.RawMessage(newCfg)
+	body := jsonBody(t, map[string]any{
+		"config_json": &cfgRaw,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/layouts/logic-update", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rule, ok := mockLogic.GetRule("logic-update")
+	if !ok || rule == nil {
+		t.Fatalf("expected logic rule 'logic-update' to be updated in logic engine")
+	}
+	if rule.SourceTopic != "sensor/new" {
+		t.Errorf("rule.SourceTopic = %q, want 'sensor/new'", rule.SourceTopic)
+	}
+	if rule.TargetTopic != "actuator/new" {
+		t.Errorf("rule.TargetTopic = %q, want 'actuator/new'", rule.TargetTopic)
+	}
+}
+
 func TestDeletePanel_Success(t *testing.T) {
 	database := setupTestDB(t)
 	h := handlers.NewLayoutHandler(database)
@@ -479,6 +514,41 @@ func TestDuplicatePanel_Success(t *testing.T) {
 	// maxY should be at y=1+3=4
 	if p.Y != 4 {
 		t.Errorf("expected Y=4, got %d", p.Y)
+	}
+}
+
+func TestDuplicatePanel_LogicPanel(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('logic-orig', 'default', 'Logic Panel', 'logic', 0, 0, 4, 3, '{"source_topic":"sensor/in","target_topic":"actuator/out","payload":"test","enabled":true}', 'b1')`)
+
+	mockLogic := newMockLogicEngine()
+	h := handlers.NewLayoutHandler(database)
+	h.SetLogicEngine(mockLogic)
+	r := newLayoutRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/logic-orig/duplicate", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+
+	var p models.DashboardPanel
+	decodeJSON(t, rec.Body, &p)
+	if p.ID == "logic-orig" || p.ID == "" {
+		t.Errorf("expected new unique ID, got %q", p.ID)
+	}
+
+	rule, ok := mockLogic.GetRule(p.ID)
+	if !ok || rule == nil {
+		t.Fatalf("expected duplicated logic rule %q to be registered in logic engine", p.ID)
+	}
+	if rule.SourceTopic != "sensor/in" {
+		t.Errorf("rule.SourceTopic = %q, want 'sensor/in'", rule.SourceTopic)
+	}
+	if rule.TargetTopic != "actuator/out" {
+		t.Errorf("rule.TargetTopic = %q, want 'actuator/out'", rule.TargetTopic)
 	}
 }
 

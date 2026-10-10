@@ -13,7 +13,6 @@ import {
   PayloadBuilder,
   PayloadSummary,
   PublishOptionsCard,
-  SwitchRow,
   brokerPresence,
   brokerRules,
   defaultBrokerId,
@@ -114,6 +113,9 @@ export function CronConfigModal({
       title="Cron Configuration"
       brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
       blockerReason={blockerReason}
+      enabled={enabled}
+      onToggleEnabled={setEnabled}
+      enabledTooltip="Run this schedule actively"
       onCancel={onClose}
       onSave={() =>
         onSave(
@@ -167,13 +169,6 @@ export function CronConfigModal({
               />
             </FieldRow>
           )}
-
-          <SwitchRow
-            name="Run this schedule"
-            note="Publishes on the schedule above. The schedule is kept either way."
-            on={enabled}
-            onToggle={setEnabled}
-          />
         </ConfigCard>
 
         <BrokerTopicCard
@@ -269,8 +264,12 @@ export default function CronPanel({
           ? getPreviousCronRun(config.cron_expr, targetDate)
           : null;
         const start = prev ?? (r.prev_run ? new Date(r.prev_run) : new Date());
-        setCronStart(start);
-        setNextRun(targetDate);
+        setCronStart((old) =>
+          old?.getTime() === start.getTime() ? old : start,
+        );
+        setNextRun((old) =>
+          old?.getTime() === targetDate.getTime() ? old : targetDate,
+        );
       })
       .catch((error) => {
         void error;
@@ -289,7 +288,8 @@ export default function CronPanel({
   useEffect(() => {
     if (!config.enabled || !nextRun) return;
     const diff = nextRun.getTime() - Date.now();
-    const delay = diff <= 0 ? 500 : diff + 200;
+    if (diff <= -2000) return;
+    const delay = Math.max(diff + 500, 2000);
     const timer = setTimeout(fetchStatus, delay);
     return () => clearTimeout(timer);
   }, [config.enabled, nextRun, fetchStatus]);

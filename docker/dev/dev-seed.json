@@ -264,7 +264,7 @@
           "w": 12,
           "h": 2,
           "config_json": {
-            "markdown": "## 🎛️ Controls — every panel type that publishes\n\nThe dev worker **answers these**: it subscribes to each command topic below,\napplies it to a simulated device, republishes the device's retained state, and\nechoes a line to `demo/events`. So a toggle really does turn something on, and\nthe state you read back is the device's, not the panel's own optimism.\n\n| Panel | Publishes to | Reads back from |\n| --- | --- | --- |\n| Toggles | `demo/lamp/set` | `demo/lamp/state` (`ON` / `OFF`) |\n| Sliders | `demo/fan/set`, `demo/thermostat/set` | `demo/fan/state`, `demo/thermostat/state` (JSON) |\n| Buttons / Input | `demo/actions/+`, `test/command` | `demo/events` |\n| Cron | `test/heartbeat`, `demo/actions/sweep` | `demo/events` |\n\nThe **debug logs** at the bottom show both directions at once: what the panel\nsent, and what the worker did with it.\n"
+            "markdown": "## 🎛️ Controls — every panel type that publishes\n\nThe dev worker **answers these**: it subscribes to each command topic below,\napplies it to a simulated device, republishes the device's retained state, and\nechoes a line to `demo/events`. So a toggle really does turn something on, and\nthe state you read back is the device's, not the panel's own optimism.\n\n| Panel | Publishes to | Reads back from |\n| --- | --- | --- |\n| Toggles | `demo/lamp/set` | `demo/lamp/state` (`ON` / `OFF`) |\n| Sliders | `demo/fan/set`, `demo/thermostat/set` | `demo/fan/state`, `demo/thermostat/state` (JSON) |\n| Buttons / Input | `demo/actions/+`, `test/command` | `demo/events` |\n| Cron | `test/heartbeat`, `demo/actions/sweep` | `demo/events` |\n| Logic | `demo/fan/set`, `demo/alarm/set` | `demo/fan/state`, `demo/alarm/state`, `demo/events` |\n\nThe **debug logs** at the bottom show both directions at once: what the panel\nsent, and what the worker did with it.\n"
           }
         },
         {
@@ -592,6 +592,317 @@
             "header_meta_pinned": true
           },
           "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Auto-Cooling (overheat rule)",
+          "panel_type": "logic",
+          "x": 0,
+          "y": 17,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "source_topic": "demo/thermostat/measured",
+            "conditions": [
+              {
+                "operator": "gt",
+                "value": "22",
+                "json_path": "value",
+                "read_template": "{\"value\": {value}}"
+              }
+            ],
+            "mode": "on_change",
+            "target_topic": "demo/fan/set",
+            "payload": "{\"speed\": 80, \"unit\": \"%\"}",
+            "qos": 1,
+            "retain": false,
+            "enabled": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "High Humidity Alarm (sustained 5s)",
+          "panel_type": "logic",
+          "x": 6,
+          "y": 17,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "source_topic": "demo/graph/humidity",
+            "conditions": [
+              {
+                "operator": "gt",
+                "value": "58",
+                "json_path": "value",
+                "read_template": "{\"value\": {value}}"
+              }
+            ],
+            "mode": "sustained",
+            "sustained_sec": 5,
+            "target_topic": "demo/alarm/set",
+            "payload": "ON",
+            "qos": 1,
+            "retain": false,
+            "enabled": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Logic actions & events (debug)",
+          "panel_type": "log",
+          "x": 0,
+          "y": 20,
+          "w": 12,
+          "h": 2,
+          "config_json": {
+            "topics": "demo/fan/set, demo/fan/state, demo/alarm/set, demo/alarm/state, demo/events",
+            "maxMessages": 100,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        }
+      ]
+    },
+    {
+      "id": "showcase-logic",
+      "name": "Showcase · Logic",
+      "panels": [
+        {
+          "title": "⚡ Logic Automations",
+          "panel_type": "text",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 2,
+          "config_json": {
+            "markdown": "## ⚡ Logic — reactive event automations\n\nAutomate MQTT publishes based on incoming message values and conditions.\nRuns backend rules on the broker event stream across 4 evaluation modes:\n**On Change**, **Sustained**, **Count**, and **Every Match**.\n\nInteract with the controls below or let the telemetry walk trigger the rules!\n\n| Rule | Mode | Trigger | Action | Target |\n| --- | --- | --- | --- | --- |\n| Overheat Fan Boost | `on_change` | `demo/thermostat/measured` > 22°C | `{\"speed\": 80, \"unit\": \"%\"}` | `demo/fan/set` |\n| High Humidity Alarm | `sustained` (5s) | `demo/graph/humidity` > 58% | `ON` | `demo/alarm/set` |\n| Power Surge Detector | `count` (3x / 15s) | `demo/graph/power` > 1800 W | `SURGE_DETECTED` | `demo/actions/surge` |\n| Lamp Audit Logger | `every` | `demo/lamp/state` == `ON` | `{\"event\": \"lamp_on\", \"src\": \"{{value}}\"}` | `demo/logic/lamp_audit` |\n"
+          }
+        },
+        {
+          "title": "Thermostat setpoint",
+          "panel_type": "slider",
+          "x": 0,
+          "y": 2,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/thermostat/set",
+            "separateRead": true,
+            "stateTopic": "demo/thermostat/state",
+            "readTemplate": "{\"setpoint\": {value}}",
+            "payloadTemplate": "{\"setpoint\": {value}}",
+            "min": 5,
+            "max": 30,
+            "step": 0.5,
+            "unit": "°C",
+            "qos": 1,
+            "retain": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Measured temperature (trigger)",
+          "panel_type": "gauge",
+          "x": 3,
+          "y": 2,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/thermostat/measured",
+            "readTemplate": "{\"value\": {value}, \"unit\": \"°C\"}",
+            "unit": "°C",
+            "min": 5,
+            "max": 30,
+            "colorScheme": "auto",
+            "gaugeType": "radial",
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Fan speed (target)",
+          "panel_type": "gauge",
+          "x": 6,
+          "y": 2,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/fan/state",
+            "readTemplate": "{\"speed\": {value}, \"unit\": \"%\"}",
+            "unit": "%",
+            "min": 0,
+            "max": 100,
+            "colorScheme": "warning",
+            "gaugeType": "radial",
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Alarm state (target)",
+          "panel_type": "toggle",
+          "x": 9,
+          "y": 2,
+          "w": 3,
+          "h": 3,
+          "config_json": {
+            "topic": "demo/alarm/set",
+            "separateRead": true,
+            "stateTopic": "demo/alarm/state",
+            "readTemplate": "{value}",
+            "onPayload": "ON",
+            "offPayload": "OFF",
+            "qos": 1,
+            "retain": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Overheat Fan Boost (on_change)",
+          "panel_type": "logic",
+          "x": 0,
+          "y": 5,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "source_topic": "demo/thermostat/measured",
+            "conditions": [
+              {
+                "operator": "gt",
+                "value": "22",
+                "json_path": "value",
+                "read_template": "{\"value\": {value}}"
+              }
+            ],
+            "mode": "on_change",
+            "target_topic": "demo/fan/set",
+            "payload": "{\"speed\": 80, \"unit\": \"%\"}",
+            "qos": 1,
+            "retain": false,
+            "enabled": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "High Humidity Alarm (sustained 5s)",
+          "panel_type": "logic",
+          "x": 6,
+          "y": 5,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "source_topic": "demo/graph/humidity",
+            "conditions": [
+              {
+                "operator": "gt",
+                "value": "58",
+                "json_path": "value",
+                "read_template": "{\"value\": {value}}"
+              }
+            ],
+            "mode": "sustained",
+            "sustained_sec": 5,
+            "target_topic": "demo/alarm/set",
+            "payload": "ON",
+            "qos": 1,
+            "retain": false,
+            "enabled": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Power Surge Detector (count 3x in 15s)",
+          "panel_type": "logic",
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "source_topic": "demo/graph/power",
+            "conditions": [
+              {
+                "operator": "gt",
+                "value": "1800"
+              }
+            ],
+            "mode": "count",
+            "count": 3,
+            "window_sec": 15,
+            "target_topic": "demo/actions/surge",
+            "payload": "SURGE_DETECTED",
+            "qos": 1,
+            "retain": false,
+            "enabled": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "Lamp Audit Logger (every match)",
+          "panel_type": "logic",
+          "x": 6,
+          "y": 8,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "source_topic": "demo/lamp/state",
+            "conditions": [
+              {
+                "operator": "eq",
+                "value": "ON"
+              }
+            ],
+            "mode": "every",
+            "target_topic": "demo/logic/lamp_audit",
+            "payload": "{\"event\": \"lamp_on\", \"state\": \"{{value}}\"}",
+            "qos": 0,
+            "retain": false,
+            "enabled": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Logic Triggers (telemetry in)",
+          "panel_type": "log",
+          "x": 0,
+          "y": 11,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "topics": "demo/thermostat/measured, demo/graph/humidity, demo/graph/power, demo/lamp/state",
+            "maxMessages": 100,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
+        },
+        {
+          "title": "🔍 Logic Actions & Worker Replies (events out)",
+          "panel_type": "log",
+          "x": 6,
+          "y": 11,
+          "w": 6,
+          "h": 3,
+          "config_json": {
+            "topics": "demo/fan/set, demo/fan/state, demo/alarm/set, demo/alarm/state, demo/actions/surge, demo/logic/lamp_audit, demo/events",
+            "maxMessages": 100,
+            "dateFormat": "full",
+            "showQos": true,
+            "showRetained": true,
+            "header_meta_pinned": true
+          },
+          "broker_name": "Mosquitto Plain"
         }
       ]
     },
@@ -607,7 +918,7 @@
           "w": 12,
           "h": 2,
           "config_json": {
-            "markdown": "## 🧱 Layout — the panel types with no broker at all\n\n`text`, `separator` and `image` never subscribe or publish. They are here so the\nshowcase covers all **12 panel types**, and so the markdown renderer has\nsomething to chew on.\n"
+            "markdown": "## 🧱 Layout — the panel types with no broker at all\n\n`text`, `separator` and `image` never subscribe or publish. They are here so the\nshowcase covers all **13 panel types**, and so the markdown renderer has\nsomething to chew on.\n"
           }
         },
         {
