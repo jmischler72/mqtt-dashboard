@@ -87,7 +87,19 @@ func main() {
 	}
 
 	// --- Init Logic engine ---
-	logicEngine := logic.NewEngine(registry)
+	logicEngine := logic.NewEngine(registry, logic.WithOnTrip(func(panelID string) {
+		row := database.QueryRow(`SELECT COALESCE(config_json, '{}') FROM dashboard_layouts WHERE id = ?`, panelID)
+		var cfgStr string
+		if err := row.Scan(&cfgStr); err == nil {
+			var cfgMap map[string]any
+			if err := json.Unmarshal([]byte(cfgStr), &cfgMap); err == nil && cfgMap != nil {
+				cfgMap["enabled"] = false
+				if b, err := json.Marshal(cfgMap); err == nil {
+					_, _ = database.Exec(`UPDATE dashboard_layouts SET config_json = ? WHERE id = ?`, string(b), panelID)
+				}
+			}
+		}
+	}))
 	defer logicEngine.Stop()
 	loadLogicRulesFromDB(database, logicEngine)
 

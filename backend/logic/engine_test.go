@@ -718,7 +718,10 @@ func TestEngine_Cooldown_And_RateCeiling(t *testing.T) {
 
 	t.Run("rate ceiling trip", func(t *testing.T) {
 		broker := newMockBrokerClient()
-		engine := logic.NewEngine(broker)
+		var trippedPanel string
+		engine := logic.NewEngine(broker, logic.WithOnTrip(func(panelID string) {
+			trippedPanel = panelID
+		}))
 		defer engine.Stop()
 
 		rule := &logic.Rule{
@@ -743,6 +746,9 @@ func TestEngine_Cooldown_And_RateCeiling(t *testing.T) {
 		status, _ := engine.GetStatus("p_trip")
 		if status.CurrentState != "tripped" || status.Enabled {
 			t.Errorf("expected rule to be tripped and disabled, got status: %+v", status)
+		}
+		if trippedPanel != "p_trip" {
+			t.Errorf("expected onTrip callback to receive 'p_trip', got %q", trippedPanel)
 		}
 	})
 }

@@ -28,12 +28,20 @@ type Engine struct {
 	guardSubs     map[brokerTopic]map[string]struct{} // (brokerID, topicFilter) -> set of panelIDs (guards)
 	guardCache    map[string]map[string]string        // brokerID -> topic -> lastKnownPayload
 
+	onTrip  func(panelID string)
 	nowFunc func() time.Time
 	stopped bool
 }
 
 // Option allows customizing engine behavior (e.g. for testing).
 type Option func(*Engine)
+
+// WithOnTrip registers a callback invoked when a rule trips due to rate limit violation.
+func WithOnTrip(fn func(panelID string)) Option {
+	return func(e *Engine) {
+		e.onTrip = fn
+	}
+}
 
 // WithNowFunc configures a custom clock function for deterministic tests.
 func WithNowFunc(fn func() time.Time) Option {
@@ -413,8 +421,12 @@ func (e *Engine) guardLookupLocked() GuardLookup {
 func (e *Engine) buildGuardHandler(brokerID, topic string) mqttclient.MessageHandler {
 	return func(msgTopic string, payload []byte, qos byte, retained bool, sourcePanelID string) {
 		e.mu.Lock()
+		defer e.mu.Unlock()
+
+		if e.stopped {
+			return
+		}
 		e.setGuardValueLocked(brokerID, msgTopic, string(payload))
-		e.mu.Unlock()
 	}
 }
 
@@ -425,6 +437,10 @@ func (e *Engine) buildTriggerHandler(brokerID, filter string) mqttclient.Message
 	return func(msgTopic string, payload []byte, qos byte, retained bool, sourcePanelID string) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
+
+		if e.stopped {
+			return
+		}
 
 		// Always update guard cache with incoming message
 		e.setGuardValueLocked(brokerID, msgTopic, string(payload))
@@ -502,6 +518,10 @@ func (e *Engine) tryFireActionLocked(rule *Rule, st *ruleState, action *Action, 
 			st.timer = nil
 		}
 		slog.Warn("logic rule tripped due to fire ceiling", "panel_id", rule.PanelID, "topic", rule.SourceTopic)
+		if e.onTrip != nil {
+			panelID := rule.PanelID
+			go e.onTrip(panelID)
+		}
 		return
 	}
 
@@ -518,6 +538,10 @@ func (e *Engine) tryFireActionLocked(rule *Rule, st *ruleState, action *Action, 
 func (e *Engine) onSustainedTimer(panelID string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	if e.stopped {
+		return
+	}
 
 	rule, hasRule := e.rules[panelID]
 	st, hasState := e.ruleStates[panelID]
@@ -560,6 +584,9 @@ func (e *Engine) executeAction(panelID string, action *Action) {
 func (e *Engine) PrimeCache(brokerID, topic, payload string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.stopped {
+		return
+	}
 	e.setGuardValueLocked(brokerID, topic, payload)
 }
 

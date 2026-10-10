@@ -142,8 +142,8 @@ func (h *LogicHandler) UpsertLogic(w http.ResponseWriter, r *http.Request) {
 		cfgMap["enabled"] = req.Enabled
 
 		b, _ := json.Marshal(cfgMap)
-		if req.BrokerID != "" {
-			_, _ = h.db.Exec(`UPDATE dashboard_layouts SET config_json = ?, broker_id = ? WHERE id = ?`, string(b), req.BrokerID, panelID)
+		if brokerID != "" {
+			_, _ = h.db.Exec(`UPDATE dashboard_layouts SET config_json = ?, broker_id = ? WHERE id = ?`, string(b), brokerID, panelID)
 		} else {
 			_, _ = h.db.Exec(`UPDATE dashboard_layouts SET config_json = ? WHERE id = ?`, string(b), panelID)
 		}
