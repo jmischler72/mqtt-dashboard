@@ -26,7 +26,7 @@ export interface AutomationItem {
   enabled: boolean;
   target_topic: string;
   source_topic?: string;
-  payload: string;
+  payload?: string;
   qos: number;
   retain: boolean;
   trigger_type: string; // "schedule" | "event" | "manual"

@@ -13,8 +13,8 @@ import {
   RiCheckboxCircleLine,
   RiRadioButtonLine,
   RiInformationLine,
-  RiFilter3Line,
 } from "react-icons/ri";
+import { GiChoice } from "react-icons/gi";
 import { MdAutoMode } from "react-icons/md";
 import { api } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -31,7 +31,6 @@ import {
   PayloadBuilder,
   PayloadSummary,
   PublishOptionsCard,
-  SwitchRow,
   brokerPresence,
   brokerRules,
   defaultBrokerId,
@@ -57,9 +56,11 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
     id: "on_change",
     label: "On Change",
     preview: (
-      <div className="flex flex-col items-center justify-center gap-1 text-[11px] font-mono text-center">
-        <span className="text-base-content/50">false → true</span>
-        <span className="badge badge-xs badge-primary">fire once</span>
+      <div className="w-full flex flex-col items-center justify-center gap-1.5 text-[11px] text-center">
+        <span className="text-base-content/60 font-medium">State change</span>
+        <span className="badge badge-xs badge-primary font-mono font-semibold">
+          fire once
+        </span>
       </div>
     ),
   },
@@ -67,9 +68,11 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
     id: "every",
     label: "Every Match",
     preview: (
-      <div className="flex flex-col items-center justify-center gap-1 text-[11px] font-mono text-center">
-        <span className="text-base-content/50">each msg</span>
-        <span className="badge badge-xs badge-info">fire all</span>
+      <div className="w-full flex flex-col items-center justify-center gap-1.5 text-[11px] text-center">
+        <span className="text-base-content/60 font-medium">Every message</span>
+        <span className="badge badge-xs badge-info font-mono font-semibold">
+          each hit
+        </span>
       </div>
     ),
   },
@@ -77,9 +80,11 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
     id: "count",
     label: "Count Hits",
     preview: (
-      <div className="flex flex-col items-center justify-center gap-1 text-[11px] font-mono text-center">
-        <span className="text-base-content/50">N in window</span>
-        <span className="badge badge-xs badge-accent">burst</span>
+      <div className="w-full flex flex-col items-center justify-center gap-1.5 text-[11px] text-center">
+        <span className="text-base-content/60 font-medium">N in window</span>
+        <span className="badge badge-xs badge-accent font-mono font-semibold">
+          threshold
+        </span>
       </div>
     ),
   },
@@ -87,13 +92,26 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
     id: "sustained",
     label: "Sustained",
     preview: (
-      <div className="flex flex-col items-center justify-center gap-1 text-[11px] font-mono text-center">
-        <span className="text-base-content/50">true for Xs</span>
-        <span className="badge badge-xs badge-warning">hold once</span>
+      <div className="w-full flex flex-col items-center justify-center gap-1.5 text-[11px] text-center">
+        <span className="text-base-content/60 font-medium">Holds for duration</span>
+        <span className="badge badge-xs badge-warning font-mono font-semibold">
+          delay
+        </span>
       </div>
     ),
   },
 ];
+
+const MODE_DESCRIPTIONS: Record<LogicMode, string> = {
+  on_change:
+    "Fires once when conditions transition from not matching to matching. Re-arms when conditions clear.",
+  every:
+    "Fires on every incoming message that satisfies all configured conditions.",
+  count:
+    "Fires when incoming messages match conditions a specified number of times within a sliding time window.",
+  sustained:
+    "Fires once after conditions hold continuously for the target duration. Re-arms when conditions clear.",
+};
 
 const CONDITION_BADGE_COLORS = [
   "badge-primary",
@@ -382,7 +400,9 @@ export function LogicConfigModal({
       sustained_sec: mode === "sustained" ? Number(sustainedSec) : undefined,
       target_topic: trimmedTarget,
       target_broker_id: targetBrokerId || undefined,
-      payload,
+      payload: payload.includes(VALUE_TOKEN)
+        ? payload.split(VALUE_TOKEN).join("{{value}}")
+        : payload,
       qos,
       retain,
       cooldown_sec: Number(cooldownSec),
@@ -397,10 +417,93 @@ export function LogicConfigModal({
       icon={MdAutoMode}
       title="Configure Logic Rule"
       brokerStatus={brokerPresence(brokerStatuses, primaryBrokerId)}
+      enabled={enabled}
+      onToggleEnabled={setEnabled}
+      enabledTooltip="Run this logic rule actively"
       onSave={handleSave}
       onCancel={onClose}
       blockerReason={blockerReason}
     >
+      {/* Trigger Mode Box */}
+      <ConfigCard>
+        <ChoiceCards
+          options={MODE_CHOICES}
+          value={mode}
+          onChange={(m) => setMode(m)}
+        />
+
+        {/* Mode description info */}
+        <div className="flex items-center justify-center gap-1.5 text-[11.5px] text-base-content/70 text-center px-2.5 py-1.5 rounded-lg bg-base-100 border border-base-300/60 dark:border-base-content/10">
+          <RiInformationLine className="shrink-0 text-info text-xs" />
+          <span>{MODE_DESCRIPTIONS[mode]}</span>
+        </div>
+
+        {/* Mode options: count */}
+        {mode === "count" && (
+          <div className="pt-2 border-t border-base-300/60 dark:border-base-content/10 flex flex-col items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[11.5px] text-base-content/70 whitespace-nowrap">
+                  Required Matches:
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={count}
+                  onChange={(e) => setCount(Number(e.target.value))}
+                  className="input input-xs input-bordered w-16 text-center font-mono font-semibold"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11.5px] text-base-content/70 whitespace-nowrap">
+                  Time Window:
+                </span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={1}
+                    max={86400}
+                    value={windowSec}
+                    onChange={(e) => setWindowSec(Number(e.target.value))}
+                    className="input input-xs input-bordered w-20 text-center font-mono font-semibold"
+                  />
+                  <span className="text-[11px] text-base-content/50">sec</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-[11px] text-base-content/50 text-center">
+              Fires when conditions match {count} times within {windowSec}s
+            </span>
+          </div>
+        )}
+
+        {/* Mode options: sustained */}
+        {mode === "sustained" && (
+          <div className="pt-2 border-t border-base-300/60 dark:border-base-content/10 flex flex-col items-center gap-2">
+            <div className="flex items-center justify-center gap-2 text-xs">
+              <span className="text-[11.5px] text-base-content/70 whitespace-nowrap">
+                Hold Duration:
+              </span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={86400}
+                  value={sustainedSec}
+                  onChange={(e) => setSustainedSec(Number(e.target.value))}
+                  className="input input-xs input-bordered w-20 text-center font-mono font-semibold"
+                />
+                <span className="text-[11px] text-base-content/50">sec</span>
+              </div>
+            </div>
+            <span className="text-[11px] text-base-content/50 text-center">
+              Conditions must hold continuously for {sustainedSec}s before firing
+            </span>
+          </div>
+        )}
+      </ConfigCard>
+
       <ConfigGroup heading="Read">
         <ConfigCard title="Conditions">
           {conditions.length === 0 ? (
@@ -466,7 +569,7 @@ export function LogicConfigModal({
                           {conditions.length > 1 ? (
                             `#${idx + 1}`
                           ) : (
-                            <RiFilter3Line size={12} />
+                            <GiChoice size={12} />
                           )}
                         </span>
                       </div>
@@ -633,64 +736,6 @@ export function LogicConfigModal({
             </button>
           </div>
         </ConfigCard>
-
-        {/* Trigger Mode */}
-        <ConfigCard title="Trigger Mode">
-          <ChoiceCards
-            options={MODE_CHOICES}
-            value={mode}
-            onChange={(m) => setMode(m)}
-          />
-
-          {mode === "count" && (
-            <div className="grid grid-cols-2 gap-3 mt-3 pt-2 border-t border-base-300 dark:border-base-100">
-              <FieldRow label="Required Matches" help="Hits needed to fire">
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
-                  className="input input-xs input-bordered w-20 text-center font-mono"
-                />
-              </FieldRow>
-              <FieldRow label="Time Window (sec)" help="Window duration">
-                <input
-                  type="number"
-                  min={1}
-                  max={86400}
-                  value={windowSec}
-                  onChange={(e) => setWindowSec(Number(e.target.value))}
-                  className="input input-xs input-bordered w-20 text-center font-mono"
-                />
-              </FieldRow>
-            </div>
-          )}
-
-          {mode === "sustained" && (
-            <div className="mt-3 pt-2 border-t border-base-300 dark:border-base-100">
-              <FieldRow
-                label="Sustained Duration (sec)"
-                help="Condition must hold continuously for this duration before firing. Fires once and re-arms when condition clears."
-              >
-                <input
-                  type="number"
-                  min={1}
-                  max={86400}
-                  value={sustainedSec}
-                  onChange={(e) => setSustainedSec(Number(e.target.value))}
-                  className="input input-xs input-bordered w-24 text-center font-mono"
-                />
-              </FieldRow>
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-base-content/60 font-mono">
-                <RiInformationLine className="shrink-0 text-info text-xs" />
-                <span>
-                  Fires once after holding. Re-arms when condition clears.
-                </span>
-              </div>
-            </div>
-          )}
-        </ConfigCard>
       </ConfigGroup>
 
       {/* 3. THEN (Action to publish) */}
@@ -739,7 +784,7 @@ export function LogicConfigModal({
             onRetainChange={setRetain}
           />
 
-          <ConfigCard title="Safety & State">
+          <ConfigCard title="Safety">
             <FieldRow
               label="Cooldown (seconds)"
               help="Minimum quiet time between fires"
@@ -753,13 +798,6 @@ export function LogicConfigModal({
                 className="input input-xs input-bordered w-20 text-center font-mono"
               />
             </FieldRow>
-
-            <SwitchRow
-              name="Rule Enabled"
-              note="Run this automation rule actively. The configuration is kept either way."
-              on={enabled}
-              onToggle={setEnabled}
-            />
           </ConfigCard>
         </ConfigGroup>
       </div>
@@ -1267,7 +1305,7 @@ export default function LogicPanel({
                 className={`badge ${availH >= 220 ? "badge-md px-2.5" : "badge-sm px-2"} font-mono font-semibold cursor-pointer hover:opacity-80 transition-all ${CONDITION_BADGE_COLORS[0]}`}
                 title="Configure condition"
               >
-                <RiFilter3Line
+                <GiChoice
                   className={availH >= 220 ? "text-sm" : "text-xs"}
                 />
               </button>

@@ -312,13 +312,13 @@ func TestEngine_ValueTokenTemplating(t *testing.T) {
 	engine := logic.NewEngine(broker)
 	defer engine.Stop()
 
-	// Rule 1: uses {value} token with raw payload
+	// Rule 1: uses {{value}} token with raw payload
 	rule1 := &logic.Rule{
 		PanelID:     "p_val1",
 		BrokerID:    "b1",
 		SourceTopic: "sensor/raw",
 		TargetTopic: "actuator/target",
-		Payload:     `{"state":{value}}`,
+		Payload:     `{"state":{{value}}}`,
 		Enabled:     true,
 		Mode:        "every",
 	}
@@ -326,13 +326,13 @@ func TestEngine_ValueTokenTemplating(t *testing.T) {
 		t.Fatalf("AddRule: %v", err)
 	}
 
-	// Rule 2: uses {value} token with condition ReadTemplate extraction
+	// Rule 2: uses {{value}} token with condition ReadTemplate extraction
 	rule2 := &logic.Rule{
 		PanelID:     "p_val2",
 		BrokerID:    "b1",
 		SourceTopic: "sensor/json",
 		TargetTopic: "actuator/json_target",
-		Payload:     `{"relayed":{value}}`,
+		Payload:     `{"relayed":{{value}}}`,
 		Enabled:     true,
 		Conditions: []logic.Condition{
 			{
@@ -432,7 +432,7 @@ func TestEngine_Modes(t *testing.T) {
 			BrokerID:    "b1",
 			SourceTopic: "sensors/bathroom/humidity",
 			TargetTopic: "cond/status",
-			Payload:     "{value} ok",
+			Payload:     "{{value}} ok",
 			Enabled:     true,
 			Mode:        "on_change",
 			Conditions: []logic.Condition{
@@ -1175,4 +1175,77 @@ func TestEngine_PrimeCache_SustainedInitialState(t *testing.T) {
 		t.Fatalf("expected 1 publish while condition remains held, got %d", len(publishes))
 	}
 }
+
+func TestEngine_DefaultBroker_ExtractionAndTopicTemplating(t *testing.T) {
+	broker := newMockBrokerClient()
+	broker.defaultID = "main-broker"
+	engine := logic.NewEngine(broker)
+	defer engine.Stop()
+
+	rule := &logic.Rule{
+		PanelID:     "p_default_b",
+		BrokerID:    "", // empty -> should use broker.DefaultBrokerID ("main-broker")
+		SourceTopic: "sensor/temperature",
+		Conditions: []logic.Condition{
+			{
+				BrokerID: "", // empty -> default
+				Topic:    "sensor/temperature",
+				JSONPath: "temp",
+				Operator: "gt",
+				Value:    "20",
+			},
+		},
+		Mode:        "every",
+		TargetTopic: "alerts/temp",
+		Payload:     `Temp={{value}}`,
+		Enabled:     true,
+	}
+
+	if err := engine.AddRule(rule); err != nil {
+		t.Fatalf("AddRule failed: %v", err)
+	}
+
+	// Trigger with a message on main-broker
+	broker.injectMessage("main-broker", "sensor/temperature", `{"temp": 25.5}`)
+
+	time.Sleep(50 * time.Millisecond)
+	publishes := broker.getPublishes()
+	if len(publishes) != 1 {
+		t.Fatalf("expected 1 publish, got %d", len(publishes))
+	}
+
+	expectedPayload := `Temp=25.5`
+	if publishes[0].Payload != expectedPayload {
+		t.Errorf("published payload = %q, want %q", publishes[0].Payload, expectedPayload)
+	}
+	if publishes[0].BrokerID != "main-broker" {
+		t.Errorf("published BrokerID = %q, want 'main-broker'", publishes[0].BrokerID)
+	}
+}
+
+func TestEngine_ValidateInfiniteLoop_DefaultBroker(t *testing.T) {
+	broker := newMockBrokerClient()
+	broker.defaultID = "broker-alpha"
+	engine := logic.NewEngine(broker)
+	defer engine.Stop()
+
+	// Rule with empty BrokerID (default) but explicit TargetBrokerID pointing to the default broker
+	rule := &logic.Rule{
+		PanelID:        "loop_rule",
+		BrokerID:       "",
+		SourceTopic:    "loop/topic",
+		TargetTopic:    "loop/topic",
+		TargetBrokerID: "broker-alpha",
+		Enabled:        true,
+	}
+
+	err := engine.AddRule(rule)
+	if err == nil {
+		t.Fatal("expected infinite loop validation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "infinite loop prevention") {
+		t.Errorf("expected infinite loop error, got: %v", err)
+	}
+}
+
 

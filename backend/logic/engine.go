@@ -83,7 +83,28 @@ func (e *Engine) AddRule(rule *Rule) error {
 	if rule == nil {
 		return fmt.Errorf("rule cannot be nil")
 	}
-	if err := ValidateRule(rule); err != nil {
+
+	ruleCopy := *rule
+	ruleCopy.BrokerID = e.effectiveBroker(ruleCopy.BrokerID)
+	if ruleCopy.TargetBrokerID == "" {
+		ruleCopy.TargetBrokerID = ruleCopy.BrokerID
+	} else {
+		ruleCopy.TargetBrokerID = e.effectiveBroker(ruleCopy.TargetBrokerID)
+	}
+	if len(ruleCopy.Conditions) > 0 {
+		conds := make([]Condition, len(ruleCopy.Conditions))
+		copy(conds, ruleCopy.Conditions)
+		for i := range conds {
+			if conds[i].BrokerID == "" {
+				conds[i].BrokerID = ruleCopy.BrokerID
+			} else {
+				conds[i].BrokerID = e.effectiveBroker(conds[i].BrokerID)
+			}
+		}
+		ruleCopy.Conditions = conds
+	}
+
+	if err := ValidateRule(&ruleCopy); err != nil {
 		return err
 	}
 
@@ -94,8 +115,7 @@ func (e *Engine) AddRule(rule *Rule) error {
 		return fmt.Errorf("engine is stopped")
 	}
 
-	ruleCopy := *rule
-	pid := rule.PanelID
+	pid := ruleCopy.PanelID
 
 	// If updating an existing rule, teardown existing timers and subscriptions
 	if oldRule, exists := e.rules[pid]; exists {

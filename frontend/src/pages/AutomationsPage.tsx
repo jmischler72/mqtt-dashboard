@@ -25,12 +25,13 @@ import { PRESETS, describeCron } from "../components/panels/cronUtils";
 import { formatConditionSummary } from "../components/panels/logicUtils";
 import { VALUE_TOKEN, TOKEN_LABEL } from "../components/panels/payloadShape";
 
-function renderPayloadWithChips(payload: string, allowChips = true) {
-  const oneLine = payload.replace(/\s+/g, " ").trim();
-  if (!allowChips || !oneLine.includes(VALUE_TOKEN)) {
+function renderPayloadWithChips(payload?: string, allowChips = true) {
+  const oneLine = (payload || "").replace(/\s+/g, " ").trim();
+  const normalized = oneLine.replace(/\{\{value\}\}/g, VALUE_TOKEN);
+  if (!allowChips || !normalized.includes(VALUE_TOKEN)) {
     return oneLine;
   }
-  return oneLine.split(VALUE_TOKEN).map((chunk, index) => (
+  return normalized.split(VALUE_TOKEN).map((chunk, index) => (
     <span key={index}>
       {index > 0 && (
         <span className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5">
@@ -461,7 +462,7 @@ export default function AutomationsPage() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesGlobal =
-          job.target_topic.toLowerCase().includes(q) ||
+          (job.target_topic || "").toLowerCase().includes(q) ||
           (Boolean(job.source_topic) &&
             job.source_topic!.toLowerCase().includes(q)) ||
           (Boolean(job.conditions) &&
@@ -470,13 +471,13 @@ export default function AutomationsPage() {
                 (c.topic && c.topic.toLowerCase().includes(q)) ||
                 (c.value && c.value.toLowerCase().includes(q)),
             )) ||
-          job.panel_title.toLowerCase().includes(q) ||
-          job.dashboard_name.toLowerCase().includes(q) ||
-          job.broker_name.toLowerCase().includes(q) ||
-          job.panel_type.toLowerCase().includes(q) ||
-          job.trigger_summary.toLowerCase().includes(q) ||
-          job.trigger_detail.toLowerCase().includes(q) ||
-          job.payload.toLowerCase().includes(q);
+          (job.panel_title || "").toLowerCase().includes(q) ||
+          (job.dashboard_name || "").toLowerCase().includes(q) ||
+          (job.broker_name || "").toLowerCase().includes(q) ||
+          (job.panel_type || "").toLowerCase().includes(q) ||
+          (job.trigger_summary || "").toLowerCase().includes(q) ||
+          (job.trigger_detail || "").toLowerCase().includes(q) ||
+          (Boolean(job.payload) && job.payload!.toLowerCase().includes(q));
         if (!matchesGlobal) return false;
       }
 
@@ -487,7 +488,7 @@ export default function AutomationsPage() {
       // 3. Type filter
       if (
         filters.type !== "all" &&
-        job.panel_type.toLowerCase() !== filters.type.toLowerCase()
+        (job.panel_type || "").toLowerCase() !== filters.type.toLowerCase()
       ) {
         return false;
       }
@@ -496,22 +497,22 @@ export default function AutomationsPage() {
       if (filters.automation.trim()) {
         const qa = filters.automation.toLowerCase();
         const matchesAuto =
-          job.panel_title.toLowerCase().includes(qa) ||
-          job.dashboard_name.toLowerCase().includes(qa);
+          (job.panel_title || "").toLowerCase().includes(qa) ||
+          (job.dashboard_name || "").toLowerCase().includes(qa);
         if (!matchesAuto) return false;
       }
 
       // 5. Topic filter (target topic where sending)
       if (filters.topic.trim()) {
         const qt = filters.topic.toLowerCase();
-        const matchesTopic = job.target_topic.toLowerCase().includes(qt);
+        const matchesTopic = (job.target_topic || "").toLowerCase().includes(qt);
         if (!matchesTopic) return false;
       }
 
       // 6. Payload filter
       if (filters.payload.trim()) {
         const qp = filters.payload.toLowerCase();
-        if (!job.payload.toLowerCase().includes(qp)) return false;
+        if (!(job.payload || "").toLowerCase().includes(qp)) return false;
       }
       if (filters.qos !== null && job.qos !== filters.qos) {
         return false;
@@ -524,8 +525,8 @@ export default function AutomationsPage() {
       if (filters.triggerExecution.trim()) {
         const qte = filters.triggerExecution.toLowerCase();
         const matchesTE =
-          job.trigger_summary.toLowerCase().includes(qte) ||
-          job.trigger_detail.toLowerCase().includes(qte) ||
+          (job.trigger_summary || "").toLowerCase().includes(qte) ||
+          (job.trigger_detail || "").toLowerCase().includes(qte) ||
           (Boolean(job.status_detail) &&
             job.status_detail!.toLowerCase().includes(qte));
         if (!matchesTE) return false;
@@ -558,10 +559,10 @@ export default function AutomationsPage() {
             return (valA - valB) * dir;
           }
           case "type":
-            return a.panel_type.localeCompare(b.panel_type) * dir;
+            return (a.panel_type || "").localeCompare(b.panel_type || "") * dir;
           case "automation": {
-            const strA = `${a.panel_title} ${a.dashboard_name}`.toLowerCase();
-            const strB = `${b.panel_title} ${b.dashboard_name}`.toLowerCase();
+            const strA = `${a.panel_title || ""} ${a.dashboard_name || ""}`.toLowerCase();
+            const strB = `${b.panel_title || ""} ${b.dashboard_name || ""}`.toLowerCase();
             return strA.localeCompare(strB) * dir;
           }
           case "topic": {
@@ -570,12 +571,12 @@ export default function AutomationsPage() {
             );
           }
           case "payload":
-            return a.payload.localeCompare(b.payload) * dir;
+            return (a.payload || "").localeCompare(b.payload || "") * dir;
           case "trigger_execution": {
             const strA =
-              `${a.trigger_summary} ${a.trigger_detail}`.toLowerCase();
+              `${a.trigger_summary || ""} ${a.trigger_detail || ""}`.toLowerCase();
             const strB =
-              `${b.trigger_summary} ${b.trigger_detail}`.toLowerCase();
+              `${b.trigger_summary || ""} ${b.trigger_detail || ""}`.toLowerCase();
             return strA.localeCompare(strB) * dir;
           }
           case "broker":
@@ -1210,7 +1211,7 @@ export default function AutomationsPage() {
                                   onClick={() =>
                                     handleCopy(
                                       `payload-${job.panel_id}`,
-                                      job.payload,
+                                      job.payload || "",
                                     )
                                   }
                                 >

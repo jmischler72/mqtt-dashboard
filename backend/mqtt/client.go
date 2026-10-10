@@ -354,8 +354,11 @@ func (m *MQTTManager) Unsubscribe(topic string, handler MessageHandler) {
 
 	if targetIdx >= 0 {
 		handlers = append(handlers[:targetIdx], handlers[targetIdx+1:]...)
-	} else {
+	} else if handler == nil {
 		handlers = handlers[:len(handlers)-1]
+	} else {
+		// Handler was specified but not found in slice: do not remove other handlers
+		return
 	}
 
 	if len(handlers) > 0 {

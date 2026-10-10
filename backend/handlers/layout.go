@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"mqtt-dashboard/logic"
 	"mqtt-dashboard/models"
 )
 
@@ -286,6 +287,40 @@ func (h *LayoutHandler) duplicatePanelTo(srcID, targetDashboardID string, append
 		}
 		if err := json.Unmarshal(copy_.ConfigJSON, &cfg); err == nil && cfg.CronExpr != "" {
 			_ = h.scheduler.AddJob(copy_.ID, copy_.BrokerID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled)
+		}
+	}
+
+	// Re-register logic rule if duplicating a logic panel.
+	if copy_.PanelType == "logic" && h.logicEngine != nil {
+		var cfg logicConfigJSON
+		if err := json.Unmarshal(copy_.ConfigJSON, &cfg); err == nil && (cfg.SourceTopic != "" || cfg.TargetTopic != "") {
+			bID := cfg.BrokerID
+			if bID == "" {
+				bID = copy_.BrokerID
+			}
+			sTopic := cfg.SourceTopic
+			if sTopic == "" && len(cfg.Conditions) > 0 {
+				sTopic = cfg.Conditions[0].Topic
+			}
+			rule := logic.Rule{
+				PanelID:        copy_.ID,
+				BrokerID:       bID,
+				SourceTopic:    sTopic,
+				Match:          cfg.Match,
+				Conditions:     cfg.Conditions,
+				Mode:           cfg.Mode,
+				Count:          cfg.Count,
+				WindowSec:      cfg.WindowSec,
+				SustainedSec:   cfg.SustainedSec,
+				TargetTopic:    cfg.TargetTopic,
+				TargetBrokerID: cfg.TargetBrokerID,
+				Payload:        cfg.Payload,
+				QoS:            byte(cfg.QoS),
+				Retain:         cfg.Retain,
+				CooldownSec:    cfg.CooldownSec,
+				Enabled:        cfg.Enabled,
+			}
+			_ = h.logicEngine.AddRule(&rule)
 		}
 	}
 

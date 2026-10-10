@@ -834,3 +834,37 @@ func TestConnect_GeneratesUniqueClientID(t *testing.T) {
 		t.Errorf("expected unique client IDs, both got %q", id1)
 	}
 }
+
+func TestUnsubscribe_SpecificHandlerMiss_DoesNotRemoveOthers(t *testing.T) {
+	mock := &mockPahoClient{connected: true}
+	m := &MQTTManager{
+		status: "CONNECTED",
+		subs:   make(map[string][]MessageHandler),
+		client: mock,
+	}
+
+	h1Calls := 0
+	h1 := func(string, []byte, byte, bool, string) { h1Calls++ }
+	otherHandler := func(string, []byte, byte, bool, string) {}
+
+	_ = m.Subscribe("test/safe", h1)
+	if len(m.subs["test/safe"]) != 1 {
+		t.Fatalf("expected 1 handler, got %d", len(m.subs["test/safe"]))
+	}
+
+	// Unsubscribe with a handler that was never registered
+	m.Unsubscribe("test/safe", otherHandler)
+
+	// h1 must still be present!
+	if len(m.subs["test/safe"]) != 1 {
+		t.Fatalf("expected h1 to be retained, but subs count is %d", len(m.subs["test/safe"]))
+	}
+
+	// Trigger handler to verify h1 still executes
+	dispatch := m.buildHandler("test/safe")
+	dispatch(nil, &mockMessage{topic: "test/safe", payload: []byte("ping")})
+	if h1Calls != 1 {
+		t.Errorf("expected h1Calls = 1, got %d", h1Calls)
+	}
+}
+

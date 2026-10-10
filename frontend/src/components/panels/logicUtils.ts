@@ -164,19 +164,23 @@ export function evaluateClientCondition(
   const targetStr = (targetValue ?? "").trim();
   const rawStr = String(rawValue).trim();
 
-  // Try numeric comparison first if target is a valid number
+  // Try numeric comparison first if target is a valid number and rawValue is not boolean
   const rawNum = Number(rawValue);
   const targetNum = Number(targetStr);
   const isNumeric =
-    !isNaN(rawNum) && !isNaN(targetNum) && targetStr !== "" && rawStr !== "";
+    typeof rawValue !== "boolean" &&
+    !isNaN(rawNum) &&
+    !isNaN(targetNum) &&
+    targetStr !== "" &&
+    rawStr !== "";
 
   switch (operator) {
     case "eq":
       if (isNumeric) return rawNum === targetNum;
-      return rawStr.toLowerCase() === targetStr.toLowerCase();
+      return rawStr === targetStr;
     case "ne":
       if (isNumeric) return rawNum !== targetNum;
-      return rawStr.toLowerCase() !== targetStr.toLowerCase();
+      return rawStr !== targetStr;
     case "gt":
       return isNumeric && rawNum > targetNum;
     case "gte":
@@ -186,7 +190,7 @@ export function evaluateClientCondition(
     case "lte":
       return isNumeric && rawNum <= targetNum;
     case "contains":
-      return rawStr.toLowerCase().includes(targetStr.toLowerCase());
+      return rawStr.includes(targetStr);
     default:
       return false;
   }

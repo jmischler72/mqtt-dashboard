@@ -13,7 +13,6 @@ import {
   PayloadBuilder,
   PayloadSummary,
   PublishOptionsCard,
-  SwitchRow,
   brokerPresence,
   brokerRules,
   defaultBrokerId,
@@ -114,6 +113,9 @@ export function CronConfigModal({
       title="Cron Configuration"
       brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
       blockerReason={blockerReason}
+      enabled={enabled}
+      onToggleEnabled={setEnabled}
+      enabledTooltip="Run this schedule actively"
       onCancel={onClose}
       onSave={() =>
         onSave(
@@ -167,13 +169,6 @@ export function CronConfigModal({
               />
             </FieldRow>
           )}
-
-          <SwitchRow
-            name="Run this schedule"
-            note="Publishes on the schedule above. The schedule is kept either way."
-            on={enabled}
-            onToggle={setEnabled}
-          />
         </ConfigCard>
 
         <BrokerTopicCard

@@ -53,7 +53,8 @@ func ValidateRule(r *Rule) error {
 		}
 		// Infinite loop guard: if target broker is same as source/condition broker,
 		// target topic must not match any condition topic filter.
-		if (r.TargetBrokerID == "" || r.TargetBrokerID == r.BrokerID) && mqtt.TopicMatches(r.SourceTopic, t) {
+		sameBroker := r.TargetBrokerID == r.BrokerID || r.TargetBrokerID == "" || r.BrokerID == ""
+		if sameBroker && mqtt.TopicMatches(r.SourceTopic, t) {
 			return fmt.Errorf("target topic %q matches source topic %q (infinite loop prevention)", t, r.SourceTopic)
 		}
 		for _, c := range r.Conditions {
@@ -65,7 +66,8 @@ func ValidateRule(r *Rule) error {
 			if cBroker == "" {
 				cBroker = r.BrokerID
 			}
-			if (r.TargetBrokerID == "" || r.TargetBrokerID == cBroker) && mqtt.TopicMatches(cTopic, t) {
+			sameCondBroker := r.TargetBrokerID == cBroker || r.TargetBrokerID == "" || cBroker == ""
+			if sameCondBroker && mqtt.TopicMatches(cTopic, t) {
 				return fmt.Errorf("target topic %q matches condition topic %q (infinite loop prevention)", t, cTopic)
 			}
 		}
@@ -327,7 +329,8 @@ func evaluateCondition(c Condition, ruleBrokerID string, msg Message, guards Gua
 	var raw string
 	var exists bool
 
-	if (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic)) && condBrokerID == msg.BrokerID {
+	brokerMatches := (condBrokerID == msg.BrokerID) || (condBrokerID == "" && msg.BrokerID != "") || (condBrokerID != "" && msg.BrokerID == "")
+	if (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic)) && brokerMatches {
 		raw = string(msg.Payload)
 		exists = true
 	} else {
@@ -477,7 +480,8 @@ func buildAction(r *Rule, msg Message) *Action {
 			condBroker = r.BrokerID
 		}
 		condTopic := strings.TrimSpace(c0.Topic)
-		if (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic)) && condBroker == msg.BrokerID {
+		brokerMatches := (condBroker == msg.BrokerID) || (condBroker == "" && msg.BrokerID != "") || (condBroker != "" && msg.BrokerID == "")
+		if (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic)) && brokerMatches {
 			if v, ok := extractValueFromPayload(triggerVal, c0.JSONPath, c0.ReadTemplate); ok {
 				triggerVal = v
 			}
@@ -485,8 +489,6 @@ func buildAction(r *Rule, msg Message) *Action {
 	}
 
 	payload = strings.ReplaceAll(payload, "{{value}}", triggerVal)
-	payload = strings.ReplaceAll(payload, "{value}", triggerVal)
-	payload = strings.ReplaceAll(payload, "{{payload}}", string(msg.Payload))
 
 	return &Action{
 		TargetBrokerID: targetBroker,
