@@ -137,6 +137,9 @@ func TestListAutomations_Success(t *testing.T) {
 	if logicItem.TriggerDetail != "1 condition" {
 		t.Errorf("TriggerDetail = %q, want '1 condition'", logicItem.TriggerDetail)
 	}
+	if len(logicItem.Conditions) != 1 {
+		t.Errorf("len(Conditions) = %d, want 1", len(logicItem.Conditions))
+	}
 }
 
 func TestListAutomations_FilterEnabled(t *testing.T) {

@@ -22,6 +22,41 @@ import {
 } from "react-icons/ri";
 import { api, type AutomationItem } from "../api/client";
 import { PRESETS, describeCron } from "../components/panels/cronUtils";
+import { formatConditionSummary } from "../components/panels/logicUtils";
+import { VALUE_TOKEN, TOKEN_LABEL } from "../components/panels/payloadShape";
+
+function renderPayloadWithChips(payload: string, allowChips = true) {
+  const oneLine = payload.replace(/\s+/g, " ").trim();
+  if (!allowChips || !oneLine.includes(VALUE_TOKEN)) {
+    return oneLine;
+  }
+  return oneLine.split(VALUE_TOKEN).map((chunk, index) => (
+    <span key={index}>
+      {index > 0 && (
+        <span className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5">
+          {TOKEN_LABEL}
+        </span>
+      )}
+      {chunk}
+    </span>
+  ));
+}
+
+function getConditionsTooltip(job: AutomationItem): string {
+  if (job.conditions && job.conditions.length > 0) {
+    return job.conditions
+      .map((c, idx) => {
+        const topic = c.topic?.trim() || job.source_topic || "";
+        const condWithTopic = { ...c, topic };
+        return formatConditionSummary(condWithTopic, true, idx > 0);
+      })
+      .join("\n");
+  }
+  if (job.source_topic) {
+    return `${job.source_topic} · any message`;
+  }
+  return "No conditions configured";
+}
 
 function formatCountdown(nextRunStr?: string, nowMs = Date.now()): string {
   if (!nextRunStr) return "—";
@@ -429,6 +464,12 @@ export default function AutomationsPage() {
           job.target_topic.toLowerCase().includes(q) ||
           (Boolean(job.source_topic) &&
             job.source_topic!.toLowerCase().includes(q)) ||
+          (Boolean(job.conditions) &&
+            job.conditions!.some(
+              (c) =>
+                (c.topic && c.topic.toLowerCase().includes(q)) ||
+                (c.value && c.value.toLowerCase().includes(q)),
+            )) ||
           job.panel_title.toLowerCase().includes(q) ||
           job.dashboard_name.toLowerCase().includes(q) ||
           job.broker_name.toLowerCase().includes(q) ||
@@ -460,13 +501,10 @@ export default function AutomationsPage() {
         if (!matchesAuto) return false;
       }
 
-      // 5. Topic filter
+      // 5. Topic filter (target topic where sending)
       if (filters.topic.trim()) {
         const qt = filters.topic.toLowerCase();
-        const matchesTopic =
-          job.target_topic.toLowerCase().includes(qt) ||
-          (Boolean(job.source_topic) &&
-            job.source_topic!.toLowerCase().includes(qt));
+        const matchesTopic = job.target_topic.toLowerCase().includes(qt);
         if (!matchesTopic) return false;
       }
 
@@ -527,9 +565,9 @@ export default function AutomationsPage() {
             return strA.localeCompare(strB) * dir;
           }
           case "topic": {
-            const topicA = a.source_topic || a.target_topic;
-            const topicB = b.source_topic || b.target_topic;
-            return topicA.localeCompare(topicB) * dir;
+            return (
+              (a.target_topic || "").localeCompare(b.target_topic || "") * dir
+            );
           }
           case "payload":
             return a.payload.localeCompare(b.payload) * dir;
@@ -1086,101 +1124,54 @@ export default function AutomationsPage() {
                           </div>
                         </td>
 
-                        {/* 4. Topic (Separate Column with IN / OUT badges) */}
+                        {/* 4. Topic */}
                         <td className="align-middle py-3 px-4 max-w-[220px]">
                           <div className="flex flex-col gap-1 min-w-0">
-                            {job.source_topic && (
-                              <div className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0">
-                                <span
-                                  className="badge badge-xs badge-ghost text-[9px] uppercase font-mono px-1 shrink-0 text-base-content/60"
-                                  title="Trigger Topic"
+                            {targetTopics.length > 0 ? (
+                              targetTopics.map((t, idx) => (
+                                <div
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
                                 >
-                                  IN
-                                </span>
-                                <Link
-                                  to={`/explorer?topic=${encodeURIComponent(
-                                    job.source_topic,
-                                  )}${
-                                    job.broker_id
-                                      ? `&broker=${encodeURIComponent(
-                                          job.broker_id,
-                                        )}`
-                                      : ""
-                                  }`}
-                                  className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
-                                  title={`Trigger: "${job.source_topic}" in Explorer`}
-                                >
-                                  <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
-                                  <span className="truncate">
-                                    {job.source_topic}
-                                  </span>
-                                </Link>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                  title="Copy trigger topic"
-                                  onClick={() =>
-                                    handleCopy(
-                                      `srctopic-${job.panel_id}`,
-                                      job.source_topic!,
-                                    )
-                                  }
-                                >
-                                  {copiedId === `srctopic-${job.panel_id}` ? (
-                                    <MdCheck className="text-success text-xs" />
-                                  ) : (
-                                    <MdContentCopy className="text-[10px]" />
-                                  )}
-                                </button>
-                              </div>
-                            )}
-                            {targetTopics.map((t, idx) => (
-                              <div
-                                key={idx}
-                                className="inline-flex items-center gap-1 font-mono text-xs max-w-full min-w-0"
-                              >
-                                {job.source_topic && (
-                                  <span
-                                    className="badge badge-xs badge-neutral text-[9px] uppercase font-mono px-1 shrink-0"
-                                    title="Action Target Topic"
+                                  <Link
+                                    to={`/explorer?topic=${encodeURIComponent(t)}${
+                                      job.broker_id
+                                        ? `&broker=${encodeURIComponent(
+                                            job.broker_id,
+                                          )}`
+                                        : ""
+                                    }`}
+                                    className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
+                                    title={`Topic: "${t}" in Explorer`}
                                   >
-                                    OUT
-                                  </span>
-                                )}
-                                <Link
-                                  to={`/explorer?topic=${encodeURIComponent(t)}${
-                                    job.broker_id
-                                      ? `&broker=${encodeURIComponent(
-                                          job.broker_id,
-                                        )}`
-                                      : ""
-                                  }`}
-                                  className="inline-flex items-center gap-1 font-mono text-xs text-accent font-medium max-w-full min-w-0 hover:underline group"
-                                  title={`Topic: "${t}" in Explorer`}
-                                >
-                                  <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
-                                  <span className="truncate">{t}</span>
-                                </Link>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
-                                  title="Copy topic"
-                                  onClick={() =>
-                                    handleCopy(
-                                      `topic-${job.panel_id}-${idx}`,
-                                      t,
-                                    )
-                                  }
-                                >
-                                  {copiedId ===
-                                  `topic-${job.panel_id}-${idx}` ? (
-                                    <MdCheck className="text-success text-xs" />
-                                  ) : (
-                                    <MdContentCopy className="text-[10px]" />
-                                  )}
-                                </button>
-                              </div>
-                            ))}
+                                    <RiHashtag className="text-xs text-base-content/40 group-hover:text-accent shrink-0" />
+                                    <span className="truncate">{t}</span>
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs btn-square h-4 w-4 min-h-0 text-base-content/40 hover:text-base-content shrink-0"
+                                    title="Copy topic"
+                                    onClick={() =>
+                                      handleCopy(
+                                        `topic-${job.panel_id}-${idx}`,
+                                        t,
+                                      )
+                                    }
+                                  >
+                                    {copiedId ===
+                                    `topic-${job.panel_id}-${idx}` ? (
+                                      <MdCheck className="text-success text-xs" />
+                                    ) : (
+                                      <MdContentCopy className="text-[10px]" />
+                                    )}
+                                  </button>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-base-content/30 italic">
+                                (none)
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -1207,7 +1198,10 @@ export default function AutomationsPage() {
                                 title={job.payload}
                               >
                                 <span className="truncate flex-1 block">
-                                  {job.payload}
+                                  {renderPayloadWithChips(
+                                    job.payload,
+                                    job.panel_type !== "cron",
+                                  )}
                                 </span>
                                 <button
                                   type="button"
@@ -1289,9 +1283,17 @@ export default function AutomationsPage() {
                                 <span>
                                   {formatTriggerMode(job.trigger_summary)}
                                 </span>
-                                <span className="badge badge-xs badge-ghost font-mono text-[10px]">
-                                  {job.trigger_detail}
-                                </span>
+                                <div
+                                  className="tooltip tooltip-top before:whitespace-pre-line before:max-w-xs before:text-left before:font-mono before:text-[11px]"
+                                  data-tip={getConditionsTooltip(job)}
+                                >
+                                  <span
+                                    className="badge badge-xs badge-ghost font-mono text-[10px] cursor-help"
+                                    title={getConditionsTooltip(job)}
+                                  >
+                                    {job.trigger_detail}
+                                  </span>
+                                </div>
                               </div>
                               {job.enabled ? (
                                 <div
@@ -1300,14 +1302,15 @@ export default function AutomationsPage() {
                                     job.last_run
                                       ? `Last fired: ${new Date(
                                           job.last_run,
-                                        ).toLocaleString()}`
+                                        ).toLocaleString()}${
+                                          job.run_count
+                                            ? ` (${job.run_count} run${job.run_count > 1 ? "s" : ""})`
+                                            : ""
+                                        }`
                                       : "Waiting for trigger event"
                                   }
                                 >
                                   <div className="flex items-center gap-1.5 text-[11px]">
-                                    <span className="badge badge-xs badge-ghost font-mono text-[9px] text-base-content/70">
-                                      event-driven
-                                    </span>
                                     {job.last_run ? (
                                       <span className="text-[10px] text-base-content/50">
                                         Fired{" "}
@@ -1315,9 +1318,6 @@ export default function AutomationsPage() {
                                           job.last_run,
                                           currentTimeMs,
                                         )}
-                                        {job.run_count
-                                          ? ` (${job.run_count} runs)`
-                                          : ""}
                                       </span>
                                     ) : (
                                       <span className="text-[10px] text-base-content/30 italic">
@@ -1325,7 +1325,8 @@ export default function AutomationsPage() {
                                       </span>
                                     )}
                                     {job.status_detail &&
-                                      job.status_detail !== "idle" && (
+                                      job.status_detail !== "idle" &&
+                                      job.status_detail !== "fired" && (
                                         <span className="text-[10px] text-warning font-mono">
                                           · {job.status_detail}
                                         </span>
@@ -1345,9 +1346,23 @@ export default function AutomationsPage() {
                                   {job.trigger_summary || job.panel_type}
                                 </span>
                                 {job.trigger_detail && (
-                                  <span className="badge badge-xs badge-ghost font-mono text-[10px]">
-                                    {job.trigger_detail}
-                                  </span>
+                                  job.conditions && job.conditions.length > 0 ? (
+                                    <div
+                                      className="tooltip tooltip-top before:whitespace-pre-line before:max-w-xs before:text-left before:font-mono before:text-[11px]"
+                                      data-tip={getConditionsTooltip(job)}
+                                    >
+                                      <span
+                                        className="badge badge-xs badge-ghost font-mono text-[10px] cursor-help"
+                                        title={getConditionsTooltip(job)}
+                                      >
+                                        {job.trigger_detail}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="badge badge-xs badge-ghost font-mono text-[10px]">
+                                      {job.trigger_detail}
+                                    </span>
+                                  )
                                 )}
                               </div>
                               {job.enabled ? (

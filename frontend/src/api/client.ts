@@ -1,4 +1,5 @@
 import { appPath } from "../runtime";
+import type { Condition } from "../components/panels/logicUtils";
 
 // Thin wrapper around fetch for API calls.
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -31,6 +32,7 @@ export interface AutomationItem {
   trigger_type: string; // "schedule" | "event" | "manual"
   trigger_summary: string;
   trigger_detail: string;
+  conditions?: Condition[];
   next_run?: string;
   last_run?: string;
   run_count?: number;

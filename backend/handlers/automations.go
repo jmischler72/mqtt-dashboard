@@ -29,9 +29,10 @@ type AutomationItem struct {
 	QoS            byte       `json:"qos"`
 	Retain         bool       `json:"retain"`
 	TriggerType    string     `json:"trigger_type"`    // "schedule" | "event" | "manual"
-	TriggerSummary string     `json:"trigger_summary"` // e.g. "Every 5 minutes", "On change"
-	TriggerDetail  string     `json:"trigger_detail"`  // e.g. "*/5 * * * *", "2 conditions"
-	NextRun        *time.Time `json:"next_run,omitempty"`
+	TriggerSummary string            `json:"trigger_summary"` // e.g. "Every 5 minutes", "On change"
+	TriggerDetail  string            `json:"trigger_detail"`  // e.g. "*/5 * * * *", "2 conditions"
+	Conditions     []logic.Condition `json:"conditions,omitempty"`
+	NextRun        *time.Time        `json:"next_run,omitempty"`
 	LastRun        *time.Time `json:"last_run,omitempty"`
 	RunCount       int        `json:"run_count,omitempty"`
 	StatusDetail   string     `json:"status_detail,omitempty"`
@@ -210,6 +211,20 @@ func (p *LogicAutomationProvider) BuildItem(row PanelLayoutRow, brokerNames map[
 		condSummary = fmt.Sprintf("%d conditions", condCount)
 	}
 
+	conditions := make([]logic.Condition, len(cfg.Conditions))
+	copy(conditions, cfg.Conditions)
+	for i := range conditions {
+		if conditions[i].Topic == "" {
+			conditions[i].Topic = sourceTopic
+		}
+	}
+	if len(conditions) == 0 && sourceTopic != "" {
+		conditions = []logic.Condition{{
+			Topic:    sourceTopic,
+			Operator: "any",
+		}}
+	}
+
 	item := &AutomationItem{
 		PanelID:        row.PanelID,
 		PanelTitle:     row.PanelTitle,
@@ -227,6 +242,7 @@ func (p *LogicAutomationProvider) BuildItem(row PanelLayoutRow, brokerNames map[
 		TriggerType:    "event",
 		TriggerSummary: mode,
 		TriggerDetail:  condSummary,
+		Conditions:     conditions,
 	}
 
 	if p.engine != nil {
