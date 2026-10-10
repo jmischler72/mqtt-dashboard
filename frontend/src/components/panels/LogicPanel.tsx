@@ -93,7 +93,9 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
     label: "Sustained",
     preview: (
       <div className="w-full flex flex-col items-center justify-center gap-1.5 text-[11px] text-center">
-        <span className="text-base-content/60 font-medium">Holds for duration</span>
+        <span className="text-base-content/60 font-medium">
+          Holds for duration
+        </span>
         <span className="badge badge-xs badge-warning font-mono font-semibold">
           delay
         </span>
@@ -498,7 +500,8 @@ export function LogicConfigModal({
               </div>
             </div>
             <span className="text-[11px] text-base-content/50 text-center">
-              Conditions must hold continuously for {sustainedSec}s before firing
+              Conditions must hold continuously for {sustainedSec}s before
+              firing
             </span>
           </div>
         )}
@@ -1305,9 +1308,7 @@ export default function LogicPanel({
                 className={`badge ${availH >= 220 ? "badge-md px-2.5" : "badge-sm px-2"} font-mono font-semibold cursor-pointer hover:opacity-80 transition-all ${CONDITION_BADGE_COLORS[0]}`}
                 title="Configure condition"
               >
-                <GiChoice
-                  className={availH >= 220 ? "text-sm" : "text-xs"}
-                />
+                <GiChoice className={availH >= 220 ? "text-sm" : "text-xs"} />
               </button>
               <div
                 className={`inline-flex items-center justify-center min-w-0 max-w-[85%] rounded-lg border font-mono shadow-inner transition-colors ${

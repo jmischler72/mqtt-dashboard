@@ -70,7 +70,9 @@ export default function PanelConfigModal({
               className="tooltip tooltip-left shrink-0 flex items-center"
               data-tip={
                 enabledTooltip ??
-                (enabled ? "Enabled — click to pause" : "Disabled — click to enable")
+                (enabled
+                  ? "Enabled — click to pause"
+                  : "Disabled — click to enable")
               }
             >
               <label className="flex items-center gap-2 cursor-pointer select-none">

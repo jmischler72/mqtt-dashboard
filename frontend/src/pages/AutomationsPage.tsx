@@ -505,7 +505,9 @@ export default function AutomationsPage() {
       // 5. Topic filter (target topic where sending)
       if (filters.topic.trim()) {
         const qt = filters.topic.toLowerCase();
-        const matchesTopic = (job.target_topic || "").toLowerCase().includes(qt);
+        const matchesTopic = (job.target_topic || "")
+          .toLowerCase()
+          .includes(qt);
         if (!matchesTopic) return false;
       }
 
@@ -561,8 +563,10 @@ export default function AutomationsPage() {
           case "type":
             return (a.panel_type || "").localeCompare(b.panel_type || "") * dir;
           case "automation": {
-            const strA = `${a.panel_title || ""} ${a.dashboard_name || ""}`.toLowerCase();
-            const strB = `${b.panel_title || ""} ${b.dashboard_name || ""}`.toLowerCase();
+            const strA =
+              `${a.panel_title || ""} ${a.dashboard_name || ""}`.toLowerCase();
+            const strB =
+              `${b.panel_title || ""} ${b.dashboard_name || ""}`.toLowerCase();
             return strA.localeCompare(strB) * dir;
           }
           case "topic": {
