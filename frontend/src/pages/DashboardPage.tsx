@@ -647,20 +647,23 @@ export default function DashboardPage() {
 
   const gridChildren = useMemo(
     () =>
-      panels.map((panel) => (
-        <div
-          key={panel.id}
-          id={`panel-${panel.id}`}
-          className={`overflow-hidden ${
-            panel.panel_type === "separator" && !editMode
-              ? "flex items-center justify-center"
-              : ""
-          }`}
-        >
-          {renderPanelWrapper(panel)}
-        </div>
-      )),
-    [panels, editMode, renderPanelWrapper],
+      panels.map((panel) => {
+        const isHighlighted = panel.id === highlightedPanelId;
+        return (
+          <div
+            key={panel.id}
+            id={`panel-${panel.id}`}
+            className={`${isHighlighted ? "z-10" : ""} ${
+              panel.panel_type === "separator" && !editMode
+                ? "flex items-center justify-center"
+                : ""
+            }`}
+          >
+            {renderPanelWrapper(panel)}
+          </div>
+        );
+      }),
+    [panels, editMode, highlightedPanelId, renderPanelWrapper],
   );
 
   return (
