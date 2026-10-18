@@ -8,18 +8,31 @@
 @keyframes panel-highlight-fade {
   0%,
   60% {
-    box-shadow: 0 0 0 2px var(--color-primary, #3b82f6);
+    opacity: 1;
   }
 
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    opacity: 0;
   }
 }
 
 .panel-new-highlight {
-  animation: panel-highlight-fade 2s ease-out forwards;
   position: relative;
-  z-index: 10;
+}
+
+.panel-new-highlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 2px solid var(--color-primary, #3b82f6);
+  z-index: 30;
+  animation: panel-highlight-fade 2s ease-out forwards;
+}
+
+.react-grid-item:has(.panel-new-highlight) {
+  z-index: 30 !important;
 }
 
 html {
