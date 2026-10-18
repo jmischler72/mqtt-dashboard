@@ -99,8 +99,8 @@ export default function TopicField({
     return (
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <div
-          className={`join-item flex-1 min-w-0 flex items-center gap-1.5 h-8 bg-base-100 border border-base-300 dark:border-base-100 border-l-0 px-2 ${
-            invalid ? "border-warning" : ""
+          className={`join-item flex-1 min-w-0 flex items-center gap-1.5 h-8 bg-base-100 border border-l-0 px-2 ${
+            invalid ? "border-warning" : "border-base-300 dark:border-base-100"
           }`}
         >
           <RiHashtag className="text-xs text-base-content/50 shrink-0" />

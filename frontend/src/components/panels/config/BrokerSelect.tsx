@@ -6,6 +6,7 @@ export interface BrokerSelectProps {
   onChange: (brokerId: string) => void;
   brokers: BrokerStatus[];
   joined?: boolean;
+  invalid?: boolean;
 }
 
 const brokerDotColor: Record<string, string> = {
@@ -24,6 +25,7 @@ export default function BrokerSelect({
   onChange,
   brokers,
   joined = false,
+  invalid = false,
 }: BrokerSelectProps) {
   const selected = brokers.find((b) => b.id === value) ?? brokers[0];
   const status = (selected?.status ?? "DISABLED").toUpperCase();
@@ -39,7 +41,11 @@ export default function BrokerSelect({
 
   if (joined) {
     return (
-      <div className="join-item flex items-center gap-1.5 h-8 bg-base-100 border border-base-300 dark:border-base-100 pl-2 pr-2 w-48 sm:w-56 shrink-0">
+      <div
+        className={`join-item flex items-center gap-1.5 h-8 bg-base-100 border pl-2 pr-2 w-48 sm:w-56 shrink-0 ${
+          invalid ? "border-warning" : "border-base-300 dark:border-base-100"
+        }`}
+      >
         <RiServerLine className="text-xs text-base-content/50 shrink-0" />
         <select
           className="select select-ghost select-xs py-0 pl-1 pr-6 h-full flex-1 min-w-0 font-medium text-xs focus:outline-none cursor-pointer truncate"
@@ -75,7 +81,9 @@ export default function BrokerSelect({
   return (
     <div className="flex items-center gap-2 w-full min-w-0">
       <select
-        className="select select-bordered flex-1 min-w-0 h-8 min-h-8 text-xs"
+        className={`select select-bordered flex-1 min-w-0 h-8 min-h-8 text-xs ${
+          invalid ? "select-warning" : ""
+        }`}
         aria-label="Broker"
         value={value}
         onChange={(e) => onChange(e.target.value)}
