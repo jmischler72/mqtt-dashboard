@@ -8,9 +8,9 @@ This guide explains how to compile the MQTT Dashboard standalone binary from sou
 
 To compile the application locally, you will need:
 
-* **Go**: `1.27+`
-* **Node.js**: `22+` (with `npm`)
-* **Git**
+- **Go**: `1.27+`
+- **Node.js**: `22+` (with `npm`)
+- **Git**
 
 No external C compiler (GCC/Clang) is required. The SQLite database uses a pure Go implementation (`modernc.org/sqlite`) that compiles natively without CGO across Linux, macOS, and Windows.
 
@@ -48,6 +48,7 @@ Copy the built frontend assets into `backend/dist` and build the Go binary:
 # Ensure backend/dist exists and is populated with the built frontend
 rm -rf backend/dist
 cp -r frontend/dist backend/dist
+touch backend/dist/.gitkeep
 
 # Build the static, stripped Go binary
 cd backend
@@ -106,8 +107,8 @@ docker run -d \
 
 If you want to contribute or develop features with hot-reloading:
 
-* The repository includes an isolated dev environment powered by Docker Compose, Air (Go hot-reload), Vite HMR, and test Mosquitto brokers.
-* See the `Makefile` commands:
+- The repository includes an isolated dev environment powered by Docker Compose, Air (Go hot-reload), Vite HMR, and test Mosquitto brokers.
+- See the `Makefile` commands:
   ```bash
   make dev-start   # Starts the isolated dev stack and proxy
   make dev-url     # Prints this worktree's local URL
