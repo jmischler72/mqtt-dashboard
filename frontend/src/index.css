@@ -24,9 +24,13 @@ html {
   scrollbar-gutter: stable;
 }
 
-/* Resize handles: theme-aware styling and subtle visibility in edit mode */
+/* Resize handles: theme-aware styling, larger hit area, and subtle visibility in edit mode */
 .react-grid-item > .react-resizable-handle {
-  opacity: 0.35;
+  width: 24px;
+  height: 24px;
+  bottom: 1px;
+  right: 1px;
+  opacity: 0.4;
   transition: opacity 0.15s ease-in-out;
   z-index: 20;
 }
@@ -36,13 +40,19 @@ html {
 }
 
 .react-grid-item > .react-resizable-handle::after {
-  border-right-color: currentColor;
-  border-bottom-color: currentColor;
-  opacity: 0.5;
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.6;
 }
 
 .react-grid-item:hover > .react-resizable-handle::after {
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 /* Crisp, instant panel resizing & dragging without transition lag on the active item */
