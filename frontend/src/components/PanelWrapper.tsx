@@ -491,7 +491,7 @@ function PanelWrapper({
         className={
           isSeparator && !editMode
             ? `relative ${sepOrientation === "horizontal" ? "h-1/2 w-full" : "w-1/2 h-full"} overflow-hidden ${highlight ? "panel-new-highlight rounded-lg" : ""}`
-            : `flex flex-col h-full min-h-0 max-h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
+            : `flex flex-col h-full min-h-0 max-h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-primary" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
         }
       >
         {/* Header — specialized compact layout for narrow separators (vertical or horizontal at w <= 1), standard header otherwise */}
