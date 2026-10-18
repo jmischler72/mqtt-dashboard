@@ -31,9 +31,11 @@ import {
   buildAreaPath,
   buildLinePath,
   computeBounds,
+  formatDateTimeLabel,
   formatTimeLabel,
   formatValue,
   graphReadTemplate,
+  midnightTicks,
   nearestPoint,
   parseNumericPayload,
   projectX,
@@ -739,6 +741,25 @@ export default function GraphPanel({
                 );
               })}
 
+              {midnightTicks(bounds.minT, bounds.maxT).map((t) => {
+                const x = projectX(t, bounds, plotWidth);
+                return (
+                  <line
+                    key={t}
+                    x1={x}
+                    x2={x}
+                    y1={0}
+                    y2={plotHeight}
+                    stroke="currentColor"
+                    strokeWidth={0.75}
+                    strokeDasharray="1 3"
+                    strokeLinecap="round"
+                    className="text-base-content/30"
+                    aria-hidden="true"
+                  />
+                );
+              })}
+
               {[0, 0.5, 1].map((ratio) => {
                 const t = bounds.minT + (bounds.maxT - bounds.minT) * ratio;
                 return (
@@ -846,7 +867,7 @@ export default function GraphPanel({
             }}
           >
             <div className="text-base-content/50">
-              {formatTimeLabel(hoverInfo.t)}
+              {formatDateTimeLabel(hoverInfo.t)}
             </div>
             {hoverInfo.entries.map((entry) => (
               <div
