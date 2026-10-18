@@ -211,6 +211,26 @@ export function computeBounds(
   return { minT, maxT, minV, maxV };
 }
 
+/** Local-midnight boundaries that fall within the visible time range. */
+export function midnightTicks(minT: number, maxT: number): number[] {
+  if (!Number.isFinite(minT) || !Number.isFinite(maxT) || maxT < minT) {
+    return [];
+  }
+
+  const date = new Date(minT);
+  if (Number.isNaN(date.getTime())) return [];
+  date.setHours(0, 0, 0, 0);
+  if (date.getTime() < minT) date.setDate(date.getDate() + 1);
+
+  const ticks: number[] = [];
+  while (date.getTime() <= maxT) {
+    const tick = date.getTime();
+    ticks.push(tick);
+    date.setDate(date.getDate() + 1);
+  }
+  return ticks;
+}
+
 export function projectX(
   t: number,
   bounds: GraphBounds,
@@ -351,6 +371,11 @@ export function formatTimeLabel(t: number): string {
   const d = new Date(t);
   const pad2 = (n: number) => String(n).padStart(2, "0");
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+export function formatDateTimeLabel(t: number): string {
+  const d = new Date(t);
+  return `${d.toLocaleDateString()} ${formatTimeLabel(t)}`;
 }
 
 /** Nearest point (by time) in a series, used for the hover crosshair. */
