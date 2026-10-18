@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.1...v1.14.2) (2026-10-18)
+
+
+### Performance Improvements
+
+* **docker:** optimize multi-arch build and adopt httplog for request logging ([#227](https://github.com/jmischler72/mqtt-dashboard/issues/227)) ([5f4d266](https://github.com/jmischler72/mqtt-dashboard/commit/5f4d266b0ef9c8853a8aea253611aabb585079b4))
+
 ## [1.14.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.0...v1.14.1) (2026-10-18)
 
 
