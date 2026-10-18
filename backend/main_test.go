@@ -48,51 +48,6 @@ func TestCorsMiddleware_PreflightReturns204(t *testing.T) {
 	}
 }
 
-func TestSkipLoggerForPaths_SkipsMatchingPath(t *testing.T) {
-	loggerCalled := false
-	mockLogger := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			loggerCalled = true
-			next.ServeHTTP(w, r)
-		})
-	}
-
-	mw := skipLoggerForPaths(mockLogger, "/api/brokers/status")
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/api/brokers/status", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if loggerCalled {
-		t.Error("logger should not be called for skipped path")
-	}
-}
-
-func TestSkipLoggerForPaths_LogsNonSkippedPath(t *testing.T) {
-	loggerCalled := false
-	mockLogger := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			loggerCalled = true
-			next.ServeHTTP(w, r)
-		})
-	}
-
-	mw := skipLoggerForPaths(mockLogger, "/api/brokers/status")
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/api/brokers", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if !loggerCalled {
-		t.Error("logger should be called for non-skipped path")
-	}
-}
 
 func TestSpaHandler_DelegatesToFileServer(t *testing.T) {
 	called := false
@@ -509,30 +464,6 @@ func TestBuildRouter_SkipLoggerForStatusUnderBasePath(t *testing.T) {
 	}
 }
 
-func TestSkipLoggerForPaths_WithBasePath(t *testing.T) {
-	loggerCalled := false
-	mockLogger := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			loggerCalled = true
-			next.ServeHTTP(w, r)
-		})
-	}
-
-	basePath := "/mqtt-dashboard/"
-	statusEndpoint := strings.TrimSuffix(basePath, "/") + "/api/brokers/status"
-	mw := skipLoggerForPaths(mockLogger, statusEndpoint)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/mqtt-dashboard/api/brokers/status", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if loggerCalled {
-		t.Error("logger should not be called for skipped statusEndpoint under base_path")
-	}
-}
 
 func TestBuildRouter_DemoMode(t *testing.T) {
 	database, err := db.InitDB(":memory:")
@@ -636,6 +567,33 @@ func TestPrintBanner(t *testing.T) {
 	outDemo := buf.String()
 	if !strings.Contains(outDemo, "(demo mode)") {
 		t.Errorf("banner missing demo mode indicator, got %q", outDemo)
+	}
+}
+
+func TestBuildRouter_RequestLogging(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	registry := mqttclient.NewRegistry(database)
+	scheduler, err := cron.NewScheduler(registry)
+	if err != nil {
+		t.Fatalf("NewScheduler: %v", err)
+	}
+	logicEngine := logic.NewEngine(registry)
+	defer logicEngine.Stop()
+
+	// In debug mode, requests route through router with httplog enabled
+	router := buildRouter(database, registry, scheduler, logicEngine, ws.NewHub(registry, database), t.TempDir(), fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
+	}, "/", false, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("health status = %d, want 200", rec.Code)
 	}
 }
 
