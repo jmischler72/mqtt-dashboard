@@ -90,6 +90,18 @@ export default function Layout() {
   const healthRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onDashboard = location.pathname === "/dashboard";
+  const isEditing = onDashboard && editMode;
+
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (prevPathname !== location.pathname) {
+    setPrevPathname(location.pathname);
+    if (editMode) {
+      setEditMode(false);
+    }
+    if (panelLibraryOpen) {
+      setPanelLibraryOpen(false);
+    }
+  }
 
   const dismissDemoBanner = () => {
     setDemoBannerDismissed(true);
@@ -145,7 +157,7 @@ export default function Layout() {
         el?.isContentEditable === true;
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        if (!onDashboard || !editMode) return;
+        if (!isEditing) return;
         e.preventDefault();
         setFlyoutOpen(false);
         setPanelLibraryOpen((o) => !o);
@@ -164,7 +176,7 @@ export default function Layout() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onDashboard, editMode]);
+  }, [onDashboard, isEditing]);
 
   useEffect(() => {
     if (!backendReady) return;
@@ -406,7 +418,7 @@ export default function Layout() {
             aria-label="Show navbar"
             className="group relative w-full h-2.5 flex items-center justify-between px-4 bg-base-200 border-b border-base-300"
           >
-            {editMode && (
+            {isEditing && (
               <span
                 aria-hidden="true"
                 className="absolute inset-x-0 top-0 h-0.5 bg-primary"
@@ -426,7 +438,7 @@ export default function Layout() {
         <nav
           className={`navbar bg-base-100 border-b border-base-300 px-4 gap-2 ${barHidden ? "hidden" : ""}`}
         >
-          {editMode && (
+          {isEditing && (
             <span
               aria-hidden="true"
               className="absolute inset-x-0 top-0 h-0.5 bg-primary"
@@ -498,7 +510,7 @@ export default function Layout() {
                   aria-hidden="true"
                   className="hidden sm:block h-6 w-px bg-base-300 mx-1"
                 />
-                {editMode ? (
+                {isEditing ? (
                   <>
                     <button
                       className="btn btn-sm btn-primary gap-1.5"
@@ -676,7 +688,7 @@ export default function Layout() {
       </div>
 
       {/* Focus mode still needs the edit controls: float them over the grid. */}
-      {barHidden && editMode && (
+      {barHidden && isEditing && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 h-11 pl-3.5 pr-1.5 rounded-full bg-base-100 border border-base-300 shadow-xl">
           <span className="flex items-center gap-2 pr-1">
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -712,7 +724,7 @@ export default function Layout() {
         ) : (
           <Outlet
             context={{
-              editMode,
+              editMode: isEditing,
               setEditMode,
               activeDashboardId: effectiveDashboardId,
               dashboardsLoading,
