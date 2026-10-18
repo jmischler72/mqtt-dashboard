@@ -346,3 +346,39 @@ func TestScheduler_GetJobs(t *testing.T) {
 		t.Errorf("expected both p1 and p2 in GetJobs result")
 	}
 }
+
+func TestScheduler_RemoveAllPanelJobs(t *testing.T) {
+	pub := &mockPublisher{defaultID: "def-broker"}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	sc.AddJob("p1", "b1", "*/5 * * * *", "topic1", "payload1", 0, false, true) //nolint
+	sc.AddJob("p2", "b2", "*/10 * * * *", "topic2", "payload2", 1, true, false) //nolint
+
+	if len(sc.GetJobs()) != 2 {
+		t.Fatalf("expected 2 jobs, got %d", len(sc.GetJobs()))
+	}
+
+	sc.RemoveAllPanelJobs()
+
+	if len(sc.GetJobs()) != 0 {
+		t.Fatalf("expected 0 jobs after RemoveAllPanelJobs, got %d", len(sc.GetJobs()))
+	}
+}
+
+func TestScheduler_AddSystemJob(t *testing.T) {
+	pub := &mockPublisher{defaultID: "def-broker"}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	if err := sc.AddSystemJob("test-tag", "invalid", func() {}); err == nil {
+		t.Fatal("expected error for invalid cron expression")
+	}
+
+	if err := sc.AddSystemJob("test-tag", "0 */5 * * *", func() {}); err != nil {
+		t.Fatalf("AddSystemJob failed: %v", err)
+	}
+}
+

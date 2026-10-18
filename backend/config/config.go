@@ -199,21 +199,31 @@ func SeedBrokersFromPath(database *sql.DB, configFile string) {
 			if d.Name == "" {
 				d.Name = "Custom Dashboard"
 			}
-			dashID := uuid.New().String()
-			if strings.EqualFold(d.Name, "Default") {
-				dashID = "default"
+			dashID := d.ID
+			if dashID == "" {
+				dashID = uuid.New().String()
+				if strings.EqualFold(d.Name, "Default") {
+					dashID = "default"
+				}
 			}
 
 			var existingDashID string
-			err := database.QueryRow(`SELECT id FROM dashboards WHERE name = ? LIMIT 1`, d.Name).Scan(&existingDashID)
-			if err != nil {
-				_, err = database.Exec(`INSERT INTO dashboards (id, name) VALUES (?, ?)`, dashID, d.Name)
-				if err != nil {
-					slog.Error("failed to create dashboard from seed file", "dashboard", d.Name, "err", err)
-					continue
+			if dashID == "default" {
+				existingDashID = "default"
+				if d.Name != "" && !strings.EqualFold(d.Name, "Default") {
+					_, _ = database.Exec(`UPDATE dashboards SET name = ? WHERE id = 'default'`, d.Name)
 				}
-				existingDashID = dashID
-				slog.Info("seeded dashboard from seed file", "id", dashID, "name", d.Name)
+			} else {
+				err := database.QueryRow(`SELECT id FROM dashboards WHERE id = ? OR name = ? LIMIT 1`, dashID, d.Name).Scan(&existingDashID)
+				if err != nil {
+					_, err = database.Exec(`INSERT INTO dashboards (id, name) VALUES (?, ?)`, dashID, d.Name)
+					if err != nil {
+						slog.Error("failed to create dashboard from seed file", "dashboard", d.Name, "err", err)
+						continue
+					}
+					existingDashID = dashID
+					slog.Info("seeded dashboard from seed file", "id", dashID, "name", d.Name)
+				}
 			}
 
 			var panelCount int

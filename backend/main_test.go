@@ -202,7 +202,7 @@ func TestAutoConnectFromDB(t *testing.T) {
 		t.Fatalf("insert brokers: %v", err)
 	}
 
-	autoConnectFromDB(database, registry)
+	mqttclient.AutoConnectFromDB(database, registry)
 
 	if registry.DefaultBrokerID() != "b1" {
 		t.Errorf("DefaultBrokerID = %q, want 'b1'", registry.DefaultBrokerID())
@@ -211,7 +211,7 @@ func TestAutoConnectFromDB(t *testing.T) {
 	// Test with closed DB
 	dbClosed, _ := db.InitDB(":memory:")
 	dbClosed.Close()
-	autoConnectFromDB(dbClosed, registry)
+	mqttclient.AutoConnectFromDB(dbClosed, registry)
 }
 
 func TestLoadCronJobsFromDB(t *testing.T) {
@@ -240,7 +240,7 @@ func TestLoadCronJobsFromDB(t *testing.T) {
 		t.Fatalf("insert layouts: %v", err)
 	}
 
-	loadCronJobsFromDB(database, scheduler)
+	cron.LoadJobsFromDB(database, scheduler)
 
 	if _, ok := scheduler.GetJob("p1"); !ok {
 		t.Error("expected job p1 to be loaded")
@@ -252,7 +252,7 @@ func TestLoadCronJobsFromDB(t *testing.T) {
 	// Test with closed DB
 	dbClosed, _ := db.InitDB(":memory:")
 	dbClosed.Close()
-	loadCronJobsFromDB(dbClosed, scheduler)
+	cron.LoadJobsFromDB(dbClosed, scheduler)
 }
 
 func TestLoadLogicRulesFromDB(t *testing.T) {
@@ -279,7 +279,7 @@ func TestLoadLogicRulesFromDB(t *testing.T) {
 		t.Fatalf("insert layouts: %v", err)
 	}
 
-	loadLogicRulesFromDB(database, engine)
+	logic.LoadRulesFromDB(database, engine)
 
 	if _, ok := engine.GetRule("p1"); !ok {
 		t.Error("expected rule p1 to be loaded")
@@ -291,7 +291,7 @@ func TestLoadLogicRulesFromDB(t *testing.T) {
 	// Test with closed DB
 	dbClosed, _ := db.InitDB(":memory:")
 	dbClosed.Close()
-	loadLogicRulesFromDB(dbClosed, engine)
+	logic.LoadRulesFromDB(dbClosed, engine)
 }
 
 func TestBuildRouter(t *testing.T) {
@@ -638,5 +638,6 @@ func TestPrintBanner(t *testing.T) {
 		t.Errorf("banner missing demo mode indicator, got %q", outDemo)
 	}
 }
+
 
 

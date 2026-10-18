@@ -49,6 +49,7 @@ type ImportPanel struct {
 }
 
 type DashboardImportPayload struct {
+	ID      string        `json:"id,omitempty"`
 	Type    string        `json:"type,omitempty"`
 	Version int           `json:"version,omitempty"`
 	Name    string        `json:"name"`

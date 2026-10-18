@@ -13,9 +13,9 @@ import (
 	"mqtt-dashboard/config"
 	"mqtt-dashboard/cron"
 	"mqtt-dashboard/db"
+	"mqtt-dashboard/demo"
 	"mqtt-dashboard/handlers"
 	"mqtt-dashboard/logic"
-	"mqtt-dashboard/models"
 	"mqtt-dashboard/ws"
 	"net/http"
 	"os"
@@ -71,7 +71,7 @@ func main() {
 	registry.StartHistoryWriter()
 	defer registry.StopHistoryWriter()
 	initRegistrySettings(database, registry)
-	autoConnectFromDB(database, registry)
+	mqttclient.AutoConnectFromDB(database, registry)
 
 	// --- Init Cron scheduler ---
 	scheduler, err := cron.NewScheduler(registry)
@@ -81,7 +81,7 @@ func main() {
 	}
 	scheduler.Start()
 	defer scheduler.Stop()
-	loadCronJobsFromDB(database, scheduler)
+	cron.LoadJobsFromDB(database, scheduler)
 	if err := scheduler.StartPruningJob(database); err != nil {
 		slog.Error("start pruning job", "err", err)
 	}
@@ -101,10 +101,18 @@ func main() {
 		}
 	}))
 	defer logicEngine.Stop()
-	loadLogicRulesFromDB(database, logicEngine)
+	logic.LoadRulesFromDB(database, logicEngine)
 
 	// --- Init WebSocket hub ---
 	wsHub := ws.NewHub(registry, database)
+
+	// --- Demo Mode Auto-Reset ---
+	if runtimeConfig.DemoMode {
+		cronExpr := os.Getenv("MQTT_DASHBOARD_DEMO_RESET_CRON")
+		if err := demo.SetupAutoReset(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.SeedConfigFile, cronExpr); err != nil {
+			slog.Error("setup demo auto-reset", "err", err)
+		}
+	}
 
 	var frontendFS fs.FS
 	if os.Getenv("APP_ENV") != "development" {
@@ -299,124 +307,7 @@ func initRegistrySettings(database *sql.DB, registry *mqttclient.BrokerRegistry)
 	registry.SetSaveSysTopics(saveSys)
 }
 
-// autoConnectFromDB loads all enabled brokers and connects each one on startup.
-func autoConnectFromDB(database *sql.DB, registry *mqttclient.BrokerRegistry) {
-	rows, err := database.Query(`SELECT id, name, host, port, COALESCE(client_id,''), COALESCE(username,''), COALESCE(password,''), is_enabled, sort_order, COALESCE(auth_mode,'none'), tls_enabled, tls_skip_verify, COALESCE(ca_cert,''), COALESCE(client_cert,''), COALESCE(client_key,'') FROM mqtt_brokers WHERE is_enabled = 1 ORDER BY sort_order ASC`)
-	if err != nil {
-		return
-	}
-	defer rows.Close()
 
-	isFirst := true
-	for rows.Next() {
-		var b models.MQTTBroker
-		if err := rows.Scan(&b.ID, &b.Name, &b.Host, &b.Port, &b.ClientID, &b.Username, &b.Password, &b.IsEnabled, &b.SortOrder, &b.AuthMode, &b.TLSEnabled, &b.TLSSkipVerify, &b.CACert, &b.ClientCert, &b.ClientKey); err != nil {
-			continue
-		}
-		if err := registry.AddBroker(b); err != nil {
-			slog.Error("auto-connect mqtt broker", "broker", b.Name, "err", err)
-		}
-		if isFirst {
-			registry.SetDefault(b.ID)
-			isFirst = false
-		}
-	}
-}
-
-// loadCronJobsFromDB reloads all cron panel jobs from the database on startup.
-func loadCronJobsFromDB(database *sql.DB, scheduler *cron.Scheduler) {
-	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'cron'`)
-	if err != nil {
-		slog.Error("load cron jobs", "err", err)
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var panelID, cfgJSON, brokerID string
-		if err := rows.Scan(&panelID, &cfgJSON, &brokerID); err != nil {
-			continue
-		}
-		var cfg struct {
-			BrokerID string `json:"broker_id"`
-			CronExpr string `json:"cron_expr"`
-			Topic    string `json:"topic"`
-			Payload  string `json:"payload"`
-			QoS      int    `json:"qos"`
-			Retain   bool   `json:"retain"`
-			Enabled  bool   `json:"enabled"`
-		}
-		if err := json.Unmarshal([]byte(cfgJSON), &cfg); err != nil || cfg.CronExpr == "" {
-			continue
-		}
-		bID := cfg.BrokerID
-		if bID == "" {
-			bID = brokerID
-		}
-		if err := scheduler.AddJob(panelID, bID, cfg.CronExpr, cfg.Topic, cfg.Payload, byte(cfg.QoS), cfg.Retain, cfg.Enabled); err != nil {
-			slog.Error("load cron job", "panel_id", panelID, "err", err)
-		}
-	}
-}
-
-// loadLogicRulesFromDB reloads all logic panel rules from the database on startup.
-func loadLogicRulesFromDB(database *sql.DB, engine logic.LogicEngine) {
-	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'logic'`)
-	if err != nil {
-		slog.Error("load logic rules", "err", err)
-		return
-	}
-	type rawLogicRow struct {
-		panelID  string
-		cfgJSON  string
-		brokerID string
-	}
-	var loaded []rawLogicRow
-	for rows.Next() {
-		var r rawLogicRow
-		if err := rows.Scan(&r.panelID, &r.cfgJSON, &r.brokerID); err == nil {
-			loaded = append(loaded, r)
-		}
-	}
-	_ = rows.Close()
-
-	for _, item := range loaded {
-		var rule logic.Rule
-		if err := json.Unmarshal([]byte(item.cfgJSON), &rule); err != nil || rule.SourceTopic == "" || rule.TargetTopic == "" {
-			continue
-		}
-		rule.PanelID = item.panelID
-		if rule.BrokerID == "" {
-			rule.BrokerID = item.brokerID
-		}
-		// Prime cache from history for source topic and all condition topics
-		top := rule.SourceTopic
-		if top == "" && len(rule.Conditions) > 0 {
-			top = rule.Conditions[0].Topic
-		}
-		if top != "" {
-			var payload string
-			if err := database.QueryRow(`SELECT payload FROM mqtt_history WHERE broker_id = ? AND topic = ? ORDER BY timestamp DESC LIMIT 1`, rule.BrokerID, top).Scan(&payload); err == nil {
-				engine.PrimeCache(rule.BrokerID, top, payload)
-			}
-		}
-		for _, c := range rule.Conditions {
-			cB := c.BrokerID
-			if cB == "" {
-				cB = rule.BrokerID
-			}
-			cT := c.Topic
-			if cT != "" {
-				var payload string
-				if err := database.QueryRow(`SELECT payload FROM mqtt_history WHERE broker_id = ? AND topic = ? ORDER BY timestamp DESC LIMIT 1`, cB, cT).Scan(&payload); err == nil {
-					engine.PrimeCache(cB, cT, payload)
-				}
-			}
-		}
-		if err := engine.AddRule(&rule); err != nil {
-			slog.Error("load logic rule", "panel_id", item.panelID, "err", err)
-		}
-	}
-}
 
 // spaHandler wraps a file server to serve index.html for unknown paths (client-side routing).
 func spaHandler(distFS fs.FS, h http.Handler, basePath string) http.Handler {

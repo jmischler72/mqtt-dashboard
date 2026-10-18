@@ -16,6 +16,7 @@ type BrokerClient interface {
 type LogicEngine interface {
 	AddRule(rule *Rule) error
 	RemoveRule(panelID string)
+	ClearAllRules()
 	ToggleRule(panelID string, enabled bool) error
 	GetRule(panelID string) (*Rule, bool)
 	GetStatus(panelID string) (*RuleStatus, bool)

@@ -174,6 +174,19 @@ func (e *Engine) RemoveRule(panelID string) {
 	delete(e.ruleStates, panelID)
 }
 
+// ClearAllRules deletes all rules and stops all active timers and subscriptions.
+func (e *Engine) ClearAllRules() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, rule := range e.rules {
+		e.teardownRuleLocked(rule)
+	}
+	e.rules = make(map[string]*Rule)
+	e.ruleStates = make(map[string]*ruleState)
+	e.guardCache = make(map[string]map[string]string)
+}
+
 // ToggleRule enables or disables an existing rule.
 func (e *Engine) ToggleRule(panelID string, enabled bool) error {
 	e.mu.Lock()

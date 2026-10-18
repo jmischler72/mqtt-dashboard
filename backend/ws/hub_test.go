@@ -466,4 +466,48 @@ func TestHub_MultiplexedPanels(t *testing.T) {
 	}
 }
 
+func TestHub_CloseAllClients(t *testing.T) {
+	reg := newMockBrokerSub()
+	hub := NewHub(reg)
+
+	c1 := &Client{id: "c1", send: make(chan WSMessage, 10)}
+	c2 := &Client{id: "c2", send: make(chan WSMessage, 10)}
+	hub.Register(c1)
+	hub.Register(c2)
+
+	hub.SubscribePanel(c1, "p1", "b1", []string{"topic1"})
+	hub.SubscribePanel(c2, "p2", "b2", []string{"topic2"})
+
+	hub.CloseAllClients()
+
+	hub.mu.RLock()
+	clientCount := len(hub.clients)
+	hub.mu.RUnlock()
+	if clientCount != 0 {
+		t.Errorf("expected 0 clients after CloseAllClients, got %d", clientCount)
+	}
+
+	if !c1.closed || !c2.closed {
+		t.Errorf("expected clients to be marked closed")
+	}
+}
+
+func TestHub_ClearPanelMetaCache(t *testing.T) {
+	hub := NewHub(newMockBrokerSub())
+	hub.panelMetaCache.Store("p1", panelMeta{title: "Panel 1", dashboardID: "d1", found: true})
+	hub.panelMetaCache.Store("p2", panelMeta{title: "Panel 2", dashboardID: "d2", found: true})
+
+	hub.ClearPanelMetaCache()
+
+	count := 0
+	hub.panelMetaCache.Range(func(key, value any) bool {
+		count++
+		return true
+	})
+	if count != 0 {
+		t.Errorf("expected empty panelMetaCache, got %d entries", count)
+	}
+}
+
+
 
