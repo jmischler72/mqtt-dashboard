@@ -151,3 +151,7 @@ func TestSetupAutoReset(t *testing.T) {
 		t.Errorf("expected successful schedule, got %v", err)
 	}
 }
+
+func TestResetDatabase_NilSafe(t *testing.T) {
+	demo.ResetDatabase(nil, nil, nil, nil, nil, "")
+}

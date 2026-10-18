@@ -8,6 +8,9 @@ import (
 
 // LoadJobsFromDB reloads all cron panel jobs from the database into the scheduler.
 func LoadJobsFromDB(database *sql.DB, scheduler *Scheduler) {
+	if database == nil || scheduler == nil {
+		return
+	}
 	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'cron'`)
 	if err != nil {
 		slog.Error("load cron jobs", "err", err)

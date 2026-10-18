@@ -22,6 +22,11 @@ func ResetDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, schedu
 	resetMu.Lock()
 	defer resetMu.Unlock()
 
+	if database == nil || registry == nil || scheduler == nil || logicEngine == nil {
+		slog.Error("demo reset skipped: missing required dependencies")
+		return
+	}
+
 	slog.Info("demo auto-reset starting")
 
 	if seedFile == "" {

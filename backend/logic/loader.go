@@ -8,6 +8,9 @@ import (
 
 // LoadRulesFromDB reloads all logic panel rules from the database into the logic engine.
 func LoadRulesFromDB(database *sql.DB, engine LogicEngine) {
+	if database == nil || engine == nil {
+		return
+	}
 	rows, err := database.Query(`SELECT id, COALESCE(config_json, '{}'), COALESCE(broker_id, '') FROM dashboard_layouts WHERE panel_type = 'logic'`)
 	if err != nil {
 		slog.Error("load logic rules", "err", err)

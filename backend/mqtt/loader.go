@@ -9,6 +9,9 @@ import (
 
 // AutoConnectFromDB loads all enabled brokers from the database and connects each one.
 func AutoConnectFromDB(database *sql.DB, registry *BrokerRegistry) {
+	if database == nil || registry == nil {
+		return
+	}
 	rows, err := database.Query(`SELECT id, name, host, port, COALESCE(client_id,''), COALESCE(username,''), COALESCE(password,''), is_enabled, sort_order, COALESCE(auth_mode,'none'), tls_enabled, tls_skip_verify, COALESCE(ca_cert,''), COALESCE(client_cert,''), COALESCE(client_key,'') FROM mqtt_brokers WHERE is_enabled = 1 ORDER BY sort_order ASC`)
 	if err != nil {
 		slog.Error("query enabled brokers", "err", err)
