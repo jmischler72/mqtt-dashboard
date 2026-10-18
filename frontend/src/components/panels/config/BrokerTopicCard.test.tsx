@@ -132,12 +132,16 @@ describe("BrokerTopicCard", () => {
     expect(topicInput).toBeInTheDocument();
     expect(screen.getByText("Invalid topic format")).toBeInTheDocument();
 
+    const card = toggleButton.closest(".rounded-xl");
+    expect(card).toHaveClass("border-warning");
+    expect(card).not.toHaveClass("dark:border-base-100");
+
     const topicFieldItem = topicInput.closest(".join-item");
     const brokerSelectItem = brokerInput.closest(".join-item");
-    expect(topicFieldItem).toHaveClass("border-warning");
-    expect(topicFieldItem).not.toHaveClass("dark:border-base-100");
-    expect(brokerSelectItem).toHaveClass("border-warning");
-    expect(brokerSelectItem).not.toHaveClass("dark:border-base-100");
+    expect(topicFieldItem).not.toHaveClass("border-warning");
+    expect(topicFieldItem).toHaveClass("border-base-300");
+    expect(brokerSelectItem).not.toHaveClass("border-warning");
+    expect(brokerSelectItem).toHaveClass("border-base-300");
   });
 
   it("renders bare mode without disclosure card wrapper", () => {

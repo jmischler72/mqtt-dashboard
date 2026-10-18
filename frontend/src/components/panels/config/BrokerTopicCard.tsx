@@ -69,13 +69,11 @@ export default function BrokerTopicCard({
           onChange={onBrokerChange}
           brokers={brokers}
           joined
-          invalid={Boolean(topicError)}
         />
         <TopicField
           value={topic}
           onChange={onTopicChange}
           placeholder={topicPlaceholder}
-          invalid={Boolean(topicError)}
           onExplore={onExplore}
           brokerId={brokerId}
           joined
