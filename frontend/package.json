@@ -20,7 +20,7 @@
     "cronstrue": "^3.31.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-grid-layout": "^2.3.0",
+    "react-grid-layout": "2.2.4",
     "react-icons": "^5.7.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.4"

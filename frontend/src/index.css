@@ -20,6 +20,91 @@
   animation: panel-highlight-fade 2s ease-out forwards;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Resize handles: theme-aware styling, larger hit area, and subtle visibility in edit mode */
+.react-grid-item > .react-resizable-handle {
+  width: 24px;
+  height: 24px;
+  bottom: 1px;
+  right: 1px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease-in-out;
+  z-index: 20;
+}
+
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 1;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.6;
+}
+
+.react-grid-item:hover > .react-resizable-handle::after {
+  opacity: 0.95;
+}
+
+/* Crisp, instant panel resizing & dragging without transition lag on the active item */
+.react-grid-item.resizing {
+  z-index: 10 !important;
+  transition: none !important;
+  will-change: width, height;
+}
+
+.react-grid-item.react-draggable-dragging {
+  z-index: 10 !important;
+  transition: none !important;
+  will-change: transform;
+}
+
+.react-grid-item.resizing > .react-resizable-handle,
+.react-grid-item.react-draggable-dragging > .react-resizable-handle {
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+/* Clean, theme-aware placeholder placed behind active panel (replaces default red box) */
+.react-grid-item.react-grid-placeholder {
+  background: var(--color-base-300, rgba(0, 0, 0, 0.06)) !important;
+  border: 2px dashed var(--color-primary, #3b82f6) !important;
+  border-radius: var(--radius-box, 0.75rem) !important;
+  opacity: 0.7 !important;
+  transition: none !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
+/* While dragging or resizing, disable transitions, text selection, and child hover hit-testing across all panels */
+body.grid-interacting,
+body.grid-interacting * {
+  user-select: none !important;
+}
+
+body.grid-interacting .react-grid-item {
+  transition: none !important;
+  contain: layout;
+}
+
+body.grid-interacting .react-grid-item > div {
+  pointer-events: none !important;
+}
+
+body.grid-interacting .react-grid-item > .react-resizable-handle,
+body.grid-interacting .react-grid-item .drag-handle {
+  pointer-events: auto !important;
+}
+
 @keyframes status-dot-hover-hint {
   0%,
   100% {

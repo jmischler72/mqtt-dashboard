@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactGridLayout from "react-grid-layout";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { MdAdd } from "react-icons/md";
@@ -20,6 +20,7 @@ type GridLayout = {
   h: number;
   minW?: number;
   minH?: number;
+  resizeHandles?: Array<"s" | "w" | "e" | "n" | "sw" | "nw" | "se" | "ne">;
 };
 
 export interface Panel {
@@ -129,6 +130,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const checkAnyModalOpen = () => {
+      if (document.body.classList.contains("grid-interacting")) return;
       const isOpen = Boolean(
         document.querySelector(".modal.modal-open, dialog.modal[open]"),
       );
@@ -137,7 +139,32 @@ export default function DashboardPage() {
 
     checkAnyModalOpen();
 
-    const observer = new MutationObserver(checkAnyModalOpen);
+    const observer = new MutationObserver((mutations) => {
+      if (document.body.classList.contains("grid-interacting")) return;
+      const affectsModal = mutations.some(
+        (m) =>
+          (m.type === "attributes" &&
+            (m.target as Element)?.classList?.contains("modal")) ||
+          Array.from(m.addedNodes).some(
+            (n) =>
+              n instanceof Element &&
+              (n.classList.contains("modal") ||
+                n.tagName === "DIALOG" ||
+                Boolean(n.querySelector?.(".modal, dialog"))),
+          ) ||
+          Array.from(m.removedNodes).some(
+            (n) =>
+              n instanceof Element &&
+              (n.classList.contains("modal") ||
+                n.tagName === "DIALOG" ||
+                Boolean(n.querySelector?.(".modal, dialog"))),
+          ),
+      );
+      if (affectsModal) {
+        checkAnyModalOpen();
+      }
+    });
+
     observer.observe(document.body, {
       childList: true,
       subtree: true,
@@ -151,9 +178,10 @@ export default function DashboardPage() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const obs = new ResizeObserver(([entry]) =>
-      setGridWidth(entry.contentRect.width),
-    );
+    const obs = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width);
+      setGridWidth((prev) => (Math.abs(prev - width) >= 1 ? width : prev));
+    });
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
@@ -186,31 +214,36 @@ export default function DashboardPage() {
   const gridInteractionsEnabled =
     editMode && openConfigPanels.size === 0 && !hasAnyModalOpen;
 
-  const layout = panels.map((p) => {
-    let minW = 2,
-      minH = 2;
-    let maxW: number | undefined, maxH: number | undefined;
-    const def = getPanelDefinition(p.panel_type);
-    if (def?.getMinMaxConstraints) {
-      const constraints = def.getMinMaxConstraints(p.config_json);
-      if (constraints.minW !== undefined) minW = constraints.minW;
-      if (constraints.minH !== undefined) minH = constraints.minH;
-      if (constraints.maxW !== undefined) maxW = constraints.maxW;
-      if (constraints.maxH !== undefined) maxH = constraints.maxH;
-    }
-    return {
-      i: p.id,
-      x: p.x,
-      y: p.y,
-      w: p.w,
-      h: p.h,
-      minW,
-      minH,
-      maxW,
-      maxH,
-      static: !gridInteractionsEnabled,
-    };
-  });
+  const layout = useMemo(
+    () =>
+      panels.map((p) => {
+        let minW = 2,
+          minH = 2;
+        let maxW: number | undefined, maxH: number | undefined;
+        const def = getPanelDefinition(p.panel_type);
+        if (def?.getMinMaxConstraints) {
+          const constraints = def.getMinMaxConstraints(p.config_json);
+          if (constraints.minW !== undefined) minW = constraints.minW;
+          if (constraints.minH !== undefined) minH = constraints.minH;
+          if (constraints.maxW !== undefined) maxW = constraints.maxW;
+          if (constraints.maxH !== undefined) maxH = constraints.maxH;
+        }
+        return {
+          i: p.id,
+          x: p.x,
+          y: p.y,
+          w: p.w,
+          h: p.h,
+          minW,
+          minH,
+          maxW,
+          maxH,
+          static: !gridInteractionsEnabled,
+          resizeHandles: ["se"],
+        };
+      }),
+    [panels, gridInteractionsEnabled],
+  );
 
   const handleLayoutChange = useCallback(
     (newLayout: GridLayout[]) => {
@@ -235,6 +268,162 @@ export default function DashboardPage() {
     },
     [gridInteractionsEnabled],
   );
+
+  // Auto-scrolling and bottom space expansion when dragging or resizing near viewport edges
+  const isInteractingRef = useRef(false);
+  const isAutoScrollingRef = useRef(false);
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+
+  const stopAutoScroll = useCallback(() => {
+    isInteractingRef.current = false;
+    lastPointerRef.current = null;
+    document.body.classList.remove("grid-interacting");
+    if (autoScrollRafRef.current !== null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+    if (containerRef.current) {
+      containerRef.current.style.paddingBottom = "";
+    }
+  }, []);
+
+  const checkAndScheduleAutoScroll = useCallback(() => {
+    if (!isInteractingRef.current || !lastPointerRef.current) return;
+    const { y } = lastPointerRef.current;
+    const vh = window.innerHeight;
+    const edgeThreshold = 35;
+    const nearBottom = y > vh - edgeThreshold;
+    const nearTop = y < edgeThreshold && window.scrollY > 0;
+
+    if (nearBottom || nearTop) {
+      if (autoScrollRafRef.current === null) {
+        const tick = () => {
+          if (!isInteractingRef.current || !lastPointerRef.current) {
+            autoScrollRafRef.current = null;
+            return;
+          }
+          const { x, y: curY } = lastPointerRef.current;
+          const curVh = window.innerHeight;
+          let deltaY = 0;
+          if (curY > curVh - edgeThreshold) {
+            deltaY = 10;
+          } else if (curY < edgeThreshold && window.scrollY > 0) {
+            deltaY = -10;
+          }
+
+          if (deltaY !== 0) {
+            isAutoScrollingRef.current = true;
+            window.scrollBy(0, deltaY);
+            isAutoScrollingRef.current = false;
+            // Notify react-draggable of the new scroll position so height updates while cursor is held at bottom
+            document.dispatchEvent(
+              new MouseEvent("mousemove", {
+                clientX: x,
+                clientY: curY,
+                bubbles: true,
+              }),
+            );
+            autoScrollRafRef.current = requestAnimationFrame(tick);
+          } else {
+            autoScrollRafRef.current = null;
+          }
+        };
+        autoScrollRafRef.current = requestAnimationFrame(tick);
+      }
+    } else if (autoScrollRafRef.current !== null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+  }, []);
+
+  const handleInteractionStart = useCallback(
+    (
+      _layout: unknown,
+      _oldItem: unknown,
+      _newItem: unknown,
+      _placeholder: unknown,
+      e?: MouseEvent | TouchEvent,
+    ) => {
+      if (!gridInteractionsEnabled) return;
+      isInteractingRef.current = true;
+      document.body.classList.add("grid-interacting");
+      if (containerRef.current) {
+        containerRef.current.style.paddingBottom = "320px";
+      }
+      const clientX =
+        e && "clientX" in e
+          ? e.clientX
+          : e && "touches" in e && e.touches[0]
+            ? e.touches[0].clientX
+            : undefined;
+      const clientY =
+        e && "clientY" in e
+          ? e.clientY
+          : e && "touches" in e && e.touches[0]
+            ? e.touches[0].clientY
+            : undefined;
+      if (typeof clientX === "number" && typeof clientY === "number") {
+        lastPointerRef.current = { x: clientX, y: clientY };
+        checkAndScheduleAutoScroll();
+      }
+    },
+    [gridInteractionsEnabled, checkAndScheduleAutoScroll],
+  );
+
+  useEffect(() => {
+    const handlePointerMove = (e: MouseEvent | PointerEvent) => {
+      if (!e.isTrusted) return;
+      if (isInteractingRef.current) {
+        lastPointerRef.current = { x: e.clientX, y: e.clientY };
+        if (e.buttons === 0) {
+          stopAutoScroll();
+        } else {
+          checkAndScheduleAutoScroll();
+        }
+      }
+    };
+
+    const handlePointerUp = (e: MouseEvent | PointerEvent) => {
+      if (!e.isTrusted) return;
+      if (isInteractingRef.current) {
+        stopAutoScroll();
+      }
+    };
+
+    const handleWindowScroll = () => {
+      if (
+        !isInteractingRef.current ||
+        !lastPointerRef.current ||
+        isAutoScrollingRef.current
+      )
+        return;
+      // When user scrolls via trackpad or mouse wheel during resize, update react-draggable
+      document.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: lastPointerRef.current.x,
+          clientY: lastPointerRef.current.y,
+          bubbles: true,
+        }),
+      );
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
+    window.addEventListener("pointerup", handlePointerUp, { passive: true });
+    window.addEventListener("scroll", handleWindowScroll, { passive: true });
+    window.addEventListener("blur", stopAutoScroll);
+
+    return () => {
+      stopAutoScroll();
+      document.body.classList.remove("grid-interacting");
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("scroll", handleWindowScroll);
+      window.removeEventListener("blur", stopAutoScroll);
+    };
+  }, [stopAutoScroll, checkAndScheduleAutoScroll]);
 
   const getClosestInsertPosition = useCallback(() => {
     const collides = (x: number, y: number) =>
@@ -283,13 +472,13 @@ export default function DashboardPage() {
     }
   };
 
-  const removePanel = (id: string) => {
+  const removePanel = useCallback((id: string) => {
     setPanels((prev) => prev.filter((p) => p.id !== id));
-  };
+  }, []);
 
-  const updatePanel = (updated: Panel) => {
+  const updatePanel = useCallback((updated: Panel) => {
     setPanels((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-  };
+  }, []);
 
   const handleConfigModalChange = useCallback(
     (panelId: string, isOpen: boolean) => {
@@ -368,40 +557,57 @@ export default function DashboardPage() {
       pendingHighlightRef.current = panelId;
       switchDashboard(targetDashboardId);
     },
-    [panels, dashboards, switchDashboard],
+    [panels, dashboards, switchDashboard, removePanel],
   );
 
-  const renderPanelWrapper = (panel: Panel) => (
-    <PanelWrapper
-      panel={panel}
-      editMode={editMode}
-      brokerStatuses={brokerStatuses}
-      activeDashboardId={activeDashboardId}
-      dashboards={dashboards}
-      highlight={panel.id === highlightedPanelId}
-      pickerReturnTopic={
-        pendingPickerReturn?.panelId === panel.id
-          ? pendingPickerReturn.topic
-          : undefined
-      }
-      pickerReturnBrokerId={
-        pendingPickerReturn?.panelId === panel.id
-          ? pendingPickerReturn.brokerId
-          : undefined
-      }
-      pickerReturnDraftConfig={
-        pendingPickerReturn?.panelId === panel.id
-          ? pendingPickerReturn.draftConfig
-          : undefined
-      }
-      onDelete={() => removePanel(panel.id)}
-      onUpdate={updatePanel}
-      onDuplicate={addDuplicatedPanel}
-      onCopy={handlePanelCopy}
-      onMove={handlePanelMove}
-      onConfigModalChange={handleConfigModalChange}
-      onPickerConsumed={handlePickerConsumed}
-    />
+  const renderPanelWrapper = useCallback(
+    (panel: Panel) => (
+      <PanelWrapper
+        panel={panel}
+        editMode={editMode}
+        brokerStatuses={brokerStatuses}
+        activeDashboardId={activeDashboardId}
+        dashboards={dashboards}
+        highlight={panel.id === highlightedPanelId}
+        pickerReturnTopic={
+          pendingPickerReturn?.panelId === panel.id
+            ? pendingPickerReturn.topic
+            : undefined
+        }
+        pickerReturnBrokerId={
+          pendingPickerReturn?.panelId === panel.id
+            ? pendingPickerReturn.brokerId
+            : undefined
+        }
+        pickerReturnDraftConfig={
+          pendingPickerReturn?.panelId === panel.id
+            ? pendingPickerReturn.draftConfig
+            : undefined
+        }
+        onDelete={() => removePanel(panel.id)}
+        onUpdate={updatePanel}
+        onDuplicate={addDuplicatedPanel}
+        onCopy={handlePanelCopy}
+        onMove={handlePanelMove}
+        onConfigModalChange={handleConfigModalChange}
+        onPickerConsumed={handlePickerConsumed}
+      />
+    ),
+    [
+      editMode,
+      brokerStatuses,
+      activeDashboardId,
+      dashboards,
+      highlightedPanelId,
+      pendingPickerReturn,
+      removePanel,
+      updatePanel,
+      addDuplicatedPanel,
+      handlePanelCopy,
+      handlePanelMove,
+      handleConfigModalChange,
+      handlePickerConsumed,
+    ],
   );
 
   // Consume pending highlight when target dashboard's panels finish loading
@@ -438,6 +644,24 @@ export default function DashboardPage() {
     triggerHighlight,
     setSearchParams,
   ]);
+
+  const gridChildren = useMemo(
+    () =>
+      panels.map((panel) => (
+        <div
+          key={panel.id}
+          id={`panel-${panel.id}`}
+          className={`overflow-hidden ${
+            panel.panel_type === "separator" && !editMode
+              ? "flex items-center justify-center"
+              : ""
+          }`}
+        >
+          {renderPanelWrapper(panel)}
+        </div>
+      )),
+    [panels, editMode, renderPanelWrapper],
+  );
 
   return (
     <>
@@ -530,20 +754,13 @@ export default function DashboardPage() {
                 onLayoutChange={handleLayoutChange}
                 draggableHandle=".drag-handle"
                 draggableCancel=".no-drag"
+                onDragStart={handleInteractionStart}
+                onDragStop={stopAutoScroll}
+                onResizeStart={handleInteractionStart}
+                onResizeStop={stopAutoScroll}
+                resizeHandles={["se"]}
               >
-                {panels.map((panel) => (
-                  <div
-                    key={panel.id}
-                    id={`panel-${panel.id}`}
-                    className={
-                      panel.panel_type === "separator" && !editMode
-                        ? "flex items-center justify-center"
-                        : ""
-                    }
-                  >
-                    {renderPanelWrapper(panel)}
-                  </div>
-                ))}
+                {gridChildren}
               </RGL>
             </div>
           )}
