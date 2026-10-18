@@ -367,18 +367,18 @@ func TestScheduler_RemoveAllPanelJobs(t *testing.T) {
 	}
 }
 
-func TestScheduler_StartDemoResetJob(t *testing.T) {
+func TestScheduler_AddSystemJob(t *testing.T) {
 	pub := &mockPublisher{defaultID: "def-broker"}
 	sc, _ := cron.NewScheduler(pub)
 	sc.Start()
 	defer sc.Stop()
 
-	if err := sc.StartDemoResetJob("invalid", func() {}); err == nil {
+	if err := sc.AddSystemJob("test-tag", "invalid", func() {}); err == nil {
 		t.Fatal("expected error for invalid cron expression")
 	}
 
-	if err := sc.StartDemoResetJob("0 */5 * * *", func() {}); err != nil {
-		t.Fatalf("StartDemoResetJob failed: %v", err)
+	if err := sc.AddSystemJob("test-tag", "0 */5 * * *", func() {}); err != nil {
+		t.Fatalf("AddSystemJob failed: %v", err)
 	}
 }
 

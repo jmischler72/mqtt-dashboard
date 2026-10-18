@@ -243,15 +243,15 @@ func (sc *Scheduler) StartPruningJob(db *sql.DB) error {
 	return err
 }
 
-// StartDemoResetJob registers a recurring cron job that periodically resets the demo database.
-func (sc *Scheduler) StartDemoResetJob(cronExpr string, resetFn func()) error {
+// AddSystemJob registers a named recurring cron job (e.g. for maintenance or resets).
+func (sc *Scheduler) AddSystemJob(tag, cronExpr string, task func()) error {
 	if err := ValidateCronExpr(cronExpr); err != nil {
-		return fmt.Errorf("invalid demo reset cron expression %q: %w", cronExpr, err)
+		return fmt.Errorf("invalid cron expression %q: %w", cronExpr, err)
 	}
 	_, err := sc.s.NewJob(
 		gocron.CronJob(cronExpr, false),
-		gocron.NewTask(resetFn),
-		gocron.WithTags("demo-reset"),
+		gocron.NewTask(task),
+		gocron.WithTags(tag),
 	)
 	return err
 }
