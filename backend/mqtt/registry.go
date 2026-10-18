@@ -277,6 +277,20 @@ func (r *BrokerRegistry) RemoveBroker(id string) {
 	}
 }
 
+// RemoveAllBrokers gracefully disconnects and removes all broker clients.
+func (r *BrokerRegistry) RemoveAllBrokers() {
+	r.mu.Lock()
+	ids := make([]string, 0, len(r.clients))
+	for id := range r.clients {
+		ids = append(ids, id)
+	}
+	r.mu.Unlock()
+
+	for _, id := range ids {
+		r.RemoveBroker(id)
+	}
+}
+
 // GetClient returns the MQTTManager for a broker ID.
 func (r *BrokerRegistry) GetClient(id string) (*MQTTManager, bool) {
 	r.mu.RLock()

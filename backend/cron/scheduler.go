@@ -137,6 +137,18 @@ func (sc *Scheduler) RemoveJob(panelID string) {
 	delete(sc.jobs, panelID)
 }
 
+// RemoveAllPanelJobs removes all panel-driven jobs from the scheduler,
+// leaving system jobs (e.g. history pruning, demo reset) intact.
+func (sc *Scheduler) RemoveAllPanelJobs() {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	slog.Info("cron remove all panel jobs", "count", len(sc.jobs))
+	for panelID := range sc.jobs {
+		sc.s.RemoveByTags(panelID) //nolint
+	}
+	sc.jobs = make(map[string]*JobInfo)
+}
+
 func (sc *Scheduler) ToggleJob(panelID string, enabled bool) error {
 	sc.mu.Lock()
 	info, ok := sc.jobs[panelID]
@@ -227,6 +239,19 @@ func (sc *Scheduler) StartPruningJob(db *sql.DB) error {
 		}),
 		gocron.JobOption(gocron.WithStartImmediately()),
 		gocron.WithTags("pruning"),
+	)
+	return err
+}
+
+// StartDemoResetJob registers a recurring cron job that periodically resets the demo database.
+func (sc *Scheduler) StartDemoResetJob(cronExpr string, resetFn func()) error {
+	if err := ValidateCronExpr(cronExpr); err != nil {
+		return fmt.Errorf("invalid demo reset cron expression %q: %w", cronExpr, err)
+	}
+	_, err := sc.s.NewJob(
+		gocron.CronJob(cronExpr, false),
+		gocron.NewTask(resetFn),
+		gocron.WithTags("demo-reset"),
 	)
 	return err
 }

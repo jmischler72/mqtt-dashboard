@@ -103,6 +103,23 @@ func main() {
 	defer logicEngine.Stop()
 	loadLogicRulesFromDB(database, logicEngine)
 
+	// --- Demo Mode Auto-Reset ---
+	if runtimeConfig.DemoMode {
+		cronExpr := os.Getenv("MQTT_DASHBOARD_DEMO_RESET_CRON")
+		if cronExpr == "" {
+			cronExpr = "0 */5 * * *"
+		}
+		if cronExpr != "off" && cronExpr != "disabled" {
+			if err := scheduler.StartDemoResetJob(cronExpr, func() {
+				resetDemoDatabase(database, registry, scheduler, logicEngine, runtimeConfig.SeedConfigFile)
+			}); err != nil {
+				slog.Error("start demo reset job", "err", err)
+			} else {
+				slog.Info("demo auto-reset scheduled", "cron", cronExpr)
+			}
+		}
+	}
+
 	// --- Init WebSocket hub ---
 	wsHub := ws.NewHub(registry, database)
 
@@ -297,6 +314,42 @@ func initRegistrySettings(database *sql.DB, registry *mqttclient.BrokerRegistry)
 		saveSys = false
 	}
 	registry.SetSaveSysTopics(saveSys)
+}
+
+// resetDemoDatabase wipes user-modified tables and re-seeds from the configured seed file.
+func resetDemoDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, seedFile string) {
+	slog.Info("demo auto-reset starting")
+
+	if seedFile == "" {
+		seedFile = os.Getenv("MQTT_DASHBOARD_SEED_FILE")
+	}
+
+	queries := []string{
+		"DELETE FROM mqtt_history",
+		"DELETE FROM dashboard_layouts",
+		"DELETE FROM dashboards WHERE id != 'default'",
+		"DELETE FROM mqtt_brokers",
+		"UPDATE dashboards SET name = 'Home Automation' WHERE id = 'default'",
+		"UPDATE app_settings SET retention_period_hours = 24, save_sys_topics = 0 WHERE id = 1",
+	}
+	for _, q := range queries {
+		if _, err := database.Exec(q); err != nil {
+			slog.Error("demo reset query failed", "query", q, "err", err)
+		}
+	}
+
+	config.SeedBrokersFromPath(database, seedFile)
+
+	registry.RemoveAllBrokers()
+	autoConnectFromDB(database, registry)
+
+	scheduler.RemoveAllPanelJobs()
+	loadCronJobsFromDB(database, scheduler)
+
+	logicEngine.ClearAllRules()
+	loadLogicRulesFromDB(database, logicEngine)
+
+	slog.Info("demo auto-reset completed successfully")
 }
 
 // autoConnectFromDB loads all enabled brokers and connects each one on startup.

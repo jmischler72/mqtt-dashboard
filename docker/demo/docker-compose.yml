@@ -28,9 +28,6 @@ services:
     restart: unless-stopped
     depends_on:
       - mosquitto
-    volumes:
-      - data_volume:/app/data
-      - ./reset-db.py:/app/reset-db.py:ro
     environment:
       - PUBLISH_INTERVAL=5
       - BROKER_PLAIN_HOST=mosquitto
