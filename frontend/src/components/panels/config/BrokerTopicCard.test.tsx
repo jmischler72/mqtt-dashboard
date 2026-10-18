@@ -127,8 +127,21 @@ describe("BrokerTopicCard", () => {
 
     const toggleButton = screen.getByRole("button", { name: /Broker & Topic/ });
     expect(toggleButton).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("textbox", { name: "Topic" })).toBeInTheDocument();
+    const topicInput = screen.getByRole("textbox", { name: "Topic" });
+    const brokerInput = screen.getByRole("combobox", { name: "Broker" });
+    expect(topicInput).toBeInTheDocument();
     expect(screen.getByText("Invalid topic format")).toBeInTheDocument();
+
+    const card = toggleButton.closest(".rounded-xl");
+    expect(card).toHaveClass("border-warning");
+    expect(card).not.toHaveClass("dark:border-base-100");
+
+    const topicFieldItem = topicInput.closest(".join-item");
+    const brokerSelectItem = brokerInput.closest(".join-item");
+    expect(topicFieldItem).not.toHaveClass("border-warning");
+    expect(topicFieldItem).toHaveClass("border-base-300");
+    expect(brokerSelectItem).not.toHaveClass("border-warning");
+    expect(brokerSelectItem).toHaveClass("border-base-300");
   });
 
   it("renders bare mode without disclosure card wrapper", () => {
