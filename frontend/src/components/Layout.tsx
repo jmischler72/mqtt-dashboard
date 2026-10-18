@@ -349,41 +349,43 @@ export default function Layout() {
           <div
             role="region"
             aria-label="Demo instance notice"
-            className="bg-warning/10 border-b border-warning/30 px-4 py-1.5 flex items-center justify-between text-xs text-base-content/90"
+            className="bg-base-100 border-b border-warning/30 text-xs text-base-content/90"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="badge badge-warning badge-xs font-semibold uppercase tracking-wider shrink-0">
-                Demo
-              </span>
-              <span className="truncate">
-                <span className="hidden sm:inline">
-                  Interactive demo instance with simulated IoT telemetry. Feel
-                  free to explore and edit — changes reset periodically.
+            <div className="bg-warning/10 px-4 py-1.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="badge badge-warning badge-xs font-semibold uppercase tracking-wider shrink-0">
+                  Demo
                 </span>
-                <span className="sm:hidden">
-                  Demo instance with simulated telemetry. Resets periodically.
+                <span className="truncate">
+                  <span className="hidden sm:inline">
+                    Interactive demo instance with simulated IoT telemetry. Feel
+                    free to explore and edit — changes reset periodically.
+                  </span>
+                  <span className="sm:hidden">
+                    Demo instance with simulated telemetry. Resets periodically.
+                  </span>
                 </span>
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 ml-3">
-              <a
-                href="https://github.com/jmischler72/mqtt-dashboard"
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-ghost btn-xs gap-1 font-normal opacity-75 hover:opacity-100"
-                title="View repository on GitHub"
-              >
-                <span className="hidden md:inline">GitHub</span>
-                <RiExternalLinkLine className="text-xs" />
-              </a>
-              <button
-                onClick={dismissDemoBanner}
-                className="btn btn-ghost btn-xs btn-square text-base-content/60 hover:text-base-content"
-                aria-label="Dismiss demo banner"
-                title="Dismiss banner"
-              >
-                <RiCloseLine className="text-sm" />
-              </button>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                <a
+                  href="https://github.com/jmischler72/mqtt-dashboard"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost btn-xs gap-1 font-normal opacity-75 hover:opacity-100"
+                  title="View repository on GitHub"
+                >
+                  <span className="hidden md:inline">GitHub</span>
+                  <RiExternalLinkLine className="text-xs" />
+                </a>
+                <button
+                  onClick={dismissDemoBanner}
+                  className="btn btn-ghost btn-xs btn-square text-base-content/60 hover:text-base-content"
+                  aria-label="Dismiss demo banner"
+                  title="Dismiss banner"
+                >
+                  <RiCloseLine className="text-sm" />
+                </button>
+              </div>
             </div>
           </div>
         )}
