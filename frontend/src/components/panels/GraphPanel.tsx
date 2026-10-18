@@ -712,10 +712,10 @@ export default function GraphPanel({
             aria-label={`Graph of ${topicsKey}`}
           >
             <g transform={`translate(${PADDING.left}, ${PADDING.top})`}>
-              {valueTicks(bounds).map((tick) => {
+              {valueTicks(bounds).map((tick, i) => {
                 const y = projectY(tick, bounds, plotHeight);
                 return (
-                  <g key={tick}>
+                  <g key={`${tick}-${i}`}>
                     <line
                       x1={0}
                       x2={plotWidth}
@@ -791,9 +791,9 @@ export default function GraphPanel({
                       strokeLinejoin="round"
                     />
                     {showPoints &&
-                      s.points.map((p) => (
+                      s.points.map((p, idx) => (
                         <circle
-                          key={`${p.t}-${p.v}`}
+                          key={`${p.t}-${p.v}-${idx}`}
                           cx={projectX(p.t, bounds, plotWidth)}
                           cy={projectY(p.v, bounds, plotHeight)}
                           r={2}
@@ -818,7 +818,7 @@ export default function GraphPanel({
                   />
                   {hoverInfo.entries.map((entry) => (
                     <circle
-                      key={entry.topic}
+                      key={`${entry.topic}-${entry.index}`}
                       cx={projectX(entry.point.t, bounds, plotWidth)}
                       cy={projectY(entry.point.v, bounds, plotHeight)}
                       r={3.5}
@@ -849,7 +849,10 @@ export default function GraphPanel({
               {formatTimeLabel(hoverInfo.t)}
             </div>
             {hoverInfo.entries.map((entry) => (
-              <div key={entry.topic} className="flex items-center gap-1.5">
+              <div
+                key={`${entry.topic}-${entry.index}`}
+                className="flex items-center gap-1.5"
+              >
                 <span
                   className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${seriesColor(entry.index).swatch}`}
                 />
@@ -880,7 +883,10 @@ export default function GraphPanel({
           {series.map((s, index) => {
             const last = s.points[s.points.length - 1];
             return (
-              <div key={s.topic} className="flex items-center gap-1 min-w-0">
+              <div
+                key={`${s.topic}-${index}`}
+                className="flex items-center gap-1 min-w-0"
+              >
                 <span
                   className={`inline-block w-2 h-2 rounded-full shrink-0 ${seriesColor(index).swatch}`}
                 />

@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  memo,
+  useMemo,
+} from "react";
 import { Link } from "react-router-dom";
 import { MdListAlt } from "react-icons/md";
 import { RiExternalLinkLine } from "react-icons/ri";
@@ -267,6 +274,52 @@ function normalizeTimestamp(value: string | undefined): string {
   return parsed.toISOString();
 }
 
+interface LogMessageItemProps {
+  message: LogMessage;
+  dateFormat: LogDateFormat;
+  showSource: boolean;
+  showQos: boolean;
+  showRetained: boolean;
+}
+
+const LogMessageItem = memo(function LogMessageItem({
+  message: m,
+  dateFormat,
+  showSource,
+  showQos,
+  showRetained,
+}: LogMessageItemProps) {
+  const timestampStr = useMemo(
+    () => formatTimestamp(new Date(m.receivedAt), dateFormat),
+    [m.receivedAt, dateFormat],
+  );
+
+  return (
+    <div className={`leading-tight ${m.historical ? "opacity-50" : ""}`}>
+      <span className="text-neutral-content/70">[{timestampStr}]</span>{" "}
+      <span className="text-accent">{m.topic}</span>
+      {showSource && m.sourcePanelId && (
+        <Link
+          to={`/dashboard?${m.sourceDashboardId ? `dashboard=${encodeURIComponent(m.sourceDashboardId)}&` : ""}panel=${encodeURIComponent(m.sourcePanelId)}`}
+          className="badge badge-xs badge-info hover:badge-primary gap-0.5 ml-1 font-normal no-underline inline-flex items-center align-middle cursor-pointer max-w-[140px] truncate"
+          title={`Sent by ${m.sourcePanelTitle || m.sourcePanelId}`}
+          data-tip={`Panel: ${m.sourcePanelTitle || m.sourcePanelId}`}
+        >
+          <RiExternalLinkLine className="w-2.5 h-2.5 flex-shrink-0" />
+          <span className="truncate">{m.sourcePanelTitle || "Panel"}</span>
+        </Link>
+      )}
+      {showQos && m.qos !== undefined && (
+        <span className="badge badge-xs badge-ghost ml-1">Q{m.qos}</span>
+      )}
+      {showRetained && m.retained && (
+        <span className="badge badge-xs badge-warning ml-1">R</span>
+      )}{" "}
+      <span>{m.payload}</span>
+    </div>
+  );
+});
+
 interface LogPanelProps {
   panelId: string;
   brokerId: string;
@@ -277,7 +330,6 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   const [messages, setMessages] = useState<LogMessage[]>([]);
   const [paused, setPaused] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
-  const prevLengthRef = useRef(0);
   const shouldAutoScrollRef = useRef(true);
   const maxMessages = config.maxMessages ?? 200;
   const dateFormat = config.dateFormat ?? "time";
@@ -292,7 +344,6 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
 
   useEffect(() => {
     // Clear buffer when switching topic/broker to avoid stale lines.
-    prevLengthRef.current = 0;
     shouldAutoScrollRef.current = true;
     const id = setTimeout(() => setMessages([]), 0);
     return () => clearTimeout(id);
@@ -410,16 +461,11 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
     subscribe({ panel_id: panelId, broker_id: brokerId, topics: topicList });
   }, [panelId, brokerId, config.topics, subscribe]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = logContainerRef.current;
-    if (!el) return;
-
-    const wasAppended = messages.length > prevLengthRef.current;
-    prevLengthRef.current = messages.length;
-
-    if (!wasAppended || paused || !shouldAutoScrollRef.current) return;
+    if (!el || paused || !shouldAutoScrollRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages.length, paused]);
+  }, [messages, paused]);
 
   const handleLogScroll = () => {
     const el = logContainerRef.current;
@@ -437,8 +483,8 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex gap-2 px-1 pb-1">
+    <div className="flex flex-col h-full min-h-0 max-h-full overflow-hidden">
+      <div className="flex gap-2 px-1 pb-1 shrink-0">
         <button className="btn btn-xs" onClick={() => setMessages([])}>
           Clear
         </button>
@@ -455,38 +501,18 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
       <div
         ref={logContainerRef}
         onScroll={handleLogScroll}
-        className="flex-1 overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5"
+        style={{ overflowAnchor: "none" }}
+        className="flex-1 min-h-0 max-h-full overflow-y-auto bg-neutral text-neutral-content rounded font-mono text-xs p-2 space-y-0.5"
       >
         {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`leading-tight ${m.historical ? "opacity-50" : ""}`}
-          >
-            <span className="text-neutral-content/70">
-              [{formatTimestamp(new Date(m.receivedAt), dateFormat)}]
-            </span>{" "}
-            <span className="text-accent">{m.topic}</span>
-            {showSource && m.sourcePanelId && (
-              <Link
-                to={`/dashboard?${m.sourceDashboardId ? `dashboard=${encodeURIComponent(m.sourceDashboardId)}&` : ""}panel=${encodeURIComponent(m.sourcePanelId)}`}
-                className="badge badge-xs badge-info hover:badge-primary gap-0.5 ml-1 font-normal no-underline inline-flex items-center align-middle cursor-pointer max-w-[140px] truncate"
-                title={`Sent by ${m.sourcePanelTitle || m.sourcePanelId}`}
-                data-tip={`Panel: ${m.sourcePanelTitle || m.sourcePanelId}`}
-              >
-                <RiExternalLinkLine className="w-2.5 h-2.5 flex-shrink-0" />
-                <span className="truncate">
-                  {m.sourcePanelTitle || "Panel"}
-                </span>
-              </Link>
-            )}
-            {showQos && m.qos !== undefined && (
-              <span className="badge badge-xs badge-ghost ml-1">Q{m.qos}</span>
-            )}
-            {showRetained && m.retained && (
-              <span className="badge badge-xs badge-warning ml-1">R</span>
-            )}{" "}
-            <span>{m.payload}</span>
-          </div>
+          <LogMessageItem
+            key={`${m.receivedAt}-${m.topic}-${i}`}
+            message={m}
+            dateFormat={dateFormat}
+            showSource={showSource}
+            showQos={showQos}
+            showRetained={showRetained}
+          />
         ))}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   RiSettings3Line,
   RiCloseLine,
@@ -52,7 +52,7 @@ const brokerDotColor: Record<string, string> = {
   DISABLED: "bg-neutral",
 };
 
-export default function PanelWrapper({
+function PanelWrapper({
   panel,
   editMode,
   brokerStatuses,
@@ -491,7 +491,7 @@ export default function PanelWrapper({
         className={
           isSeparator && !editMode
             ? `relative ${sepOrientation === "horizontal" ? "h-1/2 w-full" : "w-1/2 h-full"} overflow-hidden ${highlight ? "panel-new-highlight rounded-lg" : ""}`
-            : `flex flex-col h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
+            : `flex flex-col h-full min-h-0 max-h-full bg-base-100 rounded-lg shadow-sm overflow-hidden ${showConfig ? "border-2 border-blue-500" : "border border-base-300"} ${highlight ? "panel-new-highlight" : ""}`
         }
       >
         {/* Header — specialized compact layout for narrow separators (vertical or horizontal at w <= 1), standard header otherwise */}
@@ -572,7 +572,7 @@ export default function PanelWrapper({
         ) : (
           (!isVisual || editMode) && (
             <div
-              className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
+              className={`flex items-center gap-2 px-3 py-2 bg-base-200 border-b border-base-300 min-h-10 shrink-0 ${editMode ? "drag-handle cursor-grab active:cursor-grabbing" : ""}`}
             >
               {!isVisual && (
                 <div
@@ -797,9 +797,9 @@ export default function PanelWrapper({
           className={`overflow-hidden no-drag ${
             isSeparator
               ? editMode
-                ? "flex-1 px-1 py-0.5"
+                ? "flex-1 min-h-0 px-1 py-0.5"
                 : "h-full w-full"
-              : "flex-1 p-2"
+              : "flex-1 min-h-0 flex flex-col p-2"
           }`}
           onPointerDownCapture={(e) => e.stopPropagation()}
           onMouseDownCapture={(e) => e.stopPropagation()}
@@ -970,3 +970,17 @@ export default function PanelWrapper({
     </>
   );
 }
+
+export default memo(PanelWrapper, (prev, next) => {
+  return (
+    prev.panel === next.panel &&
+    prev.editMode === next.editMode &&
+    prev.activeDashboardId === next.activeDashboardId &&
+    prev.highlight === next.highlight &&
+    prev.brokerStatuses === next.brokerStatuses &&
+    prev.dashboards === next.dashboards &&
+    prev.pickerReturnTopic === next.pickerReturnTopic &&
+    prev.pickerReturnBrokerId === next.pickerReturnBrokerId &&
+    prev.pickerReturnDraftConfig === next.pickerReturnDraftConfig
+  );
+});
