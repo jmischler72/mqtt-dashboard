@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Stage 1: Build frontend
-FROM node:26-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:26-alpine AS frontend-builder
 WORKDIR /frontend
 
 COPY frontend/package*.json ./
@@ -12,7 +12,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build backend (with embedded frontend dist)
-FROM golang:1.27-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS backend-builder
 WORKDIR /app
 
 COPY backend/go.mod backend/go.sum ./
@@ -22,10 +22,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY backend/ ./
 COPY --from=frontend-builder /frontend/dist ./dist
 
+ARG TARGETOS
+ARG TARGETARCH
 ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -trimpath -o mqtt-dashboard .
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags="-s -w -X main.version=${VERSION}" -trimpath -o mqtt-dashboard .
 
 # Stage 3: Minimal production image
 FROM alpine:3.24

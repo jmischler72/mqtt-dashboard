@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httplog/v3"
 
 	mqttclient "mqtt-dashboard/mqtt"
 )
@@ -124,7 +124,8 @@ func main() {
 		}
 	}
 
-	r := buildRouter(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode)
+	isLogDebug := strings.EqualFold(runtimeConfig.LogLevel, "debug")
+	r := buildRouter(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode, isLogDebug)
 
 	serverURL := formatServerURL(runtimeConfig.HTTPAddr, runtimeConfig.BasePath)
 	printBanner(os.Stderr, version, serverURL, runtimeConfig.DataDir, runtimeConfig.DemoMode)
@@ -169,8 +170,9 @@ func formatServerURL(addr, basePath string) string {
 	return fmt.Sprintf("http://%s:%s%s", host, port, base)
 }
 
-func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, basePath string, demoMode ...bool) http.Handler {
-	isDemo := len(demoMode) > 0 && demoMode[0]
+func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, basePath string, opts ...bool) http.Handler {
+	isDemo := len(opts) > 0 && opts[0]
+	logRequests := len(opts) > 1 && opts[1]
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
@@ -193,9 +195,18 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 
 	// --- Router ---
 	app := chi.NewRouter()
+	httpLogLevel := slog.LevelError
+	if logRequests {
+		httpLogLevel = slog.LevelDebug
+	}
 	statusEndpoint := strings.TrimSuffix(basePath, "/") + "/api/brokers/status"
-	app.Use(skipLoggerForPaths(middleware.Logger, statusEndpoint))
-	app.Use(middleware.Recoverer)
+	app.Use(httplog.RequestLogger(slog.Default(), &httplog.Options{
+		Level:         httpLogLevel,
+		RecoverPanics: true,
+		Skip: func(req *http.Request, respStatus int) bool {
+			return req.URL.Path == statusEndpoint
+		},
+	}))
 	app.Use(corsMiddleware)
 
 	// Health
@@ -380,22 +391,4 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-// skipLoggerForPaths wraps a middleware logger to skip logging requests matching specific exact paths
-func skipLoggerForPaths(logger func(http.Handler) http.Handler, skipPaths ...string) func(http.Handler) http.Handler {
-	skip := make(map[string]struct{}, len(skipPaths))
-	for _, p := range skipPaths {
-		skip[p] = struct{}{}
-	}
-	return func(next http.Handler) http.Handler {
-		logged := logger(next)
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := skip[r.URL.Path]; ok {
-				next.ServeHTTP(w, r)
-				return
-			}
-			logged.ServeHTTP(w, r)
-		})
-	}
 }
