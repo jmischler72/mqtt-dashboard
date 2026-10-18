@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.0...v1.14.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **config:** show warning outline on entire broker/topic input and fix dark mode ([#224](https://github.com/jmischler72/mqtt-dashboard/issues/224)) ([d0730f5](https://github.com/jmischler72/mqtt-dashboard/commit/d0730f548afa10908c26c8f96d02a868d23fa64e))
+* **dashboard:** resolve clipped panel highlight on redirect ([#217](https://github.com/jmischler72/mqtt-dashboard/issues/217)) ([#225](https://github.com/jmischler72/mqtt-dashboard/issues/225)) ([2463205](https://github.com/jmischler72/mqtt-dashboard/commit/2463205aba9f1bdc69402c191c983d79db5ec1db))
+* **dashboard:** use overlay pseudo-element to prevent clipped panel highlight ([#226](https://github.com/jmischler72/mqtt-dashboard/issues/226)) ([37b1960](https://github.com/jmischler72/mqtt-dashboard/commit/37b1960b7fa35a0c70267b0dea9fcde808de2469))
+* **demo:** handle demo database auto-reset in backend and fix release webhook ([#219](https://github.com/jmischler72/mqtt-dashboard/issues/219)) ([044f734](https://github.com/jmischler72/mqtt-dashboard/commit/044f73457ee015c31e23f8e76060051fd9170648))
+* **demo:** prevent opacity leak on sticky demo banner when scrolling ([#222](https://github.com/jmischler72/mqtt-dashboard/issues/222)) ([e8c927d](https://github.com/jmischler72/mqtt-dashboard/commit/e8c927d2db3965d55cd5c5c5acaab0877046efa0))
+* **layout:** remove edit mode blue line when changing page ([#223](https://github.com/jmischler72/mqtt-dashboard/issues/223)) ([44cedb8](https://github.com/jmischler72/mqtt-dashboard/commit/44cedb84b1a3b20980de50ba0ff0610e4006941b)), closes [#213](https://github.com/jmischler72/mqtt-dashboard/issues/213)
+
 ## [1.14.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.13.1...v1.14.0) (2026-10-18)
 
 
