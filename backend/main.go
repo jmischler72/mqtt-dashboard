@@ -22,6 +22,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -103,6 +104,9 @@ func main() {
 	defer logicEngine.Stop()
 	loadLogicRulesFromDB(database, logicEngine)
 
+	// --- Init WebSocket hub ---
+	wsHub := ws.NewHub(registry, database)
+
 	// --- Demo Mode Auto-Reset ---
 	if runtimeConfig.DemoMode {
 		cronExpr := os.Getenv("MQTT_DASHBOARD_DEMO_RESET_CRON")
@@ -111,7 +115,7 @@ func main() {
 		}
 		if cronExpr != "off" && cronExpr != "disabled" {
 			if err := scheduler.StartDemoResetJob(cronExpr, func() {
-				resetDemoDatabase(database, registry, scheduler, logicEngine, runtimeConfig.SeedConfigFile)
+				resetDemoDatabase(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.SeedConfigFile)
 			}); err != nil {
 				slog.Error("start demo reset job", "err", err)
 			} else {
@@ -119,9 +123,6 @@ func main() {
 			}
 		}
 	}
-
-	// --- Init WebSocket hub ---
-	wsHub := ws.NewHub(registry, database)
 
 	var frontendFS fs.FS
 	if os.Getenv("APP_ENV") != "development" {
@@ -316,12 +317,24 @@ func initRegistrySettings(database *sql.DB, registry *mqttclient.BrokerRegistry)
 	registry.SetSaveSysTopics(saveSys)
 }
 
-// resetDemoDatabase wipes user-modified tables and re-seeds from the configured seed file.
-func resetDemoDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, seedFile string) {
+var demoResetMu sync.Mutex
+
+// resetDemoDatabase wipes user-modified tables, re-seeds from the configured seed file,
+// and resynchronizes in-memory registries, scheduler, logic engine, and WebSocket connections.
+func resetDemoDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, wsHub *ws.Hub, seedFile string) {
+	demoResetMu.Lock()
+	defer demoResetMu.Unlock()
+
 	slog.Info("demo auto-reset starting")
 
 	if seedFile == "" {
 		seedFile = os.Getenv("MQTT_DASHBOARD_SEED_FILE")
+	}
+
+	tx, err := database.Begin()
+	if err != nil {
+		slog.Error("demo reset begin transaction failed", "err", err)
+		return
 	}
 
 	queries := []string{
@@ -333,12 +346,23 @@ func resetDemoDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, sc
 		"UPDATE app_settings SET retention_period_hours = 24, save_sys_topics = 0 WHERE id = 1",
 	}
 	for _, q := range queries {
-		if _, err := database.Exec(q); err != nil {
+		if _, err := tx.Exec(q); err != nil {
+			_ = tx.Rollback()
 			slog.Error("demo reset query failed", "query", q, "err", err)
+			return
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		slog.Error("demo reset commit failed", "err", err)
+		return
+	}
+
 	config.SeedBrokersFromPath(database, seedFile)
+
+	if wsHub != nil {
+		wsHub.CloseAllClients()
+	}
 
 	registry.RemoveAllBrokers()
 	autoConnectFromDB(database, registry)

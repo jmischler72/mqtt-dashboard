@@ -184,6 +184,7 @@ func (e *Engine) ClearAllRules() {
 	}
 	e.rules = make(map[string]*Rule)
 	e.ruleStates = make(map[string]*ruleState)
+	e.guardCache = make(map[string]map[string]string)
 }
 
 // ToggleRule enables or disables an existing rule.

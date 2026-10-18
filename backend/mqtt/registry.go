@@ -275,6 +275,19 @@ func (r *BrokerRegistry) RemoveBroker(id string) {
 	if r.defaultBrokerID == id {
 		r.defaultBrokerID = ""
 	}
+
+	r.retainedMu.Lock()
+	for k := range r.retained {
+		if k.brokerID == id {
+			delete(r.retained, k)
+		}
+	}
+	for k := range r.retainedPanels {
+		if k.brokerID == id {
+			delete(r.retainedPanels, k)
+		}
+	}
+	r.retainedMu.Unlock()
 }
 
 // RemoveAllBrokers gracefully disconnects and removes all broker clients.

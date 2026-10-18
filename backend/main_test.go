@@ -656,6 +656,7 @@ func TestResetDemoDatabase(t *testing.T) {
 	}
 	logicEngine := logic.NewEngine(registry)
 	defer logicEngine.Stop()
+	wsHub := ws.NewHub(registry, database)
 
 	// Seed some custom data that should be wiped
 	_, err = database.Exec(`INSERT INTO dashboards (id, name) VALUES ('custom-dash', 'Custom Dashboard')`)
@@ -707,7 +708,7 @@ func TestResetDemoDatabase(t *testing.T) {
 		t.Fatalf("write seed file: %v", err)
 	}
 
-	resetDemoDatabase(database, registry, scheduler, logicEngine, seedPath)
+	resetDemoDatabase(database, registry, scheduler, logicEngine, wsHub, seedPath)
 
 	// Verify custom dash is gone and default dash is renamed
 	var dashCount int

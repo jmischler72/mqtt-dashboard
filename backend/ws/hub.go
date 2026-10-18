@@ -149,6 +149,22 @@ func (h *Hub) Unregister(c *Client) {
 	}
 }
 
+// CloseAllClients safely disconnects all connected WebSocket clients,
+// clearing active topic subscriptions and panel metadata cache.
+func (h *Hub) CloseAllClients() {
+	h.mu.Lock()
+	clients := make([]*Client, 0, len(h.clients))
+	for _, c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.Unlock()
+
+	for _, c := range clients {
+		h.Unregister(c)
+	}
+	h.ClearPanelMetaCache()
+}
+
 func (h *Hub) Subscribe(c *Client, brokerID string, topics []string) {
 	panelID := c.panelID
 	if panelID == "" {
@@ -264,6 +280,14 @@ func (h *Hub) resolvePanelMeta(panelID string) (string, string) {
 // InvalidatePanelMeta removes a cached panel metadata entry.
 func (h *Hub) InvalidatePanelMeta(panelID string) {
 	h.panelMetaCache.Delete(panelID)
+}
+
+// ClearPanelMetaCache removes all cached panel metadata entries.
+func (h *Hub) ClearPanelMetaCache() {
+	h.panelMetaCache.Range(func(key, value any) bool {
+		h.panelMetaCache.Delete(key)
+		return true
+	})
 }
 
 func (h *Hub) buildMQTTHandler(brokerID, topic string) mqttclient.MessageHandler {
