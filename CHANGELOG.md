@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.14.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.13.1...v1.14.0) (2026-10-18)
+
+
+### Features
+
+* **demo:** add demo notice banner and deployment configuration ([#199](https://github.com/jmischler72/mqtt-dashboard/issues/199)) ([#201](https://github.com/jmischler72/mqtt-dashboard/issues/201)) ([6d1bc0c](https://github.com/jmischler72/mqtt-dashboard/commit/6d1bc0c7de080b50022556d4cf1105d94f97c567))
+* **layout:** add duplicate and copy/move panel across dashboards ([#197](https://github.com/jmischler72/mqtt-dashboard/issues/197)) ([#198](https://github.com/jmischler72/mqtt-dashboard/issues/198)) ([cbb51da](https://github.com/jmischler72/mqtt-dashboard/commit/cbb51da3f42caf0b6082da32f09bcf12fc834e21))
+* **logic-panel:** add panel + config and entries in automations page ([#194](https://github.com/jmischler72/mqtt-dashboard/issues/194)) ([3ddc248](https://github.com/jmischler72/mqtt-dashboard/commit/3ddc248641631b7467840c048e32a12f405fafbc))
+* **panels:** add date to tooltip and midnight line markers on graph ([#215](https://github.com/jmischler72/mqtt-dashboard/issues/215)) ([7950bde](https://github.com/jmischler72/mqtt-dashboard/commit/7950bdeea28c130b2181a3f503ef45f51f1dcf82)), closes [#211](https://github.com/jmischler72/mqtt-dashboard/issues/211)
+
+
+### Bug Fixes
+
+* **dashboard:** allow bottom panels to be resized in height ([#210](https://github.com/jmischler72/mqtt-dashboard/issues/210)) ([#212](https://github.com/jmischler72/mqtt-dashboard/issues/212)) ([d1936c2](https://github.com/jmischler72/mqtt-dashboard/commit/d1936c211bd37ee7deb6d447b181e0bb853d5d8f))
+* **release:** resolve goreleaser build flags and unhide chores in changelog ([#216](https://github.com/jmischler72/mqtt-dashboard/issues/216)) ([f369b4e](https://github.com/jmischler72/mqtt-dashboard/commit/f369b4eeae2a59260817d113baf84599138a8284))
+
+
+### Chores
+
+* **deps-dev:** bump brace-expansion from 5.0.7 to 5.0.12 in /frontend ([#196](https://github.com/jmischler72/mqtt-dashboard/issues/196)) ([18b2058](https://github.com/jmischler72/mqtt-dashboard/commit/18b2058ecb83790e07e713837a3e4860083fe4ee))
+* **deps-dev:** bump source-map-js from 1.2.1 to 1.2.2 in /frontend ([#206](https://github.com/jmischler72/mqtt-dashboard/issues/206)) ([c141a21](https://github.com/jmischler72/mqtt-dashboard/commit/c141a217470c6de42b87fc44d04651c930733334))
+* **deps-dev:** bump the dev-deps group in /frontend with 6 updates ([#208](https://github.com/jmischler72/mqtt-dashboard/issues/208)) ([a1820c1](https://github.com/jmischler72/mqtt-dashboard/commit/a1820c1fac649be57de18149474aa51dc930f810))
+* **deps-dev:** bump the dev-deps group in /frontend with 7 updates ([#203](https://github.com/jmischler72/mqtt-dashboard/issues/203)) ([d6df2cf](https://github.com/jmischler72/mqtt-dashboard/commit/d6df2cf212926c393e6fc64e83d2ce4c329f62e5))
+* **deps:** bump cronstrue from 3.27.0 to 3.31.0 in /frontend ([#209](https://github.com/jmischler72/mqtt-dashboard/issues/209)) ([1c0d0ec](https://github.com/jmischler72/mqtt-dashboard/commit/1c0d0ec962b1b7ae7501f9ec781177371f4f74b2))
+* **deps:** bump modernc.org/sqlite from 1.59.0 to 1.60.1 in /backend ([#202](https://github.com/jmischler72/mqtt-dashboard/issues/202)) ([48f0357](https://github.com/jmischler72/mqtt-dashboard/commit/48f0357376f2db9d3973d8e81b6e19dca69d05fe))
+* **deps:** bump react-grid-layout from 2.2.4 to 2.3.0 in /frontend in the react-ecosystem group across 1 directory ([#207](https://github.com/jmischler72/mqtt-dashboard/issues/207)) ([b04fb5e](https://github.com/jmischler72/mqtt-dashboard/commit/b04fb5ea027fb8f2c9efe7395d27c1f409ea30e5))
+* **docker:** optimize Dockerfile and bump Go to 1.27 ([#204](https://github.com/jmischler72/mqtt-dashboard/issues/204)) ([5dea612](https://github.com/jmischler72/mqtt-dashboard/commit/5dea612f3a279eff1e7f7044a6af8db156c4c08f))
+
 ## [1.13.1](https://github.com/jmischler72/mqtt-dashboard/compare/v1.13.0...v1.13.1) (2026-09-29)
 
 
