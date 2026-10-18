@@ -718,7 +718,7 @@ export default function DashboardPage() {
                       <div
                         key={panel.id}
                         id={`panel-${panel.id}`}
-                        className={`flex items-center justify-center ${editMode ? "h-16" : "h-6"}`}
+                        className={`flex items-center justify-center ${editMode ? "h-16" : "h-6"} ${panel.id === highlightedPanelId ? "relative z-10" : ""}`}
                       >
                         {renderPanelWrapper(panel)}
                       </div>
@@ -729,7 +729,7 @@ export default function DashboardPage() {
                       key={panel.id}
                       id={`panel-${panel.id}`}
                       style={{ height: MOBILE_PANEL_HEIGHT }}
-                      className="w-full"
+                      className={`w-full ${panel.id === highlightedPanelId ? "relative z-10" : ""}`}
                     >
                       {renderPanelWrapper(panel)}
                     </div>
