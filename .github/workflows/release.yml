@@ -101,13 +101,13 @@ jobs:
           build-args: |
             VERSION=${{ needs.release-please.outputs.version }}
 
-            - name: Trigger Dokploy redeploy
-              if: env.DOKPLOY_WEBHOOK_URL != ''
-              env:
-                  DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
-              run: |
-                  curl -fsS -X POST \
-                    -H "Content-Type: application/json" \
-                    -H "X-GitHub-Event: push" \
-                    -d '{"ref": "refs/heads/main"}' \
-                    "$DOKPLOY_WEBHOOK_URL"
+      - name: Trigger Dokploy redeploy
+        if: env.DOKPLOY_WEBHOOK_URL != ''
+        env:
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          curl -fsS -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: push" \
+            -d '{"ref": "refs/heads/main"}' \
+            "$DOKPLOY_WEBHOOK_URL"
