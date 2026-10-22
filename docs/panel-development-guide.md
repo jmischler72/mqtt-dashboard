@@ -112,6 +112,43 @@ All panel configuration modals share standardized UI primitives located in [`fro
 
 ---
 
+## Design System & Theme Consistency Guidelines
+
+All panels (built-in and community-contributed) must maintain full visual consistency with the application's global theme and dark/light modes.
+
+### 1. Zero Hardcoded Colors
+Never hardcode hex values (e.g., `#3b82f6`, `#22c55e`, `#6b7280`) or arbitrary Tailwind color palettes (e.g., `bg-blue-500`, `text-gray-400`). Always use DaisyUI semantic classes and CSS tokens:
+- **`primary` / `primary-content`**: Primary interactive highlights, active buttons, focus rings, and main chart strokes.
+- **`base-100` / `base-200` / `base-300`**: Panel surfaces, card backgrounds, inner containers, borders, and dividers.
+- **`base-content`**: Typography (`text-base-content`, `text-base-content/70`, `text-base-content/50`).
+- **`success` / `warning` / `error` / `info`**: Live status dots, alerts, validation feedback, and telemetry states.
+- **`accent` / `neutral`**: Topic paths, monospace data chips, terminal/log views.
+
+### 2. Canvas & SVG Theme Tokens
+For panels rendering into an HTML `<canvas>` or custom `<svg>`:
+- Dynamically extract DaisyUI CSS custom properties via `getComputedStyle`:
+  ```ts
+  const cs = getComputedStyle(canvasElement);
+  const primaryColor = cs.getPropertyValue("--color-primary").trim() || "#3b82f6";
+  const baseContent = cs.getPropertyValue("--color-base-content").trim() || "#6b7280";
+  const base300 = cs.getPropertyValue("--color-base-300").trim() || "rgba(128,128,128,0.2)";
+  const base100 = cs.getPropertyValue("--color-base-100").trim() || "#1f2937";
+  ```
+- Use `color-mix(in srgb, ${primaryColor} 20%, transparent)` for alpha gradients and translucent fills.
+- Observe `document.documentElement` attribute changes (`data-theme`, `class`) with a `MutationObserver` so canvas elements automatically re-render when switching themes in the navbar.
+
+### 3. Favor DaisyUI Components
+Favor DaisyUI components over custom handcrafted HTML widgets:
+- Use **`toggle toggle-primary toggle-sm`** for on/off switches.
+- Use **`range range-primary`** for sliders.
+- Use **`badge`** (`badge-neutral`, `badge-outline`, `badge-primary`) for metadata chips and status pills.
+- Use **`alert`** (`alert-warning`, `alert-error`, `alert-info`) for notices and inline warnings.
+- Use **`select select-bordered`**, **`input input-bordered`**, and **`textarea textarea-bordered`** for form fields.
+- Use **`loading loading-spinner`** for pending/loading states.
+- Use tooltip helpers (`tooltip`, `data-tip`) rather than explanatory paragraph walls.
+
+---
+
 ## Validation Engine (`useConfigValidation`)
 
 Panel validation ensures users do not save broken configurations (e.g., publishing commands to wildcard topics or leaving required topics empty).

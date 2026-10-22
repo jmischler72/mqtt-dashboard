@@ -3,11 +3,11 @@ import { appPath } from "../../../runtime";
 /** The one thing a config modal cannot fix on its own. */
 export default function NoBrokersNotice() {
   return (
-    <div className="flex items-start gap-2 p-2.5 rounded-lg border border-warning bg-warning/10">
-      <span className="text-warning shrink-0 font-semibold">!</span>
+    <div role="alert" className="alert alert-warning text-xs p-2.5 shadow-sm">
+      <span className="font-bold shrink-0">!</span>
       <span className="text-[11.5px] leading-relaxed">
         No brokers configured yet.{" "}
-        <a href={appPath("/config")} className="link link-primary">
+        <a href={appPath("/config")} className="link font-semibold underline">
           Add one in Config
         </a>{" "}
         — everything else here can wait.

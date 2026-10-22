@@ -369,7 +369,7 @@ export default function ExplorerPage() {
             </div>
             <input
               type="checkbox"
-              className="toggle toggle-xs toggle-secondary"
+              className="toggle toggle-xs toggle-primary"
               checked={showExactTopicOnly}
               onChange={(e) => handleToggleExactTopicOnly(e.target.checked)}
             />
@@ -383,7 +383,7 @@ export default function ExplorerPage() {
             </div>
             <input
               type="checkbox"
-              className="toggle toggle-xs toggle-accent"
+              className="toggle toggle-xs toggle-primary"
               checked={showGraph}
               onChange={(e) => setShowGraph(e.target.checked)}
             />

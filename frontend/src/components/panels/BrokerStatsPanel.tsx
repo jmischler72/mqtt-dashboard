@@ -40,10 +40,6 @@ const REFRESH_MS: Record<TimeRange, number> = {
   3600: 60000,
 };
 
-const ACCENT = "#6b5de8";
-const GRID_C = "#2a2b2e";
-const TEXT_C = "#6b7280";
-
 export interface BrokerStatsConfig {
   topic?: string;
   defaultRange?: TimeRange;
@@ -393,11 +389,23 @@ export default function BrokerStatsPanel({
       const xOf = (i: number) => pad.l + (i / denom) * iW;
       const yOf = (v: number) => pad.t + iH - (v / (maxV * 1.15)) * iH;
 
+      // Resolve theme tokens from computed style for full navbar theme reactivity
+      const cs = getComputedStyle(canvas);
+      const primaryColor =
+        cs.getPropertyValue("--color-primary").trim() || "#3b82f6";
+      const base300Color =
+        cs.getPropertyValue("--color-base-300").trim() ||
+        "rgba(128, 128, 128, 0.2)";
+      const baseContentColor =
+        cs.getPropertyValue("--color-base-content").trim() || "#6b7280";
+      const base100Color =
+        cs.getPropertyValue("--color-base-100").trim() || "#1f2937";
+
       // Gridlines + y labels
       [0.25, 0.5, 0.75, 1].forEach((f) => {
         const y = pad.t + iH - f * iH;
         ctx.beginPath();
-        ctx.strokeStyle = GRID_C;
+        ctx.strokeStyle = base300Color;
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 5]);
         ctx.moveTo(pad.l, y);
@@ -405,7 +413,7 @@ export default function BrokerStatsPanel({
         ctx.stroke();
         ctx.setLineDash([]);
         if (showYAxis) {
-          ctx.fillStyle = TEXT_C;
+          ctx.fillStyle = `color-mix(in srgb, ${baseContentColor} 65%, transparent)`;
           ctx.font = "8px monospace";
           ctx.textAlign = "right";
           ctx.fillText((maxV * 1.15 * f).toFixed(1), pad.l - 4, y + 3);
@@ -414,7 +422,7 @@ export default function BrokerStatsPanel({
 
       // X-axis labels — count scaled to available width so labels never overlap.
       if (showXAxis) {
-        ctx.fillStyle = TEXT_C;
+        ctx.fillStyle = `color-mix(in srgb, ${baseContentColor} 65%, transparent)`;
         ctx.font = "8px monospace";
         ctx.textAlign = "center";
         const ticks = Math.min(
@@ -432,9 +440,18 @@ export default function BrokerStatsPanel({
 
       // Area gradient
       const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + iH);
-      grad.addColorStop(0, "rgba(107,93,232,0.30)");
-      grad.addColorStop(0.7, "rgba(107,93,232,0.06)");
-      grad.addColorStop(1, "rgba(107,93,232,0.01)");
+      grad.addColorStop(
+        0,
+        `color-mix(in srgb, ${primaryColor} 30%, transparent)`,
+      );
+      grad.addColorStop(
+        0.7,
+        `color-mix(in srgb, ${primaryColor} 6%, transparent)`,
+      );
+      grad.addColorStop(
+        1,
+        `color-mix(in srgb, ${primaryColor} 1%, transparent)`,
+      );
       ctx.beginPath();
       data.forEach((v, i) =>
         i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)),
@@ -450,7 +467,7 @@ export default function BrokerStatsPanel({
       data.forEach((v, i) =>
         i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)),
       );
-      ctx.strokeStyle = ACCENT;
+      ctx.strokeStyle = primaryColor;
       ctx.lineWidth = 1.8;
       ctx.lineJoin = "round";
       ctx.stroke();
@@ -460,11 +477,11 @@ export default function BrokerStatsPanel({
       const ey = yOf(data[data.length - 1]);
       ctx.beginPath();
       ctx.arc(ex, ey, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(107,93,232,0.22)";
+      ctx.fillStyle = `color-mix(in srgb, ${primaryColor} 22%, transparent)`;
       ctx.fill();
       ctx.beginPath();
       ctx.arc(ex, ey, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = ACCENT;
+      ctx.fillStyle = primaryColor;
       ctx.fill();
 
       // Hover crosshair + tooltip
@@ -475,7 +492,7 @@ export default function BrokerStatsPanel({
 
         // Vertical rule
         ctx.beginPath();
-        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.strokeStyle = `color-mix(in srgb, ${baseContentColor} 25%, transparent)`;
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 4]);
         ctx.moveTo(hx, pad.t);
@@ -486,11 +503,11 @@ export default function BrokerStatsPanel({
         // Dot on the line
         ctx.beginPath();
         ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = base100Color;
         ctx.fill();
         ctx.beginPath();
         ctx.arc(hx, hy, 2, 0, Math.PI * 2);
-        ctx.fillStyle = ACCENT;
+        ctx.fillStyle = primaryColor;
         ctx.fill();
 
         // Tooltip
@@ -502,11 +519,11 @@ export default function BrokerStatsPanel({
         const boxH = 16;
         const tipX = Math.min(hx + 8, W - pad.r - boxW);
         const tipY = Math.max(hy - boxH - 4, pad.t);
-        ctx.fillStyle = "rgba(15,15,20,0.88)";
+        ctx.fillStyle = `color-mix(in srgb, ${base100Color} 90%, ${baseContentColor})`;
         ctx.beginPath();
         ctx.roundRect(tipX, tipY, boxW, boxH, 3);
         ctx.fill();
-        ctx.fillStyle = "#e5e7eb";
+        ctx.fillStyle = baseContentColor;
         ctx.textAlign = "left";
         ctx.fillText(label, tipX + 5, tipY + boxH - 4);
       }
@@ -526,6 +543,27 @@ export default function BrokerStatsPanel({
     if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => drawRef.current());
     observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Redraw when theme attribute changes on documentElement
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (
+          m.type === "attributes" &&
+          (m.attributeName === "data-theme" || m.attributeName === "class")
+        ) {
+          drawRef.current();
+          break;
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    });
     return () => observer.disconnect();
   }, []);
 

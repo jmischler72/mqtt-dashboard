@@ -41,7 +41,7 @@ export default function ReadBackSwitch({
             {on ? onExplanation : offExplanation}
           </span>
         </div>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center shrink-0">
           <ToggleSwitch on={on} onToggle={onToggle} label={title} />
         </span>
       </div>
