@@ -236,7 +236,7 @@ export default function DashboardSelector({
   return (
     <>
       <div
-        className="relative min-w-0"
+        className="relative min-w-0 shrink-0"
         ref={menuRef}
         onKeyDown={(e) => {
           if (e.key === "Escape") closeMenu();

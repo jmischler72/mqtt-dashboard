@@ -451,8 +451,12 @@ export default function Layout() {
             onClick={() => setShowCredits(!showCredits)}
           />
 
-          {/* Mobile: nav links collapse into a hamburger dropdown */}
-          <div className="dropdown sm:hidden">
+          {/* Mobile / collapsed: nav links collapse into a hamburger dropdown */}
+          <div
+            className={`dropdown ${
+              showDashboardControls ? "xl:hidden" : "md:hidden"
+            }`}
+          >
             <button
               tabIndex={0}
               className="btn btn-sm btn-ghost"
@@ -468,6 +472,9 @@ export default function Layout() {
                 <li key={link.to}>
                   <NavLink
                     to={link.to}
+                    onClick={(e) => {
+                      (e.currentTarget as HTMLElement).blur();
+                    }}
                     className={({ isActive }) => (isActive ? "active" : "")}
                   >
                     {link.label}
@@ -478,7 +485,11 @@ export default function Layout() {
           </div>
 
           {/* Desktop: inline nav links */}
-          <div className="hidden sm:flex items-center gap-2">
+          <div
+            className={`items-center gap-2 ${
+              showDashboardControls ? "hidden xl:flex" : "hidden md:flex"
+            }`}
+          >
             {NAV_LINKS.map((link) => (
               <NavLink
                 key={link.to}
