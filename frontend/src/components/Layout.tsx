@@ -454,7 +454,7 @@ export default function Layout() {
           {/* Mobile / collapsed: nav links collapse into a hamburger dropdown */}
           <div
             className={`dropdown ${
-              showDashboardControls ? "xl:hidden" : "md:hidden"
+              showDashboardControls ? "lg:hidden" : "md:hidden"
             }`}
           >
             <button
@@ -487,7 +487,7 @@ export default function Layout() {
           {/* Desktop: inline nav links */}
           <div
             className={`items-center gap-2 ${
-              showDashboardControls ? "hidden xl:flex" : "hidden md:flex"
+              showDashboardControls ? "hidden lg:flex" : "hidden md:flex"
             }`}
           >
             {NAV_LINKS.map((link) => (
