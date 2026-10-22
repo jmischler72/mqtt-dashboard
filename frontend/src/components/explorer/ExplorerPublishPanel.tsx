@@ -38,10 +38,10 @@ export default function ExplorerPublishPanel({
   if (isWildcard) {
     if (noticeDismissed) return null;
     return (
-      <div className="border border-base-300 bg-base-200/40 rounded-xl p-3 text-xs flex flex-col gap-1 relative">
-        <div className="flex items-center justify-between font-semibold text-base-content">
+      <div className="alert alert-warning text-xs p-3 flex flex-col gap-1 relative shadow-sm">
+        <div className="flex items-center justify-between font-semibold w-full">
           <div className="flex items-center gap-1.5">
-            <WarningIcon className="text-warning text-sm shrink-0" />
+            <WarningIcon className="text-sm shrink-0" />
             <span>Cannot publish to wildcard topic</span>
           </div>
           <button
@@ -53,10 +53,9 @@ export default function ExplorerPublishPanel({
             <CloseIcon className="text-sm" />
           </button>
         </div>
-        <p className="text-[11px] text-base-content/60 leading-normal pr-4">
-          Topics with wildcards (
-          <code className="font-mono text-warning">+</code> or{" "}
-          <code className="font-mono text-warning">#</code>) cannot receive
+        <p className="text-[11px] opacity-80 leading-normal pr-4 w-full">
+          Topics with wildcards (<code className="font-mono font-bold">+</code>{" "}
+          or <code className="font-mono font-bold">#</code>) cannot receive
           published messages. Select a specific sub-topic to publish.
         </p>
       </div>

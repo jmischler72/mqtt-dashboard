@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
+import { RiArrowDownSLine, RiArrowRightSLine } from "react-icons/ri";
 
 interface HighlightTextProps {
   name: string;
@@ -243,7 +244,7 @@ function TreeNodeItem({
       >
         {hasChildren ? (
           <span
-            className="text-base-content/50 w-3 shrink-0 text-xl mb-1"
+            className="text-base-content/50 w-3.5 h-3.5 shrink-0 flex items-center justify-center cursor-pointer hover:text-base-content"
             onClick={(e) => {
               e.stopPropagation();
               if (hasChildren) {
@@ -255,10 +256,14 @@ function TreeNodeItem({
             }}
             onDoubleClick={(e) => e.stopPropagation()}
           >
-            {open ? "▾" : "▸"}
+            {open ? (
+              <RiArrowDownSLine className="w-3.5 h-3.5" />
+            ) : (
+              <RiArrowRightSLine className="w-3.5 h-3.5" />
+            )}
           </span>
         ) : (
-          <span className="w-3 shrink-0" />
+          <span className="w-3.5 shrink-0" />
         )}
         <span
           className={`font-mono truncate ${node.isLeaf && !hasChildren ? "text-accent" : ""}`}

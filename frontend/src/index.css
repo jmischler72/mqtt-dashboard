@@ -26,7 +26,7 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  border: 2px solid var(--color-primary, #3b82f6);
+  border: 2px solid var(--color-primary, currentColor);
   z-index: 30;
   animation: panel-highlight-fade 2s ease-out forwards;
 }
@@ -92,7 +92,7 @@ html {
 /* Clean, theme-aware placeholder placed behind active panel (replaces default red box) */
 .react-grid-item.react-grid-placeholder {
   background: var(--color-base-300, rgba(0, 0, 0, 0.06)) !important;
-  border: 2px dashed var(--color-primary, #3b82f6) !important;
+  border: 2px dashed var(--color-primary, currentColor) !important;
   border-radius: var(--radius-box, 0.75rem) !important;
   opacity: 0.7 !important;
   transition: none !important;

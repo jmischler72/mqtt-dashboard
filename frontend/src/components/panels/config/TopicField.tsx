@@ -132,7 +132,7 @@ export default function TopicField({
               return (
                 <span
                   key={`${index}-${topic}`}
-                  className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1 rounded-full border border-base-300 dark:border-base-100 bg-base-100 font-mono text-[11px] min-w-0"
+                  className="badge badge-outline badge-sm font-mono gap-1.5 h-6 pl-2 pr-1 min-w-0"
                 >
                   {brokerId && (
                     <RiMessage3Line
@@ -156,7 +156,7 @@ export default function TopicField({
                     aria-label={`Remove ${topic}`}
                     title={`Remove ${topic}`}
                     onClick={() => remove(index)}
-                    className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-base-content/50 hover:text-error cursor-pointer"
+                    className="btn btn-ghost btn-xs btn-circle h-4 w-4 min-h-0 text-base-content/50 hover:text-error"
                   >
                     <CloseIcon className="text-xs" />
                   </button>
@@ -187,7 +187,7 @@ export default function TopicField({
             type="button"
             title="Browse topics in Explorer"
             onClick={onExplore}
-            className="w-8 h-8 shrink-0 rounded border border-base-300 dark:border-base-100 bg-base-100 text-base-content/70 hover:text-base-content flex items-center justify-center cursor-pointer"
+            className="btn btn-sm btn-square btn-outline border-base-300 text-base-content/70 hover:text-base-content shrink-0"
           >
             <SearchIcon className="text-sm" />
           </button>
@@ -202,7 +202,7 @@ export default function TopicField({
             return (
               <span
                 key={`${index}-${topic}`}
-                className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1 rounded-full border border-base-300 dark:border-base-100 bg-base-100 font-mono text-[11px] min-w-0"
+                className="badge badge-outline badge-sm font-mono gap-1.5 h-6 pl-2 pr-1 min-w-0"
               >
                 {brokerId && (
                   <RiMessage3Line
@@ -226,7 +226,7 @@ export default function TopicField({
                   aria-label={`Remove ${topic}`}
                   title={`Remove ${topic}`}
                   onClick={() => remove(index)}
-                  className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-base-content/50 hover:text-error cursor-pointer"
+                  className="btn btn-ghost btn-xs btn-circle h-4 w-4 min-h-0 text-base-content/50 hover:text-error"
                 >
                   <CloseIcon className="text-xs" />
                 </button>

@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useState } from "react";
+import { MdRefresh } from "react-icons/md";
 import { api } from "../api/client";
 
 interface BrokerStats {
@@ -141,11 +142,11 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
         <div className="flex justify-between items-center">
           <h3 className="card-title text-base">Broker Information</h3>
           <button
-            className="btn btn-ghost btn-xs"
+            className="btn btn-ghost btn-xs btn-square"
             onClick={fetchBrokerInfo}
             title="Refresh broker stats"
           >
-            ↻
+            <MdRefresh className="text-sm" />
           </button>
         </div>
 
@@ -198,7 +199,7 @@ export const BrokerInfoPanel: React.FC<BrokerInfoPanelProps> = ({
         </div>
 
         {/* Last Updated */}
-        <div className="text-xs text-gray-400 text-center mt-2">
+        <div className="text-xs text-base-content/50 text-center mt-2">
           Updated {new Date(stats.updated_at).toLocaleTimeString()}
         </div>
       </div>

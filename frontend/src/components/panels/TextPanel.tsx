@@ -35,7 +35,7 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
       <ConfigGroup heading="Appearance">
         <ConfigCard title="Markdown">
           <textarea
-            className="w-full rounded-lg border border-base-300 dark:border-base-100 bg-base-300 px-2.5 py-2 font-mono text-xs leading-relaxed resize-y"
+            className="textarea textarea-bordered w-full font-mono text-xs leading-relaxed resize-y"
             aria-label="Markdown"
             rows={12}
             spellCheck={false}
@@ -45,7 +45,7 @@ export function TextConfigModal({ config, onSave, onClose }: ModalProps) {
           />
           <button
             type="button"
-            className="self-start inline-flex items-center h-6 px-2.5 rounded-full border border-base-300 dark:border-base-100 bg-base-100 text-[11px] font-medium text-base-content/70 cursor-pointer hover:border-primary"
+            className="btn btn-xs btn-outline rounded-full self-start text-[11px]"
             onClick={() => setMarkdown(TEMPLATE_MARKDOWN)}
           >
             start from a template

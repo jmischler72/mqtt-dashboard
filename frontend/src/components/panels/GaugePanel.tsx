@@ -733,8 +733,8 @@ export default function GaugePanel({
                     <span
                       className={`rounded-full shrink-0 animate-pulse ${
                         data.parsedValue
-                          ? "bg-success shadow-[0_0_8px_#22c55e]"
-                          : "bg-error shadow-[0_0_8px_#ef4444]"
+                          ? "bg-success shadow-[0_0_8px_var(--color-success)]"
+                          : "bg-error shadow-[0_0_8px_var(--color-error)]"
                       }`}
                       style={{
                         width: `${Math.max(6, Math.round(cardBadgeFontSize * 0.35))}px`,

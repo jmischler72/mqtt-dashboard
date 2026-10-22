@@ -23,7 +23,7 @@ export default function SwitchRow({
           {note}
         </span>
       </div>
-      <span className="ml-auto">
+      <span className="ml-auto flex items-center shrink-0">
         <ToggleSwitch on={on} onToggle={onToggle} label={name} />
       </span>
     </div>

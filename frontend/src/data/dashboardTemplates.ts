@@ -171,7 +171,6 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         config_json: {
           orientation: "horizontal",
           thickness: 2,
-          color: "#9ca3af",
         },
       },
       {
@@ -357,7 +356,6 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         config_json: {
           orientation: "horizontal",
           thickness: 2,
-          color: "#9ca3af",
         },
       },
       {
@@ -529,7 +527,6 @@ export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
         config_json: {
           orientation: "horizontal",
           thickness: 2,
-          color: "#9ca3af",
         },
       },
       {
