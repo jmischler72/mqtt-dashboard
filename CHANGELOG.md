@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.14.3](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.2...v1.14.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* **navbar:** collapse page selector when too many element in navbar ([#235](https://github.com/jmischler72/mqtt-dashboard/issues/235)) ([072749a](https://github.com/jmischler72/mqtt-dashboard/commit/072749a83b85319b9d55dfe992c33a726ed756f2))
+
+
+### Code Refactoring
+
+* **frontend:** enforce consistent DaisyUI semantic theme tokens and components ([#236](https://github.com/jmischler72/mqtt-dashboard/issues/236)) ([af12f55](https://github.com/jmischler72/mqtt-dashboard/commit/af12f55c43089d36aad327fbede4550b5e8547e1)), closes [#136](https://github.com/jmischler72/mqtt-dashboard/issues/136)
+
+
+### Chores
+
+* **deps-dev:** bump the dev-deps group in /frontend with 7 updates ([#231](https://github.com/jmischler72/mqtt-dashboard/issues/231)) ([7d401f1](https://github.com/jmischler72/mqtt-dashboard/commit/7d401f11ffcd52c7e75e70369fc75c16bdf19451))
+* **deps:** bump cronstrue from 3.31.0 to 3.32.0 in /frontend ([#232](https://github.com/jmischler72/mqtt-dashboard/issues/232)) ([c8b7ea2](https://github.com/jmischler72/mqtt-dashboard/commit/c8b7ea2a54fb4470df3b04a2633943de4f62bcef))
+* **deps:** bump github.com/go-chi/chi/v5 in /backend ([#229](https://github.com/jmischler72/mqtt-dashboard/issues/229)) ([9dd6907](https://github.com/jmischler72/mqtt-dashboard/commit/9dd6907bb22b498b1632b7797cf72a44cc451fd4))
+
 ## [1.14.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.1...v1.14.2) (2026-10-18)
 
 
