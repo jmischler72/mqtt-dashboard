@@ -236,7 +236,7 @@ export default function DashboardSelector({
   return (
     <>
       <div
-        className="relative min-w-0 shrink-0"
+        className="relative min-w-0 sm:shrink-0"
         ref={menuRef}
         onKeyDown={(e) => {
           if (e.key === "Escape") closeMenu();
@@ -244,7 +244,7 @@ export default function DashboardSelector({
       >
         <button
           ref={menuTriggerRef}
-          className={`h-8 max-w-full flex items-center gap-2 pl-3 pr-2 rounded-lg border text-[12.5px] font-medium transition-colors ${
+          className={`h-8 max-w-full flex items-center gap-1.5 sm:gap-2 pl-2.5 sm:pl-3 pr-1.5 sm:pr-2 rounded-lg border text-[12.5px] font-medium transition-colors ${
             menuOpen
               ? "bg-base-300 border-base-content/20"
               : "bg-base-200 border-base-300 hover:bg-base-300"
@@ -254,7 +254,7 @@ export default function DashboardSelector({
           aria-haspopup="menu"
           aria-expanded={menuOpen}
         >
-          <span className="truncate max-w-[6rem] sm:max-w-[10rem]">
+          <span className="truncate max-w-[5.5rem] sm:max-w-[10rem]">
             {activeDashboard?.name ?? "No dashboard"}
           </span>
           <span

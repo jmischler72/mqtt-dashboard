@@ -436,7 +436,7 @@ export default function Layout() {
           </button>
         )}
         <nav
-          className={`navbar bg-base-100 border-b border-base-300 px-4 gap-2 ${barHidden ? "hidden" : ""}`}
+          className={`navbar bg-base-100 border-b border-base-300 px-2 sm:px-4 gap-1.5 sm:gap-2 ${barHidden ? "hidden" : ""}`}
         >
           {isEditing && (
             <span
@@ -447,7 +447,7 @@ export default function Layout() {
           <img
             src={appPath("/logo.svg")}
             alt="mqtt-dashboard"
-            className="h-8 w-auto mx-2 cursor-pointer hover:opacity-80 transition-opacity"
+            className="h-7 sm:h-8 w-auto mx-1 sm:mx-2 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => setShowCredits(!showCredits)}
           />
 
@@ -459,7 +459,7 @@ export default function Layout() {
           >
             <button
               tabIndex={0}
-              className="btn btn-sm btn-ghost"
+              className="btn btn-sm btn-square btn-ghost"
               aria-label="Open navigation menu"
             >
               <MdMenu className="text-xl" />
@@ -524,7 +524,7 @@ export default function Layout() {
                 {isEditing ? (
                   <>
                     <button
-                      className="btn btn-sm btn-primary gap-1.5"
+                      className="btn btn-sm btn-square sm:w-auto sm:px-3 btn-primary gap-1.5"
                       onClick={() => setPanelLibraryOpen(true)}
                       title="Add panel (⌘K)"
                     >
@@ -533,7 +533,7 @@ export default function Layout() {
                       <kbd className="kbd kbd-xs hidden md:inline-flex">⌘K</kbd>
                     </button>
                     <button
-                      className="btn btn-sm btn-outline"
+                      className="btn btn-sm btn-outline px-2 sm:px-3"
                       onClick={() => {
                         setEditMode(false);
                         setPanelLibraryOpen(false);
@@ -544,8 +544,9 @@ export default function Layout() {
                   </>
                 ) : (
                   <button
-                    className="btn btn-sm btn-outline gap-1.5"
+                    className="btn btn-sm btn-square sm:w-auto sm:px-3 btn-outline gap-1.5"
                     onClick={() => setEditMode(true)}
+                    title="Edit layout"
                   >
                     <MdEdit className="text-base" />
                     <span className="hidden sm:inline">Edit layout</span>
@@ -571,7 +572,7 @@ export default function Layout() {
             >
               <button
                 ref={flyoutTriggerRef}
-                className={`h-8 shrink-0 flex items-center gap-2 pl-2.5 pr-2 rounded-lg border transition-colors ${aggChipClass[aggStatus]} ${flyoutOpen ? "brightness-95" : ""}`}
+                className={`h-8 shrink-0 flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1.5 sm:pr-2 rounded-lg border transition-colors ${aggChipClass[aggStatus]} ${flyoutOpen ? "brightness-95" : ""}`}
                 onClick={() => setFlyoutOpen((o) => !o)}
                 title="Broker status"
                 aria-haspopup="menu"
