@@ -22,6 +22,7 @@ type RuntimeConfig struct {
 	SeedConfigFile string
 	LogLevel       string
 	DemoMode       bool
+	MCPEnabled     bool
 }
 
 type runtimeConfigFile struct {
@@ -39,6 +40,9 @@ type runtimeConfigFile struct {
 	Seed struct {
 		File string `toml:"file"`
 	} `toml:"seed"`
+	MCP struct {
+		Enabled *bool `toml:"enabled"`
+	} `toml:"mcp"`
 }
 
 // LoadRuntimeConfig resolves process configuration. MQTT_DASHBOARD_CONFIG, if
@@ -94,6 +98,9 @@ func applyRuntimeFile(cfg *RuntimeConfig, fromFile runtimeConfigFile, tomlPath s
 		}
 		cfg.SeedConfigFile = seedPath
 	}
+	if fromFile.MCP.Enabled != nil {
+		cfg.MCPEnabled = *fromFile.MCP.Enabled
+	}
 }
 
 func applyEnv(cfg *RuntimeConfig) {
@@ -117,6 +124,15 @@ func applyEnv(cfg *RuntimeConfig) {
 	if value := os.Getenv("MQTT_DASHBOARD_DEMO_MODE"); value != "" {
 		if b, err := strconv.ParseBool(value); err == nil {
 			cfg.DemoMode = b
+		}
+	}
+	if value := os.Getenv("MQTT_DASHBOARD_MCP_ENABLED"); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			cfg.MCPEnabled = b
+		}
+	} else if value := os.Getenv("MCP_ENABLED"); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			cfg.MCPEnabled = b
 		}
 	}
 }

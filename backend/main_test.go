@@ -563,10 +563,57 @@ func TestPrintBanner(t *testing.T) {
 	}
 
 	buf.Reset()
-	printBanner(&buf, "1.14.0", "http://localhost:8080/", "./data", true)
+	printBanner(&buf, "1.14.0", "http://localhost:8080/", "./data", true, true)
 	outDemo := buf.String()
 	if !strings.Contains(outDemo, "(demo mode)") {
 		t.Errorf("banner missing demo mode indicator, got %q", outDemo)
+	}
+	if !strings.Contains(outDemo, "➜  MCP:   http://localhost:8080/mcp") {
+		t.Errorf("banner missing MCP URL indicator, got %q", outDemo)
+	}
+}
+
+func TestBuildRouter_MCPEnabledAndDisabled(t *testing.T) {
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	registry := mqttclient.NewRegistry(database)
+	scheduler, err := cron.NewScheduler(registry)
+	if err != nil {
+		t.Fatalf("NewScheduler: %v", err)
+	}
+	logicEngine := logic.NewEngine(registry)
+	defer logicEngine.Stop()
+	testFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head></html>")},
+	}
+
+	// 1. Disabled by default: /mcp returns 404 (not SPA index.html)
+	routerDisabled := buildRouter(database, registry, scheduler, logicEngine, ws.NewHub(registry, database), t.TempDir(), testFS, "/", false, false, false)
+	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+	rec := httptest.NewRecorder()
+	routerDisabled.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("GET /mcp when disabled = %d, want 404", rec.Code)
+	}
+
+	// 2. Enabled: GET /mcp returns 200 JSON status and POST /mcp handles JSON-RPC
+	routerEnabled := buildRouter(database, registry, scheduler, logicEngine, ws.NewHub(registry, database), t.TempDir(), testFS, "/", false, false, true)
+	req = httptest.NewRequest(http.MethodGet, "/mcp", nil)
+	rec = httptest.NewRecorder()
+	routerEnabled.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"name":"mqtt-dashboard"`) {
+		t.Fatalf("GET /mcp when enabled = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	postReq := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
+	postReq.Header.Set("Content-Type", "application/json")
+	postRec := httptest.NewRecorder()
+	routerEnabled.ServeHTTP(postRec, postReq)
+	if postRec.Code != http.StatusOK || postRec.Header().Get("Mcp-Session-Id") == "" {
+		t.Fatalf("POST /mcp ping status = %d, body = %s", postRec.Code, postRec.Body.String())
 	}
 }
 

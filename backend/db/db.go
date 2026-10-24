@@ -112,6 +112,10 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
+	if _, err := db.Exec(`ALTER TABLE app_settings ADD COLUMN mcp_enabled BOOLEAN NOT NULL DEFAULT 0`); err != nil && !isDuplicateColumnErr(err) {
+		return fmt.Errorf("migrate app_settings add mcp_enabled: %w", err)
+	}
+
 	// Add qos/retained/source_panel_id columns to mqtt_history for existing databases.
 	// ALTER TABLE fails with "duplicate column" if the column already exists; that
 	// error is safe to ignore. Any other error is propagated.

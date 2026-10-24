@@ -38,3 +38,9 @@ level = "info"
 # If omitted or left empty, no initial database seeding takes place.
 # [seed]
 # file = "./seed.json"
+
+# Optional: Built-in Model Context Protocol (MCP) server for AI agents.
+# When enabled, exposes Streamable HTTP at /mcp and SSE at /mcp/sse (/mcp/messages).
+# Can also be enabled via MQTT_DASHBOARD_MCP_ENABLED=true.
+# [mcp]
+# enabled = true

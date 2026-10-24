@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -127,18 +128,29 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+	d, status, err := h.ImportDashboardPayload(req)
+	if err != nil {
+		http.Error(w, err.Error(), status)
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(d)
+}
+
+// ImportDashboardPayload validates and persists a dashboard import payload atomically,
+// returning the created Dashboard, or an HTTP status code and error on failure.
+func (h *DashboardHandler) ImportDashboardPayload(req models.DashboardImportPayload) (models.Dashboard, int, error) {
+	if req.Name == "" {
+		return models.Dashboard{}, http.StatusBadRequest, errors.New("name is required")
 	}
 	// Accept a missing type (template payloads) but reject an explicit mismatch.
 	if req.Type != "" && req.Type != "mqtt-dashboard-export" {
-		http.Error(w, "unsupported import type", http.StatusBadRequest)
-		return
+		return models.Dashboard{}, http.StatusBadRequest, errors.New("unsupported import type")
 	}
 	if req.Type != "" && req.Version != 1 {
-		http.Error(w, "unsupported import version", http.StatusBadRequest)
-		return
+		return models.Dashboard{}, http.StatusBadRequest, errors.New("unsupported import version")
 	}
 
 	// Resolve default broker once for panels whose broker_id is empty/unknown.
@@ -152,14 +164,12 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 
 	tx, err := h.db.Begin()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return models.Dashboard{}, http.StatusInternalServerError, err
 	}
 	defer tx.Rollback() //nolint
 
 	if _, err := tx.Exec(`INSERT INTO dashboards (id, name) VALUES (?, ?)`, d.ID, d.Name); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return models.Dashboard{}, http.StatusInternalServerError, err
 	}
 
 	// Collect cron jobs to register after commit.
@@ -173,8 +183,7 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 
 	for _, p := range req.Panels {
 		if p.PanelType == "" {
-			http.Error(w, "panel_type is required for every panel", http.StatusBadRequest)
-			return
+			return models.Dashboard{}, http.StatusBadRequest, errors.New("panel_type is required for every panel")
 		}
 
 		// Resolve broker: keep if it exists locally, else match by name, else default.
@@ -206,8 +215,7 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 			`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			panelID, d.ID, title, p.PanelType, p.X, p.Y, p.W, p.H, cfgJSON, brokerID,
 		); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return models.Dashboard{}, http.StatusInternalServerError, err
 		}
 
 		if p.PanelType == "cron" {
@@ -229,8 +237,7 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return models.Dashboard{}, http.StatusInternalServerError, err
 	}
 
 	// Register cron jobs after the transaction is durably committed.
@@ -254,9 +261,7 @@ func (h *DashboardHandler) ImportDashboard(w http.ResponseWriter, r *http.Reques
 
 	h.db.QueryRow(`SELECT created_at FROM dashboards WHERE id = ?`, d.ID).Scan(&d.CreatedAt) //nolint
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(d)
+	return d, http.StatusCreated, nil
 }
 
 // cronConfig is the subset of a cron panel's config_json needed to schedule a job.

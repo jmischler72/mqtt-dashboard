@@ -11,3 +11,4 @@ docker/dev/.env
 config.toml
 seed.json
 .DS_Store
+.agents/

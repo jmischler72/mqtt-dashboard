@@ -290,3 +290,49 @@ func TestPatchSettings_FallbackDefaults(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }
+
+type mockMCPSetter struct {
+	enabled bool
+}
+
+func (m *mockMCPSetter) SetEnabled(v bool) {
+	m.enabled = v
+}
+
+func TestPatchSettings_MCPEnabled(t *testing.T) {
+	db := setupTestDB(t)
+	mcpSetter := &mockMCPSetter{}
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
+	h.SetMCPStateSetter(mcpSetter)
+	r := newSettingsRouter(h)
+
+	body := jsonBody(t, map[string]any{"mcp_enabled": true})
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var s models.AppSettings
+	decodeJSON(t, rec.Body, &s)
+	if !s.MCPEnabled {
+		t.Errorf("expected mcp_enabled = true, got false")
+	}
+	if !mcpSetter.enabled {
+		t.Errorf("expected mcpSetter.enabled = true, got false")
+	}
+
+	// Disable again
+	body = jsonBody(t, map[string]any{"mcp_enabled": false})
+	req = httptest.NewRequest(http.MethodPatch, "/api/settings", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	decodeJSON(t, rec.Body, &s)
+	if s.MCPEnabled || mcpSetter.enabled {
+		t.Errorf("expected mcp_enabled = false, got true")
+	}
+}
