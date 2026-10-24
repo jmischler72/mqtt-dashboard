@@ -19,11 +19,7 @@ import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
 import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
 import { appPath } from "../runtime";
-import {
-  MdCheck,
-  MdContentCopy,
-  MdSettings,
-} from "react-icons/md";
+import { MdCheck, MdContentCopy, MdSettings } from "react-icons/md";
 import { RiRobot2Line, RiServerLine } from "react-icons/ri";
 
 const statusDot: Record<string, string> = {
@@ -377,7 +373,10 @@ export default function ConfigPage() {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedMcpKey(key);
-    setTimeout(() => setCopiedMcpKey((prev) => (prev === key ? null : prev)), 2000);
+    setTimeout(
+      () => setCopiedMcpKey((prev) => (prev === key ? null : prev)),
+      2000,
+    );
   };
 
   const handleClearHistory = async () => {
@@ -1020,9 +1019,7 @@ export default function ConfigPage() {
                           className="select select-bordered"
                           value={retentionUnit}
                           onChange={(e) =>
-                            setRetentionUnit(
-                              e.target.value as "hours" | "days",
-                            )
+                            setRetentionUnit(e.target.value as "hours" | "days")
                           }
                         >
                           <option value="hours">Hours</option>
@@ -1120,8 +1117,8 @@ export default function ConfigPage() {
                             </span>
                           </div>
                           <p className="text-xs text-base-content/50 mt-0.5">
-                            Model Context Protocol endpoint for external AI coding
-                            agents
+                            Model Context Protocol endpoint for external AI
+                            coding agents
                           </p>
                         </div>
                       </div>
@@ -1183,9 +1180,7 @@ export default function ConfigPage() {
                           type="button"
                           className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
                           data-tip={
-                            copiedMcpKey === "sse"
-                              ? "Copied!"
-                              : "Copy SSE URL"
+                            copiedMcpKey === "sse" ? "Copied!" : "Copy SSE URL"
                           }
                           onClick={() =>
                             handleCopyMcpText("sse", `${mcpEndpointUrl}/sse`)
@@ -1242,10 +1237,7 @@ export default function ConfigPage() {
                       </span>
                       <div className="flex flex-wrap gap-2">
                         {[
-                          [
-                            "list_brokers",
-                            "List configured brokers & status",
-                          ],
+                          ["list_brokers", "List configured brokers & status"],
                           [
                             "explore_topics",
                             "Discover active topics & sample payloads",
@@ -1258,14 +1250,8 @@ export default function ConfigPage() {
                             "get_panel_schema",
                             "13 panel schemas, {value} shaping & grid rules",
                           ],
-                          [
-                            "list_dashboards",
-                            "List dashboards & panel counts",
-                          ],
-                          [
-                            "get_dashboard",
-                            "Export dashboard layout & panels",
-                          ],
+                          ["list_dashboards", "List dashboards & panel counts"],
+                          ["get_dashboard", "Export dashboard layout & panels"],
                           [
                             "create_dashboard",
                             "Create dashboard with auto-layout",

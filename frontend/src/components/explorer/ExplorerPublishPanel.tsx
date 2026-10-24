@@ -42,7 +42,10 @@ export default function ExplorerPublishPanel({
         <div className="flex items-center gap-2 min-w-0">
           <WarningIcon className="text-sm text-warning shrink-0" />
           <span className="text-base-content/80 text-xs">
-            Cannot publish to wildcard topics (<code className="font-mono font-semibold text-warning">+</code> / <code className="font-mono font-semibold text-warning">#</code>). Select a specific topic to publish.
+            Cannot publish to wildcard topics (
+            <code className="font-mono font-semibold text-warning">+</code> /{" "}
+            <code className="font-mono font-semibold text-warning">#</code>).
+            Select a specific topic to publish.
           </span>
         </div>
         <button
