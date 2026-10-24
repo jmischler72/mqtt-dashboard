@@ -335,4 +335,74 @@ func TestPatchSettings_MCPEnabled(t *testing.T) {
 	if s.MCPEnabled || mcpSetter.enabled {
 		t.Errorf("expected mcp_enabled = false, got true")
 	}
+
+	// 1. Invalid JSON
+	req = httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader("{bad}"))
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad JSON, got %d", rec.Code)
+	}
+
+	// 2. Empty fields
+	req = httptest.NewRequest(http.MethodPatch, "/api/settings", jsonBody(t, map[string]any{}))
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty patch, got %d", rec.Code)
+	}
+
+	// 3. Retention below 24
+	req = httptest.NewRequest(http.MethodPatch, "/api/settings", jsonBody(t, map[string]any{"retention_period_hours": 12}))
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for retention < 24, got %d", rec.Code)
+	}
+
+	// 4. Update save_sys_topics
+	req = httptest.NewRequest(http.MethodPatch, "/api/settings", jsonBody(t, map[string]any{"save_sys_topics": true}))
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for save_sys_topics patch, got %d", rec.Code)
+	}
+	decodeJSON(t, rec.Body, &s)
+	if !s.SaveSysTopics {
+		t.Errorf("expected save_sys_topics = true")
+	}
 }
+
+func TestClearHistory_DBError(t *testing.T) {
+	db := setupTestDB(t)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
+	r := newSettingsRouter(h)
+	db.Close()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/settings/history", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestGetHistorySize_DBError(t *testing.T) {
+	db := setupTestDB(t)
+	h := handlers.NewSettingsHandler(db, noopRegistry{})
+	r := newSettingsRouter(h)
+	db.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/history-size", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var res map[string]int64
+	decodeJSON(t, rec.Body, &res)
+	if res["size_bytes"] != 0 {
+		t.Errorf("expected size_bytes = 0, got %d", res["size_bytes"])
+	}
+}
+

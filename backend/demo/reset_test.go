@@ -141,6 +141,15 @@ func TestSetupAutoReset(t *testing.T) {
 		t.Errorf("expected no error when disabled, got %v", err)
 	}
 
+	if err := demo.SetupAutoReset(database, registry, scheduler, logicEngine, wsHub, "", "disabled"); err != nil {
+		t.Errorf("expected no error when disabled, got %v", err)
+	}
+
+	// Test default cron expression when empty
+	if err := demo.SetupAutoReset(database, registry, scheduler, logicEngine, wsHub, "", ""); err != nil {
+		t.Errorf("expected no error for default cron, got %v", err)
+	}
+
 	// Test invalid cron
 	if err := demo.SetupAutoReset(database, registry, scheduler, logicEngine, wsHub, "", "invalid-cron"); err == nil {
 		t.Error("expected error for invalid cron expression")
@@ -154,4 +163,18 @@ func TestSetupAutoReset(t *testing.T) {
 
 func TestResetDatabase_NilSafe(t *testing.T) {
 	demo.ResetDatabase(nil, nil, nil, nil, nil, "")
+
+	// Test empty seedFile fallback to env var
+	t.Setenv("MQTT_DASHBOARD_SEED_FILE", "")
+	dbFile := filepath.Join(t.TempDir(), "test2.db")
+	database, err := db.InitDB(dbFile)
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	registry := mqttclient.NewRegistry(database)
+	scheduler, _ := cron.NewScheduler(registry)
+	logicEngine := logic.NewEngine(registry)
+	defer logicEngine.Stop()
+	demo.ResetDatabase(database, registry, scheduler, logicEngine, nil, "")
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -641,6 +642,52 @@ func TestBuildRouter_RequestLogging(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("health status = %d, want 200", rec.Code)
+	}
+}
+
+func TestFormatServerURL_EdgeCases(t *testing.T) {
+	cases := []struct {
+		addr     string
+		basePath string
+		want     string
+	}{
+		{":80", "/", "http://localhost/"},
+		{":80", "/sub", "http://localhost/sub/"},
+		{"0.0.0.0:8080", "/", "http://localhost:8080/"},
+		{"[::]:8080", "/", "http://localhost:8080/"},
+		{"8080", "/", "http://localhost:8080/"},
+		{"example.com:80", "/", "http://example.com/"},
+		{"example.com:9000", "/app/", "http://example.com:9000/app/"},
+	}
+	for _, tc := range cases {
+		got := formatServerURL(tc.addr, tc.basePath)
+		if got != tc.want {
+			t.Errorf("formatServerURL(%q, %q) = %q, want %q", tc.addr, tc.basePath, got, tc.want)
+		}
+	}
+}
+
+func TestPrecomputeIndexHTML_Errors(t *testing.T) {
+	// 1. Missing index.html
+	_, err := precomputeIndexHTML(fstest.MapFS{}, "/")
+	if err == nil {
+		t.Error("expected error for missing index.html")
+	}
+
+	// 2. Missing </head> tag
+	_, err = precomputeIndexHTML(fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><body>hello</body></html>")},
+	}, "/")
+	if err == nil {
+		t.Error("expected error for missing </head>")
+	}
+}
+
+func TestServeIndex_Error(t *testing.T) {
+	rec := httptest.NewRecorder()
+	serveIndex(rec, nil, errors.New("fail"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("serveIndex with error status = %d, want 500", rec.Code)
 	}
 }
 

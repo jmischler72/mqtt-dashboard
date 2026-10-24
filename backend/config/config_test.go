@@ -430,3 +430,29 @@ func TestSeedBrokersFromPath_EmptyPathDoesNotSeed(t *testing.T) {
 	}
 }
 
+func TestResolveCertContent(t *testing.T) {
+	// 1. Empty string
+	if got := ResolveCertContent("", ""); got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+
+	// 2. Inline PEM content
+	pem := "-----BEGIN CERTIFICATE-----\nMIIB..."
+	if got := ResolveCertContent(pem, ""); got != pem {
+		t.Errorf("expected inline PEM to be returned, got %q", got)
+	}
+
+	// 3. Nonexistent file path returns empty
+	if got := ResolveCertContent("nonexistent_file.pem", t.TempDir()); got != "" {
+		t.Errorf("expected empty for nonexistent file, got %q", got)
+	}
+
+	// 4. Existing relative file path returns content
+	tmpDir := t.TempDir()
+	certFile := "cert.pem"
+	os.WriteFile(tmpDir+"/"+certFile, []byte("file-cert-content"), 0600)
+	if got := ResolveCertContent(certFile, tmpDir); got != "file-cert-content" {
+		t.Errorf("expected file-cert-content, got %q", got)
+	}
+}
+

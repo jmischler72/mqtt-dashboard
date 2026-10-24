@@ -664,3 +664,92 @@ func TestCopyPanelTo_Success(t *testing.T) {
 		t.Errorf("original panel dashboard_id = %q, want 'default'", origDashID)
 	}
 }
+
+func TestBatchUpdatePositions_DBError(t *testing.T) {
+	db := setupTestDB(t)
+	h := handlers.NewLayoutHandler(db)
+	r := newLayoutRouter(h)
+	db.Close()
+
+	req := httptest.NewRequest(http.MethodPut, "/api/layouts/batch", strings.NewReader(`{"panels":[{"id":"p1","x":0,"y":0,"w":1,"h":1}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
+func TestCopyPanelTo_Errors(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('dash-2', 'Dashboard Two')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Panel 1', 'gauge', 0, 0, 4, 3)`)
+
+	h := handlers.NewLayoutHandler(database)
+	r := newLayoutRouter(h)
+
+	// Missing dashboard_id
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/p1/copy-to", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing dashboard_id, got %d", rec.Code)
+	}
+
+	// Target dashboard does not exist
+	req = httptest.NewRequest(http.MethodPost, "/api/layouts/p1/copy-to", strings.NewReader(`{"dashboard_id":"nonexistent"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent target dashboard, got %d", rec.Code)
+	}
+
+	// Source panel does not exist
+	req = httptest.NewRequest(http.MethodPost, "/api/layouts/nonexistent/copy-to", strings.NewReader(`{"dashboard_id":"dash-2"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent source panel, got %d", rec.Code)
+	}
+}
+
+func TestMovePanel_Errors(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('dash-2', 'Dashboard Two')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p1', 'default', 'Panel 1', 'gauge', 0, 0, 4, 3)`)
+
+	h := handlers.NewLayoutHandler(database)
+	r := newLayoutRouter(h)
+
+	// Missing dashboard_id
+	req := httptest.NewRequest(http.MethodPost, "/api/layouts/p1/move", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing dashboard_id, got %d", rec.Code)
+	}
+
+	// Target dashboard does not exist
+	req = httptest.NewRequest(http.MethodPost, "/api/layouts/p1/move", strings.NewReader(`{"dashboard_id":"nonexistent"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent target dashboard, got %d", rec.Code)
+	}
+
+	// Source panel does not exist
+	req = httptest.NewRequest(http.MethodPost, "/api/layouts/nonexistent/move", strings.NewReader(`{"dashboard_id":"dash-2"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent source panel, got %d", rec.Code)
+	}
+}
+

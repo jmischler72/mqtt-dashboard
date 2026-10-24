@@ -103,6 +103,25 @@ func TestLoadRuntimeConfig_RejectsInvalidBasePath(t *testing.T) {
 	if _, err := LoadRuntimeConfig(); err == nil {
 		t.Fatal("LoadRuntimeConfig accepted a base path with '..'")
 	}
+
+	t.Setenv("MQTT_DASHBOARD_BASE_PATH", "relative_no_slash")
+	if _, err := LoadRuntimeConfig(); err == nil {
+		t.Fatal("LoadRuntimeConfig accepted a base path without leading slash")
+	}
+
+	t.Setenv("MQTT_DASHBOARD_BASE_PATH", "/./")
+	cfg, err := LoadRuntimeConfig()
+	if err != nil || cfg.BasePath != "/" {
+		t.Fatalf("expected /./ to normalize to /, got %q (err=%v)", cfg.BasePath, err)
+	}
+}
+
+func TestLoadRuntimeConfig_ValidationErrors(t *testing.T) {
+	t.Setenv("MQTT_DASHBOARD_CONFIG", "")
+	t.Setenv("MQTT_DASHBOARD_HTTP_ADDR", "not-a-valid-host-port")
+	if _, err := LoadRuntimeConfig(); err == nil {
+		t.Fatal("expected error for invalid HTTP address")
+	}
 }
 
 func TestLoadRuntimeConfig_RelativeSeedFileResolvesRelativeToTOML(t *testing.T) {
