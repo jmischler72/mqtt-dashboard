@@ -74,6 +74,19 @@ func NewServer(
 
 func (s *Server) SetEnabled(enabled bool) {
 	s.enabled.Store(enabled)
+	if !enabled {
+		s.CloseAllSessions()
+	}
+}
+
+// CloseAllSessions terminates all active SSE sessions.
+func (s *Server) CloseAllSessions() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, ch := range s.sessions {
+		delete(s.sessions, id)
+		close(ch)
+	}
 }
 
 func (s *Server) IsEnabled() bool {

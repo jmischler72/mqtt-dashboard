@@ -39,10 +39,13 @@ func TestResetDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert history: %v", err)
 	}
-	_, err = database.Exec(`UPDATE app_settings SET retention_period_hours = 99 WHERE id = 1`)
+	_, err = database.Exec(`UPDATE app_settings SET retention_period_hours = 99, mcp_enabled = 1 WHERE id = 1`)
 	if err != nil {
 		t.Fatalf("update settings: %v", err)
 	}
+
+	mockSetter := &mockMCPSetter{enabled: true}
+	demo.SetMCPStateSetter(mockSetter)
 
 	// Create a temp seed file
 	seedContent := `{
@@ -112,9 +115,21 @@ func TestResetDatabase(t *testing.T) {
 
 	// Verify app settings reset
 	var retention int
-	if err := database.QueryRow(`SELECT retention_period_hours FROM app_settings WHERE id = 1`).Scan(&retention); err != nil || retention != 24 {
-		t.Errorf("expected retention 24, got %d", retention)
+	var mcpEnabled bool
+	if err := database.QueryRow(`SELECT retention_period_hours, mcp_enabled FROM app_settings WHERE id = 1`).Scan(&retention, &mcpEnabled); err != nil || retention != 24 || mcpEnabled {
+		t.Errorf("expected retention 24 and mcp_enabled false, got retention=%d mcp_enabled=%v", retention, mcpEnabled)
 	}
+	if mockSetter.enabled {
+		t.Errorf("expected mockSetter.enabled to be false after reset")
+	}
+}
+
+type mockMCPSetter struct {
+	enabled bool
+}
+
+func (m *mockMCPSetter) SetEnabled(v bool) {
+	m.enabled = v
 }
 
 func TestSetupAutoReset(t *testing.T) {
