@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"mqtt-dashboard/db"
 	mqttclient "mqtt-dashboard/mqtt"
 
 	"github.com/google/uuid"
@@ -507,6 +508,55 @@ func TestHub_ClearPanelMetaCache(t *testing.T) {
 	if count != 0 {
 		t.Errorf("expected empty panelMetaCache, got %d entries", count)
 	}
+}
+
+func TestHub_ResolvePanelMeta(t *testing.T) {
+	// 1. Without DB
+	hubNoDB := NewHub(newMockBrokerSub())
+	title, dash := hubNoDB.resolvePanelMeta("p1")
+	if title != "" || dash != "" {
+		t.Errorf("expected empty meta without DB, got %q, %q", title, dash)
+	}
+
+	// 2. With DB
+	database, err := db.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer database.Close()
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('d1', 'Test Dash')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('p-exists', 'd1', 'My Panel', 'button', 0, 0, 1, 1)`)
+
+	hub := NewHub(newMockBrokerSub(), database)
+
+	// Panel not found (first call queries DB, second call hits cache)
+	t1, d1 := hub.resolvePanelMeta("p-not-found")
+	if t1 != "" || d1 != "" {
+		t.Errorf("expected empty for not found")
+	}
+	t2, d2 := hub.resolvePanelMeta("p-not-found")
+	if t2 != "" || d2 != "" {
+		t.Errorf("expected empty for cached not found")
+	}
+
+	// Panel exists (first call queries DB, second call hits cache)
+	t3, d3 := hub.resolvePanelMeta("p-exists")
+	if t3 != "My Panel" || d3 != "d1" {
+		t.Errorf("expected 'My Panel' and 'd1', got %q, %q", t3, d3)
+	}
+	t4, d4 := hub.resolvePanelMeta("p-exists")
+	if t4 != "My Panel" || d4 != "d1" {
+		t.Errorf("expected cached 'My Panel' and 'd1', got %q, %q", t4, d4)
+	}
+
+	hub.InvalidatePanelMeta("p-exists")
+	hub.ClearPanelMetaCache()
+
+	c := newTestClient(hub)
+	hub.Register(c)
+	c.SetPanelID("p-exists")
+	c.Send(WSMessage{Topic: "test"})
+	c.Close()
 }
 
 

@@ -14,28 +14,40 @@ type SysTopicsSetter interface {
 	SetSaveSysTopics(v bool)
 }
 
+// MCPStateSetter allows dynamically enabling or disabling the MCP server endpoints.
+type MCPStateSetter interface {
+	SetEnabled(v bool)
+}
+
 // patchSettingsRequest holds optional fields for partial settings updates.
 // A nil pointer means "not provided / do not change".
 type patchSettingsRequest struct {
 	RetentionPeriodHours *int  `json:"retention_period_hours"`
 	SaveSysTopics        *bool `json:"save_sys_topics"`
+	MCPEnabled           *bool `json:"mcp_enabled"`
 }
 
 type SettingsHandler struct {
-	db       *sql.DB
-	registry SysTopicsSetter
+	db        *sql.DB
+	registry  SysTopicsSetter
+	mcpSetter MCPStateSetter
 }
 
 func NewSettingsHandler(db *sql.DB, registry SysTopicsSetter) *SettingsHandler {
 	return &SettingsHandler{db: db, registry: registry}
 }
 
+func (h *SettingsHandler) SetMCPStateSetter(setter MCPStateSetter) {
+	h.mcpSetter = setter
+}
+
 func (h *SettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	var settings models.AppSettings
-	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(save_sys_topics, 0) FROM app_settings WHERE id = 1`)
-	if err := row.Scan(&settings.RetentionPeriodHours, &settings.SaveSysTopics); err != nil {
+	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(save_sys_topics, 0), COALESCE(mcp_enabled, 0) FROM app_settings WHERE id = 1`)
+	if err := row.Scan(&settings.RetentionPeriodHours, &settings.SaveSysTopics, &settings.MCPEnabled); err != nil {
 		settings.RetentionPeriodHours = 24
 		settings.SaveSysTopics = false
+		settings.MCPEnabled = false
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(settings)
@@ -51,11 +63,14 @@ func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "retention_period_hours must be >= 24", http.StatusBadRequest)
 		return
 	}
-	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, save_sys_topics = ? WHERE id = 1`, settings.RetentionPeriodHours, settings.SaveSysTopics); err != nil {
+	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, save_sys_topics = ?, mcp_enabled = ? WHERE id = 1`, settings.RetentionPeriodHours, settings.SaveSysTopics, settings.MCPEnabled); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	h.registry.SetSaveSysTopics(settings.SaveSysTopics)
+	if h.mcpSetter != nil {
+		h.mcpSetter.SetEnabled(settings.MCPEnabled)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(settings)
 }
@@ -89,7 +104,7 @@ func (h *SettingsHandler) PatchSettings(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if patch.RetentionPeriodHours == nil && patch.SaveSysTopics == nil {
+	if patch.RetentionPeriodHours == nil && patch.SaveSysTopics == nil && patch.MCPEnabled == nil {
 		http.Error(w, "no fields to update", http.StatusBadRequest)
 		return
 	}
@@ -100,10 +115,11 @@ func (h *SettingsHandler) PatchSettings(w http.ResponseWriter, r *http.Request) 
 
 	// Read current values so untouched fields are preserved.
 	var current models.AppSettings
-	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(save_sys_topics, 0) FROM app_settings WHERE id = 1`)
-	if err := row.Scan(&current.RetentionPeriodHours, &current.SaveSysTopics); err != nil {
+	row := h.db.QueryRow(`SELECT retention_period_hours, COALESCE(save_sys_topics, 0), COALESCE(mcp_enabled, 0) FROM app_settings WHERE id = 1`)
+	if err := row.Scan(&current.RetentionPeriodHours, &current.SaveSysTopics, &current.MCPEnabled); err != nil {
 		current.RetentionPeriodHours = 24
 		current.SaveSysTopics = false
+		current.MCPEnabled = false
 	}
 
 	if patch.RetentionPeriodHours != nil {
@@ -112,13 +128,19 @@ func (h *SettingsHandler) PatchSettings(w http.ResponseWriter, r *http.Request) 
 	if patch.SaveSysTopics != nil {
 		current.SaveSysTopics = *patch.SaveSysTopics
 	}
+	if patch.MCPEnabled != nil {
+		current.MCPEnabled = *patch.MCPEnabled
+	}
 
-	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, save_sys_topics = ? WHERE id = 1`,
-		current.RetentionPeriodHours, current.SaveSysTopics); err != nil {
+	if _, err := h.db.Exec(`UPDATE app_settings SET retention_period_hours = ?, save_sys_topics = ?, mcp_enabled = ? WHERE id = 1`,
+		current.RetentionPeriodHours, current.SaveSysTopics, current.MCPEnabled); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	h.registry.SetSaveSysTopics(current.SaveSysTopics)
+	if h.mcpSetter != nil && patch.MCPEnabled != nil {
+		h.mcpSetter.SetEnabled(current.MCPEnabled)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(current)
 }

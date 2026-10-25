@@ -18,8 +18,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
 import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
-import { MdSettings } from "react-icons/md";
-import { RiServerLine } from "react-icons/ri";
+import { appPath } from "../runtime";
+import { MdCheck, MdContentCopy, MdSettings } from "react-icons/md";
+import { RiRobot2Line, RiServerLine } from "react-icons/ri";
 
 const statusDot: Record<string, string> = {
   CONNECTED: "bg-success",
@@ -222,20 +223,27 @@ export default function ConfigPage() {
   const [historySize, setHistorySize] = useState<number | null>(null);
   const [clearingHistory, setClearingHistory] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [mcpSaving, setMcpSaving] = useState(false);
+  const [copiedMcpKey, setCopiedMcpKey] = useState<string | null>(null);
 
   const requestedBrokerId = searchParams.get("broker");
   const tabParam = searchParams.get("tab");
   const activeTab: "brokers" | "general" = requestedBrokerId
     ? "brokers"
-    : tabParam === "general"
-      ? "general"
-      : "brokers";
+    : tabParam === "brokers"
+      ? "brokers"
+      : "general";
 
   const handleTabChange = (tab: "brokers" | "general") => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        next.set("tab", tab);
+        if (tab === "general") {
+          next.delete("tab");
+        } else {
+          next.set("tab", tab);
+        }
         if (tab !== "brokers") {
           next.delete("broker");
         }
@@ -300,9 +308,11 @@ export default function ConfigPage() {
 
   useEffect(() => {
     api
-      .get<{ retention_period_hours: number; save_sys_topics: boolean }>(
-        "/api/settings",
-      )
+      .get<{
+        retention_period_hours: number;
+        save_sys_topics: boolean;
+        mcp_enabled?: boolean;
+      }>("/api/settings")
       .then((s) => {
         const h = s.retention_period_hours;
         if (h % 24 === 0) {
@@ -313,6 +323,7 @@ export default function ConfigPage() {
           setRetentionUnit("hours");
         }
         setShowSysTopics(Boolean(s.save_sys_topics));
+        setMcpEnabled(Boolean(s.mcp_enabled));
       })
       .catch((error) => {
         void error;
@@ -323,6 +334,52 @@ export default function ConfigPage() {
       .then(({ size_bytes }) => setHistorySize(size_bytes))
       .catch(() => setHistorySize(null));
   }, []);
+
+  const handleToggleMCP = async (enabled: boolean) => {
+    setMcpSaving(true);
+    try {
+      await api.patch("/api/settings", { mcp_enabled: enabled });
+      setMcpEnabled(enabled);
+      showToast(enabled ? "MCP server enabled" : "MCP server disabled");
+    } catch (error) {
+      showToast(getErrorMessage(error), false);
+    } finally {
+      setMcpSaving(false);
+    }
+  };
+
+  const mcpEndpointUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${appPath("/mcp")}`
+      : "";
+
+  const mcpConfigSnippet = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          mcpServers: {
+            "mqtt-dashboard": {
+              url: mcpEndpointUrl,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    [mcpEndpointUrl],
+  );
+
+  const handleCopyMcpText = (key: string, text: string) => {
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    setCopiedMcpKey(key);
+    setTimeout(
+      () => setCopiedMcpKey((prev) => (prev === key ? null : prev)),
+      2000,
+    );
+  };
 
   const handleClearHistory = async () => {
     setClearingHistory(true);
@@ -513,22 +570,22 @@ export default function ConfigPage() {
           <button
             role="tab"
             type="button"
-            aria-selected={activeTab === "brokers"}
-            className={`tab gap-2 ${activeTab === "brokers" ? "tab-active font-medium text-primary" : "text-base-content/70 hover:text-base-content"}`}
-            onClick={() => handleTabChange("brokers")}
-          >
-            <RiServerLine className="text-base" />
-            <span>Brokers</span>
-          </button>
-          <button
-            role="tab"
-            type="button"
             aria-selected={activeTab === "general"}
             className={`tab gap-2 ${activeTab === "general" ? "tab-active font-medium text-primary" : "text-base-content/70 hover:text-base-content"}`}
             onClick={() => handleTabChange("general")}
           >
             <MdSettings className="text-base" />
             <span>General</span>
+          </button>
+          <button
+            role="tab"
+            type="button"
+            aria-selected={activeTab === "brokers"}
+            className={`tab gap-2 ${activeTab === "brokers" ? "tab-active font-medium text-primary" : "text-base-content/70 hover:text-base-content"}`}
+            onClick={() => handleTabChange("brokers")}
+          >
+            <RiServerLine className="text-base" />
+            <span>Brokers</span>
           </button>
         </div>
       </div>
@@ -615,7 +672,7 @@ export default function ConfigPage() {
 
         {/* ── Detail / General form ────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto flex flex-col gap-6 my-6 px-6">
+          <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 my-8 px-4 sm:px-6">
             {activeTab === "brokers" && !canShowForm ? (
               <div className="text-center py-8">
                 <h2 className="text-2xl font-semibold mb-2">
@@ -932,92 +989,295 @@ export default function ConfigPage() {
             ) : null}
 
             {activeTab === "general" && (
-              <div className="card bg-base-100 border border-base-300 shadow-sm">
-                <div className="card-body gap-4">
-                  <h2 className="card-title text-lg">Data Retention</h2>
-                  <fieldset className="fieldset">
-                    <legend className="fieldset-legend">
-                      Retention Period
-                    </legend>
-                    <div className="flex gap-2">
-                      <input
-                        className="input input-bordered w-24"
-                        type="number"
-                        min={1}
-                        value={retentionValue}
-                        onChange={(e) =>
-                          setRetentionValue(Number(e.target.value))
-                        }
-                      />
-                      <select
-                        className="select select-bordered"
-                        value={retentionUnit}
-                        onChange={(e) =>
-                          setRetentionUnit(e.target.value as "hours" | "days")
-                        }
-                      >
-                        <option value="hours">Hours</option>
-                        <option value="days">Days</option>
-                      </select>
-                    </div>
-                    {retentionUnit === "hours" && retentionValue < 24 && (
-                      <p className="text-error text-xs mt-1">
-                        Minimum retention is 24 hours.
-                      </p>
-                    )}
-                    {retentionUnit === "days" && retentionValue < 1 && (
-                      <p className="text-error text-xs mt-1">
-                        Minimum retention is 1 day.
-                      </p>
-                    )}
-                  </fieldset>
-                  <p className="text-xs text-base-content/50">
-                    Topic history older than this window is automatically purged
-                    every 30 minutes.
-                  </p>
-                  <div className="flex items-center justify-between">
+              <div className="w-full max-w-4xl mx-auto flex flex-col gap-8">
+                {/* ── Data Retention ───────────────────────────────── */}
+                <div className="card bg-base-100 border border-base-300 shadow-sm">
+                  <div className="card-body p-6 sm:p-8 gap-6">
                     <div>
-                      <p className="text-sm font-medium">History storage</p>
-                      <p className="text-xs text-base-content/50">
-                        {historySize === null ? "—" : formatBytes(historySize)}
+                      <h2 className="card-title text-base sm:text-lg">
+                        Data Retention
+                      </h2>
+                      <p className="text-xs text-base-content/50 mt-1">
+                        Topic history older than this window is automatically
+                        purged every 30 minutes.
                       </p>
                     </div>
-                    <button
-                      className="btn btn-sm btn-error btn-outline"
-                      onClick={() => setShowClearConfirm(true)}
-                      disabled={clearingHistory || historySize === 0}
-                    >
-                      Clear history
-                    </button>
+
+                    <fieldset className="fieldset">
+                      <legend className="fieldset-legend font-medium">
+                        Retention Period
+                      </legend>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <input
+                          className="input input-bordered w-28"
+                          type="number"
+                          min={1}
+                          value={retentionValue}
+                          onChange={(e) =>
+                            setRetentionValue(Number(e.target.value))
+                          }
+                        />
+                        <select
+                          className="select select-bordered"
+                          value={retentionUnit}
+                          onChange={(e) =>
+                            setRetentionUnit(e.target.value as "hours" | "days")
+                          }
+                        >
+                          <option value="hours">Hours</option>
+                          <option value="days">Days</option>
+                        </select>
+                      </div>
+                      {retentionUnit === "hours" && retentionValue < 24 && (
+                        <p className="text-error text-xs mt-1">
+                          Minimum retention is 24 hours.
+                        </p>
+                      )}
+                      {retentionUnit === "days" && retentionValue < 1 && (
+                        <p className="text-error text-xs mt-1">
+                          Minimum retention is 1 day.
+                        </p>
+                      )}
+                    </fieldset>
+
+                    <div className="flex items-center justify-between p-4 bg-base-200/50 rounded-lg border border-base-200">
+                      <div>
+                        <p className="text-sm font-medium">History storage</p>
+                        <p className="text-xs text-base-content/50">
+                          {historySize === null
+                            ? "—"
+                            : formatBytes(historySize)}
+                        </p>
+                      </div>
+                      <button
+                        className="btn btn-sm btn-error btn-outline"
+                        onClick={() => setShowClearConfirm(true)}
+                        disabled={clearingHistory || historySize === 0}
+                      >
+                        Clear history
+                      </button>
+                    </div>
+
+                    <div className="divider my-0" />
+
+                    <div>
+                      <label className="label cursor-pointer justify-start gap-3 px-0 py-1">
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary toggle-sm"
+                          checked={showSysTopics}
+                          onChange={(e) => setShowSysTopics(e.target.checked)}
+                        />
+                        <span className="label-text text-sm font-medium">
+                          Save $SYS topics in history
+                        </span>
+                      </label>
+                      <p className="text-xs text-base-content/50 pl-11">
+                        When enabled, $SYS broker system topics are persisted to
+                        history.
+                      </p>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleSaveRetention}
+                        disabled={retentionSaving}
+                      >
+                        {retentionSaving ? (
+                          <span className="loading loading-spinner loading-xs" />
+                        ) : null}
+                        Save Changes
+                      </button>
+                    </div>
                   </div>
-                  <div className="divider" />
-                  <label className="label cursor-pointer justify-start gap-3 px-0 py-1">
-                    <input
-                      type="checkbox"
-                      className="toggle toggle-primary"
-                      checked={showSysTopics}
-                      onChange={(e) => setShowSysTopics(e.target.checked)}
-                    />
-                    <span className="label-text font-medium">
-                      Save $SYS topics in history
-                    </span>
-                  </label>
-                  <p className="text-xs text-base-content/50">
-                    When enabled, $SYS broker system topics are persisted to
-                    history. They publish frequently and may use significant
-                    disk space over time.
-                  </p>
-                  <div>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={handleSaveRetention}
-                      disabled={retentionSaving}
+                </div>
+
+                {/* ── MCP Server ───────────────────────────────────── */}
+                <div className="card bg-base-100 border border-base-300 shadow-sm">
+                  <div className="card-body p-6 sm:p-8 gap-6">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                          <RiRobot2Line className="text-xl" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="card-title text-base sm:text-lg">
+                              MCP Server
+                            </h2>
+                            <span
+                              className="tooltip tooltip-right inline-flex items-center"
+                              data-tip={mcpEnabled ? "Active" : "Disabled"}
+                            >
+                              <span
+                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                  mcpEnabled ? "bg-success" : "bg-neutral"
+                                }`}
+                              />
+                            </span>
+                          </div>
+                          <p className="text-xs text-base-content/50 mt-0.5">
+                            Model Context Protocol endpoint for external AI
+                            coding agents
+                          </p>
+                        </div>
+                      </div>
+                      <label className="label cursor-pointer gap-2.5 px-0 py-0 shrink-0">
+                        <span className="label-text text-xs text-base-content/60">
+                          {mcpEnabled ? "Enabled" : "Disabled"}
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary"
+                          checked={mcpEnabled}
+                          disabled={mcpSaving}
+                          onChange={(e) => handleToggleMCP(e.target.checked)}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Endpoints list */}
+                    <div
+                      className={`border border-base-300 rounded-lg divide-y divide-base-200 overflow-hidden transition-opacity ${
+                        mcpEnabled ? "" : "opacity-50"
+                      }`}
                     >
-                      {retentionSaving ? (
-                        <span className="loading loading-spinner loading-xs" />
-                      ) : null}
-                      Save
-                    </button>
+                      <div className="flex items-center gap-3 px-4 py-3 bg-base-100">
+                        <span className="badge badge-sm badge-primary/15 text-primary border-primary/20 font-mono text-[11px] w-14 shrink-0">
+                          HTTP
+                        </span>
+                        <code className="font-mono text-xs text-base-content/80 truncate flex-1 select-all">
+                          {mcpEndpointUrl}
+                        </code>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
+                          data-tip={
+                            copiedMcpKey === "http"
+                              ? "Copied!"
+                              : "Copy Streamable HTTP URL"
+                          }
+                          onClick={() =>
+                            handleCopyMcpText("http", mcpEndpointUrl)
+                          }
+                        >
+                          {copiedMcpKey === "http" ? (
+                            <MdCheck className="text-sm text-success" />
+                          ) : (
+                            <MdContentCopy className="text-sm" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-3 px-4 py-3 bg-base-100">
+                        <span className="badge badge-sm badge-ghost font-mono text-[11px] w-14 shrink-0">
+                          SSE
+                        </span>
+                        <code className="font-mono text-xs text-base-content/60 truncate flex-1 select-all">
+                          {mcpEndpointUrl}/sse
+                        </code>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
+                          data-tip={
+                            copiedMcpKey === "sse" ? "Copied!" : "Copy SSE URL"
+                          }
+                          onClick={() =>
+                            handleCopyMcpText("sse", `${mcpEndpointUrl}/sse`)
+                          }
+                        >
+                          {copiedMcpKey === "sse" ? (
+                            <MdCheck className="text-sm text-success" />
+                          ) : (
+                            <MdContentCopy className="text-sm" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Client config snippet */}
+                    <div
+                      className={`border border-base-300 rounded-lg overflow-hidden transition-opacity ${
+                        mcpEnabled ? "" : "opacity-50"
+                      }`}
+                    >
+                      <div className="bg-base-200/70 px-4 py-2.5 flex items-center justify-between border-b border-base-300">
+                        <span className="font-mono text-xs text-base-content/60">
+                          mcp_config.json
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs h-7 px-2.5 gap-1.5 font-normal text-xs tooltip tooltip-left"
+                          data-tip={
+                            copiedMcpKey === "json" ? "Copied!" : "Copy JSON"
+                          }
+                          onClick={() =>
+                            handleCopyMcpText("json", mcpConfigSnippet)
+                          }
+                        >
+                          {copiedMcpKey === "json" ? (
+                            <MdCheck className="text-xs text-success" />
+                          ) : (
+                            <MdContentCopy className="text-xs" />
+                          )}
+                          <span>
+                            {copiedMcpKey === "json" ? "Copied" : "Copy"}
+                          </span>
+                        </button>
+                      </div>
+                      <pre className="bg-base-200/30 p-4 font-mono text-xs leading-relaxed text-base-content/80 overflow-x-auto select-all m-0">
+                        {mcpConfigSnippet}
+                      </pre>
+                    </div>
+
+                    {/* Exposed tools */}
+                    <div className="flex flex-col gap-2">
+                      <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+                        Exposed Tools (10)
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          ["list_brokers", "List configured brokers & status"],
+                          [
+                            "explore_topics",
+                            "Discover active topics & sample payloads",
+                          ],
+                          [
+                            "sample_topic_payload",
+                            "Inspect recent messages on a topic",
+                          ],
+                          [
+                            "get_panel_schema",
+                            "13 panel schemas, {value} shaping & grid rules",
+                          ],
+                          ["list_dashboards", "List dashboards & panel counts"],
+                          ["get_dashboard", "Export dashboard layout & panels"],
+                          [
+                            "create_dashboard",
+                            "Create dashboard with auto-layout",
+                          ],
+                          [
+                            "update_dashboard",
+                            "Append or replace dashboard panels",
+                          ],
+                          ["delete_dashboard", "Delete dashboard & clean up"],
+                          [
+                            "publish_message",
+                            "Publish MQTT payload to a topic",
+                          ],
+                        ].map(([name, tip]) => (
+                          <span
+                            key={name}
+                            className="badge badge-sm badge-ghost font-mono text-xs px-2.5 py-2 tooltip cursor-default hover:badge-primary hover:badge-outline transition-colors"
+                            data-tip={tip}
+                          >
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

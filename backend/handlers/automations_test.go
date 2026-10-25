@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -220,6 +221,26 @@ func TestToggleAutomation(t *testing.T) {
 		t.Errorf("expected logicRule to be paused")
 	}
 
+	// 2b. Toggle both back to true to cover resume branches
+	toggleCronOn := httptest.NewRequest(http.MethodPut, "/api/automations/cron1/toggle", jsonBody(t, map[string]bool{"enabled": true}))
+	toggleCronOn.Header.Set("Content-Type", "application/json")
+	recCronOn := httptest.NewRecorder()
+	r.ServeHTTP(recCronOn, toggleCronOn)
+	if recCronOn.Code != http.StatusOK {
+		t.Fatalf("cron toggle on status = %d, want 200", recCronOn.Code)
+	}
+
+	toggleLogicOn := httptest.NewRequest(http.MethodPut, "/api/automations/logic1/toggle", jsonBody(t, map[string]bool{"enabled": true}))
+	toggleLogicOn.Header.Set("Content-Type", "application/json")
+	recLogicOn := httptest.NewRecorder()
+	r.ServeHTTP(recLogicOn, toggleLogicOn)
+	if recLogicOn.Code != http.StatusOK {
+		t.Fatalf("logic toggle on status = %d, want 200", recLogicOn.Code)
+	}
+
+	// 2c. RegisterProvider
+	h.RegisterProvider(handlers.NewCronAutomationProvider(database, sched))
+
 	// 3. Toggle button1 (unsupported automation type)
 	toggleBtnReq := httptest.NewRequest(http.MethodPut, "/api/automations/button1/toggle", jsonBody(t, map[string]bool{"enabled": false}))
 	toggleBtnReq.Header.Set("Content-Type", "application/json")
@@ -236,5 +257,55 @@ func TestToggleAutomation(t *testing.T) {
 	r.ServeHTTP(rec4, toggleNoneReq)
 	if rec4.Code != http.StatusNotFound {
 		t.Fatalf("nonexistent toggle status = %d, want 404", rec4.Code)
+	}
+
+	// 5. Toggle with invalid JSON -> 400
+	badJSONReq := httptest.NewRequest(http.MethodPut, "/api/automations/cron1/toggle", strings.NewReader(`{bad}`))
+	badJSONRec := httptest.NewRecorder()
+	r.ServeHTTP(badJSONRec, badJSONReq)
+	if badJSONRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad JSON, got %d", badJSONRec.Code)
+	}
+}
+
+func TestAutomations_LazyRecoveryAndZeroProviders(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, is_enabled, sort_order) VALUES ('b1', 'Broker', 'localhost', 1883, 1, 0)`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('cron_lazy', 'dash', 'Cron Lazy', 'cron', 0, 0, 4, 4, '{"cron_expr":"* * * * *","topic":"c","enabled":true}', 'b1')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h, config_json, broker_id) VALUES ('logic_lazy', 'dash', 'Logic Lazy', 'logic', 0, 4, 4, 4, '{"source_topic":"s","target_topic":"t","enabled":true}', 'b1')`)
+
+	sched := newMockScheduler()   // empty, no jobs
+	logicEng := newMockLogicEngine() // empty, no rules
+
+	h := handlers.NewAutomationsHandler(database,
+		handlers.NewCronAutomationProvider(database, sched),
+		handlers.NewLogicAutomationProvider(database, logicEng),
+	)
+	r := newAutomationsRouter(h)
+
+	// 1. Toggling cron_lazy triggers lazy recovery from DB into scheduler
+	req := httptest.NewRequest(http.MethodPut, "/api/automations/cron_lazy/toggle", jsonBody(t, map[string]bool{"enabled": true}))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for cron lazy recovery, got %d", rec.Code)
+	}
+
+	// 2. Toggling logic_lazy triggers lazy recovery from DB into logic engine
+	req2 := httptest.NewRequest(http.MethodPut, "/api/automations/logic_lazy/toggle", jsonBody(t, map[string]bool{"enabled": true}))
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("expected 200 for logic lazy recovery, got %d", rec2.Code)
+	}
+
+	// 3. Handler with 0 providers returns empty list
+	hEmpty := handlers.NewAutomationsHandler(database)
+	rEmpty := newAutomationsRouter(hEmpty)
+	req3 := httptest.NewRequest(http.MethodGet, "/api/automations", nil)
+	rec3 := httptest.NewRecorder()
+	rEmpty.ServeHTTP(rec3, req3)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("expected 200 for 0 providers, got %d", rec3.Code)
 	}
 }

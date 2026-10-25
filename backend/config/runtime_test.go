@@ -15,12 +15,14 @@ func TestLoadRuntimeConfig_Defaults(t *testing.T) {
 	t.Setenv("MQTT_DASHBOARD_LOG_LEVEL", "")
 	t.Setenv("LOG_LEVEL", "")
 	t.Setenv("MQTT_DASHBOARD_DEMO_MODE", "")
+	t.Setenv("MQTT_DASHBOARD_MCP_ENABLED", "")
+	t.Setenv("MCP_ENABLED", "")
 
 	cfg, err := LoadRuntimeConfig()
 	if err != nil {
 		t.Fatalf("LoadRuntimeConfig: %v", err)
 	}
-	if cfg.HTTPAddr != ":8080" || cfg.BasePath != "/" || cfg.DataDir != "./data" || cfg.LogLevel != "info" || cfg.SeedConfigFile != "" || cfg.DemoMode {
+	if cfg.HTTPAddr != ":8080" || cfg.BasePath != "/" || cfg.DataDir != "./data" || cfg.LogLevel != "info" || cfg.SeedConfigFile != "" || cfg.DemoMode || cfg.MCPEnabled {
 		t.Fatalf("unexpected defaults: %#v", cfg)
 	}
 }
@@ -101,6 +103,25 @@ func TestLoadRuntimeConfig_RejectsInvalidBasePath(t *testing.T) {
 	if _, err := LoadRuntimeConfig(); err == nil {
 		t.Fatal("LoadRuntimeConfig accepted a base path with '..'")
 	}
+
+	t.Setenv("MQTT_DASHBOARD_BASE_PATH", "relative_no_slash")
+	if _, err := LoadRuntimeConfig(); err == nil {
+		t.Fatal("LoadRuntimeConfig accepted a base path without leading slash")
+	}
+
+	t.Setenv("MQTT_DASHBOARD_BASE_PATH", "/./")
+	cfg, err := LoadRuntimeConfig()
+	if err != nil || cfg.BasePath != "/" {
+		t.Fatalf("expected /./ to normalize to /, got %q (err=%v)", cfg.BasePath, err)
+	}
+}
+
+func TestLoadRuntimeConfig_ValidationErrors(t *testing.T) {
+	t.Setenv("MQTT_DASHBOARD_CONFIG", "")
+	t.Setenv("MQTT_DASHBOARD_HTTP_ADDR", "not-a-valid-host-port")
+	if _, err := LoadRuntimeConfig(); err == nil {
+		t.Fatal("expected error for invalid HTTP address")
+	}
 }
 
 func TestLoadRuntimeConfig_RelativeSeedFileResolvesRelativeToTOML(t *testing.T) {
@@ -178,6 +199,80 @@ demo_mode = true
 		}
 		if !cfg.DemoMode {
 			t.Fatal("expected DemoMode to be true from MQTT_DASHBOARD_DEMO_MODE=true")
+		}
+	})
+}
+
+func TestLoadRuntimeConfig_MCPEnabled(t *testing.T) {
+	t.Run("mcp.enabled in TOML", func(t *testing.T) {
+		dir := t.TempDir()
+		tomlPath := filepath.Join(dir, "config.toml")
+		contents := `[mcp]
+enabled = true
+`
+		if err := os.WriteFile(tomlPath, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MQTT_DASHBOARD_CONFIG", tomlPath)
+		t.Setenv("MQTT_DASHBOARD_MCP_ENABLED", "")
+		t.Setenv("MCP_ENABLED", "")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if !cfg.MCPEnabled {
+			t.Fatal("expected MCPEnabled to be true from mcp.enabled in TOML")
+		}
+	})
+
+	t.Run("env overrides TOML", func(t *testing.T) {
+		dir := t.TempDir()
+		tomlPath := filepath.Join(dir, "config.toml")
+		contents := `[mcp]
+enabled = true
+`
+		if err := os.WriteFile(tomlPath, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MQTT_DASHBOARD_CONFIG", tomlPath)
+		t.Setenv("MQTT_DASHBOARD_MCP_ENABLED", "false")
+		t.Setenv("MCP_ENABLED", "")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if cfg.MCPEnabled {
+			t.Fatal("expected MCPEnabled to be false due to MQTT_DASHBOARD_MCP_ENABLED=false override")
+		}
+	})
+
+	t.Run("env MQTT_DASHBOARD_MCP_ENABLED=true without TOML", func(t *testing.T) {
+		t.Setenv("MQTT_DASHBOARD_CONFIG", "")
+		t.Setenv("MQTT_DASHBOARD_MCP_ENABLED", "true")
+		t.Setenv("MCP_ENABLED", "")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if !cfg.MCPEnabled {
+			t.Fatal("expected MCPEnabled to be true from MQTT_DASHBOARD_MCP_ENABLED=true")
+		}
+	})
+
+	t.Run("env MCP_ENABLED=true fallback", func(t *testing.T) {
+		t.Setenv("MQTT_DASHBOARD_CONFIG", "")
+		t.Setenv("MQTT_DASHBOARD_MCP_ENABLED", "")
+		t.Setenv("MCP_ENABLED", "true")
+
+		cfg, err := LoadRuntimeConfig()
+		if err != nil {
+			t.Fatalf("LoadRuntimeConfig: %v", err)
+		}
+		if !cfg.MCPEnabled {
+			t.Fatal("expected MCPEnabled to be true from MCP_ENABLED=true")
 		}
 	})
 }

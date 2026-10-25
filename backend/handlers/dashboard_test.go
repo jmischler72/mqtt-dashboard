@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"mqtt-dashboard/handlers"
+	"mqtt-dashboard/logic"
 	"mqtt-dashboard/models"
 )
 
@@ -446,4 +448,128 @@ func TestDeleteDashboard_InvalidatesCache(t *testing.T) {
 		t.Errorf("expected p1 to be invalidated, got %+v", inv.invalidated)
 	}
 }
+
+func TestDeleteDashboard_RemovesLogicRules(t *testing.T) {
+	database := setupTestDB(t)
+	database.Exec(`INSERT INTO dashboards (id, name) VALUES ('d2', 'Second')`)
+	database.Exec(`INSERT INTO dashboard_layouts (id, dashboard_id, title, panel_type, x, y, w, h) VALUES ('logic1', 'd2', 'Logic P', 'logic', 0, 0, 4, 4)`)
+
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	logicEng := newMockLogicEngine()
+	h.SetLogicEngine(logicEng)
+	logicEng.AddRule(&logic.Rule{PanelID: "logic1", SourceTopic: "s", TargetTopic: "t"})
+
+	r := newDashboardRouter(h)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/dashboards/d2", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if _, ok := logicEng.GetRule("logic1"); ok {
+		t.Error("expected logic rule to be removed from engine when dashboard deleted")
+	}
+}
+
+func TestImportDashboard_InvalidJSON(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	r := newDashboardRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dashboards/import", strings.NewReader(`{invalid}`))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestImportDashboard_PayloadLogicAndBrokerName(t *testing.T) {
+	database := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(database, sched)
+	h.SetLogicEngine(nil)
+
+	// Seed broker with specific name
+	database.Exec(`INSERT INTO mqtt_brokers (id, name, host, port, client_id, is_enabled) VALUES ('b-named', 'Custom Named Broker', 'localhost', 1883, 'c1', 1)`)
+
+	// Test ImportDashboardPayload directly with BrokerName match and empty type
+	d, code, err := h.ImportDashboardPayload(models.DashboardImportPayload{
+		Name: "Direct Import",
+		Panels: []models.ImportPanel{
+			{
+				PanelType:  "logic",
+				Title:      "Logic Rule",
+				BrokerName: "Custom Named Broker",
+				ConfigJSON: json.RawMessage(`{"source_topic":"in/1","target_topic":"out/1","enabled":true}`),
+			},
+		},
+	})
+	if err != nil || code != http.StatusCreated || d.ID == "" {
+		t.Fatalf("ImportDashboardPayload failed: code=%d err=%v", code, err)
+	}
+
+	// Verify panel was persisted with resolved broker id
+	var brokerID string
+	err = database.QueryRow(`SELECT broker_id FROM dashboard_layouts WHERE dashboard_id = ?`, d.ID).Scan(&brokerID)
+	if err != nil || brokerID != "b-named" {
+		t.Fatalf("expected broker_id 'b-named', got %q (err=%v)", brokerID, err)
+	}
+
+	// Test ImportDashboardPayload invalid type and version
+	_, code, err = h.ImportDashboardPayload(models.DashboardImportPayload{
+		Name: "Bad Type",
+		Type: "unknown-type",
+	})
+	if code != 400 || err == nil {
+		t.Fatalf("expected 400 for unknown type, got code=%d err=%v", code, err)
+	}
+
+	_, code, err = h.ImportDashboardPayload(models.DashboardImportPayload{
+		Name:    "Bad Version",
+		Type:    "mqtt-dashboard-export",
+		Version: 99,
+	})
+	if code != 400 || err == nil {
+		t.Fatalf("expected 400 for bad version, got code=%d err=%v", code, err)
+	}
+}
+
+func TestListDashboards_DBError(t *testing.T) {
+	db := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(db, sched)
+	r := newDashboardRouter(h)
+	db.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dashboards", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
+func TestDeleteDashboard_DBError(t *testing.T) {
+	db := setupTestDB(t)
+	sched := newMockScheduler()
+	h := handlers.NewDashboardHandler(db, sched)
+	r := newDashboardRouter(h)
+	db.Close()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/dashboards/any", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
 

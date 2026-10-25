@@ -38,26 +38,24 @@ export default function ExplorerPublishPanel({
   if (isWildcard) {
     if (noticeDismissed) return null;
     return (
-      <div className="alert alert-warning text-xs p-3 flex flex-col gap-1 relative shadow-sm">
-        <div className="flex items-center justify-between font-semibold w-full">
-          <div className="flex items-center gap-1.5">
-            <WarningIcon className="text-sm shrink-0" />
-            <span>Cannot publish to wildcard topic</span>
-          </div>
-          <button
-            type="button"
-            className="btn btn-xs btn-ghost btn-square text-base-content/60 hover:text-base-content shrink-0"
-            title="Dismiss warning"
-            onClick={dismissNotice}
-          >
-            <CloseIcon className="text-sm" />
-          </button>
+      <div className="w-full flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-warning/10 border border-warning/25 text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <WarningIcon className="text-sm text-warning shrink-0" />
+          <span className="text-base-content/80 text-xs">
+            Cannot publish to wildcard topics (
+            <code className="font-mono font-semibold text-warning">+</code> /{" "}
+            <code className="font-mono font-semibold text-warning">#</code>).
+            Select a specific topic to publish.
+          </span>
         </div>
-        <p className="text-[11px] opacity-80 leading-normal pr-4 w-full">
-          Topics with wildcards (<code className="font-mono font-bold">+</code>{" "}
-          or <code className="font-mono font-bold">#</code>) cannot receive
-          published messages. Select a specific sub-topic to publish.
-        </p>
+        <button
+          type="button"
+          className="btn btn-xs btn-ghost btn-square text-base-content/50 hover:text-base-content shrink-0"
+          title="Dismiss warning"
+          onClick={dismissNotice}
+        >
+          <CloseIcon className="text-sm" />
+        </button>
       </div>
     );
   }

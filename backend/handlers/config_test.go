@@ -456,6 +456,23 @@ func TestReorderBrokers_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestReorderBrokers_DBError(t *testing.T) {
+	db := setupTestDB(t)
+	reg := newMockRegistry()
+	h := handlers.NewBrokerHandler(db, reg)
+	r := newBrokerRouter(h)
+	db.Close()
+
+	req := httptest.NewRequest(http.MethodPut, "/api/brokers/reorder", strings.NewReader(`{"brokers":[{"id":"b1","sort_order":1}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
 func TestUpdateBroker_InvalidJSON(t *testing.T) {
 	db := setupTestDB(t)
 	reg := newMockRegistry()

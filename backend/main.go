@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"mqtt-dashboard/demo"
 	"mqtt-dashboard/handlers"
 	"mqtt-dashboard/logic"
+	"mqtt-dashboard/mcp"
 	"mqtt-dashboard/ws"
 	"net/http"
 	"os"
@@ -106,6 +108,17 @@ func main() {
 	// --- Init WebSocket hub ---
 	wsHub := ws.NewHub(registry, database)
 
+	// --- Optional CLI Stdio MCP Mode ---
+	if len(os.Args) > 1 && (os.Args[1] == "mcp" || os.Args[1] == "--mcp-stdio") {
+		mcpServer := mcp.NewServer(database, registry, scheduler, logicEngine, wsHub, version, runtimeConfig.BasePath)
+		slog.Info("mcp stdio server starting", "version", version, "data_dir", runtimeConfig.DataDir)
+		if err := mcpServer.ServeStdio(context.Background(), os.Stdin, os.Stdout); err != nil {
+			slog.Error("mcp stdio server", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// --- Demo Mode Auto-Reset ---
 	if runtimeConfig.DemoMode {
 		cronExpr := os.Getenv("MQTT_DASHBOARD_DEMO_RESET_CRON")
@@ -125,24 +138,28 @@ func main() {
 	}
 
 	isLogDebug := strings.EqualFold(runtimeConfig.LogLevel, "debug")
-	r := buildRouter(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode, isLogDebug)
+	r := buildRouter(database, registry, scheduler, logicEngine, wsHub, runtimeConfig.DataDir, frontendFS, runtimeConfig.BasePath, runtimeConfig.DemoMode, isLogDebug, runtimeConfig.MCPEnabled)
 
 	serverURL := formatServerURL(runtimeConfig.HTTPAddr, runtimeConfig.BasePath)
-	printBanner(os.Stderr, version, serverURL, runtimeConfig.DataDir, runtimeConfig.DemoMode)
-	slog.Info("server starting", "version", version, "url", serverURL, "addr", runtimeConfig.HTTPAddr, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode)
+	printBanner(os.Stderr, version, serverURL, runtimeConfig.DataDir, runtimeConfig.DemoMode, runtimeConfig.MCPEnabled)
+	slog.Info("server starting", "version", version, "url", serverURL, "addr", runtimeConfig.HTTPAddr, "data_dir", runtimeConfig.DataDir, "demo_mode", runtimeConfig.DemoMode, "mcp_enabled", runtimeConfig.MCPEnabled)
 	if err := http.ListenAndServe(runtimeConfig.HTTPAddr, r); err != nil {
 		slog.Error("server", "err", err)
 		os.Exit(1)
 	}
 }
 
-func printBanner(w io.Writer, version, serverURL, dataDir string, demoMode bool) {
+func printBanner(w io.Writer, version, serverURL, dataDir string, demoMode bool, opts ...bool) {
+	mcpEnabled := len(opts) > 0 && opts[0]
 	tag := ""
 	if demoMode {
 		tag = " (demo mode)"
 	}
 	fmt.Fprintf(w, "\n  MQTT Dashboard v-%s%s\n", version, tag)
 	fmt.Fprintf(w, "  ➜  URL:   %s\n", serverURL)
+	if mcpEnabled {
+		fmt.Fprintf(w, "  ➜  MCP:   %smcp\n", serverURL)
+	}
 	fmt.Fprintf(w, "  ➜  Storage: %s\n\n", dataDir)
 }
 
@@ -173,6 +190,7 @@ func formatServerURL(addr, basePath string) string {
 func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, scheduler *cron.Scheduler, logicEngine logic.LogicEngine, wsHub *ws.Hub, dataDir string, frontendFS fs.FS, basePath string, opts ...bool) http.Handler {
 	isDemo := len(opts) > 0 && opts[0]
 	logRequests := len(opts) > 1 && opts[1]
+	mcpEnabled := len(opts) > 2 && opts[2]
 	// --- Init handlers ---
 	brokerH := handlers.NewBrokerHandler(database, registry)
 	layoutH := handlers.NewLayoutHandler(database, scheduler)
@@ -209,13 +227,29 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	}))
 	app.Use(corsMiddleware)
 
+	// Check DB setting for mcp_enabled, with runtimeConfig override taking precedence
+	var dbMcpEnabled bool
+	_ = database.QueryRow(`SELECT COALESCE(mcp_enabled, 0) FROM app_settings WHERE id = 1`).Scan(&dbMcpEnabled)
+
+	isMCPActive := dbMcpEnabled || mcpEnabled
+	if mcpEnabled && !dbMcpEnabled {
+		_, _ = database.Exec(`UPDATE app_settings SET mcp_enabled = 1 WHERE id = 1`)
+		isMCPActive = true
+	}
+
+	mcpServer := mcp.NewServer(database, registry, scheduler, logicEngine, wsHub, version, basePath)
+	mcpServer.SetEnabled(isMCPActive)
+	mcpServer.MountRoutes(app)
+	settingsH.SetMCPStateSetter(mcpServer)
+
 	// Health
 	app.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"status":    "ok",
-			"version":   version,
-			"demo_mode": isDemo,
+			"status":      "ok",
+			"version":     version,
+			"demo_mode":   isDemo,
+			"mcp_enabled": mcpServer.IsEnabled(),
 		})
 	})
 
@@ -223,7 +257,8 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	app.Get("/api/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"demo_mode": isDemo,
+			"demo_mode":   isDemo,
+			"mcp_enabled": mcpServer.IsEnabled(),
 		})
 	})
 
@@ -334,7 +369,7 @@ func spaHandler(distFS fs.FS, h http.Handler, basePath string) http.Handler {
 		}
 		cleanPath := path.Clean("/" + requestPath)
 		trimmed := strings.TrimPrefix(cleanPath, "/")
-		if trimmed == "api" || strings.HasPrefix(trimmed, "api/") {
+		if trimmed == "api" || strings.HasPrefix(trimmed, "api/") || trimmed == "mcp" || strings.HasPrefix(trimmed, "mcp/") {
 			http.NotFound(w, r)
 			return
 		}
@@ -383,7 +418,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Mcp-Session-Id")
+		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
