@@ -241,6 +241,9 @@ func buildRouter(database *sql.DB, registry *mqttclient.BrokerRegistry, schedule
 	mcpServer.SetEnabled(isMCPActive)
 	mcpServer.MountRoutes(app)
 	settingsH.SetMCPStateSetter(mcpServer)
+	if isDemo {
+		demo.SetMCPStateSetter(mcpServer)
+	}
 
 	// Health
 	app.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {

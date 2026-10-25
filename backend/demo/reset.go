@@ -14,7 +14,22 @@ import (
 	"mqtt-dashboard/ws"
 )
 
-var resetMu sync.Mutex
+// MCPStateSetter allows dynamically enabling or disabling the MCP server endpoints.
+type MCPStateSetter interface {
+	SetEnabled(v bool)
+}
+
+var (
+	resetMu   sync.Mutex
+	mcpSetter MCPStateSetter
+)
+
+// SetMCPStateSetter registers an MCP state setter to be reset on demo resets.
+func SetMCPStateSetter(setter MCPStateSetter) {
+	resetMu.Lock()
+	defer resetMu.Unlock()
+	mcpSetter = setter
+}
 
 // ResetDatabase wipes user-modified tables, re-seeds from the configured seed file,
 // and resynchronizes in-memory registries, scheduler, logic engine, and WebSocket connections.
@@ -45,7 +60,7 @@ func ResetDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, schedu
 		"DELETE FROM dashboards WHERE id != 'default'",
 		"DELETE FROM mqtt_brokers",
 		"UPDATE dashboards SET name = 'Home Automation' WHERE id = 'default'",
-		"UPDATE app_settings SET retention_period_hours = 24, save_sys_topics = 0 WHERE id = 1",
+		"UPDATE app_settings SET retention_period_hours = 24, save_sys_topics = 0, mcp_enabled = 0 WHERE id = 1",
 	}
 	for _, q := range queries {
 		if _, err := tx.Exec(q); err != nil {
@@ -64,6 +79,10 @@ func ResetDatabase(database *sql.DB, registry *mqttclient.BrokerRegistry, schedu
 
 	if wsHub != nil {
 		wsHub.CloseAllClients()
+	}
+
+	if mcpSetter != nil {
+		mcpSetter.SetEnabled(false)
 	}
 
 	registry.RemoveAllBrokers()
