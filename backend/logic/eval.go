@@ -11,6 +11,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"mqtt-dashboard/mqtt"
+	"mqtt-dashboard/payload"
 )
 
 // ruleState tracks dynamic execution state for a registered rule.
@@ -152,6 +153,7 @@ const tokenSentinel = "__mqtt_dashboard_token__"
 
 // deriveJSONPath derives the dot-notation path to the "{value}" token in a JSON template.
 func deriveJSONPath(template string) (string, bool) {
+	template = strings.ReplaceAll(template, "{{value}}", "{value}")
 	if !strings.Contains(template, "{value}") {
 		return "", false
 	}
@@ -206,6 +208,7 @@ func deriveJSONPath(template string) (string, bool) {
 
 // matchTemplateStencil extracts the value by matching prefix and suffix text around "{value}".
 func matchTemplateStencil(template, raw string) (string, bool) {
+	template = strings.ReplaceAll(template, "{{value}}", "{value}")
 	idx := strings.Index(template, "{value}")
 	if idx == -1 {
 		return "", false
@@ -228,34 +231,23 @@ func matchTemplateStencil(template, raw string) (string, bool) {
 	return "", false
 }
 
-// extractValueFromPayload extracts the targeted value from a raw payload using either a JSON path
-// or a read template (e.g. `{"temp":{value}}`).
-func extractValueFromPayload(raw string, jsonPath, readTemplate string) (string, bool) {
+// extractValueFromPayload extracts the targeted value from a raw payload using a read template (e.g. `{"temp":{value}}`).
+func extractValueFromPayload(raw string, readTemplate string) (string, bool) {
 	cleanTmpl := strings.TrimSpace(readTemplate)
-	cleanPath := strings.TrimSpace(jsonPath)
+	cleanTmpl = strings.ReplaceAll(cleanTmpl, "{{value}}", "{value}")
 
-	if (cleanTmpl == "" || cleanTmpl == "{value}") && cleanPath == "" {
+	if cleanTmpl == "" || cleanTmpl == "{value}" {
 		return raw, true
 	}
 
-	if cleanPath != "" {
-		if extracted, ok := resolveJSONPath([]byte(raw), cleanPath); ok {
+	if derivedPath, ok := deriveJSONPath(cleanTmpl); ok && derivedPath != "" {
+		if extracted, ok := resolveJSONPath([]byte(raw), derivedPath); ok {
 			return extracted, true
 		}
 	}
 
-	if cleanTmpl != "" && cleanTmpl != "{value}" {
-		if cleanPath == "" {
-			if derivedPath, ok := deriveJSONPath(cleanTmpl); ok && derivedPath != "" {
-				if extracted, ok := resolveJSONPath([]byte(raw), derivedPath); ok {
-					return extracted, true
-				}
-			}
-		}
-
-		if extracted, ok := matchTemplateStencil(cleanTmpl, raw); ok {
-			return extracted, true
-		}
+	if extracted, ok := matchTemplateStencil(cleanTmpl, raw); ok {
+		return extracted, true
 	}
 
 	// If the payload is a composite JSON object/array, but target field/stencil was not found,
@@ -318,10 +310,10 @@ func evaluateCondition(c Condition, ruleBrokerID string, msg Message, guards Gua
 		}
 	}
 
-	targetVal, found := extractValueFromPayload(raw, c.JSONPath, c.ReadTemplate)
+	targetVal, found := extractValueFromPayload(raw, c.ReadTemplate)
 
 	if c.Operator == "exists" {
-		if strings.TrimSpace(c.JSONPath) != "" || (strings.TrimSpace(c.ReadTemplate) != "" && c.ReadTemplate != "{value}") {
+		if strings.TrimSpace(c.ReadTemplate) != "" && c.ReadTemplate != "{value}" && c.ReadTemplate != "{{value}}" {
 			return found
 		}
 		return exists && len(raw) > 0
@@ -436,35 +428,84 @@ func evaluateRuleConditions(r *Rule, msg Message, guards GuardLookup) bool {
 }
 
 // buildAction constructs the Action to be published, applying payload template tokens.
-func buildAction(r *Rule, msg Message) *Action {
+func buildAction(r *Rule, msg Message, guards GuardLookup, now time.Time) *Action {
 	targetBroker := r.TargetBrokerID
 	if targetBroker == "" {
 		targetBroker = r.BrokerID
 	}
 
-	payload := r.Payload
-	triggerVal := string(msg.Payload)
-	if len(r.Conditions) > 0 {
-		c0 := r.Conditions[0]
-		condBroker := c0.BrokerID
+	condValues := make(map[string]string)
+	condPayloads := make(map[string]string)
+
+	primaryValue := string(msg.Payload)
+	primaryMatched := false
+
+	for i, c := range r.Conditions {
+		idxStr := strconv.Itoa(i)
+		condBroker := c.BrokerID
 		if condBroker == "" {
 			condBroker = r.BrokerID
 		}
-		condTopic := strings.TrimSpace(c0.Topic)
+		condTopic := strings.TrimSpace(c.Topic)
 		brokerMatches := (condBroker == msg.BrokerID) || (condBroker == "" && msg.BrokerID != "") || (condBroker != "" && msg.BrokerID == "")
-		if (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic)) && brokerMatches {
-			if v, ok := extractValueFromPayload(triggerVal, c0.JSONPath, c0.ReadTemplate); ok {
-				triggerVal = v
+		topicMatches := (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic))
+
+		var raw string
+		if brokerMatches && topicMatches && len(msg.Payload) > 0 {
+			raw = string(msg.Payload)
+			val, _ := extractValueFromPayload(raw, c.ReadTemplate)
+			condValues[idxStr] = val
+			condPayloads[idxStr] = raw
+			if c.Topic != "" {
+				condValues[c.Topic] = val
+				condPayloads[c.Topic] = raw
+			}
+			if !primaryMatched {
+				primaryValue = val
+				primaryMatched = true
+			}
+		} else if guards != nil {
+			targetTopic := condTopic
+			if targetTopic == "" {
+				targetTopic = msg.Topic
+			}
+			if guardRaw, ok := guards(condBroker, targetTopic); ok {
+				val, _ := extractValueFromPayload(guardRaw, c.ReadTemplate)
+				condValues[idxStr] = val
+				condPayloads[idxStr] = guardRaw
+				if c.Topic != "" {
+					condValues[c.Topic] = val
+					condPayloads[c.Topic] = guardRaw
+				}
 			}
 		}
 	}
 
-	payload = strings.ReplaceAll(payload, "{{value}}", triggerVal)
+	if !primaryMatched {
+		if val0, ok := condValues["0"]; ok {
+			primaryValue = val0
+		} else if len(r.Conditions) > 0 {
+			if v, ok := extractValueFromPayload(string(msg.Payload), r.Conditions[0].ReadTemplate); ok {
+				primaryValue = v
+			}
+		}
+	}
+
+	ctx := payload.Context{
+		Value:             primaryValue,
+		Topic:             msg.Topic,
+		Payload:           string(msg.Payload),
+		Timestamp:         now,
+		ConditionValues:   condValues,
+		ConditionPayloads: condPayloads,
+	}
+
+	outPayload := payload.Interpolate(r.Payload, ctx)
 
 	return &Action{
 		TargetBrokerID: targetBroker,
 		TargetTopic:    r.TargetTopic,
-		Payload:        []byte(payload),
+		Payload:        []byte(outPayload),
 		QoS:            r.QoS,
 		Retain:         r.Retain,
 	}
@@ -488,7 +529,7 @@ func evaluate(r *Rule, st *ruleState, msg Message, guards GuardLookup, now time.
 	case "every":
 		st.lastMatched = matched
 		if matched {
-			return buildAction(r, msg)
+			return buildAction(r, msg, guards, now)
 		}
 		return nil
 
@@ -496,7 +537,7 @@ func evaluate(r *Rule, st *ruleState, msg Message, guards GuardLookup, now time.
 		fire := matched && !st.lastMatched
 		st.lastMatched = matched
 		if fire {
-			return buildAction(r, msg)
+			return buildAction(r, msg, guards, now)
 		}
 		return nil
 
@@ -525,7 +566,7 @@ func evaluate(r *Rule, st *ruleState, msg Message, guards GuardLookup, now time.
 		}
 		if len(st.hits) >= reqCount {
 			st.hits = nil // reset hit buffer
-			return buildAction(r, msg)
+			return buildAction(r, msg, guards, now)
 		}
 		return nil
 

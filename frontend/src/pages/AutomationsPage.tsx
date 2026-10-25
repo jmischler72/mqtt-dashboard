@@ -23,24 +23,29 @@ import {
 import { api, type AutomationItem } from "../api/client";
 import { PRESETS, describeCron } from "../components/panels/cronUtils";
 import { formatConditionSummary } from "../components/panels/logicUtils";
-import { VALUE_TOKEN, TOKEN_LABEL } from "../components/panels/payloadShape";
+import {
+  parseTemplateChunks,
+  hasAnyToken,
+} from "../components/panels/payloadShape";
 
 function renderPayloadWithChips(payload?: string, allowChips = true) {
   const oneLine = (payload || "").replace(/\s+/g, " ").trim();
-  const normalized = oneLine.replace(/\{\{value\}\}/g, VALUE_TOKEN);
-  if (!allowChips || !normalized.includes(VALUE_TOKEN)) {
+  if (!allowChips || !hasAnyToken(oneLine)) {
     return oneLine;
   }
-  return normalized.split(VALUE_TOKEN).map((chunk, index) => (
-    <span key={index}>
-      {index > 0 && (
-        <span className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5">
-          {TOKEN_LABEL}
-        </span>
-      )}
-      {chunk}
-    </span>
-  ));
+  const chunks = parseTemplateChunks(oneLine);
+  return chunks.map((chunk, index) =>
+    chunk.type === "text" ? (
+      <span key={index}>{chunk.raw}</span>
+    ) : (
+      <span
+        key={index}
+        className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5"
+      >
+        {chunk.name}
+      </span>
+    ),
+  );
 }
 
 function getConditionsTooltip(job: AutomationItem): string {

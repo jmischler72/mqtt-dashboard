@@ -8,9 +8,13 @@ import {
   effectiveReadTemplate,
   extractValue,
   findLiterals,
+  hasAnyToken,
+  interpolateTemplate,
   keepOneToken,
   matchTemplate,
+  normalizeTemplate,
   offsetAfterKeepOneToken,
+  parseTemplateChunks,
   payloadIssue,
   placeToken,
   readShape,
@@ -336,6 +340,27 @@ describe("findLiterals", () => {
     expect(findLiterals("{ch1:5}").map((l) => l.text)).toEqual(["5"]);
   });
 
+  it("associates the JSON key with the literal value", () => {
+    const literals = findLiterals('{"temp": 21.5, "hum": 48}');
+    expect(literals).toHaveLength(2);
+    expect(literals[0]).toMatchObject({ text: "21.5", key: "temp" });
+    expect(literals[1]).toMatchObject({ text: "48", key: "hum" });
+  });
+
+  it("distinguishes duplicate values under different keys", () => {
+    const dupes = findLiterals('{"min": 0, "max": 0}');
+    expect(dupes.map((d) => ({ key: d.key, text: d.text }))).toEqual([
+      { key: "min", text: "0" },
+      { key: "max", text: "0" },
+    ]);
+  });
+
+  it("prioritizes common keys over arbitrary fields", () => {
+    const sorted = findLiterals('{"id": 104, "temp": 22.5}');
+    expect(sorted[0].key).toBe("temp");
+    expect(sorted[0].text).toBe("22.5");
+  });
+
   it("offers a value that is a bare word rather than the whole document", () => {
     expect(findLiterals('{"cmd":true}').map((l) => l.text)).toEqual(["true"]);
   });
@@ -406,5 +431,75 @@ describe("resolvePath", () => {
       found: true,
       value: 3,
     });
+  });
+});
+
+describe("template interpolation and tokens", () => {
+  const fixedTime = new Date("2026-10-25T14:00:00.000Z");
+
+  it("interpolates canonical and legacy tokens", () => {
+    const template = '{"val":{value},"t":"{topic}","raw":{payload},"ts":{timestamp},"iso":"{timestamp:iso}"}';
+    const result = interpolateTemplate(template, {
+      value: 42,
+      topic: "sensors/temp",
+      payload: '{"temp":42}',
+      timestamp: fixedTime,
+    });
+    expect(result).toBe(
+      '{"val":42,"t":"sensors/temp","raw":{"temp":42},"ts":1792936800,"iso":"2026-10-25T14:00:00.000Z"}',
+    );
+  });
+
+  it("interpolates legacy double-brace tokens", () => {
+    const template = '{"val":{{value}},"t":"{{topic}}"}';
+    const result = interpolateTemplate(template, {
+      value: 99,
+      topic: "test/legacy",
+    });
+    expect(result).toBe('{"val":99,"t":"test/legacy"}');
+  });
+
+  it("interpolates condition indexes and condition topic references", () => {
+    const template = '{"c0":{value:0},"c1":{value:1},"byTopic":{value:sensors/hum}}';
+    const result = interpolateTemplate(template, {
+      conditionValues: {
+        "0": "25",
+        "1": "60",
+        "sensors/hum": "60",
+      },
+    });
+    expect(result).toBe('{"c0":25,"c1":60,"byTopic":60}');
+  });
+
+  it("normalizes single brace tokens to canonical double braces", () => {
+    expect(normalizeTemplate("{value} {topic} {payload} {timestamp}")).toBe(
+      "{{value}} {{topic}} {{payload}} {{timestamp}}",
+    );
+    expect(normalizeTemplate('{"temp":{value}}')).toBe('{"temp":{{value}}}');
+  });
+
+  it("detects any token", () => {
+    expect(hasAnyToken("{value}")).toBe(true);
+    expect(hasAnyToken("{{topic}}")).toBe(true);
+    expect(hasAnyToken("{value:0}")).toBe(true);
+    expect(hasAnyToken("{timestamp:iso}")).toBe(true);
+    expect(hasAnyToken('{"temp": 20}')).toBe(false);
+  });
+
+  it("parses template chunks accurately", () => {
+    const chunks = parseTemplateChunks('{"t":"{topic}","v":{value:0}}');
+    expect(chunks).toEqual([
+      { type: "text", raw: '{"t":"', name: "", canonical: '{"t":"' },
+      { type: "token", raw: "{topic}", name: "topic", canonical: "{{topic}}" },
+      { type: "text", raw: '","v":', name: "", canonical: '","v":' },
+      { type: "token", raw: "{value:0}", name: "value:0", canonical: "{{value:0}}" },
+      { type: "text", raw: "}", name: "", canonical: "}" },
+    ]);
+  });
+
+  it("allows placing custom tokens", () => {
+    const placed = placeToken("prefix suffix", 7, 7, "{{topic}}");
+    expect(placed.template).toBe("prefix {{topic}}suffix");
+    expect(placed.caret).toBe(16);
   });
 });

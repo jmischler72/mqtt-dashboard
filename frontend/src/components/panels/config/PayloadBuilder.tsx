@@ -8,8 +8,12 @@ import {
   VALUE_TOKEN,
   findLiterals,
   hasToken,
+  hasAnyToken,
+  keepOneToken,
+  parseTemplateChunks,
   readShape,
   renderPayload,
+  type TokenOption,
 } from "../payloadShape";
 import MessageHistory from "./MessageHistory";
 import PreviewBox from "./PreviewBox";
@@ -84,6 +88,8 @@ export interface PayloadBuilderProps {
    */
   readsText?: boolean;
   placeholder?: string;
+  /** Available tokens to offer as chips in write mode. */
+  availableTokens?: TokenOption[];
   /** Write mode: the live preview sweeps this range. */
   range?: NumericRange | null;
   /** Write mode without a range: the value the preview substitutes. */
@@ -127,6 +133,7 @@ export default function PayloadBuilder({
   readPath,
   readsText,
   placeholder,
+  availableTokens,
   range,
   previewValue,
   unit,
@@ -155,7 +162,7 @@ export default function PayloadBuilder({
   const latest = messages[0] ?? null;
 
   const reading = mode === "read";
-  const chip = hasToken(value);
+  const chip = hasAnyToken(value);
 
   const useMessage = (payload: string, index: number) => {
     onChange(markFirstNumber(payload, acceptsChip));
@@ -244,7 +251,10 @@ export default function PayloadBuilder({
             }}
             onInput={(e) => {
               const host = e.currentTarget;
-              const raw = readTemplate(host);
+              let raw = readTemplate(host);
+              if (reading) {
+                raw = keepOneToken(raw);
+              }
               painted.current = raw;
               onChange(raw);
               setUsedIndex(null);
@@ -300,6 +310,7 @@ export default function PayloadBuilder({
           acceptsChip && (
             <WritePreview
               value={value}
+              topic={topic}
               chip={chip}
               range={range ?? null}
               previewValue={previewValue}
@@ -315,6 +326,10 @@ export default function PayloadBuilder({
         <ValueChipControls
           mode={mode}
           value={value}
+          samplePayload={latest?.payload}
+          topic={topic}
+          previewValue={previewValue}
+          availableTokens={availableTokens}
           history={historyNode}
           onChange={(next) => {
             // A chip action that changes nothing repaints nothing, so the caret
@@ -369,6 +384,7 @@ export default function PayloadBuilder({
           acceptsChip && (
             <WritePreview
               value={value}
+              topic={topic}
               chip={chip}
               range={range ?? null}
               previewValue={previewValue}
@@ -395,7 +411,7 @@ export function PayloadSummary({
   /** False where the token's characters are literal bytes, not a chip. */
   chips?: boolean;
 }) {
-  const oneLine = value.replace(/\s+/g, " ").trim();
+  const oneLine = (value ?? "").replace(/\s+/g, " ").trim();
   if (oneLine === "")
     return <span className="text-base-content/50">{empty}</span>;
 
@@ -404,24 +420,28 @@ export function PayloadSummary({
 
   if (!chips) return <span className="font-mono">{clipped}</span>;
 
+  const chunks = parseTemplateChunks(clipped);
   return (
     <span className="font-mono">
-      {clipped.split(VALUE_TOKEN).map((chunk, index) => (
-        <span key={index}>
-          {index > 0 && (
-            <span className="mx-0.5 px-1.5 rounded-full bg-primary text-primary-content">
-              {TOKEN_LABEL}
-            </span>
-          )}
-          {chunk}
-        </span>
-      ))}
+      {chunks.map((chunk, index) =>
+        chunk.type === "text" ? (
+          <span key={index}>{chunk.raw}</span>
+        ) : (
+          <span
+            key={index}
+            className="mx-0.5 px-1.5 rounded-full bg-primary text-primary-content text-[10px]"
+          >
+            {chunk.name}
+          </span>
+        ),
+      )}
     </span>
   );
 }
 
 function WritePreview({
   value,
+  topic,
   chip,
   range,
   previewValue,
@@ -430,6 +450,7 @@ function WritePreview({
   asCard = false,
 }: {
   value: string;
+  topic?: string;
   chip: boolean;
   range: NumericRange | null;
   previewValue?: string;
@@ -469,7 +490,10 @@ function WritePreview({
               value={at}
               onChange={(e) => onPosition(Number(e.target.value))}
             />
-            <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+            <PreviewLine
+              label="Sends"
+              bytes={renderPayload(value, at, topic)}
+            />
           </div>
         </PreviewBox>
       );
@@ -479,7 +503,7 @@ function WritePreview({
       <PreviewBox>
         <PreviewLine
           label="Sends"
-          bytes={renderPayload(value, previewValue ?? "")}
+          bytes={renderPayload(value, previewValue ?? "", topic)}
         />
       </PreviewBox>
     );
@@ -505,7 +529,7 @@ function WritePreview({
           value={at}
           onChange={(e) => onPosition(Number(e.target.value))}
         />
-        <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+        <PreviewLine label="Sends" bytes={renderPayload(value, at, topic)} />
       </div>
     );
   }
@@ -514,7 +538,7 @@ function WritePreview({
     <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 min-w-0">
       <PreviewLine
         label="Sends"
-        bytes={renderPayload(value, previewValue ?? "")}
+        bytes={renderPayload(value, previewValue ?? "", topic)}
       />
     </div>
   );

@@ -11,16 +11,18 @@ function Builder({
   initial = "",
   payloads,
   acceptsChip = true,
+  mode = "write",
 }: {
   initial?: string;
   payloads: string[];
   acceptsChip?: boolean;
+  mode?: "write" | "read";
 }) {
   const [value, setValue] = useState(initial);
   return (
     <>
       <PayloadBuilder
-        mode="write"
+        mode={mode}
         value={value}
         onChange={setValue}
         acceptsChip={acceptsChip}
@@ -172,5 +174,95 @@ describe("the literals offered as one-tap chip targets", () => {
   it("still offers a lone word, which is the whole payload", () => {
     render(<Builder initial="RESET" payloads={[]} />);
     expect(screen.getByRole("button", { name: "RESET" })).toBeTruthy();
+  });
+
+  it("renders custom available tokens buttons and inserts them", () => {
+    const customTokens = [
+      { name: "value", token: "{value}", label: "value" },
+      { name: "topic", token: "{topic}", label: "topic" },
+      { name: "timestamp", token: "{timestamp}", label: "timestamp" },
+    ];
+    function CustomBuilder() {
+      const [value, setValue] = useState('{"state":');
+      return (
+        <>
+          <PayloadBuilder
+            mode="write"
+            value={value}
+            onChange={setValue}
+            acceptsChip={true}
+            availableTokens={customTokens}
+            brokerId="b1"
+            topic="home/lamp"
+          />
+          <output data-testid="custom-template">{value}</output>
+        </>
+      );
+    }
+
+    render(<CustomBuilder />);
+    // Open secondary tokens dropdown
+    const menuTrigger = screen.getByRole("button", { name: "Insert context tokens" });
+    expect(menuTrigger).toBeTruthy();
+    fireEvent.click(menuTrigger);
+
+    const topicBtn = screen.getByRole("button", { name: "topic" });
+    expect(topicBtn).toBeTruthy();
+    const tsBtn = screen.getByRole("button", { name: "timestamp" });
+    expect(tsBtn).toBeTruthy();
+
+    fireEvent.mouseDown(topicBtn);
+    expect(screen.getByTestId("custom-template").textContent).toBe('{"state":{topic}');
+  });
+
+  it("renders top 2 literals inline and places extra literals in an overflow dropdown", () => {
+    // 4 literals: temp, hum, pres, bat
+    const initial = '{"temp":21.5,"hum":55,"pres":1013,"bat":98}';
+    render(<Builder initial={initial} payloads={[]} />);
+
+    // Top 2 literals should be inline badges
+    expect(screen.getByRole("button", { name: "21.5" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "55" })).toBeTruthy();
+
+    // Remaining 2 should be in overflow dropdown (+2 more)
+    const overflowBtn = screen.getByRole("button", { name: /\+2 more/ });
+    expect(overflowBtn).toBeTruthy();
+
+    // Open the overflow dropdown
+    fireEvent.click(overflowBtn);
+
+    // 1013 and 98 are accessible in the dropdown
+    expect(screen.getByRole("button", { name: "1013" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "98" })).toBeTruthy();
+  });
+
+  it("proposes recommendations from history sample message even when editing an already saved template", () => {
+    // Coming back to edit a saved Gauge panel where readTemplate already has {{value}}
+    const savedTemplate = `{"temp":${VALUE_TOKEN},"hum":55}`;
+    const recentPayload = '{"temp":21.5,"hum":55,"bat":98}';
+    render(
+      <Builder
+        mode="read"
+        initial={savedTemplate}
+        payloads={[recentPayload]}
+      />,
+    );
+
+    // Recommendations from the device payload are proposed: temp, hum!
+    expect(screen.getByRole("button", { name: "21.5" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "55" })).toBeTruthy();
+  });
+
+  it("prevents multiple value tokens in read mode", () => {
+    // In read mode (Gauge), when value already has a token, primary button indicates marked and doesn't add duplicate
+    const initial = `{"temp":${VALUE_TOKEN}}`;
+    render(<Builder mode="read" initial={initial} payloads={[]} />);
+
+    const markedBtn = screen.getByRole("button", { name: /value marked/i });
+    expect(markedBtn).toBeTruthy();
+    fireEvent.mouseDown(markedBtn);
+
+    // Template remains single token, not duplicated
+    expect(template()).toBe(`{"temp":${VALUE_TOKEN}}`);
   });
 });

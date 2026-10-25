@@ -214,7 +214,167 @@ export function extractValue(payload: string, path?: string): ExtractedValue {
  * into at publish time. Quoting the token is what decides the type:
  * `"{value}"` sends text, a bare `{value}` sends a number.
  */
-export const VALUE_TOKEN = "{value}";
+export const VALUE_TOKEN = "{{value}}";
+
+/**
+ * Regex matching both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
+ * {{value:0}}, {{value:sensors/temp}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
+ */
+export const TOKEN_PATTERN =
+  /(\{\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\}\}|\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\})/g;
+
+export interface TokenOption {
+  name: string;
+  token: string;
+  label?: string;
+  title?: string;
+}
+
+export interface ParsedChunk {
+  type: "text" | "token";
+  raw: string;
+  name: string;
+  canonical: string;
+}
+
+/**
+ * Splits a template string into alternating text and token chunks.
+ */
+export function parseTemplateChunks(template: string): ParsedChunk[] {
+  const chunks: ParsedChunk[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  while ((match = regex.exec(template)) !== null) {
+    if (match.index > lastIndex) {
+      chunks.push({
+        type: "text",
+        raw: template.slice(lastIndex, match.index),
+        name: "",
+        canonical: template.slice(lastIndex, match.index),
+      });
+    }
+
+    const raw = match[0];
+    let name = raw;
+    if (name.startsWith("{{") && name.endsWith("}}")) {
+      name = name.slice(2, -2);
+    } else if (name.startsWith("{") && name.endsWith("}")) {
+      name = name.slice(1, -1);
+    }
+    name = name.trim();
+    const canonical = `{{${name}}}`;
+
+    chunks.push({
+      type: "token",
+      raw,
+      name,
+      canonical,
+    });
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < template.length) {
+    chunks.push({
+      type: "text",
+      raw: template.slice(lastIndex),
+      name: "",
+      canonical: template.slice(lastIndex),
+    });
+  }
+
+  return chunks;
+}
+
+export interface TemplateContext {
+  value?: string | number | boolean;
+  topic?: string;
+  payload?: string;
+  timestamp?: number | Date;
+  conditionValues?: Record<string, string>;
+  conditionPayloads?: Record<string, string>;
+}
+
+/**
+ * Centralized template interpolation.
+ * Supports {{value}}, {{topic}}, {{payload}}, {{timestamp}}, {{timestamp:iso}}, {{timestamp:ms}},
+ * condition indexing {{value:0}}, {{value:<topic>}}, etc., and transparently supports single-brace {token} forms.
+ */
+export function interpolateTemplate(
+  template: string,
+  ctx: TemplateContext,
+): string {
+  if (!template) return "";
+
+  const ts =
+    ctx.timestamp instanceof Date
+      ? ctx.timestamp
+      : typeof ctx.timestamp === "number"
+        ? new Date(ctx.timestamp)
+        : new Date();
+
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  return template.replace(regex, (match) => {
+    let name = match;
+    if (name.startsWith("{{") && name.endsWith("}}")) {
+      name = name.slice(2, -2);
+    } else if (name.startsWith("{") && name.endsWith("}")) {
+      name = name.slice(1, -1);
+    }
+    name = name.trim();
+
+    switch (name) {
+      case "value":
+        return ctx.value !== undefined ? String(ctx.value) : match;
+      case "topic":
+        return ctx.topic !== undefined ? ctx.topic : match;
+      case "payload":
+        return ctx.payload !== undefined ? ctx.payload : match;
+      case "timestamp":
+        return String(Math.floor(ts.getTime() / 1000));
+      case "timestamp:ms":
+        return String(ts.getTime());
+      case "timestamp:iso":
+      case "iso_timestamp":
+        return ts.toISOString();
+      default:
+        if (name.startsWith("value:")) {
+          const key = name.slice("value:".length);
+          if (ctx.conditionValues && key in ctx.conditionValues) {
+            return ctx.conditionValues[key];
+          }
+          return "";
+        }
+        if (name.startsWith("payload:")) {
+          const key = name.slice("payload:".length);
+          if (ctx.conditionPayloads && key in ctx.conditionPayloads) {
+            return ctx.conditionPayloads[key];
+          }
+          return "";
+        }
+        return match;
+    }
+  });
+}
+
+/**
+ * Normalizes tokens ({value}, {topic}, etc.) to canonical double braces ({{value}}, {{topic}}, etc.).
+ */
+export function normalizeTemplate(template: string): string {
+  if (!template) return "";
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  return template.replace(regex, (match) => {
+    let name = match;
+    if (name.startsWith("{{") && name.endsWith("}}")) {
+      name = name.slice(2, -2);
+    } else if (name.startsWith("{") && name.endsWith("}")) {
+      name = name.slice(1, -1);
+    }
+    return `{{${name.trim()}}}`;
+  });
+}
 
 /**
  * What the token is called in the interface. The payload stores the character;
@@ -227,7 +387,12 @@ export const TOKEN_LABEL = "value";
 const TOKEN_SENTINEL = "__mqtt_dashboard_token__";
 
 export function hasToken(template: string): boolean {
-  return template.includes(VALUE_TOKEN);
+  return template.includes(VALUE_TOKEN) || template.includes("{value}");
+}
+
+export function hasAnyToken(template: string): boolean {
+  if (!template) return false;
+  return new RegExp(TOKEN_PATTERN.source).test(template);
 }
 
 /**
@@ -236,22 +401,28 @@ export function hasToken(template: string): boolean {
  * slider or button — rather than a payload that happens to lack JSON.
  */
 export function isBareToken(template: string): boolean {
-  return template.trim() === VALUE_TOKEN;
+  const trimmed = template.trim();
+  return trimmed === VALUE_TOKEN || trimmed === "{value}";
 }
 
 /** True when the token is written inside quotes, i.e. published as text. */
 export function isTokenQuoted(template: string): boolean {
-  const at = template.indexOf(VALUE_TOKEN);
+  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return false;
-  return template[at - 1] === '"' && template[at + VALUE_TOKEN.length] === '"';
+  return norm[at - 1] === '"' && norm[at + VALUE_TOKEN.length] === '"';
 }
 
-/** Publish-time substitution: the template with the value dropped in. */
+/** Publish-time substitution: the template with context dropped in. */
 export function renderPayload(
   template: string,
   value: string | number | boolean,
+  topic?: string,
 ): string {
-  return template.split(VALUE_TOKEN).join(String(value));
+  return interpolateTemplate(template, {
+    value,
+    topic,
+  });
 }
 
 /**
@@ -260,13 +431,14 @@ export function renderPayload(
  * not JSON (the payload is the value) or has no token.
  */
 export function deriveReadPath(template: string): string | null {
-  if (!hasToken(template)) return null;
+  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  if (!hasToken(norm)) return null;
 
   // Make the template parseable by standing a string in for the token; a bare
   // token needs quotes added, a quoted one already has them.
-  const parseable = isTokenQuoted(template)
-    ? template.split(VALUE_TOKEN).join(TOKEN_SENTINEL)
-    : template.split(VALUE_TOKEN).join(`"${TOKEN_SENTINEL}"`);
+  const parseable = isTokenQuoted(norm)
+    ? norm.split(VALUE_TOKEN).join(TOKEN_SENTINEL)
+    : norm.split(VALUE_TOKEN).join(`"${TOKEN_SENTINEL}"`);
 
   const json = parseLooseJson(parseable);
 
@@ -333,11 +505,12 @@ export function matchTemplate(
   template: string,
   message: string,
 ): string | null {
-  const at = template.indexOf(VALUE_TOKEN);
+  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return null;
 
-  const head = template.slice(0, at).trimStart();
-  const tail = template.slice(at + VALUE_TOKEN.length).trimEnd();
+  const head = norm.slice(0, at).trimStart();
+  const tail = norm.slice(at + VALUE_TOKEN.length).trimEnd();
   if (!head && !tail) return null;
 
   const text = message.trim();
@@ -601,6 +774,7 @@ export interface TemplateLiteral {
   text: string;
   start: number;
   end: number;
+  key?: string;
 }
 
 /**
@@ -613,12 +787,13 @@ export interface TemplateLiteral {
  * one the user made; later spellings are dropped.
  */
 export function keepOneToken(template: string): string {
-  const at = template.indexOf(VALUE_TOKEN);
+  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return template;
 
   const upto = at + VALUE_TOKEN.length;
   return (
-    template.slice(0, upto) + template.slice(upto).split(VALUE_TOKEN).join("")
+    norm.slice(0, upto) + norm.slice(upto).split(VALUE_TOKEN).join("")
   );
 }
 
@@ -663,7 +838,7 @@ const STRUCTURED = /[{}[\]:,]/;
  * Capped and de-duplicated: the chips are a shortcut, not an index. A caller
  * looking for one particular literal rather than drawing the row raises the cap.
  */
-export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
+export function findLiterals(template: string, limit = 8): TemplateLiteral[] {
   const out: TemplateLiteral[] = [];
   const re = /"[^"]*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
   const seen = new Set<string>();
@@ -677,9 +852,20 @@ export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
     // *word* the match sits in decides it: the `1` of `ch1` names the field.
     const rest = template.slice(match.index + text.length);
     if (/^[^\s"',{}[\]]*\s*:/.test(rest)) continue;
-    if (seen.has(text) || text.includes(VALUE_TOKEN)) continue;
-    seen.add(text);
-    out.push({ text, start: match.index, end: match.index + text.length });
+    if (text.includes(VALUE_TOKEN) || text.includes("{value}")) continue;
+
+    // Detect preceding JSON key if any (e.g. "temperature": 21.5 or temp: 21.5)
+    const before = template.slice(0, match.index);
+    const keyMatch = before.match(
+      /(?:["']([A-Za-z0-9_$-]+)["']|([A-Za-z0-9_$-]+))\s*:\s*$/,
+    );
+    const key = keyMatch ? keyMatch[1] || keyMatch[2] : undefined;
+
+    const dedupeKey = key ? `${key}:${text}` : text;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    out.push({ text, start: match.index, end: match.index + text.length, key });
   }
 
   // A payload that is a single bare word — `ON`, `RESET` — has no literal the
@@ -696,6 +882,19 @@ export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
   ) {
     const start = template.indexOf(trimmed);
     out.push({ text: trimmed, start, end: start + trimmed.length });
+  }
+
+  // Rank detected literals: fields named after common sensor readings (temp, value, state)
+  // sort first so the 2 inline badges are the most relevant.
+  if (out.length > 1) {
+    out.sort((a, b) => {
+      const aIdx = a.key ? COMMON_KEYS.indexOf(a.key.toLowerCase()) : -1;
+      const bIdx = b.key ? COMMON_KEYS.indexOf(b.key.toLowerCase()) : -1;
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.start - b.start;
+    });
   }
 
   return out;
@@ -728,12 +927,12 @@ export function markLiteral(
  */
 export function clearToken(template: string, restore: string): string {
   if (isBareToken(template)) return "";
-  return template.split(VALUE_TOKEN).join(restore);
+  return template.replace(/\{\{value\}\}|\{value\}/g, restore);
 }
 
 /** The template as the interface says it, with the token under its label. */
 export function describeTemplate(template: string): string {
-  return template.split(VALUE_TOKEN).join(TOKEN_LABEL);
+  return template.replace(/\{\{value\}\}|\{value\}/g, TOKEN_LABEL);
 }
 
 /**
@@ -748,13 +947,14 @@ export function placeToken(
   template: string,
   start: number,
   end: number,
+  token: string = VALUE_TOKEN,
 ): { template: string; caret: number; covered: string } {
   const from = Math.max(0, Math.min(start, template.length));
   const to = Math.max(from, Math.min(end, template.length));
 
   return {
-    template: template.slice(0, from) + VALUE_TOKEN + template.slice(to),
-    caret: from + VALUE_TOKEN.length,
+    template: template.slice(0, from) + token + template.slice(to),
+    caret: from + token.length,
     covered: template.slice(from, to),
   };
 }

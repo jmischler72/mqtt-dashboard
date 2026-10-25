@@ -49,7 +49,11 @@ import {
   type LogicOperator,
   type RuleStatus,
 } from "./logicUtils";
-import { VALUE_TOKEN, deriveReadPath } from "./payloadShape";
+import {
+  VALUE_TOKEN,
+  normalizeTemplate,
+  type TokenOption,
+} from "./payloadShape";
 
 const MODE_CHOICES: Choice<LogicMode>[] = [
   {
@@ -216,7 +220,6 @@ export function LogicConfigModal({
         {
           operator: "gt",
           value: "30",
-          json_path: "",
           read_template: "",
           topic: config.source_topic ?? "",
           broker_id: config.source_broker_id ?? "",
@@ -270,7 +273,7 @@ export function LogicConfigModal({
   );
 
   const [payload, setPayload] = useState(() =>
-    (config.payload ?? "").replace(/\{\{value\}\}/g, VALUE_TOKEN),
+    normalizeTemplate(config.payload ?? ""),
   );
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
@@ -280,6 +283,62 @@ export function LogicConfigModal({
   const primaryTopic = conditions[0]?.topic?.trim() || "";
   const primaryBrokerId =
     conditions[0]?.broker_id || sourceBrokerId || fallbackBroker;
+
+  const availableTokens = useMemo<TokenOption[]>(() => {
+    const tokens: TokenOption[] = [
+      {
+        name: "value",
+        token: "{{value}}",
+        label: "value",
+        title: "Insert {{value}}: primary triggering condition value",
+      },
+      {
+        name: "topic",
+        token: "{{topic}}",
+        label: "topic",
+        title: "Insert {{topic}}: concrete MQTT topic that triggered the rule",
+      },
+      {
+        name: "payload",
+        token: "{{payload}}",
+        label: "payload",
+        title: "Insert {{payload}}: raw incoming trigger payload",
+      },
+      {
+        name: "timestamp",
+        token: "{{timestamp}}",
+        label: "timestamp",
+        title: "Insert {{timestamp}}: current Unix timestamp",
+      },
+      {
+        name: "timestamp:iso",
+        token: "{{timestamp:iso}}",
+        label: "iso time",
+        title: "Insert {{timestamp:iso}}: current ISO 8601 timestamp",
+      },
+    ];
+
+    if (conditions.length > 1) {
+      conditions.forEach((c, idx) => {
+        tokens.push({
+          name: `value:${idx}`,
+          token: `{{value:${idx}}}`,
+          label: `value:${idx}`,
+          title: `Insert {{value:${idx}}}: condition ${idx} value${c.topic ? ` (${c.topic})` : ""}`,
+        });
+        if (c.topic?.trim()) {
+          tokens.push({
+            name: `value:${c.topic.trim()}`,
+            token: `{{value:${c.topic.trim()}}}`,
+            label: `value:${c.topic.trim()}`,
+            title: `Insert {{value:${c.topic.trim()}}}: value for topic ${c.topic.trim()}`,
+          });
+        }
+      });
+    }
+
+    return tokens;
+  }, [conditions]);
 
   // Helper to construct draft for topic picker navigation
   const draft = (picking: string): LogicConfig => ({
@@ -363,7 +422,6 @@ export function LogicConfigModal({
       {
         operator: "gt",
         value: "30",
-        json_path: "",
         read_template: "",
         topic: "",
         broker_id: "",
@@ -402,9 +460,7 @@ export function LogicConfigModal({
       sustained_sec: mode === "sustained" ? Number(sustainedSec) : undefined,
       target_topic: trimmedTarget,
       target_broker_id: targetBrokerId || undefined,
-      payload: payload.includes(VALUE_TOKEN)
-        ? payload.split(VALUE_TOKEN).join("{{value}}")
-        : payload,
+      payload,
       qos,
       retain,
       cooldown_sec: Number(cooldownSec),
@@ -645,7 +701,7 @@ export function LogicConfigModal({
                       title="Value"
                       summary={
                         <PayloadSummary
-                          value={cond.read_template || cond.json_path || ""}
+                          value={cond.read_template || ""}
                           empty="whole payload"
                         />
                       }
@@ -653,16 +709,10 @@ export function LogicConfigModal({
                     >
                       <PayloadBuilder
                         mode="read"
-                        value={cond.read_template || cond.json_path || ""}
+                        value={cond.read_template || ""}
                         onChange={(next) => {
-                          const derived = deriveReadPath(next);
                           handleConditionChange(idx, {
                             read_template: next,
-                            json_path:
-                              derived ??
-                              (next.startsWith("{") || next.startsWith("[")
-                                ? ""
-                                : next),
                           });
                         }}
                         brokerId={cond.broker_id || primaryBrokerId}
@@ -776,6 +826,7 @@ export function LogicConfigModal({
               brokerId={targetBrokerId || sourceBrokerId}
               topic={targetTopic}
               previewValue={conditions[0]?.value || "ON"}
+              availableTokens={availableTokens}
               placeholder={`{"state":${VALUE_TOKEN}}`}
             />
           </DisclosureCard>
@@ -1056,7 +1107,6 @@ export default function LogicPanel({
   const c0Payload = payloadCache[`${c0Broker}:${c0Topic}`] ?? null;
   const { displayValue: c0Value } = extractTrackedValue(
     c0Payload,
-    c0?.json_path,
     c0?.read_template,
   );
 
@@ -1337,7 +1387,7 @@ export default function LogicPanel({
                   const cBroker = c.broker_id || primaryBroker;
                   const cPayload = payloadCache[`${cBroker}:${cTopic}`] ?? null;
                   const { displayValue: cVal, rawValue: cRaw } =
-                    extractTrackedValue(cPayload, c.json_path, c.read_template);
+                    extractTrackedValue(cPayload, c.read_template);
                   const condMatch =
                     cPayload !== null &&
                     evaluateClientCondition(cRaw, c.operator, c.value);

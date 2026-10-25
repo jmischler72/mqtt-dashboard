@@ -617,7 +617,11 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: renderPayload(config.payloadTemplate ?? VALUE_TOKEN, value),
+        payload: renderPayload(
+          config.payloadTemplate ?? VALUE_TOKEN,
+          value,
+          commandTopic,
+        ),
         qos,
         retain,
         panel_id: panelId,
