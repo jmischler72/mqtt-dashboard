@@ -276,37 +276,65 @@ type cronConfig struct {
 
 func (h *DashboardHandler) DeleteDashboard(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	code, err := h.DeleteDashboardByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), code)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
 
+// DeleteDashboardByID deletes a dashboard and all its panels, cleaning up any registered
+// cron jobs, logic rules, and cache entries. Returns HTTP status code and error (or nil).
+func (h *DashboardHandler) DeleteDashboardByID(id string) (int, error) {
 	// Prevent deleting the last dashboard
 	var count int
 	if err := h.db.QueryRow(`SELECT COUNT(*) FROM dashboards`).Scan(&count); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, err
 	}
 	if count <= 1 {
-		http.Error(w, "cannot delete the last dashboard", http.StatusConflict)
-		return
+		return http.StatusConflict, errors.New("cannot delete the last dashboard")
 	}
 
-	// Collect panel IDs for cron cleanup
+	// Collect panel IDs for cron, logic, and cache cleanup
 	rows, err := h.db.Query(`SELECT id FROM dashboard_layouts WHERE dashboard_id = ?`, id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, err
 	}
 	var panelIDs []string
 	for rows.Next() {
 		var pid string
 		if err := rows.Scan(&pid); err != nil {
 			rows.Close()
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return http.StatusInternalServerError, err
 		}
 		panelIDs = append(panelIDs, pid)
 	}
 	rows.Close()
 
-	// Remove cron jobs for all panels in this dashboard
+	// Cascade delete panels then the dashboard
+	tx, err := h.db.Begin()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	defer tx.Rollback() //nolint
+
+	if _, err := tx.Exec(`DELETE FROM dashboard_layouts WHERE dashboard_id = ?`, id); err != nil {
+		return http.StatusInternalServerError, err
+	}
+	res, err := tx.Exec(`DELETE FROM dashboards WHERE id = ?`, id)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return http.StatusNotFound, errors.New("not found")
+	}
+	if err := tx.Commit(); err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Clean up runtime engines and caches after successful commit
 	if h.scheduler != nil {
 		for _, pid := range panelIDs {
 			h.scheduler.RemoveJob(pid)
@@ -317,39 +345,11 @@ func (h *DashboardHandler) DeleteDashboard(w http.ResponseWriter, r *http.Reques
 			h.logicEngine.RemoveRule(pid)
 		}
 	}
-
-	// Cascade delete panels then the dashboard
-	tx, err := h.db.Begin()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback() //nolint
-
-	if _, err := tx.Exec(`DELETE FROM dashboard_layouts WHERE dashboard_id = ?`, id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	res, err := tx.Exec(`DELETE FROM dashboards WHERE id = ?`, id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	if h.invalidator != nil {
 		for _, pid := range panelIDs {
 			h.invalidator.InvalidatePanelMeta(pid)
 		}
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	return http.StatusNoContent, nil
 }

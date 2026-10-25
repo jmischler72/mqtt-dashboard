@@ -427,11 +427,10 @@ func NormalizeAndLayoutPanels(panels []models.ImportPanel, autoLayout bool) ([]m
 		}
 	}
 
-	cursorY := 0
 	for i := range result {
 		w, h := result[i].W, result[i].H
 		placed := false
-		for y := cursorY; y < cursorY+500 && !placed; y++ {
+		for y := 0; !placed; y++ {
 			for x := 0; x <= 12-w; x++ {
 				if isFree(x, y, w, h) {
 					result[i].X = x

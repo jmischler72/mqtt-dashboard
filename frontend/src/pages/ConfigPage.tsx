@@ -371,7 +371,9 @@ export default function ConfigPage() {
 
   const handleCopyMcpText = (key: string, text: string) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
     setCopiedMcpKey(key);
     setTimeout(
       () => setCopiedMcpKey((prev) => (prev === key ? null : prev)),

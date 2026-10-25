@@ -283,17 +283,21 @@ func (s *Server) HandleSSEMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.RLock()
+	var sentToSSE bool
+	s.mu.Lock()
 	ch, hasSSE := s.sessions[sessionID]
-	s.mu.RUnlock()
-
 	if hasSSE {
 		if b, err := json.Marshal(resp); err == nil {
 			select {
 			case ch <- b:
+				sentToSSE = true
 			default:
 			}
 		}
+	}
+	s.mu.Unlock()
+
+	if sentToSSE {
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -316,6 +320,7 @@ func (s *Server) ServeStdio(ctx context.Context, in io.Reader, out io.Writer) er
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	enc := json.NewEncoder(out)
+	enc.SetEscapeHTML(false)
 
 	for scanner.Scan() {
 		select {
@@ -356,9 +361,9 @@ func writeJSONRPCError(w http.ResponseWriter, id json.RawMessage, code int, mess
 // --- JSON-RPC Dispatcher ---
 
 func (s *Server) dispatch(ctx context.Context, req jsonRPCRequest) *jsonRPCResponse {
-	// Notifications have no ID and expect no response.
-	if len(req.ID) == 0 || string(req.ID) == "null" {
-		if strings.HasPrefix(req.Method, "notifications/") {
+	isNotification := len(req.ID) == 0 || string(req.ID) == "null"
+	if isNotification {
+		if strings.HasPrefix(req.Method, "notifications/") || req.Method == "initialized" {
 			return nil
 		}
 	}
@@ -537,6 +542,9 @@ func (s *Server) dispatch(ctx context.Context, req jsonRPCRequest) *jsonRPCRespo
 		}
 
 	default:
+		if isNotification {
+			return nil
+		}
 		return &jsonRPCResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,

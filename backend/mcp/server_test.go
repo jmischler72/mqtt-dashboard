@@ -561,6 +561,24 @@ func TestMCPErrorHandlingAndJSONRPC(t *testing.T) {
 		t.Fatalf("notification status = %d, want 202", rec.Code)
 	}
 
+	// 3b. "initialized" notification without prefix (also accepted without response)
+	req = httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","method":"initialized"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("initialized notification status = %d, want 202", rec.Code)
+	}
+
+	// 3c. Unrecognized notification (no id) must not return error response per JSON-RPC 2.0
+	req = httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","method":"custom/telemetry"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("custom notification status = %d, want 202", rec.Code)
+	}
+
 	// 4. tools/call with unknown tool name returns JSON-RPC error
 	unknownResp := postJSONRPC(t, r, "tools/call", map[string]any{
 		"name": "unknown_tool",
@@ -671,7 +689,22 @@ func TestMCPErrorHandlingAndJSONRPC(t *testing.T) {
 		"retain":    true,
 	})
 	if isErr || !strings.Contains(pubTxt, `"status": "published"`) {
-		t.Fatalf("publish_message with object payload failed: %s", pubTxt)
+		t.Fatalf("publish_message with string payload failed: %s", pubTxt)
+	}
+
+	// publish_message with raw structured map payload from LLM
+	pubTxt, isErr = callToolHelper(t, r, "publish_message", map[string]any{
+		"broker_id": "broker-1",
+		"topic":     "cmd/structured",
+		"payload": map[string]any{
+			"state": "ON",
+			"val":   123,
+		},
+		"qos":    0,
+		"retain": false,
+	})
+	if isErr || !strings.Contains(pubTxt, `"status": "published"`) {
+		t.Fatalf("publish_message with map payload failed: %s", pubTxt)
 	}
 
 	// 10. get_dashboard validation

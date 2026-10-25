@@ -917,57 +917,12 @@ func (s *Server) toolDeleteDashboard(rawArgs json.RawMessage) (any, error) {
 		return nil, errors.New("dashboard_id is required")
 	}
 
-	var count int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM dashboards`).Scan(&count); err != nil {
-		return nil, err
-	}
-	if count <= 1 {
-		return nil, errors.New("cannot delete the last dashboard")
-	}
-
-	rows, err := s.db.Query(`SELECT id FROM dashboard_layouts WHERE dashboard_id = ?`, args.DashboardID)
+	code, err := s.dashboardH.DeleteDashboardByID(args.DashboardID)
 	if err != nil {
-		return nil, err
-	}
-	var panelIDs []string
-	for rows.Next() {
-		var pid string
-		if rows.Scan(&pid) == nil {
-			panelIDs = append(panelIDs, pid)
+		if code == http.StatusNotFound {
+			return nil, fmt.Errorf("dashboard %q not found", args.DashboardID)
 		}
-	}
-	rows.Close()
-
-	tx, err := s.db.Begin()
-	if err != nil {
 		return nil, err
-	}
-	defer tx.Rollback() //nolint
-
-	if _, err := tx.Exec(`DELETE FROM dashboard_layouts WHERE dashboard_id = ?`, args.DashboardID); err != nil {
-		return nil, err
-	}
-	res, err := tx.Exec(`DELETE FROM dashboards WHERE id = ?`, args.DashboardID)
-	if err != nil {
-		return nil, err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, fmt.Errorf("dashboard %q not found", args.DashboardID)
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	for _, pid := range panelIDs {
-		if s.scheduler != nil {
-			s.scheduler.RemoveJob(pid)
-		}
-		if s.logicEngine != nil {
-			s.logicEngine.RemoveRule(pid)
-		}
-		if s.invalidator != nil {
-			s.invalidator.InvalidatePanelMeta(pid)
-		}
 	}
 
 	return map[string]any{
@@ -978,11 +933,11 @@ func (s *Server) toolDeleteDashboard(rawArgs json.RawMessage) (any, error) {
 
 func (s *Server) toolPublishMessage(rawArgs json.RawMessage) (any, error) {
 	var args struct {
-		BrokerID string `json:"broker_id"`
-		Topic    string `json:"topic"`
-		Payload  string `json:"payload"`
-		QoS      int    `json:"qos"`
-		Retain   bool   `json:"retain"`
+		BrokerID string          `json:"broker_id"`
+		Topic    string          `json:"topic"`
+		Payload  json.RawMessage `json:"payload"`
+		QoS      int             `json:"qos"`
+		Retain   bool            `json:"retain"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
@@ -1006,7 +961,18 @@ func (s *Server) toolPublishMessage(rawArgs json.RawMessage) (any, error) {
 		return nil, errors.New("no broker available")
 	}
 
-	if err := s.registry.Publish(brokerID, topic, byte(args.QoS), args.Retain, []byte(args.Payload)); err != nil {
+	var payloadBytes []byte
+	trimmedPayload := strings.TrimSpace(string(args.Payload))
+	if len(trimmedPayload) > 0 {
+		var str string
+		if json.Unmarshal(args.Payload, &str) == nil {
+			payloadBytes = []byte(str)
+		} else {
+			payloadBytes = []byte(trimmedPayload)
+		}
+	}
+
+	if err := s.registry.Publish(brokerID, topic, byte(args.QoS), args.Retain, payloadBytes); err != nil {
 		return nil, fmt.Errorf("publish failed: %w", err)
 	}
 
