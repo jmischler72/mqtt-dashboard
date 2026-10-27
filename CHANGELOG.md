@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.15.0](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.2...v1.15.0) (2026-10-27)
+
+
+### Features
+
+* **mcp:** add built-in Model Context Protocol server and configuration UI ([#238](https://github.com/jmischler72/mqtt-dashboard/issues/238)) ([e2b124b](https://github.com/jmischler72/mqtt-dashboard/commit/e2b124b0d890e92df59e41f0bdac459a2290fb26))
+
+
+### Bug Fixes
+
+* **demo:** reset mcp server state and active sessions on demo auto-reset ([#239](https://github.com/jmischler72/mqtt-dashboard/issues/239)) ([d6c4c86](https://github.com/jmischler72/mqtt-dashboard/commit/d6c4c86703cd58a1f5f2af2ec2975d842ae8480e))
+* **navbar:** collapse page selector when too many element in navbar ([#235](https://github.com/jmischler72/mqtt-dashboard/issues/235)) ([072749a](https://github.com/jmischler72/mqtt-dashboard/commit/072749a83b85319b9d55dfe992c33a726ed756f2))
+
+
+### Code Refactoring
+
+* **frontend:** enforce consistent DaisyUI semantic theme tokens and components ([#236](https://github.com/jmischler72/mqtt-dashboard/issues/236)) ([af12f55](https://github.com/jmischler72/mqtt-dashboard/commit/af12f55c43089d36aad327fbede4550b5e8547e1)), closes [#136](https://github.com/jmischler72/mqtt-dashboard/issues/136)
+
+
+### Chores
+
+* **deps-dev:** bump the dev-deps group in /frontend with 3 updates ([#241](https://github.com/jmischler72/mqtt-dashboard/issues/241)) ([ff1b288](https://github.com/jmischler72/mqtt-dashboard/commit/ff1b28803b9f545df11d6056caa58c60b148e71a))
+* **deps-dev:** bump the dev-deps group in /frontend with 7 updates ([#231](https://github.com/jmischler72/mqtt-dashboard/issues/231)) ([7d401f1](https://github.com/jmischler72/mqtt-dashboard/commit/7d401f11ffcd52c7e75e70369fc75c16bdf19451))
+* **deps:** bump cronstrue from 3.31.0 to 3.32.0 in /frontend ([#232](https://github.com/jmischler72/mqtt-dashboard/issues/232)) ([c8b7ea2](https://github.com/jmischler72/mqtt-dashboard/commit/c8b7ea2a54fb4470df3b04a2633943de4f62bcef))
+* **deps:** bump cronstrue from 3.32.0 to 3.38.0 in /frontend ([#242](https://github.com/jmischler72/mqtt-dashboard/issues/242)) ([ac1efb6](https://github.com/jmischler72/mqtt-dashboard/commit/ac1efb6a93a437b044945bbfb412094a57286fce))
+* **deps:** bump github.com/go-chi/chi/v5 in /backend ([#229](https://github.com/jmischler72/mqtt-dashboard/issues/229)) ([9dd6907](https://github.com/jmischler72/mqtt-dashboard/commit/9dd6907bb22b498b1632b7797cf72a44cc451fd4))
+* **deps:** bump modernc.org/sqlite from 1.60.1 to 1.61.0 in /backend ([#243](https://github.com/jmischler72/mqtt-dashboard/issues/243)) ([31d9931](https://github.com/jmischler72/mqtt-dashboard/commit/31d99314f1d904c8e8f5ffa46fb944d162151800))
+
 ## [1.14.2](https://github.com/jmischler72/mqtt-dashboard/compare/v1.14.1...v1.14.2) (2026-10-18)
 
 
