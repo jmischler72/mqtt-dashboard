@@ -824,7 +824,7 @@ export function LogicConfigModal({
               value={payload}
               onChange={setPayload}
               brokerId={targetBrokerId || sourceBrokerId}
-              topic={targetTopic}
+              topic={targetTopic || primaryTopic}
               previewValue={conditions[0]?.value || "ON"}
               availableTokens={availableTokens}
               placeholder={`{"state":${VALUE_TOKEN}}`}

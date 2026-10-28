@@ -79,9 +79,10 @@ function buildChip(
   tokenName = TOKEN_LABEL,
   canonicalToken = VALUE_TOKEN,
 ): HTMLElement {
+  const cleanName = tokenName.replace(/^\{+|\}+$/g, "").trim();
   const chip = doc.createElement("span");
   chip.setAttribute(TOKEN_ATTR, "");
-  chip.setAttribute("data-token-name", tokenName);
+  chip.setAttribute("data-token-name", cleanName);
   chip.setAttribute("data-token-str", canonicalToken);
   if (covered) {
     chip.setAttribute("data-covered", covered);
@@ -93,14 +94,14 @@ function buildChip(
 
   const label = doc.createElement("span");
   label.setAttribute("data-chip-label", "");
-  label.textContent = tokenName;
+  label.textContent = cleanName;
   chip.appendChild(label);
 
   const removeBtn = doc.createElement("button");
   removeBtn.type = "button";
   removeBtn.setAttribute("data-remove-token", "");
-  removeBtn.setAttribute("aria-label", `Remove ${tokenName}`);
-  removeBtn.setAttribute("title", `Remove ${tokenName}`);
+  removeBtn.setAttribute("aria-label", `Remove ${cleanName}`);
+  removeBtn.setAttribute("title", `Remove ${cleanName}`);
   removeBtn.setAttribute("tabindex", "-1");
   removeBtn.className =
     "inline-flex items-center justify-center w-3.5 h-3.5 rounded-full " +

@@ -52,6 +52,7 @@ export interface ToggleConfig {
   stateBrokerId?: string;
   /** Shape of incoming messages, with `{value}` marking the value to compare. */
   readTemplate?: string;
+  readCovered?: string;
   /** The value published to turn the device on, dropped into the template. */
   onPayload?: string;
   /** The value published to turn it off. */
@@ -131,6 +132,7 @@ export function ToggleConfigModal({
       "",
   );
   const [readTemplate, setReadTemplate] = useState(config.readTemplate ?? "");
+  const [readCovered, setReadCovered] = useState(config.readCovered ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
@@ -152,6 +154,7 @@ export function ToggleConfigModal({
     stateTopic,
     stateBrokerId,
     readTemplate,
+    readCovered,
     payloadTemplate,
     onPayload,
     offPayload,
@@ -223,8 +226,16 @@ export function ToggleConfigModal({
     hasToken(payloadTemplate) &&
     onPayload.trim() !== "" &&
     offPayload.trim() !== "";
-  const summaryOn = toggleWritePayload(onPayload, payloadTemplate).trim();
-  const summaryOff = toggleWritePayload(offPayload, payloadTemplate).trim();
+  const summaryOn = toggleWritePayload(
+    onPayload,
+    payloadTemplate,
+    topic,
+  ).trim();
+  const summaryOff = toggleWritePayload(
+    offPayload,
+    payloadTemplate,
+    topic,
+  ).trim();
 
   return (
     <PanelConfigModal
@@ -241,6 +252,7 @@ export function ToggleConfigModal({
             stateTopic: separateRead ? stateTopic.trim() : "",
             stateBrokerId: separateRead ? effectiveStateBroker : undefined,
             readTemplate: separateRead ? readTemplate : undefined,
+            readCovered: separateRead ? readCovered : undefined,
             payloadTemplate,
             onPayload,
             offPayload,
@@ -363,6 +375,9 @@ export function ToggleConfigModal({
                     : `No ${TOKEN_LABEL} chip in the message.`
               }
             >
+              {topic && topic.trim() && (
+                <PreviewLine label="Topic" bytes={topic.trim()} />
+              )}
               <PreviewLine label="On" bytes={summaryOn} />
               <PreviewLine label="Off" bytes={summaryOff} />
             </PreviewBox>
@@ -425,9 +440,11 @@ export function ToggleConfigModal({
             <PayloadBuilder
               mode="read"
               value={readTemplate}
+              initialCovered={readCovered}
               onChange={(next) => {
                 setReadTemplate(next);
               }}
+              onCoveredChange={setReadCovered}
               brokerId={effectiveStateBroker}
               topic={stateTopic}
               allowBlankShape

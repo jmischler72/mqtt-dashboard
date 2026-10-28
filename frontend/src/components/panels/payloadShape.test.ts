@@ -9,6 +9,7 @@ import {
   extractValue,
   findLiterals,
   hasAnyToken,
+  inferCoveredValue,
   interpolateTemplate,
   keepOneToken,
   matchTemplate,
@@ -17,6 +18,7 @@ import {
   parseTemplateChunks,
   payloadIssue,
   placeToken,
+  previewPayload,
   readShape,
   resolvePath,
   readValue,
@@ -501,5 +503,62 @@ describe("template interpolation and tokens", () => {
     const placed = placeToken("prefix suffix", 7, 7, "{{topic}}");
     expect(placed.template).toBe("prefix {{topic}}suffix");
     expect(placed.caret).toBe(16);
+  });
+
+  describe("inferCoveredValue", () => {
+    it("infers numeric value from JSON payload", () => {
+      const template = `{"temp":${VALUE_TOKEN},"hum":55}`;
+      const sample = '{"temp":21.5,"hum":55}';
+      expect(inferCoveredValue(template, sample)).toBe("21.5");
+    });
+
+    it("infers string value from JSON payload", () => {
+      const template = `{"state":"${VALUE_TOKEN}"}`;
+      const sample = '{"state":"ON"}';
+      expect(inferCoveredValue(template, sample)).toBe("ON");
+    });
+
+    it("infers nested JSON value", () => {
+      const template = `{"sensor":{"reading":${VALUE_TOKEN}}}`;
+      const sample = '{"sensor":{"reading":42}}';
+      expect(inferCoveredValue(template, sample)).toBe("42");
+    });
+
+    it("infers bare token from plain payload", () => {
+      expect(inferCoveredValue(VALUE_TOKEN, "21.5")).toBe("21.5");
+    });
+
+    it("infers plain text stencil", () => {
+      const template = `SET ${VALUE_TOKEN} C`;
+      expect(inferCoveredValue(template, "SET 20 C")).toBe("20");
+    });
+
+    it("returns empty string if no token or no sample", () => {
+      expect(inferCoveredValue("plain text", "plain text")).toBe("");
+      expect(inferCoveredValue(VALUE_TOKEN, "")).toBe("");
+      expect(inferCoveredValue(VALUE_TOKEN, null)).toBe("");
+    });
+  });
+
+  describe("previewPayload", () => {
+    it("interpolates value, topic and sample payload with realistic fallbacks", () => {
+      const template = '{"val":{{value}},"t":"{{topic}}","p":{{payload}}}';
+      const preview = previewPayload(template, "", "", "");
+      expect(preview).toContain('"val":21.5');
+      expect(preview).toContain('"t":"sensor/temp"');
+      expect(preview).toContain('"p":{"temp":21.5}');
+    });
+
+    it("uses provided topic and payload when available", () => {
+      const template = '{"val":{{value}},"t":"{{topic}}","p":{{payload}}}';
+      const preview = previewPayload(template, 50, "home/living", '{"status":"ok"}');
+      expect(preview).toBe('{"val":50,"t":"home/living","p":{"status":"ok"}}');
+    });
+
+    it("interpolates timestamp tokens in preview", () => {
+      const template = '{"ts":{{timestamp}}}';
+      const preview = previewPayload(template);
+      expect(preview).toMatch(/\{"ts":\d+\}/);
+    });
   });
 });

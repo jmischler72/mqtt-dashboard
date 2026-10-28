@@ -9,11 +9,13 @@ afterEach(cleanup);
 /** The builder wired to its own state, the way a config modal holds it. */
 function Builder({
   initial = "",
+  initialCovered,
   payloads,
   acceptsChip = true,
   mode = "write",
 }: {
   initial?: string;
+  initialCovered?: string;
   payloads: string[];
   acceptsChip?: boolean;
   mode?: "write" | "read";
@@ -24,6 +26,7 @@ function Builder({
       <PayloadBuilder
         mode={mode}
         value={value}
+        initialCovered={initialCovered}
         onChange={setValue}
         acceptsChip={acceptsChip}
         brokerId="b1"
@@ -208,11 +211,25 @@ describe("the literals offered as one-tap chip targets", () => {
 
     const topicBtn = screen.getByRole("button", { name: "topic" });
     expect(topicBtn).toBeTruthy();
+    // The chip badge inside the button must NOT contain {{
+    const badge = topicBtn.querySelector(".badge");
+    expect(badge?.textContent).toBe("topic");
+
     const tsBtn = screen.getByRole("button", { name: "timestamp" });
     expect(tsBtn).toBeTruthy();
 
     fireEvent.mouseDown(topicBtn);
     expect(screen.getByTestId("custom-template").textContent).toBe('{"state":{topic}');
+
+    // Chip inside the editor box does NOT contain {{
+    const chipLabel = screen.getByText("topic", { selector: "[data-chip-label]" });
+    expect(chipLabel).toBeTruthy();
+    expect(chipLabel.textContent).toBe("topic");
+
+    // Preview shows evaluated token instead of {{topic}} and shows Topic line
+    expect(screen.getByText(/Sends/)).toBeTruthy();
+    expect(screen.getByText(/Topic/)).toBeTruthy();
+    expect(screen.getAllByText(/home\/lamp/)).toHaveLength(2);
   });
 
   it("renders top 2 literals inline and places extra literals in an overflow dropdown", () => {
@@ -253,16 +270,90 @@ describe("the literals offered as one-tap chip targets", () => {
     expect(screen.getByRole("button", { name: "55" })).toBeTruthy();
   });
 
-  it("prevents multiple value tokens in read mode", () => {
-    // In read mode (Gauge), when value already has a token, primary button indicates marked and doesn't add duplicate
+  it("prevents multiple value tokens in read mode when clicking without selection", () => {
+    // In read mode (Gauge), when value already has a token, clicking value button without selection doesn't add duplicate
     const initial = `{"temp":${VALUE_TOKEN}}`;
     render(<Builder mode="read" initial={initial} payloads={[]} />);
 
-    const markedBtn = screen.getByRole("button", { name: /value marked/i });
-    expect(markedBtn).toBeTruthy();
-    fireEvent.mouseDown(markedBtn);
+    const valueBtn = screen.getByRole("button", { name: "value" });
+    expect(valueBtn).toBeTruthy();
+    fireEvent.mouseDown(valueBtn);
 
     // Template remains single token, not duplicated
     expect(template()).toBe(`{"temp":${VALUE_TOKEN}}`);
+  });
+
+  it("switches value token place when selecting other text in read mode", () => {
+    // In read mode, selecting other text and clicking value button moves the token
+    const initial = `{"temp":${VALUE_TOKEN},"humidity":60}`;
+    render(<Builder mode="read" initial={initial} payloads={[]} />);
+
+    // Select "60" inside the editor box
+    const box = screen.getByRole("textbox");
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    const range = document.createRange();
+    // In the DOM, the box contains: text `{"temp":`, span chip `{{value}}`, text `,"humidity":60}`
+    const lastTextNode = box.childNodes[box.childNodes.length - 1];
+    expect(lastTextNode.textContent).toContain("60");
+    const sixtyOffset = lastTextNode.textContent!.indexOf("60");
+    range.setStart(lastTextNode, sixtyOffset);
+    range.setEnd(lastTextNode, sixtyOffset + 2);
+    selection.addRange(range);
+
+    const valueBtn = screen.getByRole("button", { name: "value" });
+    fireEvent.mouseDown(valueBtn);
+
+    // {{value}} has moved to humidity
+    expect(template()).toBe(`{"temp":,"humidity":${VALUE_TOKEN}}`);
+  });
+
+  it("restores previously covered value when swapping value on a saved template with sample payload", () => {
+    const savedTemplate = `{"temp":${VALUE_TOKEN},"hum":55}`;
+    const recentPayload = '{"temp":21.5,"hum":55}';
+    render(
+      <Builder
+        mode="read"
+        initial={savedTemplate}
+        payloads={[recentPayload]}
+      />,
+    );
+
+    // Swap value to hum by clicking 55
+    const humBtn = screen.getByRole("button", { name: "55" });
+    fireEvent.click(humBtn);
+
+    // temp is restored to 21.5, hum is marked as value
+    expect(template()).toBe(`{"temp":21.5,"hum":${VALUE_TOKEN}}`);
+  });
+
+  it("restores previously covered value using initialCovered even without sample payload", () => {
+    const savedTemplate = `{"temp":${VALUE_TOKEN},"hum":55}`;
+    render(
+      <Builder
+        mode="read"
+        initial={savedTemplate}
+        initialCovered="21.5"
+        payloads={[]}
+      />,
+    );
+
+    // Select "55" inside the editor box
+    const box = screen.getByRole("textbox");
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    const range = document.createRange();
+    const lastTextNode = box.childNodes[box.childNodes.length - 1];
+    expect(lastTextNode.textContent).toContain("55");
+    const fiftyFiveOffset = lastTextNode.textContent!.indexOf("55");
+    range.setStart(lastTextNode, fiftyFiveOffset);
+    range.setEnd(lastTextNode, fiftyFiveOffset + 2);
+    selection.addRange(range);
+
+    const valueBtn = screen.getByRole("button", { name: "value" });
+    fireEvent.mouseDown(valueBtn);
+
+    // temp is restored to 21.5, hum is marked as value
+    expect(template()).toBe(`{"temp":21.5,"hum":${VALUE_TOKEN}}`);
   });
 });

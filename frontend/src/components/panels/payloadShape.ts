@@ -221,7 +221,7 @@ export const VALUE_TOKEN = "{{value}}";
  * {{value:0}}, {{value:sensors/temp}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
  */
 export const TOKEN_PATTERN =
-  /(\{\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\}\}|\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\})/g;
+  /(\{\{[a-zA-Z0-9_/:.-]+\}\}|\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\})/g;
 
 export interface TokenOption {
   name: string;
@@ -418,10 +418,38 @@ export function renderPayload(
   template: string,
   value: string | number | boolean,
   topic?: string,
+  payload?: string,
 ): string {
   return interpolateTemplate(template, {
     value,
     topic,
+    payload,
+  });
+}
+
+/**
+ * Renders payload for preview, using realistic fallback values for context tokens
+ * when none are explicitly provided so the preview always shows what the message will look like.
+ */
+export function previewPayload(
+  template: string,
+  value?: string | number | boolean,
+  topic?: string,
+  samplePayload?: string | null,
+): string {
+  const effectiveValue =
+    value !== undefined && value !== "" ? value : "21.5";
+  const effectiveTopic =
+    topic && topic.trim() ? topic.trim() : "sensor/temp";
+  const effectivePayload =
+    samplePayload && samplePayload.trim()
+      ? samplePayload.trim()
+      : '{"temp":21.5}';
+
+  return interpolateTemplate(template, {
+    value: effectiveValue,
+    topic: effectiveTopic,
+    payload: effectivePayload,
   });
 }
 
@@ -928,6 +956,72 @@ export function markLiteral(
 export function clearToken(template: string, restore: string): string {
   if (isBareToken(template)) return "";
   return template.replace(/\{\{value\}\}|\{value\}/g, restore);
+}
+
+/**
+ * Infer the literal text covered by the token from a sample payload.
+ *
+ * Useful when opening a saved template where the covered constant is not in
+ * component state: if the broker is sending messages or the history has a sample,
+ * the constant that sat where the token is now can be deduced and restored
+ * when the user swaps the token elsewhere.
+ */
+export function inferCoveredValue(
+  template: string,
+  samplePayload?: string | null,
+): string {
+  if (
+    !template ||
+    !samplePayload ||
+    !samplePayload.trim() ||
+    !hasToken(template)
+  ) {
+    return "";
+  }
+
+  if (isBareToken(template)) {
+    return samplePayload.trim();
+  }
+
+  const path = deriveReadPath(template);
+  if (path) {
+    try {
+      const parsed = parseLooseJson(samplePayload);
+      if (parsed && typeof parsed === "object") {
+        const { found, value: cur } = resolvePath(parsed, path);
+        if (found && cur !== undefined && cur !== null) {
+          if (typeof cur === "string") {
+            return isTokenQuoted(template) ? cur : JSON.stringify(cur);
+          }
+          return String(cur);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const literals = findLiterals(samplePayload, 32);
+    const lit = literals.find(
+      (l) => l.key && l.key.toLowerCase() === path.toLowerCase(),
+    );
+    if (lit) {
+      if (
+        isTokenQuoted(template) &&
+        lit.text.startsWith('"') &&
+        lit.text.endsWith('"')
+      ) {
+        return lit.text.slice(1, -1);
+      }
+      return lit.text;
+    }
+  }
+
+  const matched = matchTemplate(template, samplePayload);
+  if (matched !== null) {
+    return matched;
+  }
+
+  return "";
 }
 
 /** The template as the interface says it, with the token under its label. */

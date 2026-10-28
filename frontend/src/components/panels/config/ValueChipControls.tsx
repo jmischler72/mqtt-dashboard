@@ -11,9 +11,11 @@ import { RiAddLine, RiArrowDownSLine, RiCheckLine } from "react-icons/ri";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  clearToken,
   deriveReadPath,
   findLiterals,
   hasToken,
+  inferCoveredValue,
   markLiteral,
   placeToken,
   type TemplateLiteral,
@@ -27,6 +29,7 @@ export interface Selection {
 
 export interface ValueChipControlsProps {
   value: string;
+  covered?: string;
   onChange: (next: string) => void;
   getSelection: () => Selection | null;
   onCaret?: (offset: number) => void;
@@ -71,11 +74,15 @@ function getTokenPreview(
   if (norm.startsWith("value:")) {
     return "reading";
   }
+  if (norm.startsWith("payload:")) {
+    return '{"temp":21.5}';
+  }
   return norm;
 }
 
 export default function ValueChipControls({
   value,
+  covered,
   onChange,
   getSelection,
   onCaret,
@@ -220,14 +227,41 @@ export default function ValueChipControls({
     if (mode === "read" && isAlreadyMarked) {
       if (at.start !== at.end) {
         // Selection highlighted: replace old mark with this selection
-        const cleaned = value
-          .split(VALUE_TOKEN)
-          .join("")
-          .split("{value}")
-          .join("");
+        const match = value.match(/\{\{value\}\}|\{value\}/);
+        if (match && match.index !== undefined) {
+          const oldStart = match.index;
+          const oldLen = match[0].length;
+          const oldEnd = oldStart + oldLen;
+          const restore = covered || inferCoveredValue(value, samplePayload);
+
+          if (at.start < oldEnd && at.end > oldStart) {
+            // Selection overlaps or covers the old mark
+            const placed = placeToken(value, at.start, at.end, tokenStr);
+            onCaret?.(placed.caret);
+            onCoveredChange?.(placed.covered, 0);
+            onChange(placed.template);
+            return;
+          }
+
+          // Selection is before or after the old mark: restore old mark and adjust offsets
+          const delta = restore.length - oldLen;
+          const newStart = at.start < oldStart ? at.start : at.start + delta;
+          const newEnd = at.end < oldStart ? at.end : at.end + delta;
+          const restored =
+            value.slice(0, oldStart) + restore + value.slice(oldEnd);
+          const placed = placeToken(restored, newStart, newEnd, tokenStr);
+          onCaret?.(placed.caret);
+          onCoveredChange?.(placed.covered, 0);
+          onChange(placed.template);
+          return;
+        }
+
+        // Fallback if match wasn't found
+        const restore = covered || inferCoveredValue(value, samplePayload);
+        const cleaned = clearToken(value, restore);
         const placed = placeToken(cleaned, at.start, at.end, tokenStr);
         onCaret?.(placed.caret);
-        onCoveredChange(placed.covered, 0);
+        onCoveredChange?.(placed.covered, 0);
         onChange(placed.template);
       }
       return;
@@ -236,31 +270,44 @@ export default function ValueChipControls({
     const placed = placeToken(value, at.start, at.end, tokenStr);
     const tokenIndex = value.slice(0, at.start).split(tokenStr).length - 1;
     onCaret?.(placed.caret);
-    onCoveredChange(placed.covered, tokenIndex);
+    onCoveredChange?.(placed.covered, tokenIndex);
     onChange(placed.template);
   };
 
   const handleApplyLiteral = useCallback(
     (literal: TemplateLiteral) => {
-      if (mode === "read") {
-        // In read mode, prefer applying to samplePayload if available so the whole JSON stencil is clean
-        if (samplePayload && samplePayload.includes(literal.text)) {
-          const result = markLiteral(samplePayload, literal);
-          onCoveredChange(result.previous, 0);
-          onChange(result.template);
-          return;
-        }
+      const activeCovered = covered || inferCoveredValue(value, samplePayload);
 
-        // If working from current value, clear any existing mark before moving to this literal
+      if (mode === "read") {
+        // If current value (with previous mark restored) already contains this literal,
+        // prefer keeping user's custom template modifications
         let base = value;
         if (hasToken(base)) {
-          base = base
-            .split(VALUE_TOKEN)
-            .join("")
-            .split("{value}")
-            .join("");
+          base = clearToken(base, activeCovered || "");
         }
-        const idx = base.indexOf(literal.text);
+
+        let idx = -1;
+        if (
+          literal.end <= base.length &&
+          base.slice(literal.start, literal.end) === literal.text
+        ) {
+          idx = literal.start;
+        } else if (literal.key) {
+          const keyMatch = base.match(
+            new RegExp(`["']?${literal.key}["']?\\s*:\\s*`),
+          );
+          if (keyMatch && keyMatch.index !== undefined) {
+            const searchFrom = keyMatch.index + keyMatch[0].length;
+            const foundAfterKey = base.indexOf(literal.text, searchFrom);
+            if (foundAfterKey !== -1 && foundAfterKey - searchFrom < 10) {
+              idx = foundAfterKey;
+            }
+          }
+        }
+        if (idx === -1) {
+          idx = base.indexOf(literal.text);
+        }
+
         if (idx !== -1) {
           const litInBase: TemplateLiteral = {
             text: literal.text,
@@ -269,7 +316,15 @@ export default function ValueChipControls({
             key: literal.key,
           };
           const result = markLiteral(base, litInBase);
-          onCoveredChange(result.previous, 0);
+          onCoveredChange?.(result.previous, 0);
+          onChange(result.template);
+          return;
+        }
+
+        // If literal is from samplePayload and not in current value:
+        if (samplePayload && samplePayload.includes(literal.text)) {
+          const result = markLiteral(samplePayload, literal);
+          onCoveredChange?.(result.previous, 0);
           onChange(result.template);
           return;
         }
@@ -280,7 +335,7 @@ export default function ValueChipControls({
       const result = markLiteral(base, literal);
       const tokenIndex =
         base.slice(0, literal.start).split(VALUE_TOKEN).length - 1;
-      onCoveredChange(result.previous, tokenIndex);
+      onCoveredChange?.(result.previous, tokenIndex);
       onChange(result.template);
       onCaret?.(
         literal.start +
@@ -289,7 +344,7 @@ export default function ValueChipControls({
             : VALUE_TOKEN.length),
       );
     },
-    [mode, samplePayload, value, onCoveredChange, onChange, onCaret],
+    [mode, samplePayload, value, covered, onCoveredChange, onChange, onCaret],
   );
 
   const defaultWriteTokens: TokenOption[] = [
@@ -321,7 +376,7 @@ export default function ValueChipControls({
             token: VALUE_TOKEN,
             label: TOKEN_LABEL,
             title: isAlreadyMarked
-              ? "Reading value is already marked. Select text in box to move mark, or click a detected field."
+              ? "Reading value is already marked (select text in box to move it)"
               : "Mark the part of the message the panel reads: click where it sits, or select it first",
           },
         ]
@@ -334,35 +389,21 @@ export default function ValueChipControls({
   };
   const secondaryTokens = tokensToRender.slice(1);
 
-  // In read mode, if value is already marked, prevent inserting duplicate
-  const disablePrimaryInRead = mode === "read" && isAlreadyMarked;
-
   return (
     <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
         {secondaryTokens.length === 0 ? (
           <button
             type="button"
-            title={
-              disablePrimaryInRead
-                ? "Reading value is already marked (select text in box to move it)"
-                : primaryToken.title || `Insert ${primaryToken.token}`
-            }
-            disabled={disablePrimaryInRead}
+            title={primaryToken.title || `Insert ${primaryToken.token}`}
             onMouseDown={(e) => {
               e.preventDefault();
               place(primaryToken.token);
             }}
-            className={`btn btn-xs btn-outline btn-primary rounded-full font-mono gap-1 h-6 min-h-0 text-[11px] cursor-pointer ${
-              disablePrimaryInRead ? "btn-disabled opacity-50 cursor-not-allowed" : ""
-            }`}
+            className="btn btn-xs btn-outline btn-primary rounded-full font-mono gap-1 h-6 min-h-0 text-[11px] cursor-pointer"
           >
-            {disablePrimaryInRead ? (
-              <RiCheckLine className="w-3.5 h-3.5 text-success" />
-            ) : (
-              <RiAddLine className="w-3 h-3" />
-            )}
-            <span>{disablePrimaryInRead ? "value marked" : primaryToken.label || primaryToken.name}</span>
+            <RiAddLine className="w-3 h-3" />
+            <span>{primaryToken.label || primaryToken.name}</span>
           </button>
         ) : (
           <div className="join inline-flex items-center">
@@ -436,7 +477,7 @@ export default function ValueChipControls({
                       className="w-full flex items-center justify-between gap-3 px-2 py-1.5 rounded-lg hover:bg-base-300 transition-colors text-left cursor-pointer group"
                     >
                       <span className="badge badge-sm badge-primary badge-outline font-mono font-medium text-[11px] shrink-0 group-hover:badge-primary group-hover:text-primary-content">
-                        {t.token}
+                        {t.label || t.name}
                       </span>
                       <span
                         className="text-[11px] text-base-content/60 font-mono truncate max-w-[130px] text-right"
@@ -547,13 +588,13 @@ export default function ValueChipControls({
                             handleApplyLiteral(literal);
                             setLiteralMenuOpen(false);
                           }}
-                          className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg transition-colors text-left cursor-pointer ${
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left cursor-pointer ${
                             isMarked
                               ? "bg-primary text-primary-content font-semibold"
                               : "hover:bg-base-300"
                           }`}
                         >
-                          <span className="badge badge-sm badge-outline font-mono text-[11px] gap-1 shrink-0">
+                          <span className={`badge badge-sm font-mono text-[11px] gap-1 shrink-0 ${isMarked ? "badge-ghost" : "badge-outline"}`}>
                             {isMarked && <RiCheckLine className="w-3 h-3 shrink-0" />}
                             {literal.key && (
                               <span className="opacity-60 text-[10px] font-sans">
@@ -561,9 +602,6 @@ export default function ValueChipControls({
                               </span>
                             )}
                             <span className="font-mono">{literal.text}</span>
-                          </span>
-                          <span className={`text-[10px] font-sans ${isMarked ? "text-primary-content/80" : "text-base-content/50"}`}>
-                            {isMarked ? "marked" : "mark as value"}
                           </span>
                         </button>
                       );
