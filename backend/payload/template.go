@@ -9,22 +9,23 @@ import (
 
 // Context provides values for token interpolation in payload templates.
 type Context struct {
-	Value             string
-	Topic             string
-	Payload           string
-	Timestamp         time.Time
-	ConditionValues   map[string]string // e.g. "0": val, "1": val, "sensors/temp": val
-	ConditionPayloads map[string]string // e.g. "0": raw, "1": raw, "sensors/temp": raw
+	Value           string
+	Topic           string
+	Payload         string
+	Timestamp       time.Time
+	ConditionValues map[string]string // 1-indexed condition values: "1": val, "2": val
 }
 
-// TokenPattern matches both single-brace canonical tokens ({value}, {topic}, {payload}, {timestamp},
-// {value:0}, {value:sensors/temp}, etc.) and legacy double-brace tokens ({{value}}, {{topic}}, etc.).
+const tokenInnerPattern = `(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)`
+
+// TokenPattern matches both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
+// {{value:1}}, etc.) and legacy single-brace tokens ({value}, {topic}, etc.).
 // Normal JSON object braces (like {"key": "val"}) do not match because keys/contents contain quotes, spaces, etc.
-var tokenRegex = regexp.MustCompile(`\{\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\}\}|\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\}`)
+var tokenRegex = regexp.MustCompile(`\{\{` + tokenInnerPattern + `\}\}|\{` + tokenInnerPattern + `\}`)
 
 // Interpolate substitutes context tokens into template.
 // Supports both single-brace canonical tokens ({value}, {topic}, {payload}, {timestamp})
-// and legacy double-brace tokens ({{value}}, {{topic}}, etc.).
+// and double-brace tokens ({{value}}, {{topic}}, {{value:1}}, etc.).
 func Interpolate(template string, ctx Context) string {
 	if template == "" {
 		return ""
@@ -62,15 +63,6 @@ func Interpolate(template string, ctx Context) string {
 				key := strings.TrimPrefix(token, "value:")
 				if ctx.ConditionValues != nil {
 					if val, ok := ctx.ConditionValues[key]; ok {
-						return val
-					}
-				}
-				return ""
-			}
-			if strings.HasPrefix(token, "payload:") {
-				key := strings.TrimPrefix(token, "payload:")
-				if ctx.ConditionPayloads != nil {
-					if val, ok := ctx.ConditionPayloads[key]; ok {
 						return val
 					}
 				}

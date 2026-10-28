@@ -226,10 +226,9 @@ describe("the literals offered as one-tap chip targets", () => {
     expect(chipLabel).toBeTruthy();
     expect(chipLabel.textContent).toBe("topic");
 
-    // Preview shows evaluated token instead of {{topic}} and shows Topic line
+    // Preview shows evaluated token instead of {{topic}}
     expect(screen.getByText(/Sends/)).toBeTruthy();
-    expect(screen.getByText(/Topic/)).toBeTruthy();
-    expect(screen.getAllByText(/home\/lamp/)).toHaveLength(2);
+    expect(screen.getByText(/home\/lamp/)).toBeTruthy();
   });
 
   it("renders top 2 literals inline and places extra literals in an overflow dropdown", () => {

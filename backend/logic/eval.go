@@ -220,7 +220,9 @@ func matchTemplateStencil(template, raw string) (string, bool) {
 	trimmedPrefix := strings.TrimSpace(prefix)
 	trimmedSuffix := strings.TrimSpace(suffix)
 
-	if strings.HasPrefix(trimmedRaw, trimmedPrefix) && strings.HasSuffix(trimmedRaw, trimmedSuffix) {
+	if len(trimmedRaw) >= len(trimmedPrefix)+len(trimmedSuffix) &&
+		strings.HasPrefix(trimmedRaw, trimmedPrefix) &&
+		strings.HasSuffix(trimmedRaw, trimmedSuffix) {
 		middle := trimmedRaw[len(trimmedPrefix) : len(trimmedRaw)-len(trimmedSuffix)]
 		middle = strings.TrimSpace(middle)
 		if len(middle) >= 2 && middle[0] == '"' && middle[len(middle)-1] == '"' {
@@ -435,18 +437,20 @@ func buildAction(r *Rule, msg Message, guards GuardLookup, now time.Time) *Actio
 	}
 
 	condValues := make(map[string]string)
-	condPayloads := make(map[string]string)
 
 	primaryValue := string(msg.Payload)
 	primaryMatched := false
 
 	for i, c := range r.Conditions {
-		idxStr := strconv.Itoa(i)
+		idxStr := strconv.Itoa(i + 1)
 		condBroker := c.BrokerID
 		if condBroker == "" {
 			condBroker = r.BrokerID
 		}
 		condTopic := strings.TrimSpace(c.Topic)
+		if condTopic == "" {
+			condTopic = strings.TrimSpace(r.SourceTopic)
+		}
 		brokerMatches := (condBroker == msg.BrokerID) || (condBroker == "" && msg.BrokerID != "") || (condBroker != "" && msg.BrokerID == "")
 		topicMatches := (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic))
 
@@ -455,11 +459,6 @@ func buildAction(r *Rule, msg Message, guards GuardLookup, now time.Time) *Actio
 			raw = string(msg.Payload)
 			val, _ := extractValueFromPayload(raw, c.ReadTemplate)
 			condValues[idxStr] = val
-			condPayloads[idxStr] = raw
-			if c.Topic != "" {
-				condValues[c.Topic] = val
-				condPayloads[c.Topic] = raw
-			}
 			if !primaryMatched {
 				primaryValue = val
 				primaryMatched = true
@@ -472,18 +471,13 @@ func buildAction(r *Rule, msg Message, guards GuardLookup, now time.Time) *Actio
 			if guardRaw, ok := guards(condBroker, targetTopic); ok {
 				val, _ := extractValueFromPayload(guardRaw, c.ReadTemplate)
 				condValues[idxStr] = val
-				condPayloads[idxStr] = guardRaw
-				if c.Topic != "" {
-					condValues[c.Topic] = val
-					condPayloads[c.Topic] = guardRaw
-				}
 			}
 		}
 	}
 
 	if !primaryMatched {
-		if val0, ok := condValues["0"]; ok {
-			primaryValue = val0
+		if val1, ok := condValues["1"]; ok {
+			primaryValue = val1
 		} else if len(r.Conditions) > 0 {
 			if v, ok := extractValueFromPayload(string(msg.Payload), r.Conditions[0].ReadTemplate); ok {
 				primaryValue = v
@@ -492,12 +486,11 @@ func buildAction(r *Rule, msg Message, guards GuardLookup, now time.Time) *Actio
 	}
 
 	ctx := payload.Context{
-		Value:             primaryValue,
-		Topic:             msg.Topic,
-		Payload:           string(msg.Payload),
-		Timestamp:         now,
-		ConditionValues:   condValues,
-		ConditionPayloads: condPayloads,
+		Value:           primaryValue,
+		Topic:           msg.Topic,
+		Payload:         string(msg.Payload),
+		Timestamp:       now,
+		ConditionValues: condValues,
 	}
 
 	outPayload := payload.Interpolate(r.Payload, ctx)

@@ -1301,7 +1301,7 @@ func TestEngine_GlobalPayloadTemplating(t *testing.T) {
 		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), expected)
 	}
 
-	// 2. Multi-condition with guard value disambiguation: {value:0}, {value:1}, {value:<topic>}
+	// 2. Multi-condition with guard value disambiguation: {value:1}, {value:2}
 	engine.RemoveRule("rule_wildcard")
 	broker.clearPublishes()
 	// Seed guard cache for humidity
@@ -1312,7 +1312,7 @@ func TestEngine_GlobalPayloadTemplating(t *testing.T) {
 		BrokerID:    "b1",
 		SourceTopic: "sensors/kitchen/temperature",
 		TargetTopic: "events/climate",
-		Payload:     `{"t":{value:0},"h":{value:1},"hTopic":{value:sensors/kitchen/humidity},"active":{value}}`,
+		Payload:     `{"t":{value:1},"h":{value:2},"active":{value}}`,
 		Mode:        "every",
 		Conditions: []logic.Condition{
 			{
@@ -1341,9 +1341,48 @@ func TestEngine_GlobalPayloadTemplating(t *testing.T) {
 	if len(pubs) != 1 {
 		t.Fatalf("expected 1 publish for multi_guard rule, got %d", len(pubs))
 	}
-	expected2 := `{"t":23,"h":60,"hTopic":60,"active":23}`
+	expected2 := `{"t":23,"h":60,"active":23}`
 	if string(pubs[0].Payload) != expected2 {
 		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), expected2)
+	}
+
+	// 3. Stencil bounds safety: incoming message shorter than prefix + suffix must not panic
+	engine.RemoveRule("rule_multi_guard")
+	broker.clearPublishes()
+
+	rule3 := &logic.Rule{
+		PanelID:     "rule_stencil_short",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/+/temperature",
+		TargetTopic: "events/stencil",
+		Payload:     `{"v":"{{value:1}}"}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/+/temperature",
+				ReadTemplate: `a{value}a`,
+				Operator:     "eq",
+				Value:        "42",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule3); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	// Payload "a" is shorter than prefix ("a") + suffix ("a"): must not panic
+	broker.injectMessage("b1", "sensors/living/temperature", "a")
+	// Matching payload "a42a"
+	broker.injectMessage("b1", "sensors/living/temperature", "a42a")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_stencil_short, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"v":"42"}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"v":"42"}`)
 	}
 }
 

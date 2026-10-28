@@ -1,4 +1,9 @@
-import { TOKEN_LABEL, VALUE_TOKEN, parseTemplateChunks } from "../payloadShape";
+import {
+  TOKEN_LABEL,
+  VALUE_TOKEN,
+  parseTemplateChunks,
+  unwrapToken,
+} from "../payloadShape";
 
 /**
  * The payload editor is a contenteditable rather than a textarea, so the token
@@ -56,7 +61,11 @@ export function paintTemplate(
       if (chunk.raw) nodes.push(host.ownerDocument.createTextNode(chunk.raw));
     } else {
       let cov: string;
-      if (tokenIdx === insertAt) {
+      if (newIndex === null || newIndex === undefined) {
+        cov =
+          existingCovered[tokenIdx] ||
+          (chunk.name === TOKEN_LABEL ? newCovered : "");
+      } else if (tokenIdx === insertAt) {
         cov = newCovered;
       } else if (tokenIdx < insertAt) {
         cov = existingCovered[tokenIdx] || "";
@@ -79,7 +88,7 @@ function buildChip(
   tokenName = TOKEN_LABEL,
   canonicalToken = VALUE_TOKEN,
 ): HTMLElement {
-  const cleanName = tokenName.replace(/^\{+|\}+$/g, "").trim();
+  const cleanName = unwrapToken(tokenName);
   const chip = doc.createElement("span");
   chip.setAttribute(TOKEN_ATTR, "");
   chip.setAttribute("data-token-name", cleanName);
@@ -296,7 +305,7 @@ export function setCaret(host: HTMLElement, offset: number): void {
     const tokenStr =
       (node as HTMLElement).getAttribute?.("data-token-str") ||
       ((node as HTMLElement).getAttribute?.("data-token-name")
-        ? `{${(node as HTMLElement).getAttribute?.("data-token-name")}}`
+        ? `{{${(node as HTMLElement).getAttribute?.("data-token-name")}}}`
         : VALUE_TOKEN);
 
     if (offset <= seen) {
@@ -330,7 +339,10 @@ export function removeChipFromEditor(
 ): { template: string; caret: number } {
   const { at } = walkHost(host, [{ container: chip, offset: 0 }]);
   const caret = at[0] === -1 ? 0 : at[0];
-  const restore = chip.getAttribute("data-covered") || fallbackCovered || "";
+  const isValueChip =
+    (chip.getAttribute("data-token-name") || TOKEN_LABEL) === TOKEN_LABEL;
+  const restore =
+    chip.getAttribute("data-covered") || (isValueChip ? fallbackCovered : "") || "";
   if (restore) {
     chip.replaceWith(host.ownerDocument.createTextNode(restore));
   } else {

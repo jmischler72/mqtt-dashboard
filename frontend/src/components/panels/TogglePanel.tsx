@@ -27,6 +27,7 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   effectiveReadTemplate,
+  firstTopic,
   hasToken,
   renderPayload,
 } from "./payloadShape";
@@ -226,15 +227,16 @@ export function ToggleConfigModal({
     hasToken(payloadTemplate) &&
     onPayload.trim() !== "" &&
     offPayload.trim() !== "";
+  const previewTopic = firstTopic(topic) || "home/light/set";
   const summaryOn = toggleWritePayload(
     onPayload,
     payloadTemplate,
-    topic,
+    previewTopic,
   ).trim();
   const summaryOff = toggleWritePayload(
     offPayload,
     payloadTemplate,
-    topic,
+    previewTopic,
   ).trim();
 
   return (
@@ -375,9 +377,6 @@ export function ToggleConfigModal({
                     : `No ${TOKEN_LABEL} chip in the message.`
               }
             >
-              {topic && topic.trim() && (
-                <PreviewLine label="Topic" bytes={topic.trim()} />
-              )}
               <PreviewLine label="On" bytes={summaryOn} />
               <PreviewLine label="Off" bytes={summaryOff} />
             </PreviewBox>

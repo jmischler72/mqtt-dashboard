@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   usePayloadSample,
   type RecentMessage,
@@ -176,15 +176,14 @@ export default function PayloadBuilder({
   const reading = mode === "read";
   const chip = hasAnyToken(value);
 
-  // Infer covered value if not already set, e.g. when opening a saved config
-  useEffect(() => {
-    if (!covered && acceptsChip && reading && latest?.payload && hasToken(value)) {
-      const inferred = inferCoveredValue(value, latest.payload);
-      if (inferred) {
-        updateCovered(inferred);
-      }
+  // Derive covered value inline if not already set (e.g. when opening a saved config)
+  const effectiveCovered = useMemo(() => {
+    if (covered) return covered;
+    if (acceptsChip && reading && latest?.payload && hasToken(value)) {
+      return inferCoveredValue(value, latest.payload);
     }
-  }, [value, latest, acceptsChip, reading, covered]);
+    return "";
+  }, [covered, acceptsChip, reading, latest?.payload, value]);
 
   const useMessage = (payload: string, index: number) => {
     onChange(markFirstNumber(payload, acceptsChip));
@@ -196,7 +195,11 @@ export default function PayloadBuilder({
   const handleRemoveChip = (chip: HTMLElement) => {
     const host = box.current;
     if (!host) return;
-    const { template: next, caret } = removeChipFromEditor(host, chip, covered);
+    const { template: next, caret } = removeChipFromEditor(
+      host,
+      chip,
+      effectiveCovered,
+    );
     painted.current = next;
     onChange(next);
     if (!hasToken(next)) {
@@ -209,11 +212,22 @@ export default function PayloadBuilder({
   useEffect(() => {
     const host = box.current;
     if (!host) return;
-    if (painted.current === value && lastPaintedCovered.current === covered) return;
+    if (
+      painted.current === value &&
+      lastPaintedCovered.current === effectiveCovered
+    ) {
+      return;
+    }
 
-    paintTemplate(host, value, acceptsChip, covered, coveredIndex.current);
+    paintTemplate(
+      host,
+      value,
+      acceptsChip,
+      effectiveCovered,
+      coveredIndex.current,
+    );
     painted.current = value;
-    lastPaintedCovered.current = covered;
+    lastPaintedCovered.current = effectiveCovered;
     coveredIndex.current = null;
 
     const caret = pendingCaret.current;
@@ -222,7 +236,7 @@ export default function PayloadBuilder({
       host.focus();
       setCaret(host, caret);
     }
-  }, [value, acceptsChip, covered]);
+  }, [value, acceptsChip, effectiveCovered]);
 
   const historyNode = showHistory ? (
     <MessageHistory
@@ -335,6 +349,7 @@ export default function PayloadBuilder({
               chip={chip}
               range={range ?? null}
               previewValue={previewValue}
+              availableTokens={availableTokens}
               position={position}
               onPosition={setPosition}
               asCard={false}
@@ -347,7 +362,7 @@ export default function PayloadBuilder({
         <ValueChipControls
           mode={mode}
           value={value}
-          covered={covered}
+          covered={effectiveCovered}
           samplePayload={latest?.payload}
           topic={topic}
           previewValue={previewValue}
@@ -410,6 +425,7 @@ export default function PayloadBuilder({
               chip={chip}
               range={range ?? null}
               previewValue={previewValue}
+              availableTokens={availableTokens}
               position={position}
               onPosition={setPosition}
               asCard={true}
@@ -468,6 +484,7 @@ function WritePreview({
   chip,
   range,
   previewValue,
+  availableTokens,
   position,
   onPosition,
   asCard = false,
@@ -478,6 +495,7 @@ function WritePreview({
   chip: boolean;
   range: NumericRange | null;
   previewValue?: string;
+  availableTokens?: TokenOption[];
   position: number | null;
   onPosition: (next: number) => void;
   asCard?: boolean;
@@ -514,12 +532,15 @@ function WritePreview({
               value={at}
               onChange={(e) => onPosition(Number(e.target.value))}
             />
-            {topic && topic.trim() && (
-              <PreviewLine label="Topic" bytes={topic.trim()} />
-            )}
             <PreviewLine
               label="Sends"
-              bytes={previewPayload(value, at, topic, samplePayload)}
+              bytes={previewPayload(
+                value,
+                at,
+                topic,
+                samplePayload,
+                availableTokens,
+              )}
             />
           </div>
         </PreviewBox>
@@ -528,12 +549,15 @@ function WritePreview({
 
     return (
       <PreviewBox>
-        {topic && topic.trim() && (
-          <PreviewLine label="Topic" bytes={topic.trim()} />
-        )}
         <PreviewLine
           label="Sends"
-          bytes={previewPayload(value, previewValue, topic, samplePayload)}
+          bytes={previewPayload(
+            value,
+            previewValue,
+            topic,
+            samplePayload,
+            availableTokens,
+          )}
         />
       </PreviewBox>
     );
@@ -559,12 +583,15 @@ function WritePreview({
           value={at}
           onChange={(e) => onPosition(Number(e.target.value))}
         />
-        {topic && topic.trim() && (
-          <PreviewLine label="Topic" bytes={topic.trim()} />
-        )}
         <PreviewLine
           label="Sends"
-          bytes={previewPayload(value, at, topic, samplePayload)}
+          bytes={previewPayload(
+            value,
+            at,
+            topic,
+            samplePayload,
+            availableTokens,
+          )}
         />
       </div>
     );
@@ -572,12 +599,15 @@ function WritePreview({
 
   return (
     <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
-      {topic && topic.trim() && (
-        <PreviewLine label="Topic" bytes={topic.trim()} />
-      )}
       <PreviewLine
         label="Sends"
-        bytes={previewPayload(value, previewValue, topic, samplePayload)}
+        bytes={previewPayload(
+          value,
+          previewValue,
+          topic,
+          samplePayload,
+          availableTokens,
+        )}
       />
     </div>
   );
@@ -626,9 +656,6 @@ function ReadPreview({
     if (!read.found) {
       return (
         <PreviewBox>
-          {topic && topic.trim() && (
-            <PreviewLine label="Topic" bytes={topic.trim()} />
-          )}
           <PreviewLine label="Latest" bytes={latest.payload} />
           <span className="text-[11px] leading-relaxed text-warning">
             Pattern mismatch with latest message
@@ -639,9 +666,6 @@ function ReadPreview({
 
     return (
       <PreviewBox>
-        {topic && topic.trim() && (
-          <PreviewLine label="Topic" bytes={topic.trim()} />
-        )}
         <PreviewLine label="Latest" bytes={latest.payload} />
         <div className="flex items-baseline gap-2 min-w-0">
           <span className="shrink-0 w-12 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
@@ -682,9 +706,6 @@ function ReadPreview({
   if (!read.found) {
     return (
       <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
-        {topic && topic.trim() && (
-          <PreviewLine label="Topic" bytes={topic.trim()} />
-        )}
         <PreviewLine label="Latest" bytes={latest.payload} />
         <span className="text-[11px] leading-relaxed text-warning">
           Pattern mismatch with latest message
@@ -695,9 +716,6 @@ function ReadPreview({
 
   return (
     <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
-      {topic && topic.trim() && (
-        <PreviewLine label="Topic" bytes={topic.trim()} />
-      )}
       <PreviewLine label="Latest" bytes={latest.payload} />
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="shrink-0 w-12 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">

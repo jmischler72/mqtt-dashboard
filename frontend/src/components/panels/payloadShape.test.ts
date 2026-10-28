@@ -461,16 +461,15 @@ describe("template interpolation and tokens", () => {
     expect(result).toBe('{"val":99,"t":"test/legacy"}');
   });
 
-  it("interpolates condition indexes and condition topic references", () => {
-    const template = '{"c0":{value:0},"c1":{value:1},"byTopic":{value:sensors/hum}}';
+  it("interpolates 1-indexed condition tokens", () => {
+    const template = '{"c1":{value:1},"c2":{{value:2}}}';
     const result = interpolateTemplate(template, {
       conditionValues: {
-        "0": "25",
-        "1": "60",
-        "sensors/hum": "60",
+        "1": "25",
+        "2": "60",
       },
     });
-    expect(result).toBe('{"c0":25,"c1":60,"byTopic":60}');
+    expect(result).toBe('{"c1":25,"c2":60}');
   });
 
   it("normalizes single brace tokens to canonical double braces", () => {
@@ -559,6 +558,24 @@ describe("template interpolation and tokens", () => {
       const template = '{"ts":{{timestamp}}}';
       const preview = previewPayload(template);
       expect(preview).toMatch(/\{"ts":\d+\}/);
+    });
+
+    it("uses only the first topic for {{topic}} when given a comma-separated topic list", () => {
+      const template = '{"t":"{{topic}}"}';
+      expect(previewPayload(template, 1, "home/a, home/b")).toBe(
+        '{"t":"home/a"}',
+      );
+    });
+
+    it("interpolates indexed condition tokens {{value:1}}, {{value:2}} using availableTokens previews", () => {
+      const template = '{"v1":{{value:1}},"v2":{{value:2}}}';
+      const tokens = [
+        { name: "value:1", token: "{{value:1}}", preview: "25" },
+        { name: "value:2", token: "{{value:2}}", preview: "60" },
+      ];
+      expect(previewPayload(template, "25", "sensors/temp", null, tokens)).toBe(
+        '{"v1":25,"v2":60}',
+      );
     });
   });
 });

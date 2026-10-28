@@ -7,17 +7,18 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { RiAddLine, RiArrowDownSLine, RiCheckLine } from "react-icons/ri";
+import { RiAddLine, RiArrowDownSLine } from "react-icons/ri";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   clearToken,
-  deriveReadPath,
   findLiterals,
+  firstTopic,
   hasToken,
   inferCoveredValue,
   markLiteral,
   placeToken,
+  unwrapToken,
   type TemplateLiteral,
   type TokenOption,
 } from "../payloadShape";
@@ -33,7 +34,7 @@ export interface ValueChipControlsProps {
   onChange: (next: string) => void;
   getSelection: () => Selection | null;
   onCaret?: (offset: number) => void;
-  onCoveredChange: (covered: string, tokenIndex?: number) => void;
+  onCoveredChange?: (covered: string, tokenIndex?: number) => void;
   mode: "write" | "read";
   samplePayload?: string | null;
   topic?: string;
@@ -48,12 +49,12 @@ function getTokenPreview(
   samplePayload?: string | null,
   previewValue?: string,
 ): string {
-  const norm = token.replace(/^\{\{|\}\}$|^\{|\}$/g, "");
+  const norm = unwrapToken(token);
   if (norm === "value") {
     return previewValue || "21.5";
   }
   if (norm === "topic") {
-    return topic || "sensor/temp";
+    return firstTopic(topic) || "sensor/temp";
   }
   if (norm === "payload") {
     if (samplePayload) {
@@ -72,12 +73,34 @@ function getTokenPreview(
     return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   }
   if (norm.startsWith("value:")) {
-    return "reading";
-  }
-  if (norm.startsWith("payload:")) {
-    return '{"temp":21.5}';
+    return previewValue || "21.5";
   }
   return norm;
+}
+
+function findTargetLiteral(
+  source: string,
+  literal: TemplateLiteral,
+): TemplateLiteral | null {
+  const candidates = findLiterals(source, Infinity);
+  if (literal.key) {
+    const byKey = candidates.find(
+      (l) => l.key === literal.key && l.text === literal.text,
+    );
+    if (byKey) return byKey;
+  }
+  const byText = candidates.find((l) => l.text === literal.text);
+  if (byText) return byText;
+  const idx = source.indexOf(literal.text);
+  if (idx !== -1) {
+    return {
+      text: literal.text,
+      start: idx,
+      end: idx + literal.text.length,
+      key: literal.key,
+    };
+  }
+  return null;
 }
 
 export default function ValueChipControls({
@@ -111,10 +134,6 @@ export default function ValueChipControls({
   const literalMenuRef = useRef<HTMLDivElement>(null);
 
   const isAlreadyMarked = hasToken(value);
-  const activeReadPath = useMemo(() => {
-    if (mode !== "read") return null;
-    return deriveReadPath(value);
-  }, [mode, value]);
 
   // Combine literals from sample payload (incoming broker messages) and editor value
   const literals = useMemo(() => {
@@ -278,109 +297,102 @@ export default function ValueChipControls({
     (literal: TemplateLiteral) => {
       const activeCovered = covered || inferCoveredValue(value, samplePayload);
 
-      if (mode === "read") {
-        // If current value (with previous mark restored) already contains this literal,
-        // prefer keeping user's custom template modifications
-        let base = value;
-        if (hasToken(base)) {
-          base = clearToken(base, activeCovered || "");
-        }
+      // If current value (with previous mark restored) already contains this literal,
+      // prefer keeping user's custom template modifications
+      let base = value;
+      if (hasToken(base)) {
+        base = clearToken(base, activeCovered || "");
+      }
 
-        let idx = -1;
-        if (
-          literal.end <= base.length &&
-          base.slice(literal.start, literal.end) === literal.text
-        ) {
-          idx = literal.start;
-        } else if (literal.key) {
-          const keyMatch = base.match(
-            new RegExp(`["']?${literal.key}["']?\\s*:\\s*`),
+      const targetInBase = base ? findTargetLiteral(base, literal) : null;
+      if (targetInBase) {
+        const result = markLiteral(base, targetInBase);
+        const tokenIndex =
+          base.slice(0, targetInBase.start).split(VALUE_TOKEN).length - 1;
+        onCoveredChange?.(result.previous, tokenIndex);
+        onChange(result.template);
+        onCaret?.(
+          targetInBase.start +
+            (targetInBase.text.startsWith('"')
+              ? VALUE_TOKEN.length + 2
+              : VALUE_TOKEN.length),
+        );
+        return;
+      }
+
+      // If literal is from samplePayload and not in current value:
+      if (samplePayload) {
+        const targetInSample = findTargetLiteral(samplePayload, literal);
+        if (targetInSample) {
+          const result = markLiteral(samplePayload, targetInSample);
+          onCoveredChange?.(result.previous, 0);
+          onChange(result.template);
+          onCaret?.(
+            targetInSample.start +
+              (targetInSample.text.startsWith('"')
+                ? VALUE_TOKEN.length + 2
+                : VALUE_TOKEN.length),
           );
-          if (keyMatch && keyMatch.index !== undefined) {
-            const searchFrom = keyMatch.index + keyMatch[0].length;
-            const foundAfterKey = base.indexOf(literal.text, searchFrom);
-            if (foundAfterKey !== -1 && foundAfterKey - searchFrom < 10) {
-              idx = foundAfterKey;
-            }
-          }
-        }
-        if (idx === -1) {
-          idx = base.indexOf(literal.text);
-        }
-
-        if (idx !== -1) {
-          const litInBase: TemplateLiteral = {
-            text: literal.text,
-            start: idx,
-            end: idx + literal.text.length,
-            key: literal.key,
-          };
-          const result = markLiteral(base, litInBase);
-          onCoveredChange?.(result.previous, 0);
-          onChange(result.template);
-          return;
-        }
-
-        // If literal is from samplePayload and not in current value:
-        if (samplePayload && samplePayload.includes(literal.text)) {
-          const result = markLiteral(samplePayload, literal);
-          onCoveredChange?.(result.previous, 0);
-          onChange(result.template);
           return;
         }
       }
 
-      // Write mode or fallback
-      const base = value || samplePayload || "";
-      const result = markLiteral(base, literal);
+      const fallbackBase = value || samplePayload || "";
+      const target = findTargetLiteral(fallbackBase, literal) ?? literal;
+      const result = markLiteral(fallbackBase, target);
       const tokenIndex =
-        base.slice(0, literal.start).split(VALUE_TOKEN).length - 1;
+        fallbackBase.slice(0, target.start).split(VALUE_TOKEN).length - 1;
       onCoveredChange?.(result.previous, tokenIndex);
       onChange(result.template);
       onCaret?.(
-        literal.start +
-          (literal.text.startsWith('"')
+        target.start +
+          (target.text.startsWith('"')
             ? VALUE_TOKEN.length + 2
             : VALUE_TOKEN.length),
       );
     },
-    [mode, samplePayload, value, covered, onCoveredChange, onChange, onCaret],
+    [samplePayload, value, covered, onCoveredChange, onChange, onCaret],
   );
 
-  const defaultWriteTokens: TokenOption[] = [
-    {
-      name: "value",
-      token: VALUE_TOKEN,
-      label: TOKEN_LABEL,
-      title: "Insert {{value}}: click where it goes, or select the text it replaces",
-    },
-    {
-      name: "topic",
-      token: "{{topic}}",
-      label: "topic",
-      title: "Insert {{topic}}: click where it goes, or select the text it replaces",
-    },
-    {
-      name: "timestamp",
-      token: "{{timestamp}}",
-      label: "timestamp",
-      title: "Insert {{timestamp}}: current Unix timestamp",
-    },
-  ];
+  const tokensToRender: TokenOption[] = useMemo(() => {
+    if (mode === "read") {
+      return [
+        {
+          name: "value",
+          token: VALUE_TOKEN,
+          label: TOKEN_LABEL,
+          title: isAlreadyMarked
+            ? "Reading value is already marked (select text in box to move it)"
+            : "Mark the part of the message the panel reads: click where it sits, or select it first",
+        },
+      ];
+    }
 
-  const tokensToRender: TokenOption[] =
-    mode === "read"
-      ? [
-          {
-            name: "value",
-            token: VALUE_TOKEN,
-            label: TOKEN_LABEL,
-            title: isAlreadyMarked
-              ? "Reading value is already marked (select text in box to move it)"
-              : "Mark the part of the message the panel reads: click where it sits, or select it first",
-          },
-        ]
-      : (availableTokens ?? defaultWriteTokens);
+    return (
+      availableTokens ?? [
+        {
+          name: "value",
+          token: VALUE_TOKEN,
+          label: TOKEN_LABEL,
+          title:
+            "Insert {{value}}: click where it goes, or select the text it replaces",
+        },
+        {
+          name: "topic",
+          token: "{{topic}}",
+          label: "topic",
+          title:
+            "Insert {{topic}}: click where it goes, or select the text it replaces",
+        },
+        {
+          name: "timestamp",
+          token: "{{timestamp}}",
+          label: "timestamp",
+          title: "Insert {{timestamp}}: current Unix timestamp",
+        },
+      ]
+    );
+  }, [mode, isAlreadyMarked, availableTokens]);
 
   const primaryToken = tokensToRender[0] ?? {
     name: "value",
@@ -457,12 +469,14 @@ export default function ValueChipControls({
               </div>
               <div className="space-y-0.5">
                 {secondaryTokens.map((t) => {
-                  const preview = getTokenPreview(
-                    t.token,
-                    topic,
-                    samplePayload,
-                    previewValue,
-                  );
+                  const preview =
+                    t.preview ??
+                    getTokenPreview(
+                      t.token,
+                      topic,
+                      samplePayload,
+                      previewValue,
+                    );
                   return (
                     <button
                       key={t.token}
@@ -494,44 +508,27 @@ export default function ValueChipControls({
           )}
 
         {/* Inline Detected Literals */}
-        {inlineLiterals.map((literal) => {
-          const isMarked =
-            mode === "read" &&
-            literal.key &&
-            activeReadPath &&
-            literal.key.toLowerCase() === activeReadPath.toLowerCase();
-
-          return (
-            <button
-              key={`${literal.start}-${literal.text}`}
-              type="button"
-              aria-label={literal.text}
-              title={
-                isMarked
-                  ? `Currently marked as value: ${literal.key}: "${literal.text}"`
-                  : literal.key
-                    ? `Mark ${literal.key}: "${literal.text}" as {{${TOKEN_LABEL}}}`
-                    : `Mark "${literal.text}" as {{${TOKEN_LABEL}}}`
-              }
-              onClick={() => handleApplyLiteral(literal)}
-              className={`badge badge-sm font-mono cursor-pointer transition-colors h-6 px-2 text-[11px] gap-1 max-w-[160px] truncate ${
-                isMarked
-                  ? "badge-primary text-primary-content font-bold shadow-sm"
-                  : "badge-outline hover:badge-primary"
-              }`}
-            >
-              {isMarked ? (
-                <RiCheckLine className="w-3 h-3 shrink-0" />
-              ) : null}
-              {literal.key && (
-                <span className={`text-[10px] font-sans truncate ${isMarked ? "opacity-90" : "opacity-50"}`}>
-                  {literal.key}:
-                </span>
-              )}
-              <span className="truncate">{literal.text}</span>
-            </button>
-          );
-        })}
+        {inlineLiterals.map((literal) => (
+          <button
+            key={`${literal.start}-${literal.text}`}
+            type="button"
+            aria-label={literal.text}
+            title={
+              literal.key
+                ? `Mark ${literal.key}: "${literal.text}" as {{${TOKEN_LABEL}}}`
+                : `Mark "${literal.text}" as {{${TOKEN_LABEL}}}`
+            }
+            onClick={() => handleApplyLiteral(literal)}
+            className="badge badge-sm badge-outline hover:badge-primary font-mono cursor-pointer transition-colors h-6 px-2 text-[11px] gap-1 max-w-[160px] truncate"
+          >
+            {literal.key && (
+              <span className="text-[10px] font-sans truncate opacity-50">
+                {literal.key}:
+              </span>
+            )}
+            <span className="truncate">{literal.text}</span>
+          </button>
+        ))}
 
         {/* Overflow Literals Dropdown */}
         {overflowLiterals.length > 0 && (
@@ -567,45 +564,32 @@ export default function ValueChipControls({
                     Detected Fields
                   </div>
                   <div className="space-y-0.5">
-                    {overflowLiterals.map((literal) => {
-                      const isMarked =
-                        mode === "read" &&
-                        literal.key &&
-                        activeReadPath &&
-                        literal.key.toLowerCase() === activeReadPath.toLowerCase();
-
-                      return (
-                        <button
-                          key={`${literal.start}-${literal.text}`}
-                          type="button"
-                          aria-label={literal.text}
-                          title={
-                            literal.key
-                              ? `Mark ${literal.key}: "${literal.text}" as {{${TOKEN_LABEL}}}`
-                              : `Mark "${literal.text}" as {{${TOKEN_LABEL}}}`
-                          }
-                          onClick={() => {
-                            handleApplyLiteral(literal);
-                            setLiteralMenuOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left cursor-pointer ${
-                            isMarked
-                              ? "bg-primary text-primary-content font-semibold"
-                              : "hover:bg-base-300"
-                          }`}
-                        >
-                          <span className={`badge badge-sm font-mono text-[11px] gap-1 shrink-0 ${isMarked ? "badge-ghost" : "badge-outline"}`}>
-                            {isMarked && <RiCheckLine className="w-3 h-3 shrink-0" />}
-                            {literal.key && (
-                              <span className="opacity-60 text-[10px] font-sans">
-                                {literal.key}:
-                              </span>
-                            )}
-                            <span className="font-mono">{literal.text}</span>
-                          </span>
-                        </button>
-                      );
-                    })}
+                    {overflowLiterals.map((literal) => (
+                      <button
+                        key={`${literal.start}-${literal.text}`}
+                        type="button"
+                        aria-label={literal.text}
+                        title={
+                          literal.key
+                            ? `Mark ${literal.key}: "${literal.text}" as {{${TOKEN_LABEL}}}`
+                            : `Mark "${literal.text}" as {{${TOKEN_LABEL}}}`
+                        }
+                        onClick={() => {
+                          handleApplyLiteral(literal);
+                          setLiteralMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left cursor-pointer hover:bg-base-300"
+                      >
+                        <span className="badge badge-sm badge-outline font-mono text-[11px] gap-1 shrink-0">
+                          {literal.key && (
+                            <span className="opacity-60 text-[10px] font-sans">
+                              {literal.key}:
+                            </span>
+                          )}
+                          <span className="font-mono">{literal.text}</span>
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>,
                 document.body,

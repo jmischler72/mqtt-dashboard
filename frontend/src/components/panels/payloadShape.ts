@@ -218,16 +218,36 @@ export const VALUE_TOKEN = "{{value}}";
 
 /**
  * Regex matching both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
- * {{value:0}}, {{value:sensors/temp}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
+ * {{value:1}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
  */
 export const TOKEN_PATTERN =
-  /(\{\{[a-zA-Z0-9_/:.-]+\}\}|\{(?:value(?::[a-zA-Z0-9_/.-]+)?|topic|payload(?::[a-zA-Z0-9_/.-]+)?|timestamp(?::(?:ms|iso))?|iso_timestamp)\})/g;
+  /(\{\{[a-zA-Z0-9_/:.+#-]+\}\}|\{(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)\})/g;
+
+/** Strips surrounding `{` and `}` braces and whitespace from a token string. */
+export function unwrapToken(raw: string): string {
+  return raw.replace(/^\{+|\}+$/g, "").trim();
+}
+
+/** Splits a potentially comma-separated topic string into trimmed non-empty topics. */
+export function splitTopics(topic?: string): string[] {
+  if (!topic) return [];
+  return topic
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/** Returns the first non-empty trimmed topic from a potentially comma-separated topic string. */
+export function firstTopic(topic?: string): string {
+  return splitTopics(topic)[0] ?? "";
+}
 
 export interface TokenOption {
   name: string;
   token: string;
   label?: string;
   title?: string;
+  preview?: string;
 }
 
 export interface ParsedChunk {
@@ -257,13 +277,7 @@ export function parseTemplateChunks(template: string): ParsedChunk[] {
     }
 
     const raw = match[0];
-    let name = raw;
-    if (name.startsWith("{{") && name.endsWith("}}")) {
-      name = name.slice(2, -2);
-    } else if (name.startsWith("{") && name.endsWith("}")) {
-      name = name.slice(1, -1);
-    }
-    name = name.trim();
+    const name = unwrapToken(raw);
     const canonical = `{{${name}}}`;
 
     chunks.push({
@@ -294,13 +308,12 @@ export interface TemplateContext {
   payload?: string;
   timestamp?: number | Date;
   conditionValues?: Record<string, string>;
-  conditionPayloads?: Record<string, string>;
 }
 
 /**
  * Centralized template interpolation.
  * Supports {{value}}, {{topic}}, {{payload}}, {{timestamp}}, {{timestamp:iso}}, {{timestamp:ms}},
- * condition indexing {{value:0}}, {{value:<topic>}}, etc., and transparently supports single-brace {token} forms.
+ * condition indexing {{value:1}}, {{value:2}}, etc., and transparently supports single-brace {token} forms.
  */
 export function interpolateTemplate(
   template: string,
@@ -317,13 +330,7 @@ export function interpolateTemplate(
 
   const regex = new RegExp(TOKEN_PATTERN.source, "g");
   return template.replace(regex, (match) => {
-    let name = match;
-    if (name.startsWith("{{") && name.endsWith("}}")) {
-      name = name.slice(2, -2);
-    } else if (name.startsWith("{") && name.endsWith("}")) {
-      name = name.slice(1, -1);
-    }
-    name = name.trim();
+    const name = unwrapToken(match);
 
     switch (name) {
       case "value":
@@ -342,17 +349,15 @@ export function interpolateTemplate(
       default:
         if (name.startsWith("value:")) {
           const key = name.slice("value:".length);
-          if (ctx.conditionValues && key in ctx.conditionValues) {
+          if (
+            ctx.conditionValues &&
+            Object.prototype.hasOwnProperty.call(ctx.conditionValues, key)
+          ) {
             return ctx.conditionValues[key];
           }
-          return "";
-        }
-        if (name.startsWith("payload:")) {
-          const key = name.slice("payload:".length);
-          if (ctx.conditionPayloads && key in ctx.conditionPayloads) {
-            return ctx.conditionPayloads[key];
-          }
-          return "";
+          return ctx.conditionValues === undefined && ctx.value !== undefined
+            ? String(ctx.value)
+            : "";
         }
         return match;
     }
@@ -365,15 +370,7 @@ export function interpolateTemplate(
 export function normalizeTemplate(template: string): string {
   if (!template) return "";
   const regex = new RegExp(TOKEN_PATTERN.source, "g");
-  return template.replace(regex, (match) => {
-    let name = match;
-    if (name.startsWith("{{") && name.endsWith("}}")) {
-      name = name.slice(2, -2);
-    } else if (name.startsWith("{") && name.endsWith("}")) {
-      name = name.slice(1, -1);
-    }
-    return `{{${name.trim()}}}`;
-  });
+  return template.replace(regex, (match) => `{{${unwrapToken(match)}}}`);
 }
 
 /**
@@ -422,7 +419,7 @@ export function renderPayload(
 ): string {
   return interpolateTemplate(template, {
     value,
-    topic,
+    topic: firstTopic(topic) || topic,
     payload,
   });
 }
@@ -436,20 +433,33 @@ export function previewPayload(
   value?: string | number | boolean,
   topic?: string,
   samplePayload?: string | null,
+  availableTokens?: TokenOption[],
 ): string {
   const effectiveValue =
     value !== undefined && value !== "" ? value : "21.5";
-  const effectiveTopic =
-    topic && topic.trim() ? topic.trim() : "sensor/temp";
+  const effectiveTopic = firstTopic(topic) || "sensor/temp";
   const effectivePayload =
     samplePayload && samplePayload.trim()
       ? samplePayload.trim()
       : '{"temp":21.5}';
 
+  let conditionValues: Record<string, string> | undefined;
+
+  if (availableTokens) {
+    for (const t of availableTokens) {
+      if (!t.preview) continue;
+      if (t.name.startsWith("value:")) {
+        conditionValues ??= {};
+        conditionValues[t.name.slice("value:".length)] = t.preview;
+      }
+    }
+  }
+
   return interpolateTemplate(template, {
     value: effectiveValue,
     topic: effectiveTopic,
     payload: effectivePayload,
+    conditionValues,
   });
 }
 

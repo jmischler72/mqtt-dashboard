@@ -9,6 +9,7 @@ export interface Condition {
   broker_id?: string;
   topic?: string;
   read_template?: string;
+  read_covered?: string;
   operator: LogicOperator;
   value?: string;
   join?: "and" | "or";

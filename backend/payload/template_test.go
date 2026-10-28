@@ -13,15 +13,8 @@ func TestInterpolate(t *testing.T) {
 		Payload:   `{"temp":42}`,
 		Timestamp: fixedTime,
 		ConditionValues: map[string]string{
-			"0":                    "42",
-			"1":                    "65",
-			"sensors/kitchen/temp": "42",
-			"sensors/humidity":     "65",
-		},
-		ConditionPayloads: map[string]string{
-			"0":                `{"temp":42}`,
-			"1":                `{"hum":65}`,
-			"sensors/humidity": `{"hum":65}`,
+			"1": "42",
+			"2": "65",
 		},
 	}
 
@@ -46,9 +39,9 @@ func TestInterpolate(t *testing.T) {
 			expected: `{"ts":1792929600,"ms":1792929600000,"iso":"2026-10-25T12:00:00Z","iso2":"2026-10-25T12:00:00Z"}`,
 		},
 		{
-			name:     "condition indexing and qualification",
-			template: `{"temp":{value:0},"hum":{value:1},"byTopic":{value:sensors/humidity},"humRaw":'{payload:1}'}`,
-			expected: `{"temp":42,"hum":65,"byTopic":65,"humRaw":'{"hum":65}'}`,
+			name:     "condition indexing",
+			template: `{"temp":{value:1},"hum":{{value:2}}}`,
+			expected: `{"temp":42,"hum":65}`,
 		},
 		{
 			name:     "non-token JSON braces untouched",

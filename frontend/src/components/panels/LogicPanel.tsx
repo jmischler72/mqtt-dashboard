@@ -51,6 +51,7 @@ import {
 } from "./logicUtils";
 import {
   VALUE_TOKEN,
+  firstTopic,
   normalizeTemplate,
   type TokenOption,
 } from "./payloadShape";
@@ -320,25 +321,21 @@ export function LogicConfigModal({
 
     if (conditions.length > 1) {
       conditions.forEach((c, idx) => {
+        const num = idx + 1;
+        const cVal = c.value?.trim() || "21.5";
+        const cTopic = c.topic?.trim() || primaryTopic;
         tokens.push({
-          name: `value:${idx}`,
-          token: `{{value:${idx}}}`,
-          label: `value:${idx}`,
-          title: `Insert {{value:${idx}}}: condition ${idx} value${c.topic ? ` (${c.topic})` : ""}`,
+          name: `value:${num}`,
+          token: `{{value:${num}}}`,
+          label: `value:${num}`,
+          title: `Insert {{value:${num}}}: condition #${num} parsed value${cTopic ? ` (${cTopic})` : ""}`,
+          preview: cVal,
         });
-        if (c.topic?.trim()) {
-          tokens.push({
-            name: `value:${c.topic.trim()}`,
-            token: `{{value:${c.topic.trim()}}}`,
-            label: `value:${c.topic.trim()}`,
-            title: `Insert {{value:${c.topic.trim()}}}: value for topic ${c.topic.trim()}`,
-          });
-        }
       });
     }
 
     return tokens;
-  }, [conditions]);
+  }, [conditions, primaryTopic]);
 
   // Helper to construct draft for topic picker navigation
   const draft = (picking: string): LogicConfig => ({
@@ -387,12 +384,20 @@ export function LogicConfigModal({
     return false;
   });
 
+  const multiTopicCondition = conditions.find((c) => c.topic?.includes(","));
+
   const { fieldErrors, blockerReason } = useConfigValidation([
     ...brokerRules(brokerStatuses.length),
     {
       field: "conditions",
       when: !primaryTopic,
       message: "Condition 1 requires a topic",
+    },
+    {
+      field: "conditions",
+      when: Boolean(multiTopicCondition),
+      message:
+        "Each condition watches a single topic; add another condition to check multiple topics",
     },
     {
       field: "target_topic",
@@ -669,11 +674,13 @@ export function LogicConfigModal({
                           : `Same as condition 1 (${conditions[0]?.topic || "topic"})`
                       }
                       topicError={
-                        idx === 0 &&
-                        !cond.topic?.trim() &&
-                        fieldErrors.conditions
-                          ? "Topic is required"
-                          : undefined
+                        cond.topic?.includes(",")
+                          ? "A condition watches a single topic, not a list"
+                          : idx === 0 &&
+                              !cond.topic?.trim() &&
+                              fieldErrors.conditions
+                            ? "Topic is required"
+                            : undefined
                       }
                       help={
                         idx === 0
@@ -710,9 +717,15 @@ export function LogicConfigModal({
                       <PayloadBuilder
                         mode="read"
                         value={cond.read_template || ""}
+                        initialCovered={cond.read_covered}
                         onChange={(next) => {
                           handleConditionChange(idx, {
                             read_template: next,
+                          });
+                        }}
+                        onCoveredChange={(cov) => {
+                          handleConditionChange(idx, {
+                            read_covered: cov,
                           });
                         }}
                         brokerId={cond.broker_id || primaryBrokerId}
@@ -824,7 +837,7 @@ export function LogicConfigModal({
               value={payload}
               onChange={setPayload}
               brokerId={targetBrokerId || sourceBrokerId}
-              topic={targetTopic || primaryTopic}
+              topic={primaryTopic || firstTopic(targetTopic)}
               previewValue={conditions[0]?.value || "ON"}
               availableTokens={availableTokens}
               placeholder={`{"state":${VALUE_TOKEN}}`}
