@@ -964,7 +964,7 @@ export function markLiteral(
  * "publish my value" into "publish this one literal forever".
  */
 export function clearToken(template: string, restore: string): string {
-  if (isBareToken(template)) return "";
+  if (isBareToken(template)) return restore;
   return template.replace(/\{\{value\}\}|\{value\}/g, restore);
 }
 

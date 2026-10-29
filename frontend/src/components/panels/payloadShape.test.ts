@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  clearToken,
   describeTemplate,
   deriveReadPath,
   effectiveReadPath,
@@ -576,6 +577,19 @@ describe("template interpolation and tokens", () => {
       expect(previewPayload(template, "25", "sensors/temp", null, tokens)).toBe(
         '{"v1":25,"v2":60}',
       );
+    });
+  });
+
+  describe("clearToken", () => {
+    it("restores covered value when clearing bare token", () => {
+      expect(clearToken("{{value}}", "21.5")).toBe("21.5");
+      expect(clearToken("{value}", "ON")).toBe("ON");
+      expect(clearToken("{{value}}", "")).toBe("");
+    });
+
+    it("restores covered value inside template with surrounding text", () => {
+      expect(clearToken('{"temp":{{value}}}', "21.5")).toBe('{"temp":21.5}');
+      expect(clearToken('{"state":"{value}"}', "ON")).toBe('{"state":"ON"}');
     });
   });
 });

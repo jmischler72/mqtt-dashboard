@@ -17,6 +17,7 @@ import {
   hasToken,
   inferCoveredValue,
   markLiteral,
+  parseTemplateChunks,
   placeToken,
   unwrapToken,
   type TemplateLiteral,
@@ -91,16 +92,13 @@ function findTargetLiteral(
   }
   const byText = candidates.find((l) => l.text === literal.text);
   if (byText) return byText;
-  const idx = source.indexOf(literal.text);
-  if (idx !== -1) {
-    return {
-      text: literal.text,
-      start: idx,
-      end: idx + literal.text.length,
-      key: literal.key,
-    };
-  }
   return null;
+}
+
+function countTokensBefore(source: string, offset: number): number {
+  return parseTemplateChunks(source.slice(0, offset)).filter(
+    (c) => c.type === "token",
+  ).length;
 }
 
 export default function ValueChipControls({
@@ -168,8 +166,13 @@ export default function ValueChipControls({
   const toggleTokenMenu = () => {
     if (!tokenMenuOpen && tokenButtonRef.current) {
       const rect = tokenButtonRef.current.getBoundingClientRect();
+      const menuHeight = 280;
+      const top =
+        rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight
+          ? Math.max(8, rect.top - menuHeight - 4)
+          : rect.bottom + 4;
       setTokenPos({
-        top: rect.bottom + 4,
+        top,
         left: Math.max(8, Math.min(window.innerWidth - 290, rect.left)),
       });
       setTokenMenuOpen(true);
@@ -182,8 +185,13 @@ export default function ValueChipControls({
   const toggleLiteralMenu = () => {
     if (!literalMenuOpen && literalButtonRef.current) {
       const rect = literalButtonRef.current.getBoundingClientRect();
+      const menuHeight = 250;
+      const top =
+        rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight
+          ? Math.max(8, rect.top - menuHeight - 4)
+          : rect.bottom + 4;
       setLiteralPos({
-        top: rect.bottom + 4,
+        top,
         left: Math.max(8, Math.min(window.innerWidth - 270, rect.left)),
       });
       setLiteralMenuOpen(true);
@@ -287,7 +295,7 @@ export default function ValueChipControls({
     }
 
     const placed = placeToken(value, at.start, at.end, tokenStr);
-    const tokenIndex = value.slice(0, at.start).split(tokenStr).length - 1;
+    const tokenIndex = countTokensBefore(value, at.start);
     onCaret?.(placed.caret);
     onCoveredChange?.(placed.covered, tokenIndex);
     onChange(placed.template);
@@ -307,8 +315,7 @@ export default function ValueChipControls({
       const targetInBase = base ? findTargetLiteral(base, literal) : null;
       if (targetInBase) {
         const result = markLiteral(base, targetInBase);
-        const tokenIndex =
-          base.slice(0, targetInBase.start).split(VALUE_TOKEN).length - 1;
+        const tokenIndex = countTokensBefore(base, targetInBase.start);
         onCoveredChange?.(result.previous, tokenIndex);
         onChange(result.template);
         onCaret?.(
@@ -340,8 +347,7 @@ export default function ValueChipControls({
       const fallbackBase = value || samplePayload || "";
       const target = findTargetLiteral(fallbackBase, literal) ?? literal;
       const result = markLiteral(fallbackBase, target);
-      const tokenIndex =
-        fallbackBase.slice(0, target.start).split(VALUE_TOKEN).length - 1;
+      const tokenIndex = countTokensBefore(fallbackBase, target.start);
       onCoveredChange?.(result.previous, tokenIndex);
       onChange(result.template);
       onCaret?.(

@@ -45,9 +45,7 @@ When a panel or automation publishes a message, it uses a **write template** con
 | `{{timestamp}}` | Current Unix epoch timestamp in seconds | `1729861200` |
 | `{{timestamp:ms}}` | Current Unix epoch timestamp in milliseconds | `1729861200000` |
 | `{{timestamp:iso}}` | Current ISO 8601 / RFC 3339 UTC timestamp | `2026-10-25T14:00:00Z` |
-| `{{value:<index>}}` | Multi-condition value by condition index (e.g. `{{value:0}}`, `{{value:1}}`) | `22.5` |
-| `{{value:<topic>}}` | Condition value matched by topic (e.g. `{{value:sensors/humidity}}`) | `60` |
-| `{{payload:<index>}}` | Condition raw payload by condition index (e.g. `{{payload:0}}`) | `{"temp":22.5}` |
+| `{{value:<index>}}` | Multi-condition value by 1-based condition index (e.g. `{{value:1}}`, `{{value:2}}`) | `22.5` |
 
 In the configuration modal, tokens are rendered as interactive chips with proper visual affordances.
 
