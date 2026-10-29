@@ -49,6 +49,11 @@ func TestInterpolate(t *testing.T) {
 			expected: `{"device":{"name":"test"},"reading":42}`,
 		},
 		{
+			name:     "tokens with inner whitespace",
+			template: `{"val":{{ value }},"t":"{ topic }"}`,
+			expected: `{"val":42,"t":"sensors/kitchen/temp"}`,
+		},
+		{
 			name:     "empty template",
 			template: "",
 			expected: "",

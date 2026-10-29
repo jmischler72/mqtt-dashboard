@@ -179,7 +179,7 @@ export default function PayloadBuilder({
   // Derive covered value inline if not already set (e.g. when opening a saved config)
   const effectiveCovered = useMemo(() => {
     if (covered) return covered;
-    if (acceptsChip && reading && latest?.payload && hasToken(value)) {
+    if (acceptsChip && latest?.payload && hasToken(value)) {
       return inferCoveredValue(value, latest.payload);
     }
     return "";

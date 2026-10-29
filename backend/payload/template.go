@@ -21,7 +21,7 @@ const tokenInnerPattern = `(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms
 // TokenPattern matches both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
 // {{value:1}}, etc.) and legacy single-brace tokens ({value}, {topic}, etc.).
 // Normal JSON object braces (like {"key": "val"}) do not match because keys/contents contain quotes, spaces, etc.
-var tokenRegex = regexp.MustCompile(`\{\{` + tokenInnerPattern + `\}\}|\{` + tokenInnerPattern + `\}`)
+var tokenRegex = regexp.MustCompile(`\{\{\s*` + tokenInnerPattern + `\s*\}\}|\{\s*` + tokenInnerPattern + `\s*\}`)
 
 // Interpolate substitutes context tokens into template.
 // Supports both single-brace canonical tokens ({value}, {topic}, {payload}, {timestamp})

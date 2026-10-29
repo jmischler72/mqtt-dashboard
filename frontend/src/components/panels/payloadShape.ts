@@ -221,7 +221,7 @@ export const VALUE_TOKEN = "{{value}}";
  * {{value:1}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
  */
 export const TOKEN_PATTERN =
-  /(\{\{[a-zA-Z0-9_/:.+#-]+\}\}|\{(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)\})/g;
+  /(\{\{\s*[a-zA-Z0-9_/:.+#-]+\s*\}\}|\{\s*(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)\s*\})/;
 
 /** Strips surrounding `{` and `}` braces and whitespace from a token string. */
 export function unwrapToken(raw: string): string {
@@ -965,7 +965,9 @@ export function markLiteral(
  */
 export function clearToken(template: string, restore: string): string {
   if (isBareToken(template)) return restore;
-  return template.replace(/\{\{value\}\}|\{value\}/g, restore);
+  return template
+    .replaceAll("{{value}}", () => restore)
+    .replaceAll("{value}", () => restore);
 }
 
 /**

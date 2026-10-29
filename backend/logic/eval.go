@@ -455,7 +455,7 @@ func buildAction(r *Rule, msg Message, guards GuardLookup, now time.Time) *Actio
 		topicMatches := (condTopic == "" || condTopic == msg.Topic || mqtt.TopicMatches(condTopic, msg.Topic))
 
 		var raw string
-		if brokerMatches && topicMatches && len(msg.Payload) > 0 {
+		if brokerMatches && topicMatches {
 			raw = string(msg.Payload)
 			val, _ := extractValueFromPayload(raw, c.ReadTemplate)
 			condValues[idxStr] = val

@@ -334,6 +334,7 @@ export function ToggleConfigModal({
             }}
             brokerId={selectedBrokerId}
             topic={topic}
+            previewValue={`${onPayload}, ${offPayload}`}
             showPreview={false}
             placeholder={VALUE_TOKEN}
           />
@@ -445,6 +446,7 @@ export function ToggleConfigModal({
               onCoveredChange={setReadCovered}
               brokerId={effectiveStateBroker}
               topic={stateTopic}
+              previewValue={`${onPayload}, ${offPayload}`}
               allowBlankShape
               // The toggle compares the marked characters against its two
               // states; it never parses them into a value.

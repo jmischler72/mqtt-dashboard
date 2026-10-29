@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   TOKEN_LABEL,
+  TOKEN_PATTERN,
   VALUE_TOKEN,
   clearToken,
   describeTemplate,
@@ -590,6 +591,27 @@ describe("template interpolation and tokens", () => {
     it("restores covered value inside template with surrounding text", () => {
       expect(clearToken('{"temp":{{value}}}', "21.5")).toBe('{"temp":21.5}');
       expect(clearToken('{"state":"{value}"}', "ON")).toBe('{"state":"ON"}');
+    });
+
+    it("restores value containing special characters like $ safely", () => {
+      expect(clearToken('{"price":"{{value}}"}', "$10")).toBe('{"price":"$10"}');
+      expect(clearToken('{"code":"{{value}}"}', "$&")).toBe('{"code":"$&"}');
+    });
+  });
+
+  describe("TOKEN_PATTERN & whitespace tolerance", () => {
+    it("matches tokens with inner whitespace", () => {
+      expect(interpolateTemplate('{"val":{{ value }}}', { value: 42 })).toBe(
+        '{"val":42}',
+      );
+      expect(interpolateTemplate('{"t":"{ topic }"}', { topic: "test/foo" })).toBe(
+        '{"t":"test/foo"}',
+      );
+    });
+
+    it("TOKEN_PATTERN does not retain state between test calls", () => {
+      expect(TOKEN_PATTERN.test("{{value}}")).toBe(true);
+      expect(TOKEN_PATTERN.test("{{value}}")).toBe(true);
     });
   });
 });

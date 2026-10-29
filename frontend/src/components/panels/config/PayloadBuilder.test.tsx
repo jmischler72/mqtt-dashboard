@@ -264,9 +264,63 @@ describe("the literals offered as one-tap chip targets", () => {
       />,
     );
 
-    // Recommendations from the device payload are proposed: temp, hum!
-    expect(screen.getByRole("button", { name: "21.5" })).toBeTruthy();
+    // Recommendations from the device payload for other fields are proposed (temp is already marked as value)
+    expect(screen.queryByRole("button", { name: "21.5" })).toBeNull();
     expect(screen.getByRole("button", { name: "55" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "98" })).toBeTruthy();
+  });
+
+  it("does not propose value behind token for write template with state string", () => {
+    const template = `{"state": "${VALUE_TOKEN}", "src": "dashboard"}`;
+    const recentPayload = '{"state": "OFF", "src": "dashboard"}';
+    render(
+      <Builder
+        mode="write"
+        initial={template}
+        payloads={[recentPayload]}
+      />,
+    );
+
+    // OFF is covered by {{value}}, so only src dashboard should be proposed, not OFF
+    expect(screen.queryByRole("button", { name: /OFF/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /dashboard/i })).toBeTruthy();
+  });
+
+  it("does not propose raw scalar from history when editing structured JSON write template", () => {
+    const template = `{"state": "${VALUE_TOKEN}", "src": "dashboard"}`;
+    // History contains raw scalar OFF from earlier command publishes
+    const recentPayload = "OFF";
+    render(
+      <Builder
+        mode="write"
+        initial={template}
+        payloads={[recentPayload]}
+      />,
+    );
+
+    // Raw OFF has no key and should not be proposed for a JSON template
+    expect(screen.queryByRole("button", { name: "OFF" })).toBeNull();
+    expect(screen.getByRole("button", { name: /dashboard/i })).toBeTruthy();
+  });
+
+  it("filters toggle on/off preview values from literal suggestions", () => {
+    render(
+      <PayloadBuilder
+        mode="write"
+        value='{"state": "{{value}}"}'
+        brokerId="b1"
+        topic="demo/lamp/set"
+        previewValue="ON, OFF"
+        history={{
+          messages: [{ payload: "OFF", ago: "1s" }],
+          loading: false,
+        }}
+        onChange={() => {}}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "OFF" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "ON" })).toBeNull();
   });
 
   it("prevents multiple value tokens in read mode when clicking without selection", () => {

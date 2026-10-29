@@ -12,6 +12,7 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   clearToken,
+  deriveReadPath,
   findLiterals,
   firstTopic,
   hasToken,
@@ -74,7 +75,8 @@ function getTokenPreview(
     return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   }
   if (norm.startsWith("value:")) {
-    return previewValue || "21.5";
+    const firstPreview = previewValue?.split(/[,|]/)[0]?.trim();
+    return firstPreview || "21.5";
   }
   return norm;
 }
@@ -138,8 +140,48 @@ export default function ValueChipControls({
     const candidates: TemplateLiteral[] = [];
     const seen = new Set<string>();
 
+    // Identify which field/path or literal is already occupied by the token
+    const activePath = hasToken(value) ? deriveReadPath(value) : null;
+    const coveredVal = hasToken(value)
+      ? (covered || inferCoveredValue(value, samplePayload)).trim()
+      : "";
+
+    const isCurrentTokenField = (lit: TemplateLiteral): boolean => {
+      const cleanLit = lit.text.replace(/^["']|["']$/g, "").trim().toLowerCase();
+      const cleanCovered = coveredVal.replace(/^["']|["']$/g, "").trim().toLowerCase();
+
+      if (activePath) {
+        // Literals without a key (e.g. raw "OFF" from sample payload) cannot be fields
+        // in a structured JSON template and should not be offered
+        if (!lit.key) {
+          return true;
+        }
+        const lastSegment = activePath.split(".").pop()?.toLowerCase();
+        if (
+          lit.key.toLowerCase() === activePath.toLowerCase() ||
+          lit.key.toLowerCase() === lastSegment
+        ) {
+          return true;
+        }
+      }
+
+      if (cleanCovered && cleanLit === cleanCovered) {
+        return true;
+      }
+      if (previewValue) {
+        const previewTokens = previewValue
+          .split(/[,|]/)
+          .map((v) => v.replace(/^["']|["']$/g, "").trim().toLowerCase());
+        if (previewTokens.includes(cleanLit)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     if (samplePayload && samplePayload.trim()) {
       for (const lit of findLiterals(samplePayload, 12)) {
+        if (isCurrentTokenField(lit)) continue;
         const id = lit.key ? `${lit.key}:${lit.text}` : lit.text;
         if (!seen.has(id)) {
           seen.add(id);
@@ -149,6 +191,7 @@ export default function ValueChipControls({
     }
 
     for (const lit of findLiterals(value, 12)) {
+      if (isCurrentTokenField(lit)) continue;
       const id = lit.key ? `${lit.key}:${lit.text}` : lit.text;
       if (!seen.has(id)) {
         seen.add(id);
@@ -157,7 +200,7 @@ export default function ValueChipControls({
     }
 
     return candidates;
-  }, [value, samplePayload]);
+  }, [value, samplePayload, covered, previewValue]);
 
   const inlineLiterals = literals.slice(0, 2);
   const overflowLiterals = literals.slice(2);
@@ -309,7 +352,7 @@ export default function ValueChipControls({
       // prefer keeping user's custom template modifications
       let base = value;
       if (hasToken(base)) {
-        base = clearToken(base, activeCovered || "");
+        base = clearToken(base, activeCovered || "0");
       }
 
       const targetInBase = base ? findTargetLiteral(base, literal) : null;
