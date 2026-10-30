@@ -452,6 +452,7 @@ export function ToggleConfigModal({
               // states; it never parses them into a value.
               readsText
               placeholder={`whole payload, or {"state":"${VALUE_TOKEN}"}`}
+              previewCard
             />
             {fieldErrors.readShape && (
               <span className="text-[11px] text-warning">

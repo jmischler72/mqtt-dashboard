@@ -267,6 +267,7 @@ export function GraphConfigModal({
             readPath={legacyPath}
             unit={unit}
             placeholder={`whole payload, or {"temp":${VALUE_TOKEN}}`}
+            previewCard
           />
           {fieldErrors.readShape && (
             <span className="text-[11px] text-warning">
