@@ -76,11 +76,22 @@ export default function MessageHistory({
     if (!open) return;
 
     const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (dropdownRef.current && dropdownRef.current.contains(target)) {
+      const target = e.target;
+      if (target instanceof Node && dropdownRef.current?.contains(target)) {
         return;
       }
-      setOpen(false);
+      const isAncestor =
+        target === window ||
+        target === document ||
+        target === document.documentElement ||
+        target === document.body ||
+        (target instanceof Node &&
+          buttonRef.current &&
+          target.contains(buttonRef.current));
+
+      if (isAncestor) {
+        setOpen(false);
+      }
     };
 
     window.addEventListener("scroll", handleScroll, true);

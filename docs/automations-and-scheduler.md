@@ -81,15 +81,18 @@ When a scheduled job fires, its task function executes:
 for _, t := range strings.Split(topic, ",") {
     t = strings.TrimSpace(t)
     if t != "" {
-        sc.registry.Publish(bID, t, qos, retain, []byte(payload), panelID)
+        ctx := payload.Context{Topic: t, Timestamp: now}
+        interpolated := payload.Interpolate(payload, ctx)
+        sc.registry.Publish(bID, t, qos, retain, []byte(interpolated), panelID)
     }
 }
 ```
 
 Key execution traits:
 1. **Multi-Topic Dispatch**: Comma-separated topics (`home/lights, garden/lights`) are split and published in sequence.
-2. **Origin Attribution**: The originating `panelID` is supplied directly to [`BrokerRegistry.Publish`](../backend/mqtt/registry.go).
-3. **Correlation Tracking**: The outgoing message is tracked by the [Publish Correlation Engine](publish-correlation-engine.md), ensuring that when the broker echoes the message back on `#`, the live WebSocket stream attributes the publish to the scheduled panel.
+2. **Payload Templating**: Context tokens like `{topic}`, `{timestamp}`, and `{timestamp:iso}` are dynamically evaluated at trigger time.
+3. **Origin Attribution**: The originating `panelID` is supplied directly to [`BrokerRegistry.Publish`](../backend/mqtt/registry.go).
+4. **Correlation Tracking**: The outgoing message is tracked by the [Publish Correlation Engine](publish-correlation-engine.md), ensuring that when the broker echoes the message back on `#`, the live WebSocket stream attributes the publish to the scheduled panel.
 
 ---
 

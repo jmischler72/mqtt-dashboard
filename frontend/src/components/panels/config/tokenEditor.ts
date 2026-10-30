@@ -1,4 +1,9 @@
-import { TOKEN_LABEL, VALUE_TOKEN } from "../payloadShape";
+import {
+  TOKEN_LABEL,
+  VALUE_TOKEN,
+  parseTemplateChunks,
+  unwrapToken,
+} from "../payloadShape";
 
 /**
  * The payload editor is a contenteditable rather than a textarea, so the token
@@ -50,46 +55,62 @@ export function paintTemplate(
   const nodes: Node[] = [];
   let tokenIdx = 0;
 
-  template.split(VALUE_TOKEN).forEach((chunk, index) => {
-    if (index > 0) {
+  const chunks = parseTemplateChunks(template);
+  for (const chunk of chunks) {
+    if (chunk.type === "text") {
+      if (chunk.raw) nodes.push(host.ownerDocument.createTextNode(chunk.raw));
+    } else {
       let cov: string;
-      if (tokenIdx === insertAt) {
+      if (newIndex === null || newIndex === undefined) {
+        cov =
+          existingCovered[tokenIdx] ||
+          (chunk.name === TOKEN_LABEL ? newCovered : "");
+      } else if (tokenIdx === insertAt) {
         cov = newCovered;
       } else if (tokenIdx < insertAt) {
         cov = existingCovered[tokenIdx] || "";
       } else {
         cov = existingCovered[tokenIdx - 1] || "";
       }
-      nodes.push(buildChip(host.ownerDocument, cov));
+      nodes.push(
+        buildChip(host.ownerDocument, cov, chunk.name, chunk.canonical),
+      );
       tokenIdx++;
     }
-    if (chunk) nodes.push(host.ownerDocument.createTextNode(chunk));
-  });
+  }
 
   host.replaceChildren(...nodes);
 }
 
-function buildChip(doc: Document, covered = ""): HTMLElement {
+function buildChip(
+  doc: Document,
+  covered = "",
+  tokenName = TOKEN_LABEL,
+  canonicalToken = VALUE_TOKEN,
+): HTMLElement {
+  const cleanName = unwrapToken(tokenName);
   const chip = doc.createElement("span");
   chip.setAttribute(TOKEN_ATTR, "");
+  chip.setAttribute("data-token-name", cleanName);
+  chip.setAttribute("data-token-str", canonicalToken);
   if (covered) {
     chip.setAttribute("data-covered", covered);
   }
   // Atomic: the caret cannot land inside it, and backspace removes the whole
-  // chip rather than eating one letter of the word "value".
+  // chip rather than eating one letter of the word.
   chip.setAttribute("contenteditable", "false");
   chip.className = CHIP_CLASS;
 
   const label = doc.createElement("span");
   label.setAttribute("data-chip-label", "");
-  label.textContent = TOKEN_LABEL;
+  label.textContent = cleanName;
   chip.appendChild(label);
 
   const removeBtn = doc.createElement("button");
   removeBtn.type = "button";
   removeBtn.setAttribute("data-remove-token", "");
-  removeBtn.setAttribute("aria-label", `Remove ${TOKEN_LABEL}`);
-  removeBtn.setAttribute("title", `Remove ${TOKEN_LABEL}`);
+  removeBtn.setAttribute("aria-label", `Remove ${cleanName}`);
+  removeBtn.setAttribute("title", `Remove ${cleanName}`);
   removeBtn.setAttribute("tabindex", "-1");
   removeBtn.className =
     "inline-flex items-center justify-center w-3.5 h-3.5 rounded-full " +
@@ -155,9 +176,16 @@ function walkHost(
       // leave the husk behind. A chip that no longer reads as itself has been
       // deleted, whatever the DOM still holds.
       const hasLabel =
-        node.querySelector("[data-chip-label]")?.textContent === TOKEN_LABEL ||
-        node.textContent?.includes(TOKEN_LABEL);
-      if (hasLabel) out += VALUE_TOKEN;
+        Boolean(node.querySelector("[data-chip-label]")) ||
+        (node.textContent ?? "").trim().length > 0;
+      if (hasLabel) {
+        const tokenStr =
+          node.getAttribute("data-token-str") ||
+          (node.getAttribute("data-token-name")
+            ? `{{${node.getAttribute("data-token-name")}}}`
+            : VALUE_TOKEN);
+        out += tokenStr;
+      }
       return;
     }
 
@@ -274,12 +302,18 @@ export function setCaret(host: HTMLElement, offset: number): void {
     // A chip stands for the whole token and the caret can only sit beside it:
     // on its leading edge that means before it, anywhere else in its span —
     // including the offset `placeToken` hands back — means after.
+    const tokenStr =
+      (node as HTMLElement).getAttribute?.("data-token-str") ||
+      ((node as HTMLElement).getAttribute?.("data-token-name")
+        ? `{{${(node as HTMLElement).getAttribute?.("data-token-name")}}}`
+        : VALUE_TOKEN);
+
     if (offset <= seen) {
       range.setStart(host, index);
       placed = true;
       break;
     }
-    seen += VALUE_TOKEN.length;
+    seen += tokenStr.length;
     if (offset <= seen) {
       range.setStart(host, index + 1);
       placed = true;
@@ -305,7 +339,10 @@ export function removeChipFromEditor(
 ): { template: string; caret: number } {
   const { at } = walkHost(host, [{ container: chip, offset: 0 }]);
   const caret = at[0] === -1 ? 0 : at[0];
-  const restore = chip.getAttribute("data-covered") || fallbackCovered || "";
+  const isValueChip =
+    (chip.getAttribute("data-token-name") || TOKEN_LABEL) === TOKEN_LABEL;
+  const restore =
+    chip.getAttribute("data-covered") || (isValueChip ? fallbackCovered : "") || "";
   if (restore) {
     chip.replaceWith(host.ownerDocument.createTextNode(restore));
   } else {

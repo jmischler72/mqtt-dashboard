@@ -79,9 +79,16 @@ func (m *mockBrokerClient) Unsubscribe(brokerID, topic string, handler mqttclien
 
 func (m *mockBrokerClient) injectMessage(brokerID, topic string, payload string) {
 	m.mu.Lock()
-	key := brokerID + "::" + topic
-	handlers := make([]mqttclient.MessageHandler, len(m.subs[key]))
-	copy(handlers, m.subs[key])
+	var handlers []mqttclient.MessageHandler
+	for k, hs := range m.subs {
+		parts := strings.SplitN(k, "::", 2)
+		if len(parts) == 2 && parts[0] == brokerID {
+			subFilter := parts[1]
+			if subFilter == topic || mqttclient.TopicMatches(subFilter, topic) {
+				handlers = append(handlers, hs...)
+			}
+		}
+	}
 	m.mu.Unlock()
 
 	for _, h := range handlers {
@@ -439,7 +446,6 @@ func TestEngine_Modes(t *testing.T) {
 				{
 					Operator:     "gt",
 					Value:        "30",
-					JSONPath:     "value",
 					ReadTemplate: `{"value": {value}, "unit": "%"}`,
 				},
 			},
@@ -593,10 +599,10 @@ func TestEngine_JSONPath_And_Operators(t *testing.T) {
 		Enabled:     true,
 		Mode:        "every",
 		Conditions: []logic.Condition{
-			{JSONPath: "data.temp", Operator: "gte", Value: "25.5"},
-			{JSONPath: "status.mode", Operator: "eq", Value: "auto"},
-			{JSONPath: "name", Operator: "contains", Value: "LivingRoom"},
-			{JSONPath: "tags[0]", Operator: "exists"},
+			{ReadTemplate: `{"data":{"temp":{value}}}`, Operator: "gte", Value: "25.5"},
+			{ReadTemplate: `{"status":{"mode":"{value}"}}`, Operator: "eq", Value: "auto"},
+			{ReadTemplate: `{"name":"{value}"}`, Operator: "contains", Value: "LivingRoom"},
+			{ReadTemplate: `{"tags":[{value}]}`, Operator: "exists"},
 		},
 		Match: "all",
 	}
@@ -880,9 +886,9 @@ func TestJSONPathDetailed(t *testing.T) {
 		Enabled:     true,
 		Mode:        "every",
 		Conditions: []logic.Condition{
-			{JSONPath: "active", Operator: "eq", Value: "true"},
-			{JSONPath: "empty", Operator: "eq", Value: "null"},
-			{JSONPath: "users.0.name", Operator: "ne", Value: "Alice"},
+			{ReadTemplate: `{"active":{value}}`, Operator: "eq", Value: "true"},
+			{ReadTemplate: `{"empty":{value}}`, Operator: "eq", Value: "null"},
+			{ReadTemplate: `{"users":[{"name":"{value}"}]}`, Operator: "ne", Value: "Alice"},
 		},
 	}
 	if err := engine.AddRule(rule); err != nil {
@@ -1194,11 +1200,11 @@ func TestEngine_DefaultBroker_ExtractionAndTopicTemplating(t *testing.T) {
 		SourceTopic: "sensor/temperature",
 		Conditions: []logic.Condition{
 			{
-				BrokerID: "", // empty -> default
-				Topic:    "sensor/temperature",
-				JSONPath: "temp",
-				Operator: "gt",
-				Value:    "20",
+				BrokerID:     "", // empty -> default
+				Topic:        "sensor/temperature",
+				ReadTemplate: `{"temp": {value}}`,
+				Operator:     "gt",
+				Value:        "20",
 			},
 		},
 		Mode:        "every",
@@ -1253,5 +1259,204 @@ func TestEngine_ValidateInfiniteLoop_DefaultBroker(t *testing.T) {
 		t.Errorf("expected infinite loop error, got: %v", err)
 	}
 }
+
+func TestEngine_GlobalPayloadTemplating(t *testing.T) {
+	broker := newMockBrokerClient()
+	fixedNow := time.Date(2026, 10, 25, 14, 0, 0, 0, time.UTC)
+	engine := logic.NewEngine(broker, logic.WithNowFunc(func() time.Time {
+		return fixedNow
+	}))
+	defer engine.Stop()
+
+	// 1. Wildcard topic trigger testing {topic}, {value}, {payload}, {timestamp}
+	rule1 := &logic.Rule{
+		PanelID:     "rule_wildcard",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/+/temperature",
+		TargetTopic: "events/temp",
+		Payload:     `{"topic":"{topic}","val":{value},"raw":'{payload}',"ts":{timestamp},"iso":"{timestamp:iso}"}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				ReadTemplate: `{"temp":{value}}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule1); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/kitchen/temperature", `{"temp":22.5}`)
+	time.Sleep(50 * time.Millisecond)
+
+	pubs := broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish, got %d", len(pubs))
+	}
+	expected := `{"topic":"sensors/kitchen/temperature","val":22.5,"raw":'{"temp":22.5}',"ts":1792936800,"iso":"2026-10-25T14:00:00Z"}`
+	if string(pubs[0].Payload) != expected {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), expected)
+	}
+
+	// 2. Multi-condition with guard value disambiguation: {value:1}, {value:2}
+	engine.RemoveRule("rule_wildcard")
+	broker.clearPublishes()
+	// Seed guard cache for humidity
+	engine.PrimeCache("b1", "sensors/kitchen/humidity", `{"humidity":60}`)
+
+	rule2 := &logic.Rule{
+		PanelID:     "rule_multi_guard",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/kitchen/temperature",
+		TargetTopic: "events/climate",
+		Payload:     `{"t":{value:1},"h":{value:2},"active":{value}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/kitchen/temperature",
+				ReadTemplate: `{"temp":{value}}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+			{
+				Topic:        "sensors/kitchen/humidity",
+				ReadTemplate: `{"humidity":{value}}`,
+				Operator:     "gte",
+				Value:        "50",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule2); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/kitchen/temperature", `{"temp":23.0}`)
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for multi_guard rule, got %d", len(pubs))
+	}
+	expected2 := `{"t":23,"h":60,"active":23}`
+	if string(pubs[0].Payload) != expected2 {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), expected2)
+	}
+
+	// 3. Stencil bounds safety: incoming message shorter than prefix + suffix must not panic
+	engine.RemoveRule("rule_multi_guard")
+	broker.clearPublishes()
+
+	rule3 := &logic.Rule{
+		PanelID:     "rule_stencil_short",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/+/temperature",
+		TargetTopic: "events/stencil",
+		Payload:     `{"v":"{{value:1}}"}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/+/temperature",
+				ReadTemplate: `a{value}a`,
+				Operator:     "eq",
+				Value:        "42",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule3); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	// Payload "a" is shorter than prefix ("a") + suffix ("a"): must not panic
+	broker.injectMessage("b1", "sensors/living/temperature", "a")
+	// Matching payload "a42a"
+	broker.injectMessage("b1", "sensors/living/temperature", "a42a")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_stencil_short, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"v":"42"}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"v":"42"}`)
+	}
+
+	engine.RemoveRule("rule_stencil_short")
+	broker.clearPublishes()
+
+	// Rule with whitespace in token and extra tokens in JSON template
+	rule4 := &logic.Rule{
+		PanelID:     "rule_multi_token_and_whitespace",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/kitchen/temp",
+		TargetTopic: "events/temp",
+		Payload:     `{"reading": {{ value }}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/kitchen/temp",
+				ReadTemplate: `{"temp": {{ value }}, "ts": {timestamp}}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule4); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/kitchen/temp", `{"temp":25.5,"ts":1700000000}`)
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_multi_token_and_whitespace, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"reading": 25.5}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"reading": 25.5}`)
+	}
+
+	engine.RemoveRule("rule_multi_token_and_whitespace")
+	broker.clearPublishes()
+
+	// Plain text stencil without suffix
+	rule5 := &logic.Rule{
+		PanelID:     "rule_stencil_no_suffix",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/raw",
+		TargetTopic: "events/raw",
+		Payload:     `{"v":{{value}}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/raw",
+				ReadTemplate: `temp={value}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule5); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/raw", "temp=25.5 hum=60")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_stencil_no_suffix, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"v":25.5}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"v":25.5}`)
+	}
+}
+
 
 

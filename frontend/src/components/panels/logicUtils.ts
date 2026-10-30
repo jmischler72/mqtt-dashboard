@@ -8,8 +8,8 @@ export type LogicMode = "every" | "on_change" | "count" | "sustained";
 export interface Condition {
   broker_id?: string;
   topic?: string;
-  json_path?: string;
   read_template?: string;
+  read_covered?: string;
   operator: LogicOperator;
   value?: string;
   join?: "and" | "or";
@@ -62,9 +62,7 @@ export function formatConditionSummary(
   includeJoin = false,
 ): string {
   let target = "value";
-  if (c.json_path?.trim()) {
-    target = c.json_path.trim();
-  } else if (c.read_template?.trim()) {
+  if (c.read_template?.trim()) {
     target = deriveReadPath(c.read_template) || "value";
   }
 
@@ -113,10 +111,9 @@ export function formatTimeAgo(isoString?: string): string {
   return `${diffDays}d ago`;
 }
 
-/** Extracts a tracked value from raw payload using optional JSON path or read template. */
+/** Extracts a tracked value from raw payload using read template. */
 export function extractTrackedValue(
   payload?: string | null,
-  jsonPath?: string,
   readTemplate?: string,
 ): { displayValue: string; rawValue: unknown } {
   if (payload === undefined || payload === null || payload.trim() === "") {
@@ -124,11 +121,10 @@ export function extractTrackedValue(
   }
   const clean = payload.trim();
   const tmpl = readTemplate?.trim();
-  const path = jsonPath?.trim();
 
-  if (tmpl || path) {
+  if (tmpl) {
     try {
-      const extracted = readValue(tmpl, clean, path);
+      const extracted = readValue(tmpl, clean);
       return {
         displayValue: String(extracted.value),
         rawValue: extracted.value,
@@ -224,7 +220,6 @@ export function evaluateAllConditions(
 
     const { rawValue } = extractTrackedValue(
       rawMsg,
-      c.json_path,
       c.read_template,
     );
     return evaluateClientCondition(rawValue, c.operator, c.value);

@@ -38,6 +38,7 @@ export interface GaugeConfig {
   topic?: string;
   /** Shape of incoming messages, with `{value}` marking the part to read. */
   readTemplate?: string;
+  readCovered?: string;
   /** Legacy dot path, kept so panels saved before shapes existed still read. */
   valueKey?: string;
   unit?: string;
@@ -83,6 +84,7 @@ export function GaugeConfigModal({
   const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [topic, setTopic] = useState(initialTopic ?? config.topic ?? "");
   const [readTemplate, setReadTemplate] = useState(gaugeReadTemplate(config));
+  const [readCovered, setReadCovered] = useState(config.readCovered ?? "");
   const [unit, setUnit] = useState(config.unit ?? "");
   const [min, setMin] = useState(String(config.min ?? DEFAULT_MIN));
   const [max, setMax] = useState(String(config.max ?? DEFAULT_MAX));
@@ -188,6 +190,7 @@ export function GaugeConfigModal({
           {
             topic: topic.split(",")[0]?.trim() ?? "",
             readTemplate,
+            readCovered,
             valueKey: legacyPath,
             unit,
             min: minNum,
@@ -219,6 +222,7 @@ export function GaugeConfigModal({
                     draftConfig: {
                       topic,
                       readTemplate,
+                      readCovered,
                       // Carried through the round trip: a path no shape can
                       // draw is only held by this field, and coming back
                       // without it is how the next save drops it.
@@ -246,9 +250,11 @@ export function GaugeConfigModal({
           <PayloadBuilder
             mode="read"
             value={readTemplate}
+            initialCovered={readCovered}
             onChange={(next) => {
               setReadTemplate(next);
             }}
+            onCoveredChange={setReadCovered}
             history={{ messages: recent, loading }}
             brokerId={selectedBrokerId}
             topic={topic}
@@ -256,6 +262,7 @@ export function GaugeConfigModal({
             readPath={legacyPath}
             unit={unit}
             placeholder={`whole payload, or {"temp":${VALUE_TOKEN}}`}
+            previewCard
           />
           {fieldErrors.readShape && (
             <span className="text-[11px] text-warning">

@@ -54,6 +54,7 @@ export interface SliderConfig {
   stateBrokerId?: string;
   /** Shape of incoming messages, with `{value}` marking the value to read. */
   readTemplate?: string;
+  readCovered?: string;
   min?: number;
   max?: number;
   step?: number;
@@ -124,6 +125,7 @@ export function SliderConfigModal({
   const [readTemplate, setReadTemplate] = useState(
     config.readTemplate ?? config.payloadTemplate ?? VALUE_TOKEN,
   );
+  const [readCovered, setReadCovered] = useState(config.readCovered ?? "");
   const [min, setMin] = useState(String(config.min ?? DEFAULT_MIN));
   const [max, setMax] = useState(String(config.max ?? DEFAULT_MAX));
   const [step, setStep] = useState(String(config.step ?? DEFAULT_STEP));
@@ -162,6 +164,7 @@ export function SliderConfigModal({
     stateTopic,
     stateBrokerId,
     readTemplate,
+    readCovered,
     min: minNum,
     max: maxNum,
     step: stepNum,
@@ -220,6 +223,7 @@ export function SliderConfigModal({
             stateTopic: separateRead ? stateTopic.trim() : "",
             stateBrokerId: separateRead ? effectiveStateBroker : undefined,
             readTemplate: separateRead ? readTemplate : undefined,
+            readCovered: separateRead ? readCovered : undefined,
             min: minNum,
             max: maxNum,
             step: stepNum,
@@ -384,9 +388,11 @@ export function SliderConfigModal({
             <PayloadBuilder
               mode="read"
               value={readTemplate}
+              initialCovered={readCovered}
               onChange={(next) => {
                 setReadTemplate(next);
               }}
+              onCoveredChange={setReadCovered}
               brokerId={effectiveStateBroker}
               topic={stateTopic}
               unit={unit}
@@ -617,7 +623,11 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: renderPayload(config.payloadTemplate ?? VALUE_TOKEN, value),
+        payload: renderPayload(
+          config.payloadTemplate || VALUE_TOKEN,
+          value,
+          commandTopic,
+        ),
         qos,
         retain,
         panel_id: panelId,

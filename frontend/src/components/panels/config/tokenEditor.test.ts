@@ -23,12 +23,12 @@ beforeEach(() => {
 
 describe("paintTemplate / readTemplate", () => {
   it("round-trips a template through the DOM", () => {
-    const template = '{"v":{value},"u":"C"}';
+    const template = '{"v":{{value}},"u":"C"}';
     expect(readTemplate(box(template))).toBe(template);
   });
 
   it("draws the token as a single atomic chip", () => {
-    const chips = box("a{value}b").querySelectorAll("[data-value-token]");
+    const chips = box("a{{value}}b").querySelectorAll("[data-value-token]");
     expect(chips).toHaveLength(1);
     expect(chips[0].getAttribute("contenteditable")).toBe("false");
     expect(chips[0].querySelector("[data-remove-token]")).toBeTruthy();
@@ -37,20 +37,20 @@ describe("paintTemplate / readTemplate", () => {
 
 describe("removeChipFromEditor", () => {
   it("removes the specific chip and reports its offset", () => {
-    const host = box('{"a":{value},"b":{value}}');
+    const host = box('{"a":{{value}},"b":{{value}}}');
     const chips = host.querySelectorAll<HTMLElement>("[data-value-token]");
     expect(chips).toHaveLength(2);
 
     const result = removeChipFromEditor(host, chips[1]);
-    expect(result.template).toBe('{"a":{value},"b":}');
-    expect(result.caret).toBe('{"a":{value},"b":'.length);
+    expect(result.template).toBe('{"a":{{value}},"b":}');
+    expect(result.caret).toBe('{"a":{{value}},"b":'.length);
   });
 
   it("restores covered text when present on chip", () => {
     const host = document.createElement("div");
     host.contentEditable = "true";
     document.body.append(host);
-    paintTemplate(host, '{"temp":{value}}', true, "21.5");
+    paintTemplate(host, '{"temp":{{value}}}', true, "21.5");
     const chip = host.querySelector<HTMLElement>("[data-value-token]")!;
     expect(chip.getAttribute("data-covered")).toBe("21.5");
 
@@ -142,12 +142,31 @@ describe("setCaret", () => {
 
     setCaret(host, placed.caret);
 
-    expect(placed.template).toBe('{"v":{value},"u":"C"}');
+    expect(placed.template).toBe('{"v":{{value}},"u":"C"}');
     expect(readSelectionOffsets(host)).toEqual({
       start: placed.caret,
       end: placed.caret,
     });
     // Nothing of the token sits to the right of the caret
     expect(placed.template.slice(placed.caret)).toBe(',"u":"C"}');
+  });
+
+  it("draws multiple kinds of context chips and round-trips them", () => {
+    const template = '{"t":"{{topic}}","v":{{value}},"ts":{{timestamp}},"raw":{{payload}},"c0":{{value:0}}}';
+    const host = box(template);
+    const chips = host.querySelectorAll<HTMLElement>("[data-value-token]");
+    expect(chips).toHaveLength(5);
+    expect(chips[0].textContent).toContain("topic");
+    expect(chips[1].textContent).toContain("value");
+    expect(chips[2].textContent).toContain("timestamp");
+    expect(chips[3].textContent).toContain("payload");
+    expect(chips[4].textContent).toContain("value:0");
+
+    expect(readTemplate(host)).toBe(template);
+  });
+
+  it("normalizes single-brace tokens to canonical double braces on round-trip", () => {
+    const host = box('{"t":"{topic}","v":{value}}');
+    expect(readTemplate(host)).toBe('{"t":"{{topic}}","v":{{value}}}');
   });
 });

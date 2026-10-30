@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	cronv3 "github.com/robfig/cron/v3"
+
+	payloadpkg "mqtt-dashboard/payload"
 )
 
 type JobInfo struct {
@@ -108,10 +110,16 @@ func (sc *Scheduler) AddJob(panelID, brokerID, cronExpr, topic, payload string, 
 				if bID == "" {
 					bID = sc.registry.DefaultBrokerID()
 				}
+				now := time.Now()
 				for _, t := range strings.Split(topic, ",") {
 					t = strings.TrimSpace(t)
 					if t != "" {
-						sc.registry.Publish(bID, t, qos, retain, []byte(payload), panelID) //nolint
+						ctx := payloadpkg.Context{
+							Topic:     t,
+							Timestamp: now,
+						}
+						interpolated := payloadpkg.Interpolate(payload, ctx)
+						sc.registry.Publish(bID, t, qos, retain, []byte(interpolated), panelID) //nolint
 					}
 				}
 			}),
@@ -135,6 +143,20 @@ func (sc *Scheduler) RemoveJob(panelID string) {
 	slog.Info("cron remove job", "panel_id", panelID)
 	sc.s.RemoveByTags(panelID) //nolint
 	delete(sc.jobs, panelID)
+}
+
+// RunJob manually triggers an execution of the specified job.
+func (sc *Scheduler) RunJob(panelID string) error {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	for _, j := range sc.s.Jobs() {
+		for _, tag := range j.Tags() {
+			if tag == panelID {
+				return j.RunNow()
+			}
+		}
+	}
+	return fmt.Errorf("job %q not found or not scheduled", panelID)
 }
 
 // RemoveAllPanelJobs removes all panel-driven jobs from the scheduler,

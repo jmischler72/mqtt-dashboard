@@ -6,8 +6,8 @@ import "time"
 type Condition struct {
 	BrokerID     string `json:"broker_id,omitempty"`     // "" = rule.BrokerID; otherwise specific broker
 	Topic        string `json:"topic,omitempty"`         // "" = trigger topic; otherwise guard topic
-	JSONPath     string `json:"json_path,omitempty"`     // "" = whole payload; otherwise dot/bracket path
 	ReadTemplate string `json:"read_template,omitempty"` // shape template with {value} (from PayloadBuilder)
+	ReadCovered  string `json:"read_covered,omitempty"`  // literal constant value covered by {value} token
 	Operator     string `json:"operator"`                // "any"|"eq"|"ne"|"gt"|"lt"|"gte"|"lte"|"contains"|"exists"
 	Value        string `json:"value,omitempty"`
 	Join         string `json:"join,omitempty"` // "and" | "or" (for conditions at index > 0)

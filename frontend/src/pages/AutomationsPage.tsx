@@ -23,25 +23,7 @@ import {
 import { api, type AutomationItem } from "../api/client";
 import { PRESETS, describeCron } from "../components/panels/cronUtils";
 import { formatConditionSummary } from "../components/panels/logicUtils";
-import { VALUE_TOKEN, TOKEN_LABEL } from "../components/panels/payloadShape";
-
-function renderPayloadWithChips(payload?: string, allowChips = true) {
-  const oneLine = (payload || "").replace(/\s+/g, " ").trim();
-  const normalized = oneLine.replace(/\{\{value\}\}/g, VALUE_TOKEN);
-  if (!allowChips || !normalized.includes(VALUE_TOKEN)) {
-    return oneLine;
-  }
-  return normalized.split(VALUE_TOKEN).map((chunk, index) => (
-    <span key={index}>
-      {index > 0 && (
-        <span className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5">
-          {TOKEN_LABEL}
-        </span>
-      )}
-      {chunk}
-    </span>
-  ));
-}
+import { PayloadSummary } from "../components/panels/config/PayloadBuilder";
 
 function getConditionsTooltip(job: AutomationItem): string {
   if (job.conditions && job.conditions.length > 0) {
@@ -1203,10 +1185,11 @@ export default function AutomationsPage() {
                                 title={job.payload}
                               >
                                 <span className="truncate flex-1 block">
-                                  {renderPayloadWithChips(
-                                    job.payload,
-                                    job.panel_type !== "cron",
-                                  )}
+                                  <PayloadSummary
+                                    value={job.payload}
+                                    chips={job.panel_type !== "cron"}
+                                    max={Infinity}
+                                  />
                                 </span>
                                 <button
                                   type="button"

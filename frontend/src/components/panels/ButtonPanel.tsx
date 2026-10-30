@@ -21,6 +21,7 @@ import {
   useConfigValidation,
 } from "./config";
 import { usePanelSize } from "../../hooks/usePanelSize";
+import { renderPayload } from "./payloadShape";
 
 export interface ButtonConfig {
   label?: string;
@@ -232,7 +233,7 @@ export default function ButtonPanel({
           api.post("/api/publish", {
             broker_id: brokerId,
             topic: t,
-            payload: config.payload ?? "",
+            payload: renderPayload(config.payload ?? "", "", t),
             qos,
             retain,
             panel_id: panelId,

@@ -27,12 +27,12 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   effectiveReadTemplate,
+  firstTopic,
   hasToken,
 } from "./payloadShape";
 import {
   parseToggleState,
   toggleWritePayload,
-  toggleWritePayloads,
   DEFAULT_ON_PAYLOAD,
   DEFAULT_OFF_PAYLOAD,
 } from "./toggleUtils";
@@ -51,6 +51,7 @@ export interface ToggleConfig {
   stateBrokerId?: string;
   /** Shape of incoming messages, with `{value}` marking the value to compare. */
   readTemplate?: string;
+  readCovered?: string;
   /** The value published to turn the device on, dropped into the template. */
   onPayload?: string;
   /** The value published to turn it off. */
@@ -130,6 +131,7 @@ export function ToggleConfigModal({
       "",
   );
   const [readTemplate, setReadTemplate] = useState(config.readTemplate ?? "");
+  const [readCovered, setReadCovered] = useState(config.readCovered ?? "");
   const [qos, setQos] = useState(config.qos ?? 0);
   const [retain, setRetain] = useState(config.retain ?? false);
   const [selectedBrokerId, setSelectedBrokerId] = useState(
@@ -151,6 +153,7 @@ export function ToggleConfigModal({
     stateTopic,
     stateBrokerId,
     readTemplate,
+    readCovered,
     payloadTemplate,
     onPayload,
     offPayload,
@@ -222,8 +225,17 @@ export function ToggleConfigModal({
     hasToken(payloadTemplate) &&
     onPayload.trim() !== "" &&
     offPayload.trim() !== "";
-  const summaryOn = toggleWritePayload(onPayload, payloadTemplate).trim();
-  const summaryOff = toggleWritePayload(offPayload, payloadTemplate).trim();
+  const previewTopic = firstTopic(topic) || "home/light/set";
+  const summaryOn = toggleWritePayload(
+    onPayload,
+    payloadTemplate,
+    previewTopic,
+  ).trim();
+  const summaryOff = toggleWritePayload(
+    offPayload,
+    payloadTemplate,
+    previewTopic,
+  ).trim();
 
   return (
     <PanelConfigModal
@@ -240,6 +252,7 @@ export function ToggleConfigModal({
             stateTopic: separateRead ? stateTopic.trim() : "",
             stateBrokerId: separateRead ? effectiveStateBroker : undefined,
             readTemplate: separateRead ? readTemplate : undefined,
+            readCovered: separateRead ? readCovered : undefined,
             payloadTemplate,
             onPayload,
             offPayload,
@@ -320,6 +333,7 @@ export function ToggleConfigModal({
             }}
             brokerId={selectedBrokerId}
             topic={topic}
+            previewValue={`${onPayload}, ${offPayload}`}
             showPreview={false}
             placeholder={VALUE_TOKEN}
           />
@@ -424,16 +438,20 @@ export function ToggleConfigModal({
             <PayloadBuilder
               mode="read"
               value={readTemplate}
+              initialCovered={readCovered}
               onChange={(next) => {
                 setReadTemplate(next);
               }}
+              onCoveredChange={setReadCovered}
               brokerId={effectiveStateBroker}
               topic={stateTopic}
+              previewValue={`${onPayload}, ${offPayload}`}
               allowBlankShape
               // The toggle compares the marked characters against its two
               // states; it never parses them into a value.
               readsText
               placeholder={`whole payload, or {"state":"${VALUE_TOKEN}"}`}
+              previewCard
             />
             {fieldErrors.readShape && (
               <span className="text-[11px] text-warning">
@@ -547,10 +565,6 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
   // The state topic may live on another broker entirely
   const stateBrokerId =
     (separateRead && config.stateBrokerId?.trim()) || brokerId;
-  // The bytes published for each state, and the values those bytes were built
-  // from — a read shape yields the value, an echo of the command topic yields
-  // the whole message, and `parseToggleState` is given both.
-  const { on: writeOn, off: writeOff } = toggleWritePayloads(config);
   const onPayload = config.onPayload ?? DEFAULT_ON_PAYLOAD;
   const offPayload = config.offPayload ?? DEFAULT_OFF_PAYLOAD;
   // Without a read topic of its own the toggle still reads through the write
@@ -726,7 +740,11 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: desired ? writeOn : writeOff,
+        payload: toggleWritePayload(
+          desired ? onPayload : offPayload,
+          config.payloadTemplate,
+          commandTopic,
+        ),
         qos,
         retain,
         panel_id: panelId,

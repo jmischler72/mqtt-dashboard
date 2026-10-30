@@ -51,6 +51,7 @@ export interface GraphConfig {
   topics?: string;
   /** Shape of incoming messages, with `{value}` marking the part to plot. */
   readTemplate?: string;
+  readCovered?: string;
   /** Legacy dot path, kept so panels saved before shapes existed still read. */
   valueKey?: string;
   unit?: string;
@@ -107,6 +108,7 @@ export function GraphConfigModal({
   const fallbackBroker = defaultBrokerId(brokerStatuses);
   const [topics, setTopics] = useState(initialTopic ?? config.topics ?? "");
   const [readTemplate, setReadTemplate] = useState(graphReadTemplate(config));
+  const [readCovered, setReadCovered] = useState(config.readCovered ?? "");
   const [unit, setUnit] = useState(config.unit ?? "");
   const [maxPoints, setMaxPoints] = useState(
     String(config.maxPoints ?? DEFAULT_MAX_POINTS),
@@ -194,6 +196,7 @@ export function GraphConfigModal({
   const draft = (): GraphConfig => ({
     topics,
     readTemplate,
+    readCovered,
     valueKey: legacyPath,
     unit,
     // A half-typed box comes back as it was left, not as the text `NaN` for
@@ -252,9 +255,11 @@ export function GraphConfigModal({
           <PayloadBuilder
             mode="read"
             value={readTemplate}
+            initialCovered={readCovered}
             onChange={(next) => {
               setReadTemplate(next);
             }}
+            onCoveredChange={setReadCovered}
             history={{ messages: recent, loading }}
             brokerId={selectedBrokerId}
             topic={topics}
@@ -262,6 +267,7 @@ export function GraphConfigModal({
             readPath={legacyPath}
             unit={unit}
             placeholder={`whole payload, or {"temp":${VALUE_TOKEN}}`}
+            previewCard
           />
           {fieldErrors.readShape && (
             <span className="text-[11px] text-warning">

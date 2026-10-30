@@ -33,34 +33,40 @@ MQTT Dashboard unifies payload processing through a bidirectional **payload shap
 
 ---
 
-## Token Interpolation Syntax (`{value}`)
+## Token Interpolation Syntax (`{{value}}`, `{{topic}}`, `{{payload}}`, `{{timestamp}}`)
 
-When a panel publishes a message, it uses a **write template** containing a single value placeholder token:
+When a panel or automation publishes a message, it uses a **write template** containing placeholder tokens. The canonical syntax across all panels (Logic, Cron, Slider, Toggle, Button, etc.) uses double braces:
 
-```
-VALUE_TOKEN = "{value}"
-```
+| Token | Description | Example Replacement |
+|---|---|---|
+| `{{value}}` | Runtime widget value or primary triggering condition value | `22.5`, `ON` |
+| `{{topic}}` | Context MQTT topic (e.g. concrete triggering topic in wildcard rules, target topic) | `sensors/kitchen/temperature` |
+| `{{payload}}` | Raw incoming payload string | `{"temp":22.5}` |
+| `{{timestamp}}` | Current Unix epoch timestamp in seconds | `1729861200` |
+| `{{timestamp:ms}}` | Current Unix epoch timestamp in milliseconds | `1729861200000` |
+| `{{timestamp:iso}}` | Current ISO 8601 / RFC 3339 UTC timestamp | `2026-10-25T14:00:00Z` |
+| `{{value:<index>}}` | Multi-condition value by 1-based condition index (e.g. `{{value:1}}`, `{{value:2}}`) | `22.5` |
 
-In the panel configuration modal, this token is rendered as an interactive **`value` chip**.
+In the configuration modal, tokens are rendered as interactive chips with proper visual affordances.
+
+> [!NOTE]
+> **Backwards Compatibility**: Single-brace tokens (such as `{value}`, `{topic}`, `{payload}`) are transparently recognized and expanded by both the frontend and backend, and are automatically migrated to canonical `{{token}}` format when saved in the token editor.
 
 ### Quoted vs. Unquoted Tokens
 
-The syntax around `{value}` dictates the data type serialized into the published message:
+The syntax around `{{value}}` dictates the data type serialized into the published message:
 
 | Template | Runtime Value | Published Payload | Type |
 |---|---|---|---|
-| `"{value}"` | `ON` | `"ON"` | JSON String |
-| `{"state":"{value}"}` | `OFF` | `{"state":"OFF"}` | JSON Object with String property |
-| `{value}` | `42` | `42` | Raw / JSON Number |
-| `{"brightness":{value}}` | `180` | `{"brightness":180}` | JSON Object with Numeric property |
-| `prefix/{value}/suffix` | `abc` | `prefix/abc/suffix` | Custom string / URI segment |
+| `"{{value}}"` | `ON` | `"ON"` | JSON String |
+| `{"state":"{{value}}"}` | `OFF` | `{"state":"OFF"}` | JSON Object with String property |
+| `{{value}}` | `42` | `42` | Raw / JSON Number |
+| `{"brightness":{{value}}}` | `180` | `{"brightness":180}` | JSON Object with Numeric property |
+| `prefix/{{value}}/suffix` | `abc` | `prefix/abc/suffix` | Custom string / URI segment |
+| `{"t":"{{topic}}","ts":{{timestamp}}}` | — | `{"t":"sensors/temp","ts":1729861200}` | Context tokens |
 
 > [!TIP]
-> A payload that contains only the bare `{value}` token publishes the panel's runtime value directly as raw bytes without any surrounding wrappers (ideal for simple microcontrollers like Arduino or ESPHome listening for raw numbers or strings).
-
-### Single-Token Guarantee
-
-Only one `{value}` token is allowed per template. Functions such as [`keepOneToken()`](../frontend/src/components/panels/payloadShape.ts) and [`placeToken()`](../frontend/src/components/panels/payloadShape.ts) ensure that inserting a new token moves or replaces existing tokens rather than creating duplicate substitutions.
+> A payload that contains only the bare `{{value}}` token publishes the panel's runtime value directly as raw bytes without any surrounding wrappers (ideal for simple microcontrollers like Arduino or ESPHome listening for raw numbers or strings).
 
 ---
 

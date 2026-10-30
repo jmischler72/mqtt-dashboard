@@ -1,18 +1,28 @@
 import { describe, it, expect } from "vitest";
 import {
   TOKEN_LABEL,
+  TOKEN_PATTERN,
   VALUE_TOKEN,
+  clearToken,
   describeTemplate,
   deriveReadPath,
   effectiveReadPath,
   effectiveReadTemplate,
   extractValue,
   findLiterals,
+  hasAnyToken,
+  hasToken,
+  inferCoveredValue,
+  interpolateTemplate,
+  isBareToken,
   keepOneToken,
   matchTemplate,
+  normalizeTemplate,
   offsetAfterKeepOneToken,
+  parseTemplateChunks,
   payloadIssue,
   placeToken,
+  previewPayload,
   readShape,
   resolvePath,
   readValue,
@@ -336,6 +346,27 @@ describe("findLiterals", () => {
     expect(findLiterals("{ch1:5}").map((l) => l.text)).toEqual(["5"]);
   });
 
+  it("associates the JSON key with the literal value", () => {
+    const literals = findLiterals('{"temp": 21.5, "hum": 48}');
+    expect(literals).toHaveLength(2);
+    expect(literals[0]).toMatchObject({ text: "21.5", key: "temp" });
+    expect(literals[1]).toMatchObject({ text: "48", key: "hum" });
+  });
+
+  it("distinguishes duplicate values under different keys", () => {
+    const dupes = findLiterals('{"min": 0, "max": 0}');
+    expect(dupes.map((d) => ({ key: d.key, text: d.text }))).toEqual([
+      { key: "min", text: "0" },
+      { key: "max", text: "0" },
+    ]);
+  });
+
+  it("prioritizes common keys over arbitrary fields", () => {
+    const sorted = findLiterals('{"id": 104, "temp": 22.5}');
+    expect(sorted[0].key).toBe("temp");
+    expect(sorted[0].text).toBe("22.5");
+  });
+
   it("offers a value that is a bare word rather than the whole document", () => {
     expect(findLiterals('{"cmd":true}').map((l) => l.text)).toEqual(["true"]);
   });
@@ -405,6 +436,209 @@ describe("resolvePath", () => {
     expect(resolvePath({ items: [{ t: 3 }] }, "items.0.t")).toEqual({
       found: true,
       value: 3,
+    });
+  });
+});
+
+describe("template interpolation and tokens", () => {
+  const fixedTime = new Date("2026-10-25T14:00:00.000Z");
+
+  it("interpolates canonical and legacy tokens", () => {
+    const template = '{"val":{value},"t":"{topic}","raw":{payload},"ts":{timestamp},"iso":"{timestamp:iso}"}';
+    const result = interpolateTemplate(template, {
+      value: 42,
+      topic: "sensors/temp",
+      payload: '{"temp":42}',
+      timestamp: fixedTime,
+    });
+    expect(result).toBe(
+      '{"val":42,"t":"sensors/temp","raw":{"temp":42},"ts":1792936800,"iso":"2026-10-25T14:00:00.000Z"}',
+    );
+  });
+
+  it("interpolates legacy double-brace tokens", () => {
+    const template = '{"val":{{value}},"t":"{{topic}}"}';
+    const result = interpolateTemplate(template, {
+      value: 99,
+      topic: "test/legacy",
+    });
+    expect(result).toBe('{"val":99,"t":"test/legacy"}');
+  });
+
+  it("interpolates 1-indexed condition tokens", () => {
+    const template = '{"c1":{value:1},"c2":{{value:2}}}';
+    const result = interpolateTemplate(template, {
+      conditionValues: {
+        "1": "25",
+        "2": "60",
+      },
+    });
+    expect(result).toBe('{"c1":25,"c2":60}');
+  });
+
+  it("normalizes single brace tokens to canonical double braces", () => {
+    expect(normalizeTemplate("{value} {topic} {payload} {timestamp}")).toBe(
+      "{{value}} {{topic}} {{payload}} {{timestamp}}",
+    );
+    expect(normalizeTemplate('{"temp":{value}}')).toBe('{"temp":{{value}}}');
+  });
+
+  it("detects any token", () => {
+    expect(hasAnyToken("{value}")).toBe(true);
+    expect(hasAnyToken("{{topic}}")).toBe(true);
+    expect(hasAnyToken("{value:0}")).toBe(true);
+    expect(hasAnyToken("{timestamp:iso}")).toBe(true);
+    expect(hasAnyToken('{"temp": 20}')).toBe(false);
+  });
+
+  it("parses template chunks accurately", () => {
+    const chunks = parseTemplateChunks('{"t":"{topic}","v":{value:0}}');
+    expect(chunks).toEqual([
+      { type: "text", raw: '{"t":"', name: "", canonical: '{"t":"' },
+      { type: "token", raw: "{topic}", name: "topic", canonical: "{{topic}}" },
+      { type: "text", raw: '","v":', name: "", canonical: '","v":' },
+      { type: "token", raw: "{value:0}", name: "value:0", canonical: "{{value:0}}" },
+      { type: "text", raw: "}", name: "", canonical: "}" },
+    ]);
+  });
+
+  it("allows placing custom tokens", () => {
+    const placed = placeToken("prefix suffix", 7, 7, "{{topic}}");
+    expect(placed.template).toBe("prefix {{topic}}suffix");
+    expect(placed.caret).toBe(16);
+  });
+
+  describe("inferCoveredValue", () => {
+    it("infers numeric value from JSON payload", () => {
+      const template = `{"temp":${VALUE_TOKEN},"hum":55}`;
+      const sample = '{"temp":21.5,"hum":55}';
+      expect(inferCoveredValue(template, sample)).toBe("21.5");
+    });
+
+    it("infers string value from JSON payload", () => {
+      const template = `{"state":"${VALUE_TOKEN}"}`;
+      const sample = '{"state":"ON"}';
+      expect(inferCoveredValue(template, sample)).toBe("ON");
+    });
+
+    it("infers nested JSON value", () => {
+      const template = `{"sensor":{"reading":${VALUE_TOKEN}}}`;
+      const sample = '{"sensor":{"reading":42}}';
+      expect(inferCoveredValue(template, sample)).toBe("42");
+    });
+
+    it("infers bare token from plain payload", () => {
+      expect(inferCoveredValue(VALUE_TOKEN, "21.5")).toBe("21.5");
+    });
+
+    it("infers plain text stencil", () => {
+      const template = `SET ${VALUE_TOKEN} C`;
+      expect(inferCoveredValue(template, "SET 20 C")).toBe("20");
+    });
+
+    it("returns empty string if no token or no sample", () => {
+      expect(inferCoveredValue("plain text", "plain text")).toBe("");
+      expect(inferCoveredValue(VALUE_TOKEN, "")).toBe("");
+      expect(inferCoveredValue(VALUE_TOKEN, null)).toBe("");
+    });
+  });
+
+  describe("previewPayload", () => {
+    it("interpolates value, topic and sample payload with realistic fallbacks", () => {
+      const template = '{"val":{{value}},"t":"{{topic}}","p":{{payload}}}';
+      const preview = previewPayload(template, "", "", "");
+      expect(preview).toContain('"val":21.5');
+      expect(preview).toContain('"t":"sensor/temp"');
+      expect(preview).toContain('"p":{"temp":21.5}');
+    });
+
+    it("uses provided topic and payload when available", () => {
+      const template = '{"val":{{value}},"t":"{{topic}}","p":{{payload}}}';
+      const preview = previewPayload(template, 50, "home/living", '{"status":"ok"}');
+      expect(preview).toBe('{"val":50,"t":"home/living","p":{"status":"ok"}}');
+    });
+
+    it("interpolates timestamp tokens in preview", () => {
+      const template = '{"ts":{{timestamp}}}';
+      const preview = previewPayload(template);
+      expect(preview).toMatch(/\{"ts":\d+\}/);
+    });
+
+    it("uses only the first topic for {{topic}} when given a comma-separated topic list", () => {
+      const template = '{"t":"{{topic}}"}';
+      expect(previewPayload(template, 1, "home/a, home/b")).toBe(
+        '{"t":"home/a"}',
+      );
+    });
+
+    it("interpolates indexed condition tokens {{value:1}}, {{value:2}} using availableTokens previews", () => {
+      const template = '{"v1":{{value:1}},"v2":{{value:2}}}';
+      const tokens = [
+        { name: "value:1", token: "{{value:1}}", preview: "25" },
+        { name: "value:2", token: "{{value:2}}", preview: "60" },
+      ];
+      expect(previewPayload(template, "25", "sensors/temp", null, tokens)).toBe(
+        '{"v1":25,"v2":60}',
+      );
+    });
+  });
+
+  describe("clearToken", () => {
+    it("restores covered value when clearing bare token", () => {
+      expect(clearToken("{{value}}", "21.5")).toBe("21.5");
+      expect(clearToken("{value}", "ON")).toBe("ON");
+      expect(clearToken("{{value}}", "")).toBe("");
+    });
+
+    it("restores covered value inside template with surrounding text", () => {
+      expect(clearToken('{"temp":{{value}}}', "21.5")).toBe('{"temp":21.5}');
+      expect(clearToken('{"state":"{value}"}', "ON")).toBe('{"state":"ON"}');
+    });
+
+    it("restores value containing special characters like $ safely", () => {
+      expect(clearToken('{"price":"{{value}}"}', "$10")).toBe('{"price":"$10"}');
+      expect(clearToken('{"code":"{{value}}"}', "$&")).toBe('{"code":"$&"}');
+    });
+
+    it("clears tokens that have inner whitespace", () => {
+      expect(clearToken('{"temp":{{ value }}}', "21.5")).toBe('{"temp":21.5}');
+      expect(clearToken('{"temp":{ value }}', "21.5")).toBe('{"temp":21.5}');
+    });
+  });
+
+  describe("TOKEN_PATTERN & whitespace tolerance", () => {
+    it("matches tokens with inner whitespace", () => {
+      expect(interpolateTemplate('{"val":{{ value }}}', { value: 42 })).toBe(
+        '{"val":42}',
+      );
+      expect(interpolateTemplate('{"t":"{ topic }"}', { topic: "test/foo" })).toBe(
+        '{"t":"test/foo"}',
+      );
+    });
+
+    it("recognizes value tokens with inner whitespace in hasToken and isBareToken", () => {
+      expect(hasToken("{{ value }}")).toBe(true);
+      expect(hasToken("{ value }")).toBe(true);
+      expect(hasToken('{"temp": {{ value }}}')).toBe(true);
+      expect(isBareToken("  {{ value }}  ")).toBe(true);
+      expect(isBareToken("{ value }")).toBe(true);
+    });
+
+    it("TOKEN_PATTERN does not retain state between test calls", () => {
+      expect(TOKEN_PATTERN.test("{{value}}")).toBe(true);
+      expect(TOKEN_PATTERN.test("{{value}}")).toBe(true);
+    });
+
+    it("derives read path even when template contains other tokens like timestamp or topic", () => {
+      expect(
+        deriveReadPath('{"temp": {{value}}, "ts": {{timestamp}}, "top": "{{topic}}"}'),
+      ).toBe("temp");
+    });
+
+    it("handles escaped quotes in findLiterals cleanly", () => {
+      const literals = findLiterals('{"msg": "He said \\"hello\\"", "val": 42}');
+      const valLit = literals.find((l) => l.key === "val");
+      expect(valLit?.text).toBe("42");
     });
   });
 });

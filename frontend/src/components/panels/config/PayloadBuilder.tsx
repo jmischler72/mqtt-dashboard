@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   usePayloadSample,
   type RecentMessage,
@@ -8,8 +8,13 @@ import {
   VALUE_TOKEN,
   findLiterals,
   hasToken,
+  hasAnyToken,
+  inferCoveredValue,
+  keepOneToken,
+  parseTemplateChunks,
+  previewPayload,
   readShape,
-  renderPayload,
+  type TokenOption,
 } from "../payloadShape";
 import MessageHistory from "./MessageHistory";
 import PreviewBox from "./PreviewBox";
@@ -43,7 +48,9 @@ export interface PayloadBuilderProps {
    */
   mode: "write" | "read";
   value: string;
+  initialCovered?: string;
   onChange: (next: string) => void;
+  onCoveredChange?: (covered: string) => void;
   /** Sampled for the history list, and named in its empty state. */
   topic: string;
   brokerId: string;
@@ -84,6 +91,8 @@ export interface PayloadBuilderProps {
    */
   readsText?: boolean;
   placeholder?: string;
+  /** Available tokens to offer as chips in write mode. */
+  availableTokens?: TokenOption[];
   /** Write mode: the live preview sweeps this range. */
   range?: NumericRange | null;
   /** Write mode without a range: the value the preview substitutes. */
@@ -115,7 +124,9 @@ const boxClass =
 export default function PayloadBuilder({
   mode,
   value,
+  initialCovered,
   onChange,
+  onCoveredChange,
   topic,
   brokerId,
   history,
@@ -127,13 +138,14 @@ export default function PayloadBuilder({
   readPath,
   readsText,
   placeholder,
+  availableTokens,
   range,
   previewValue,
   unit,
   note,
 }: PayloadBuilderProps) {
   const isPreviewCard = previewCard ?? Boolean(range);
-  const [covered, setCovered] = useState("");
+  const [covered, setCovered] = useState(initialCovered || "");
   const coveredIndex = useRef<number | null>(null);
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
   const [position, setPosition] = useState<number | null>(null);
@@ -142,8 +154,15 @@ export default function PayloadBuilder({
   // caret, so the DOM is only rewritten when the value changed elsewhere — a
   // message being taken, or the chip being placed by the controls below.
   const painted = useRef<string | null>(null);
+  const lastPaintedCovered = useRef<string | null>(null);
   // Where the caret belongs after such a repaint, when the change knows.
   const pendingCaret = useRef<number | null>(null);
+
+  const updateCovered = (text: string, idx?: number | null) => {
+    setCovered(text);
+    coveredIndex.current = idx ?? null;
+    onCoveredChange?.(text);
+  };
 
   // Only sampled when the caller has not already done it for a shared list
   const sampled = usePayloadSample(
@@ -155,12 +174,20 @@ export default function PayloadBuilder({
   const latest = messages[0] ?? null;
 
   const reading = mode === "read";
-  const chip = hasToken(value);
+  const chip = hasAnyToken(value);
+
+  // Derive covered value inline if not already set (e.g. when opening a saved config)
+  const effectiveCovered = useMemo(() => {
+    if (covered) return covered;
+    if (acceptsChip && latest?.payload && hasToken(value)) {
+      return inferCoveredValue(value, latest.payload);
+    }
+    return "";
+  }, [covered, acceptsChip, reading, latest?.payload, value]);
 
   const useMessage = (payload: string, index: number) => {
     onChange(markFirstNumber(payload, acceptsChip));
-    setCovered(acceptsChip ? (firstNumber(payload)?.text ?? "") : "");
-    coveredIndex.current = 0;
+    updateCovered(acceptsChip ? (firstNumber(payload)?.text ?? "") : "", 0);
     setUsedIndex(index);
     setPosition(null);
   };
@@ -168,12 +195,16 @@ export default function PayloadBuilder({
   const handleRemoveChip = (chip: HTMLElement) => {
     const host = box.current;
     if (!host) return;
-    const { template: next, caret } = removeChipFromEditor(host, chip, covered);
+    const { template: next, caret } = removeChipFromEditor(
+      host,
+      chip,
+      effectiveCovered,
+    );
+    pendingCaret.current = caret;
     painted.current = next;
     onChange(next);
     if (!hasToken(next)) {
-      setCovered("");
-      coveredIndex.current = null;
+      updateCovered("", null);
     }
     host.focus();
     setCaret(host, caret);
@@ -182,10 +213,22 @@ export default function PayloadBuilder({
   useEffect(() => {
     const host = box.current;
     if (!host) return;
-    if (painted.current === value) return;
+    if (
+      painted.current === value &&
+      lastPaintedCovered.current === effectiveCovered
+    ) {
+      return;
+    }
 
-    paintTemplate(host, value, acceptsChip, covered, coveredIndex.current);
+    paintTemplate(
+      host,
+      value,
+      acceptsChip,
+      effectiveCovered,
+      coveredIndex.current,
+    );
     painted.current = value;
+    lastPaintedCovered.current = effectiveCovered;
     coveredIndex.current = null;
 
     const caret = pendingCaret.current;
@@ -194,7 +237,7 @@ export default function PayloadBuilder({
       host.focus();
       setCaret(host, caret);
     }
-  }, [value, acceptsChip, covered]);
+  }, [value, acceptsChip, effectiveCovered]);
 
   const historyNode = showHistory ? (
     <MessageHistory
@@ -244,8 +287,16 @@ export default function PayloadBuilder({
             }}
             onInput={(e) => {
               const host = e.currentTarget;
-              const raw = readTemplate(host);
-              painted.current = raw;
+              let raw = readTemplate(host);
+              const original = raw;
+              if (reading) {
+                raw = keepOneToken(raw);
+              }
+              if (raw !== original) {
+                painted.current = null;
+              } else {
+                painted.current = raw;
+              }
               onChange(raw);
               setUsedIndex(null);
             }}
@@ -271,8 +322,7 @@ export default function PayloadBuilder({
               }}
               onClick={() => {
                 onChange("");
-                setCovered("");
-                coveredIndex.current = null;
+                updateCovered("", null);
                 setUsedIndex(null);
                 setPosition(null);
                 box.current?.focus();
@@ -300,9 +350,12 @@ export default function PayloadBuilder({
           acceptsChip && (
             <WritePreview
               value={value}
+              topic={topic}
+              samplePayload={latest?.payload}
               chip={chip}
               range={range ?? null}
               previewValue={previewValue}
+              availableTokens={availableTokens}
               position={position}
               onPosition={setPosition}
               asCard={false}
@@ -315,6 +368,11 @@ export default function PayloadBuilder({
         <ValueChipControls
           mode={mode}
           value={value}
+          covered={effectiveCovered}
+          samplePayload={latest?.payload}
+          topic={topic}
+          previewValue={previewValue}
+          availableTokens={availableTokens}
           history={historyNode}
           onChange={(next) => {
             // A chip action that changes nothing repaints nothing, so the caret
@@ -330,8 +388,7 @@ export default function PayloadBuilder({
             pendingCaret.current = at;
           }}
           onCoveredChange={(text, idx) => {
-            setCovered(text);
-            coveredIndex.current = idx ?? null;
+            updateCovered(text, idx);
           }}
         />
       ) : (
@@ -369,9 +426,12 @@ export default function PayloadBuilder({
           acceptsChip && (
             <WritePreview
               value={value}
+              topic={topic}
+              samplePayload={latest?.payload}
               chip={chip}
               range={range ?? null}
               previewValue={previewValue}
+              availableTokens={availableTokens}
               position={position}
               onPosition={setPosition}
               asCard={true}
@@ -395,7 +455,7 @@ export function PayloadSummary({
   /** False where the token's characters are literal bytes, not a chip. */
   chips?: boolean;
 }) {
-  const oneLine = value.replace(/\s+/g, " ").trim();
+  const oneLine = (value ?? "").replace(/\s+/g, " ").trim();
   if (oneLine === "")
     return <span className="text-base-content/50">{empty}</span>;
 
@@ -404,35 +464,44 @@ export function PayloadSummary({
 
   if (!chips) return <span className="font-mono">{clipped}</span>;
 
+  const chunks = parseTemplateChunks(clipped);
   return (
     <span className="font-mono">
-      {clipped.split(VALUE_TOKEN).map((chunk, index) => (
-        <span key={index}>
-          {index > 0 && (
-            <span className="mx-0.5 px-1.5 rounded-full bg-primary text-primary-content">
-              {TOKEN_LABEL}
-            </span>
-          )}
-          {chunk}
-        </span>
-      ))}
+      {chunks.map((chunk, index) =>
+        chunk.type === "text" ? (
+          <span key={index}>{chunk.raw}</span>
+        ) : (
+          <span
+            key={index}
+            className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5"
+          >
+            {chunk.name}
+          </span>
+        ),
+      )}
     </span>
   );
 }
 
 function WritePreview({
   value,
+  topic,
+  samplePayload,
   chip,
   range,
   previewValue,
+  availableTokens,
   position,
   onPosition,
   asCard = false,
 }: {
   value: string;
+  topic?: string;
+  samplePayload?: string | null;
   chip: boolean;
   range: NumericRange | null;
   previewValue?: string;
+  availableTokens?: TokenOption[];
   position: number | null;
   onPosition: (next: number) => void;
   asCard?: boolean;
@@ -444,7 +513,7 @@ function WritePreview({
           problem={
             value.trim() === ""
               ? "Nothing to send yet."
-              : `No ${TOKEN_LABEL} chip in message.`
+              : `No token chip in message.`
           }
         />
       );
@@ -469,7 +538,16 @@ function WritePreview({
               value={at}
               onChange={(e) => onPosition(Number(e.target.value))}
             />
-            <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+            <PreviewLine
+              label="Sends"
+              bytes={previewPayload(
+                value,
+                at,
+                topic,
+                samplePayload,
+                availableTokens,
+              )}
+            />
           </div>
         </PreviewBox>
       );
@@ -479,7 +557,13 @@ function WritePreview({
       <PreviewBox>
         <PreviewLine
           label="Sends"
-          bytes={renderPayload(value, previewValue ?? "")}
+          bytes={previewPayload(
+            value,
+            previewValue,
+            topic,
+            samplePayload,
+            availableTokens,
+          )}
         />
       </PreviewBox>
     );
@@ -505,16 +589,31 @@ function WritePreview({
           value={at}
           onChange={(e) => onPosition(Number(e.target.value))}
         />
-        <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+        <PreviewLine
+          label="Sends"
+          bytes={previewPayload(
+            value,
+            at,
+            topic,
+            samplePayload,
+            availableTokens,
+          )}
+        />
       </div>
     );
   }
 
   return (
-    <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 min-w-0">
+    <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
       <PreviewLine
         label="Sends"
-        bytes={renderPayload(value, previewValue ?? "")}
+        bytes={previewPayload(
+          value,
+          previewValue,
+          topic,
+          samplePayload,
+          availableTokens,
+        )}
       />
     </div>
   );

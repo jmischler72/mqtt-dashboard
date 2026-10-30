@@ -1,6 +1,7 @@
 import { parseGaugePayload } from "./gaugeUtils";
 import {
   deriveReadPath,
+  hasAnyToken,
   hasToken,
   matchTemplate,
   parseLooseJson,
@@ -34,12 +35,21 @@ export function toggleWritePayloads(config: {
   onPayload?: string;
   offPayload?: string;
   payloadTemplate?: string;
+  topic?: string;
 }): { on: string; off: string } {
   const template = config.payloadTemplate;
 
   return {
-    on: toggleWritePayload(config.onPayload ?? DEFAULT_ON_PAYLOAD, template),
-    off: toggleWritePayload(config.offPayload ?? DEFAULT_OFF_PAYLOAD, template),
+    on: toggleWritePayload(
+      config.onPayload ?? DEFAULT_ON_PAYLOAD,
+      template,
+      config.topic,
+    ),
+    off: toggleWritePayload(
+      config.offPayload ?? DEFAULT_OFF_PAYLOAD,
+      template,
+      config.topic,
+    ),
   };
 }
 
@@ -54,10 +64,11 @@ export function toggleWritePayloads(config: {
 export function toggleWritePayload(
   value: string,
   payloadTemplate?: string,
+  topic?: string,
 ): string {
   const template = payloadTemplate;
-  if (!template || !hasToken(template)) return value;
-  return renderPayload(template, value);
+  if (!template || !hasAnyToken(template)) return value;
+  return renderPayload(template, value, topic);
 }
 
 /**

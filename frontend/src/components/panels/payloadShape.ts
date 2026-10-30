@@ -214,7 +214,169 @@ export function extractValue(payload: string, path?: string): ExtractedValue {
  * into at publish time. Quoting the token is what decides the type:
  * `"{value}"` sends text, a bare `{value}` sends a number.
  */
-export const VALUE_TOKEN = "{value}";
+export const VALUE_TOKEN = "{{value}}";
+
+/**
+ * Regex matching value tokens with optional inner whitespace ({{value}}, {{ value }}, {value}, { value }).
+ */
+export const VALUE_TOKEN_PATTERN = /\{\{\s*value\s*\}\}|\{\s*value\s*\}/g;
+
+/**
+ * Regex matching both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
+ * {{value:1}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
+ */
+export const TOKEN_PATTERN =
+  /(\{\{\s*[a-zA-Z0-9_/:.+#-]+\s*\}\}|\{\s*(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)\s*\})/;
+
+/** Strips surrounding `{` and `}` braces and whitespace from a token string. */
+export function unwrapToken(raw: string): string {
+  return raw.replace(/^\{+|\}+$/g, "").trim();
+}
+
+/** Splits a potentially comma-separated topic string into trimmed non-empty topics. */
+export function splitTopics(topic?: string): string[] {
+  if (!topic) return [];
+  return topic
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/** Returns the first non-empty trimmed topic from a potentially comma-separated topic string. */
+export function firstTopic(topic?: string): string {
+  return splitTopics(topic)[0] ?? "";
+}
+
+export interface TokenOption {
+  name: string;
+  token: string;
+  label?: string;
+  title?: string;
+  preview?: string;
+}
+
+export interface ParsedChunk {
+  type: "text" | "token";
+  raw: string;
+  name: string;
+  canonical: string;
+}
+
+/**
+ * Splits a template string into alternating text and token chunks.
+ */
+export function parseTemplateChunks(template: string): ParsedChunk[] {
+  const chunks: ParsedChunk[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  while ((match = regex.exec(template)) !== null) {
+    if (match.index > lastIndex) {
+      chunks.push({
+        type: "text",
+        raw: template.slice(lastIndex, match.index),
+        name: "",
+        canonical: template.slice(lastIndex, match.index),
+      });
+    }
+
+    const raw = match[0];
+    const name = unwrapToken(raw);
+    const canonical = `{{${name}}}`;
+
+    chunks.push({
+      type: "token",
+      raw,
+      name,
+      canonical,
+    });
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < template.length) {
+    chunks.push({
+      type: "text",
+      raw: template.slice(lastIndex),
+      name: "",
+      canonical: template.slice(lastIndex),
+    });
+  }
+
+  return chunks;
+}
+
+export interface TemplateContext {
+  value?: string | number | boolean;
+  topic?: string;
+  payload?: string;
+  timestamp?: number | Date;
+  conditionValues?: Record<string, string>;
+}
+
+/**
+ * Centralized template interpolation.
+ * Supports {{value}}, {{topic}}, {{payload}}, {{timestamp}}, {{timestamp:iso}}, {{timestamp:ms}},
+ * condition indexing {{value:1}}, {{value:2}}, etc., and transparently supports single-brace {token} forms.
+ */
+export function interpolateTemplate(
+  template: string,
+  ctx: TemplateContext,
+): string {
+  if (!template) return "";
+
+  const ts =
+    ctx.timestamp instanceof Date
+      ? ctx.timestamp
+      : typeof ctx.timestamp === "number"
+        ? new Date(ctx.timestamp)
+        : new Date();
+
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  return template.replace(regex, (match) => {
+    const name = unwrapToken(match);
+
+    switch (name) {
+      case "value":
+        return ctx.value !== undefined ? String(ctx.value) : match;
+      case "topic":
+        return ctx.topic !== undefined ? ctx.topic : match;
+      case "payload":
+        return ctx.payload !== undefined ? ctx.payload : match;
+      case "timestamp":
+        return String(Math.floor(ts.getTime() / 1000));
+      case "timestamp:ms":
+        return String(ts.getTime());
+      case "timestamp:iso":
+      case "iso_timestamp":
+        return ts.toISOString();
+      default:
+        if (name.startsWith("value:")) {
+          const key = name.slice("value:".length);
+          if (
+            ctx.conditionValues &&
+            Object.prototype.hasOwnProperty.call(ctx.conditionValues, key)
+          ) {
+            return ctx.conditionValues[key];
+          }
+          return ctx.conditionValues === undefined && ctx.value !== undefined
+            ? String(ctx.value)
+            : "";
+        }
+        return match;
+    }
+  });
+}
+
+/**
+ * Normalizes tokens ({value}, {topic}, etc.) to canonical double braces ({{value}}, {{topic}}, etc.).
+ */
+export function normalizeTemplate(template: string): string {
+  if (!template) return "";
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  return template.replace(regex, (match) => `{{${unwrapToken(match)}}}`);
+}
 
 /**
  * What the token is called in the interface. The payload stores the character;
@@ -227,7 +389,13 @@ export const TOKEN_LABEL = "value";
 const TOKEN_SENTINEL = "__mqtt_dashboard_token__";
 
 export function hasToken(template: string): boolean {
-  return template.includes(VALUE_TOKEN);
+  if (!template) return false;
+  return /\{\{\s*value\s*\}\}|\{\s*value\s*\}/.test(template);
+}
+
+export function hasAnyToken(template: string): boolean {
+  if (!template) return false;
+  return new RegExp(TOKEN_PATTERN.source).test(template);
 }
 
 /**
@@ -236,22 +404,68 @@ export function hasToken(template: string): boolean {
  * slider or button — rather than a payload that happens to lack JSON.
  */
 export function isBareToken(template: string): boolean {
-  return template.trim() === VALUE_TOKEN;
+  return /^\s*(\{\{\s*value\s*\}\}|\{\s*value\s*\})\s*$/.test(template);
 }
 
 /** True when the token is written inside quotes, i.e. published as text. */
 export function isTokenQuoted(template: string): boolean {
-  const at = template.indexOf(VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
+  const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return false;
-  return template[at - 1] === '"' && template[at + VALUE_TOKEN.length] === '"';
+  return norm[at - 1] === '"' && norm[at + VALUE_TOKEN.length] === '"';
 }
 
-/** Publish-time substitution: the template with the value dropped in. */
+/** Publish-time substitution: the template with context dropped in. */
 export function renderPayload(
   template: string,
   value: string | number | boolean,
+  topic?: string,
+  payload?: string,
 ): string {
-  return template.split(VALUE_TOKEN).join(String(value));
+  return interpolateTemplate(template, {
+    value,
+    topic: firstTopic(topic) || topic,
+    payload,
+  });
+}
+
+/**
+ * Renders payload for preview, using realistic fallback values for context tokens
+ * when none are explicitly provided so the preview always shows what the message will look like.
+ */
+export function previewPayload(
+  template: string,
+  value?: string | number | boolean,
+  topic?: string,
+  samplePayload?: string | null,
+  availableTokens?: TokenOption[],
+): string {
+  const effectiveValue =
+    value !== undefined && value !== "" ? value : "21.5";
+  const effectiveTopic = firstTopic(topic) || "sensor/temp";
+  const effectivePayload =
+    samplePayload && samplePayload.trim()
+      ? samplePayload.trim()
+      : '{"temp":21.5}';
+
+  let conditionValues: Record<string, string> | undefined;
+
+  if (availableTokens) {
+    for (const t of availableTokens) {
+      if (!t.preview) continue;
+      if (t.name.startsWith("value:")) {
+        conditionValues ??= {};
+        conditionValues[t.name.slice("value:".length)] = t.preview;
+      }
+    }
+  }
+
+  return interpolateTemplate(template, {
+    value: effectiveValue,
+    topic: effectiveTopic,
+    payload: effectivePayload,
+    conditionValues,
+  });
 }
 
 /**
@@ -260,13 +474,18 @@ export function renderPayload(
  * not JSON (the payload is the value) or has no token.
  */
 export function deriveReadPath(template: string): string | null {
-  if (!hasToken(template)) return null;
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
+  if (!hasToken(norm)) return null;
 
   // Make the template parseable by standing a string in for the token; a bare
   // token needs quotes added, a quoted one already has them.
-  const parseable = isTokenQuoted(template)
-    ? template.split(VALUE_TOKEN).join(TOKEN_SENTINEL)
-    : template.split(VALUE_TOKEN).join(`"${TOKEN_SENTINEL}"`);
+  let parseable = isTokenQuoted(norm)
+    ? norm.split(VALUE_TOKEN).join(TOKEN_SENTINEL)
+    : norm.split(VALUE_TOKEN).join(`"${TOKEN_SENTINEL}"`);
+
+  // Replace any other tokens (e.g. {{timestamp}}, {{topic}}) with a dummy value so JSON parses
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  parseable = parseable.replace(regex, "0");
 
   const json = parseLooseJson(parseable);
 
@@ -333,11 +552,12 @@ export function matchTemplate(
   template: string,
   message: string,
 ): string | null {
-  const at = template.indexOf(VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
+  const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return null;
 
-  const head = template.slice(0, at).trimStart();
-  const tail = template.slice(at + VALUE_TOKEN.length).trimEnd();
+  const head = norm.slice(0, at).trimStart();
+  const tail = norm.slice(at + VALUE_TOKEN.length).trimEnd();
   if (!head && !tail) return null;
 
   const text = message.trim();
@@ -601,6 +821,7 @@ export interface TemplateLiteral {
   text: string;
   start: number;
   end: number;
+  key?: string;
 }
 
 /**
@@ -613,12 +834,13 @@ export interface TemplateLiteral {
  * one the user made; later spellings are dropped.
  */
 export function keepOneToken(template: string): string {
-  const at = template.indexOf(VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
+  const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return template;
 
   const upto = at + VALUE_TOKEN.length;
   return (
-    template.slice(0, upto) + template.slice(upto).split(VALUE_TOKEN).join("")
+    norm.slice(0, upto) + norm.slice(upto).split(VALUE_TOKEN).join("")
   );
 }
 
@@ -663,9 +885,9 @@ const STRUCTURED = /[{}[\]:,]/;
  * Capped and de-duplicated: the chips are a shortcut, not an index. A caller
  * looking for one particular literal rather than drawing the row raises the cap.
  */
-export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
+export function findLiterals(template: string, limit = 8): TemplateLiteral[] {
   const out: TemplateLiteral[] = [];
-  const re = /"[^"]*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
+  const re = /"(?:[^"\\]|\\.)*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
   const seen = new Set<string>();
 
   let match: RegExpExecArray | null;
@@ -677,9 +899,20 @@ export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
     // *word* the match sits in decides it: the `1` of `ch1` names the field.
     const rest = template.slice(match.index + text.length);
     if (/^[^\s"',{}[\]]*\s*:/.test(rest)) continue;
-    if (seen.has(text) || text.includes(VALUE_TOKEN)) continue;
-    seen.add(text);
-    out.push({ text, start: match.index, end: match.index + text.length });
+    if (hasAnyToken(text)) continue;
+
+    // Detect preceding JSON key if any (e.g. "temperature": 21.5 or temp: 21.5)
+    const before = template.slice(0, match.index);
+    const keyMatch = before.match(
+      /(?:["']([^"'\\]+)["']|([A-Za-z0-9_$-]+))\s*:\s*$/,
+    );
+    const key = keyMatch ? keyMatch[1] || keyMatch[2] : undefined;
+
+    const dedupeKey = key ? `${key}:${text}` : text;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    out.push({ text, start: match.index, end: match.index + text.length, key });
   }
 
   // A payload that is a single bare word — `ON`, `RESET` — has no literal the
@@ -696,6 +929,19 @@ export function findLiterals(template: string, limit = 4): TemplateLiteral[] {
   ) {
     const start = template.indexOf(trimmed);
     out.push({ text: trimmed, start, end: start + trimmed.length });
+  }
+
+  // Rank detected literals: fields named after common sensor readings (temp, value, state)
+  // sort first so the 2 inline badges are the most relevant.
+  if (out.length > 1) {
+    out.sort((a, b) => {
+      const aIdx = a.key ? COMMON_KEYS.indexOf(a.key.toLowerCase()) : -1;
+      const bIdx = b.key ? COMMON_KEYS.indexOf(b.key.toLowerCase()) : -1;
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.start - b.start;
+    });
   }
 
   return out;
@@ -727,13 +973,79 @@ export function markLiteral(
  * "publish my value" into "publish this one literal forever".
  */
 export function clearToken(template: string, restore: string): string {
-  if (isBareToken(template)) return "";
-  return template.split(VALUE_TOKEN).join(restore);
+  if (isBareToken(template)) return restore;
+  return template.replace(VALUE_TOKEN_PATTERN, () => restore);
+}
+
+/**
+ * Infer the literal text covered by the token from a sample payload.
+ *
+ * Useful when opening a saved template where the covered constant is not in
+ * component state: if the broker is sending messages or the history has a sample,
+ * the constant that sat where the token is now can be deduced and restored
+ * when the user swaps the token elsewhere.
+ */
+export function inferCoveredValue(
+  template: string,
+  samplePayload?: string | null,
+): string {
+  if (
+    !template ||
+    !samplePayload ||
+    !samplePayload.trim() ||
+    !hasToken(template)
+  ) {
+    return "";
+  }
+
+  if (isBareToken(template)) {
+    return samplePayload.trim();
+  }
+
+  const path = deriveReadPath(template);
+  if (path) {
+    try {
+      const parsed = parseLooseJson(samplePayload);
+      if (parsed && typeof parsed === "object") {
+        const { found, value: cur } = resolvePath(parsed, path);
+        if (found && cur !== undefined && cur !== null) {
+          if (typeof cur === "string") {
+            return isTokenQuoted(template) ? cur : JSON.stringify(cur);
+          }
+          return String(cur);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const literals = findLiterals(samplePayload, 32);
+    const lit = literals.find(
+      (l) => l.key && l.key.toLowerCase() === path.toLowerCase(),
+    );
+    if (lit) {
+      if (
+        isTokenQuoted(template) &&
+        lit.text.startsWith('"') &&
+        lit.text.endsWith('"')
+      ) {
+        return lit.text.slice(1, -1);
+      }
+      return lit.text;
+    }
+  }
+
+  const matched = matchTemplate(template, samplePayload);
+  if (matched !== null) {
+    return matched;
+  }
+
+  return "";
 }
 
 /** The template as the interface says it, with the token under its label. */
 export function describeTemplate(template: string): string {
-  return template.split(VALUE_TOKEN).join(TOKEN_LABEL);
+  return template.replace(VALUE_TOKEN_PATTERN, TOKEN_LABEL);
 }
 
 /**
@@ -748,13 +1060,14 @@ export function placeToken(
   template: string,
   start: number,
   end: number,
+  token: string = VALUE_TOKEN,
 ): { template: string; caret: number; covered: string } {
   const from = Math.max(0, Math.min(start, template.length));
   const to = Math.max(from, Math.min(end, template.length));
 
   return {
-    template: template.slice(0, from) + VALUE_TOKEN + template.slice(to),
-    caret: from + VALUE_TOKEN.length,
+    template: template.slice(0, from) + token + template.slice(to),
+    caret: from + token.length,
     covered: template.slice(from, to),
   };
 }
