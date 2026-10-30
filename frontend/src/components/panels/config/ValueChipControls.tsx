@@ -268,15 +268,38 @@ export default function ValueChipControls({
     };
 
     const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
+      const target = e.target;
+      // Do not close when scrolling inside the open menu itself
       if (
-        tokenMenuRef.current?.contains(target) ||
-        literalMenuRef.current?.contains(target)
+        target instanceof Node &&
+        (tokenMenuRef.current?.contains(target) ||
+          literalMenuRef.current?.contains(target))
       ) {
         return;
       }
-      setTokenMenuOpen(false);
-      setLiteralMenuOpen(false);
+
+      // Only close if scrolling window/document or a container that actually
+      // contains the trigger button (i.e. the modal content moved). Unrelated background
+      // scroll events (such as an auto-scrolling log panel) must never close the menu.
+      const isAncestorOf = (btn: HTMLElement | null): boolean => {
+        if (!btn) return false;
+        if (
+          target === window ||
+          target === document ||
+          target === document.documentElement ||
+          target === document.body
+        ) {
+          return true;
+        }
+        return target instanceof Node && target.contains(btn);
+      };
+
+      if (tokenMenuOpen && isAncestorOf(tokenButtonRef.current)) {
+        setTokenMenuOpen(false);
+      }
+      if (literalMenuOpen && isAncestorOf(literalButtonRef.current)) {
+        setLiteralMenuOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
