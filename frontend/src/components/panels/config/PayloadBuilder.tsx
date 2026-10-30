@@ -200,6 +200,7 @@ export default function PayloadBuilder({
       chip,
       effectiveCovered,
     );
+    pendingCaret.current = caret;
     painted.current = next;
     onChange(next);
     if (!hasToken(next)) {
@@ -287,10 +288,15 @@ export default function PayloadBuilder({
             onInput={(e) => {
               const host = e.currentTarget;
               let raw = readTemplate(host);
+              const original = raw;
               if (reading) {
                 raw = keepOneToken(raw);
               }
-              painted.current = raw;
+              if (raw !== original) {
+                painted.current = null;
+              } else {
+                painted.current = raw;
+              }
               onChange(raw);
               setUsedIndex(null);
             }}
@@ -467,7 +473,7 @@ export function PayloadSummary({
         ) : (
           <span
             key={index}
-            className="mx-0.5 px-1.5 rounded-full bg-primary text-primary-content text-[10px]"
+            className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5"
           >
             {chunk.name}
           </span>

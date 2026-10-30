@@ -87,10 +87,15 @@ function findTargetLiteral(
 ): TemplateLiteral | null {
   const candidates = findLiterals(source, Infinity);
   if (literal.key) {
-    const byKey = candidates.find(
+    const keyLower = literal.key.toLowerCase();
+    const byKeyAndText = candidates.find(
       (l) => l.key === literal.key && l.text === literal.text,
     );
-    if (byKey) return byKey;
+    if (byKeyAndText) return byKeyAndText;
+    const byKeyOnly = candidates.find(
+      (l) => l.key && l.key.toLowerCase() === keyLower,
+    );
+    if (byKeyOnly) return byKeyOnly;
   }
   const byText = candidates.find((l) => l.text === literal.text);
   if (byText) return byText;
@@ -179,8 +184,9 @@ export default function ValueChipControls({
       return false;
     };
 
-    if (samplePayload && samplePayload.trim()) {
-      for (const lit of findLiterals(samplePayload, 12)) {
+    const addLiterals = (source?: string | null) => {
+      if (!source || !source.trim()) return;
+      for (const lit of findLiterals(source, 12)) {
         if (isCurrentTokenField(lit)) continue;
         const id = lit.key ? `${lit.key}:${lit.text}` : lit.text;
         if (!seen.has(id)) {
@@ -188,16 +194,10 @@ export default function ValueChipControls({
           candidates.push(lit);
         }
       }
-    }
+    };
 
-    for (const lit of findLiterals(value, 12)) {
-      if (isCurrentTokenField(lit)) continue;
-      const id = lit.key ? `${lit.key}:${lit.text}` : lit.text;
-      if (!seen.has(id)) {
-        seen.add(id);
-        candidates.push(lit);
-      }
-    }
+    addLiterals(samplePayload);
+    addLiterals(value);
 
     return candidates;
   }, [value, samplePayload, covered, previewValue]);

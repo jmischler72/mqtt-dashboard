@@ -217,6 +217,11 @@ export function extractValue(payload: string, path?: string): ExtractedValue {
 export const VALUE_TOKEN = "{{value}}";
 
 /**
+ * Regex matching value tokens with optional inner whitespace ({{value}}, {{ value }}, {value}, { value }).
+ */
+export const VALUE_TOKEN_PATTERN = /\{\{\s*value\s*\}\}|\{\s*value\s*\}/g;
+
+/**
  * Regex matching both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
  * {{value:1}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
  */
@@ -384,7 +389,8 @@ export const TOKEN_LABEL = "value";
 const TOKEN_SENTINEL = "__mqtt_dashboard_token__";
 
 export function hasToken(template: string): boolean {
-  return template.includes(VALUE_TOKEN) || template.includes("{value}");
+  if (!template) return false;
+  return /\{\{\s*value\s*\}\}|\{\s*value\s*\}/.test(template);
 }
 
 export function hasAnyToken(template: string): boolean {
@@ -398,13 +404,12 @@ export function hasAnyToken(template: string): boolean {
  * slider or button — rather than a payload that happens to lack JSON.
  */
 export function isBareToken(template: string): boolean {
-  const trimmed = template.trim();
-  return trimmed === VALUE_TOKEN || trimmed === "{value}";
+  return /^\s*(\{\{\s*value\s*\}\}|\{\s*value\s*\})\s*$/.test(template);
 }
 
 /** True when the token is written inside quotes, i.e. published as text. */
 export function isTokenQuoted(template: string): boolean {
-  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
   const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return false;
   return norm[at - 1] === '"' && norm[at + VALUE_TOKEN.length] === '"';
@@ -469,14 +474,18 @@ export function previewPayload(
  * not JSON (the payload is the value) or has no token.
  */
 export function deriveReadPath(template: string): string | null {
-  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
   if (!hasToken(norm)) return null;
 
   // Make the template parseable by standing a string in for the token; a bare
   // token needs quotes added, a quoted one already has them.
-  const parseable = isTokenQuoted(norm)
+  let parseable = isTokenQuoted(norm)
     ? norm.split(VALUE_TOKEN).join(TOKEN_SENTINEL)
     : norm.split(VALUE_TOKEN).join(`"${TOKEN_SENTINEL}"`);
+
+  // Replace any other tokens (e.g. {{timestamp}}, {{topic}}) with a dummy value so JSON parses
+  const regex = new RegExp(TOKEN_PATTERN.source, "g");
+  parseable = parseable.replace(regex, "0");
 
   const json = parseLooseJson(parseable);
 
@@ -543,7 +552,7 @@ export function matchTemplate(
   template: string,
   message: string,
 ): string | null {
-  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
   const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return null;
 
@@ -825,7 +834,7 @@ export interface TemplateLiteral {
  * one the user made; later spellings are dropped.
  */
 export function keepOneToken(template: string): string {
-  const norm = template.replace(/\{\{value\}\}|\{value\}/g, VALUE_TOKEN);
+  const norm = template.replace(VALUE_TOKEN_PATTERN, VALUE_TOKEN);
   const at = norm.indexOf(VALUE_TOKEN);
   if (at === -1) return template;
 
@@ -878,7 +887,7 @@ const STRUCTURED = /[{}[\]:,]/;
  */
 export function findLiterals(template: string, limit = 8): TemplateLiteral[] {
   const out: TemplateLiteral[] = [];
-  const re = /"[^"]*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
+  const re = /"(?:[^"\\]|\\.)*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
   const seen = new Set<string>();
 
   let match: RegExpExecArray | null;
@@ -890,12 +899,12 @@ export function findLiterals(template: string, limit = 8): TemplateLiteral[] {
     // *word* the match sits in decides it: the `1` of `ch1` names the field.
     const rest = template.slice(match.index + text.length);
     if (/^[^\s"',{}[\]]*\s*:/.test(rest)) continue;
-    if (text.includes(VALUE_TOKEN) || text.includes("{value}")) continue;
+    if (hasAnyToken(text)) continue;
 
     // Detect preceding JSON key if any (e.g. "temperature": 21.5 or temp: 21.5)
     const before = template.slice(0, match.index);
     const keyMatch = before.match(
-      /(?:["']([A-Za-z0-9_$-]+)["']|([A-Za-z0-9_$-]+))\s*:\s*$/,
+      /(?:["']([^"'\\]+)["']|([A-Za-z0-9_$-]+))\s*:\s*$/,
     );
     const key = keyMatch ? keyMatch[1] || keyMatch[2] : undefined;
 
@@ -965,9 +974,7 @@ export function markLiteral(
  */
 export function clearToken(template: string, restore: string): string {
   if (isBareToken(template)) return restore;
-  return template
-    .replaceAll("{{value}}", () => restore)
-    .replaceAll("{value}", () => restore);
+  return template.replace(VALUE_TOKEN_PATTERN, () => restore);
 }
 
 /**
@@ -1038,7 +1045,7 @@ export function inferCoveredValue(
 
 /** The template as the interface says it, with the token under its label. */
 export function describeTemplate(template: string): string {
-  return template.replace(/\{\{value\}\}|\{value\}/g, TOKEN_LABEL);
+  return template.replace(VALUE_TOKEN_PATTERN, TOKEN_LABEL);
 }
 
 /**

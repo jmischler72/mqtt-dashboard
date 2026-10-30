@@ -29,7 +29,6 @@ import {
   effectiveReadTemplate,
   firstTopic,
   hasToken,
-  renderPayload,
 } from "./payloadShape";
 import {
   parseToggleState,
@@ -741,9 +740,9 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       await api.post("/api/publish", {
         broker_id: brokerId,
         topic: commandTopic,
-        payload: renderPayload(
-          config.payloadTemplate ?? VALUE_TOKEN,
+        payload: toggleWritePayload(
           desired ? onPayload : offPayload,
+          config.payloadTemplate,
           commandTopic,
         ),
         qos,

@@ -624,7 +624,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
         broker_id: brokerId,
         topic: commandTopic,
         payload: renderPayload(
-          config.payloadTemplate ?? VALUE_TOKEN,
+          config.payloadTemplate || VALUE_TOKEN,
           value,
           commandTopic,
         ),

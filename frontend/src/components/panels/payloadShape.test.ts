@@ -11,8 +11,10 @@ import {
   extractValue,
   findLiterals,
   hasAnyToken,
+  hasToken,
   inferCoveredValue,
   interpolateTemplate,
+  isBareToken,
   keepOneToken,
   matchTemplate,
   normalizeTemplate,
@@ -597,6 +599,11 @@ describe("template interpolation and tokens", () => {
       expect(clearToken('{"price":"{{value}}"}', "$10")).toBe('{"price":"$10"}');
       expect(clearToken('{"code":"{{value}}"}', "$&")).toBe('{"code":"$&"}');
     });
+
+    it("clears tokens that have inner whitespace", () => {
+      expect(clearToken('{"temp":{{ value }}}', "21.5")).toBe('{"temp":21.5}');
+      expect(clearToken('{"temp":{ value }}', "21.5")).toBe('{"temp":21.5}');
+    });
   });
 
   describe("TOKEN_PATTERN & whitespace tolerance", () => {
@@ -609,9 +616,29 @@ describe("template interpolation and tokens", () => {
       );
     });
 
+    it("recognizes value tokens with inner whitespace in hasToken and isBareToken", () => {
+      expect(hasToken("{{ value }}")).toBe(true);
+      expect(hasToken("{ value }")).toBe(true);
+      expect(hasToken('{"temp": {{ value }}}')).toBe(true);
+      expect(isBareToken("  {{ value }}  ")).toBe(true);
+      expect(isBareToken("{ value }")).toBe(true);
+    });
+
     it("TOKEN_PATTERN does not retain state between test calls", () => {
       expect(TOKEN_PATTERN.test("{{value}}")).toBe(true);
       expect(TOKEN_PATTERN.test("{{value}}")).toBe(true);
+    });
+
+    it("derives read path even when template contains other tokens like timestamp or topic", () => {
+      expect(
+        deriveReadPath('{"temp": {{value}}, "ts": {{timestamp}}, "top": "{{topic}}"}'),
+      ).toBe("temp");
+    });
+
+    it("handles escaped quotes in findLiterals cleanly", () => {
+      const literals = findLiterals('{"msg": "He said \\"hello\\"", "val": 42}');
+      const valLit = literals.find((l) => l.key === "val");
+      expect(valLit?.text).toBe("42");
     });
   });
 });
