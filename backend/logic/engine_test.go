@@ -1384,6 +1384,78 @@ func TestEngine_GlobalPayloadTemplating(t *testing.T) {
 	if string(pubs[0].Payload) != `{"v":"42"}` {
 		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"v":"42"}`)
 	}
+
+	engine.RemoveRule("rule_stencil_short")
+	broker.clearPublishes()
+
+	// Rule with whitespace in token and extra tokens in JSON template
+	rule4 := &logic.Rule{
+		PanelID:     "rule_multi_token_and_whitespace",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/kitchen/temp",
+		TargetTopic: "events/temp",
+		Payload:     `{"reading": {{ value }}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/kitchen/temp",
+				ReadTemplate: `{"temp": {{ value }}, "ts": {timestamp}}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule4); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/kitchen/temp", `{"temp":25.5,"ts":1700000000}`)
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_multi_token_and_whitespace, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"reading": 25.5}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"reading": 25.5}`)
+	}
+
+	engine.RemoveRule("rule_multi_token_and_whitespace")
+	broker.clearPublishes()
+
+	// Plain text stencil without suffix
+	rule5 := &logic.Rule{
+		PanelID:     "rule_stencil_no_suffix",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/raw",
+		TargetTopic: "events/raw",
+		Payload:     `{"v":{{value}}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/raw",
+				ReadTemplate: `temp={value}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule5); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/raw", "temp=25.5 hum=60")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_stencil_no_suffix, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"v":25.5}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"v":25.5}`)
+	}
 }
 
 

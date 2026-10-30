@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -151,9 +152,14 @@ func resolveJSONPath(payload []byte, path string) (string, bool) {
 
 const tokenSentinel = "__mqtt_dashboard_token__"
 
+var (
+	valueTokenRegex = regexp.MustCompile(`\{\{\s*value\s*\}\}|\{\s*value\s*\}`)
+	anyTokenRegex   = regexp.MustCompile(`\{\{\s*[a-zA-Z0-9_/:.+#-]+\s*\}\}|\{\s*[a-zA-Z0-9_/:.+#-]+\s*\}`)
+)
+
 // deriveJSONPath derives the dot-notation path to the "{value}" token in a JSON template.
 func deriveJSONPath(template string) (string, bool) {
-	template = strings.ReplaceAll(template, "{{value}}", "{value}")
+	template = valueTokenRegex.ReplaceAllString(template, "{value}")
 	if !strings.Contains(template, "{value}") {
 		return "", false
 	}
@@ -167,6 +173,9 @@ func deriveJSONPath(template string) (string, bool) {
 	} else {
 		parseable = strings.Replace(template, "{value}", fmt.Sprintf("%q", tokenSentinel), 1)
 	}
+
+	// Replace any other tokens (e.g. {timestamp}, {topic}) with a dummy JSON number so json.Unmarshal succeeds
+	parseable = anyTokenRegex.ReplaceAllString(parseable, "0")
 
 	var root any
 	if err := json.Unmarshal([]byte(parseable), &root); err != nil {
@@ -208,7 +217,7 @@ func deriveJSONPath(template string) (string, bool) {
 
 // matchTemplateStencil extracts the value by matching prefix and suffix text around "{value}".
 func matchTemplateStencil(template, raw string) (string, bool) {
-	template = strings.ReplaceAll(template, "{{value}}", "{value}")
+	template = valueTokenRegex.ReplaceAllString(template, "{value}")
 	idx := strings.Index(template, "{value}")
 	if idx == -1 {
 		return "", false
@@ -228,6 +237,11 @@ func matchTemplateStencil(template, raw string) (string, bool) {
 		if len(middle) >= 2 && middle[0] == '"' && middle[len(middle)-1] == '"' {
 			middle = middle[1 : len(middle)-1]
 		}
+		if trimmedSuffix == "" && !strings.HasPrefix(middle, "\"") {
+			if i := strings.IndexAny(middle, " ,\t\r\n"); i != -1 {
+				middle = middle[:i]
+			}
+		}
 		return middle, true
 	}
 	return "", false
@@ -236,7 +250,7 @@ func matchTemplateStencil(template, raw string) (string, bool) {
 // extractValueFromPayload extracts the targeted value from a raw payload using a read template (e.g. `{"temp":{value}}`).
 func extractValueFromPayload(raw string, readTemplate string) (string, bool) {
 	cleanTmpl := strings.TrimSpace(readTemplate)
-	cleanTmpl = strings.ReplaceAll(cleanTmpl, "{{value}}", "{value}")
+	cleanTmpl = valueTokenRegex.ReplaceAllString(cleanTmpl, "{value}")
 
 	if cleanTmpl == "" || cleanTmpl == "{value}" {
 		return raw, true
@@ -315,7 +329,8 @@ func evaluateCondition(c Condition, ruleBrokerID string, msg Message, guards Gua
 	targetVal, found := extractValueFromPayload(raw, c.ReadTemplate)
 
 	if c.Operator == "exists" {
-		if strings.TrimSpace(c.ReadTemplate) != "" && c.ReadTemplate != "{value}" && c.ReadTemplate != "{{value}}" {
+		clean := valueTokenRegex.ReplaceAllString(strings.TrimSpace(c.ReadTemplate), "{value}")
+		if clean != "" && clean != "{value}" {
 			return found
 		}
 		return exists && len(raw) > 0

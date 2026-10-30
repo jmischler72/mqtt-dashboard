@@ -16,19 +16,20 @@ type Context struct {
 	ConditionValues map[string]string // 1-indexed condition values: "1": val, "2": val
 }
 
-const tokenInnerPattern = `(?:value(?::[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)`
+const tokenInnerPattern = `(?:value(?::\s*[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)`
 
-// TokenPattern matches both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
+// TokenRegex matches both double-brace canonical tokens ({{value}}, {{topic}}, {{payload}}, {{timestamp}},
 // {{value:1}}, etc.) and legacy single-brace tokens ({value}, {topic}, etc.).
 // Normal JSON object braces (like {"key": "val"}) do not match because keys/contents contain quotes, spaces, etc.
-var tokenRegex = regexp.MustCompile(`\{\{\s*` + tokenInnerPattern + `\s*\}\}|\{\s*` + tokenInnerPattern + `\s*\}`)
+var TokenRegex = regexp.MustCompile(`\{\{\s*` + tokenInnerPattern + `\s*\}\}|\{\s*` + tokenInnerPattern + `\s*\}`)
+var tokenRegex = TokenRegex
 
 // Interpolate substitutes context tokens into template.
 // Supports both single-brace canonical tokens ({value}, {topic}, {payload}, {timestamp})
 // and double-brace tokens ({{value}}, {{topic}}, {{value:1}}, etc.).
 func Interpolate(template string, ctx Context) string {
-	if template == "" {
-		return ""
+	if template == "" || !strings.Contains(template, "{") {
+		return template
 	}
 
 	ts := ctx.Timestamp
@@ -60,7 +61,7 @@ func Interpolate(template string, ctx Context) string {
 			return ts.UTC().Format(time.RFC3339)
 		default:
 			if strings.HasPrefix(token, "value:") {
-				key := strings.TrimPrefix(token, "value:")
+				key := strings.TrimSpace(strings.TrimPrefix(token, "value:"))
 				if ctx.ConditionValues != nil {
 					if val, ok := ctx.ConditionValues[key]; ok {
 						return val
