@@ -439,6 +439,12 @@ export default function ValueChipControls({
           label: "timestamp",
           title: "Insert {{timestamp}}: current Unix timestamp",
         },
+        {
+          name: "timestamp:iso",
+          token: "{{timestamp:iso}}",
+          label: "iso time",
+          title: "Insert {{timestamp:iso}}: current ISO 8601 timestamp",
+        },
       ]
     );
   }, [mode, isAlreadyMarked, availableTokens]);
