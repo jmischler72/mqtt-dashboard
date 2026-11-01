@@ -195,7 +195,7 @@ export function CronConfigModal({
             <PayloadSummary
               value={payload}
               empty="empty message"
-              chips={false}
+              chips={true}
             />
           }
           defaultOpen={payload.trim() === ""}
@@ -205,10 +205,14 @@ export function CronConfigModal({
             mode="write"
             value={payload}
             onChange={setPayload}
-            acceptsChip={false}
+            acceptsChip={true}
+            availableTokens={[
+              { name: "timestamp", token: "{{timestamp}}", label: "timestamp" },
+              { name: "topic", token: "{{topic}}", label: "topic" },
+            ]}
             brokerId={selectedBrokerId}
             topic={topic}
-            placeholder='{"ping":true}'
+            placeholder='{"ping":true,"ts":"{{timestamp}}"}'
           />
           {fieldErrors.payload && (
             <span className="text-[11px] text-warning">

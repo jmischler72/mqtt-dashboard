@@ -570,7 +570,7 @@ func (e *Engine) onSustainedTimer(panelID string) {
 	st.timer = nil
 	now := e.now()
 
-	action := buildAction(rule, st.lastTriggerMsg)
+	action := buildAction(rule, st.lastTriggerMsg, e.guardLookupLocked(), now)
 	e.tryFireActionLocked(rule, st, action, now)
 }
 

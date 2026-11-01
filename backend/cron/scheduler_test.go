@@ -1,6 +1,7 @@
 package cron_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -381,4 +382,36 @@ func TestScheduler_AddSystemJob(t *testing.T) {
 		t.Fatalf("AddSystemJob failed: %v", err)
 	}
 }
+
+func TestScheduler_PayloadTemplating(t *testing.T) {
+	pub := &mockPublisher{defaultID: "def-broker"}
+	sc, _ := cron.NewScheduler(pub)
+	sc.Start()
+	defer sc.Stop()
+
+	err := sc.AddJob("p_tmpl", "", "* * * * *", "cron/heartbeat", `{"topic":"{topic}","ts":{timestamp}}`, 0, false, true)
+	if err != nil {
+		t.Fatalf("AddJob: %v", err)
+	}
+
+	if err := sc.RunJob("p_tmpl"); err != nil {
+		t.Fatalf("RunJob: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if len(pub.calls) == 0 {
+		t.Fatal("expected at least 1 call, got 0")
+	}
+
+	lastCall := pub.calls[len(pub.calls)-1]
+	if lastCall.topic != "cron/heartbeat" {
+		t.Errorf("topic = %s; want cron/heartbeat", lastCall.topic)
+	}
+	payloadStr := string(lastCall.payload)
+	if !strings.Contains(payloadStr, `"topic":"cron/heartbeat"`) || !strings.Contains(payloadStr, `"ts":`) {
+		t.Errorf("unexpected payload: %s", payloadStr)
+	}
+}
+
 

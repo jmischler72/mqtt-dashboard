@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { RiCloseLine } from "react-icons/ri";
 import {
   usePayloadSample,
   type RecentMessage,
@@ -6,23 +7,19 @@ import {
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  detectPayloadMode,
   findLiterals,
   hasToken,
+  parseTemplateChunks,
   readShape,
   renderPayload,
 } from "../payloadShape";
+import HighlightedTextarea, {
+  type HighlightedTextareaHandle,
+} from "./HighlightedTextarea";
 import MessageHistory from "./MessageHistory";
 import PreviewBox from "./PreviewBox";
-import {
-  TOKEN_ATTR,
-  paintTemplate,
-  readSelectionOffsets,
-  readTemplate,
-  removeChipFromEditor,
-  setCaret,
-} from "./tokenEditor";
-import ValueChipControls from "./ValueChipControls";
-import { RiCloseLine } from "react-icons/ri";
+import ValueChipControls, { type Selection } from "./ValueChipControls";
 
 export interface PayloadHistory {
   messages: RecentMessage[];
@@ -39,78 +36,32 @@ export interface PayloadBuilderProps {
   /**
    * "write" describes the bytes to publish; "read" describes the shape they
    * arrive in, where the chip marks the value to pull out instead of the one to
-   * drop in. One mark, both directions.
+   * drop in.
    */
   mode: "write" | "read";
   value: string;
   onChange: (next: string) => void;
-  /** Sampled for the history list, and named in its empty state. */
   topic: string;
   brokerId: string;
-  /**
-   * Supplied when several boxes share one history disclosure — the toggle's On
-   * and Off payloads are two boxes fed from the same list of real messages.
-   */
   history?: PayloadHistory;
-  /** False when the caller draws the shared history itself. */
   showHistory?: boolean;
-  /**
-   * False when the caller previews the bytes itself, e.g. the toggle, which
-   * has two of them and would otherwise repeat one of the two right here.
-   */
   showPreview?: boolean;
-  /**
-   * Whether to render preview as a standalone PreviewBox card below the editor
-   * instead of an integrated footer bar. Defaults to true when a range is present.
-   */
   previewCard?: boolean;
-  /**
-   * False for a panel with no runtime value (button, cron): the chip would
-   * publish an empty hole, so it is never offered.
-   */
   acceptsChip?: boolean;
-  /** Read mode: an empty box means "the whole payload", not "unconfigured". */
   allowBlankShape?: boolean;
-  /**
-   * Read mode: the dot path stored before shapes existed, which the panel still
-   * reads through when the shape marks nothing of its own. Passed so the
-   * preview reads a message exactly the way the panel does.
-   */
   readPath?: string;
-  /**
-   * Read mode: true for a panel that compares the marked characters rather than
-   * reading a value out of them — the toggle, matching `ON` against its states.
-   * Without it the preview would report `true` for a panel matching `ON`.
-   */
   readsText?: boolean;
   placeholder?: string;
-  /** Write mode: the live preview sweeps this range. */
   range?: NumericRange | null;
-  /** Write mode without a range: the value the preview substitutes. */
   previewValue?: string;
-  /** Appended to the read preview. Display only, never sent. */
   unit?: string;
-  /**
-   * The line under a chip-less box. Null drops it, for the toggle's second
-   * payload — one card should say "sent verbatim" once, not twice.
-   */
   note?: string | null;
+  availableTokens?: Array<{ name: string; token: string; label: string }>;
 }
 
-/** The bytes box's own class list — monospace, wrapping, inside integrated container. */
-const boxClass =
-  "w-full pl-2.5 py-2 font-mono text-xs leading-relaxed break-all cursor-text " +
-  "min-h-[2.25rem] max-h-40 overflow-auto whitespace-pre-wrap outline-none " +
-  "empty:before:content-[attr(data-placeholder)] empty:before:text-base-content/40";
-
 /**
- * The one payload editor, used by every panel that reads or writes a payload.
- *
- * The box holds the bytes verbatim — there is no format picker, no JSON
- * validation and no type wizard, because what a device expects on the wire is
- * the device's business. The single `{value}` chip is the only thing this
- * understands about the contents: where the panel's own value goes, or where it
- * is read back from.
+ * The unified payload editor, used by every panel that reads or writes a payload.
+ * Native textarea underlying with syntax-highlighted token backdrop.
  */
 export default function PayloadBuilder({
   mode,
@@ -131,21 +82,18 @@ export default function PayloadBuilder({
   previewValue,
   unit,
   note,
+  availableTokens,
 }: PayloadBuilderProps) {
   const isPreviewCard = previewCard ?? Boolean(range);
   const [covered, setCovered] = useState("");
-  const coveredIndex = useRef<number | null>(null);
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
   const [position, setPosition] = useState<number | null>(null);
-  const box = useRef<HTMLDivElement>(null);
-  // What the box currently shows. Repainting on every keystroke would drop the
-  // caret, so the DOM is only rewritten when the value changed elsewhere — a
-  // message being taken, or the chip being placed by the controls below.
-  const painted = useRef<string | null>(null);
-  // Where the caret belongs after such a repaint, when the change knows.
-  const pendingCaret = useRef<number | null>(null);
+  const textareaRef = useRef<HighlightedTextareaHandle>(null);
+  const [selection, setSelection] = useState<Selection>({
+    start: value.length,
+    end: value.length,
+  });
 
-  // Only sampled when the caller has not already done it for a shared list
   const sampled = usePayloadSample(
     history ? "" : brokerId,
     history ? "" : topic,
@@ -160,41 +108,79 @@ export default function PayloadBuilder({
   const useMessage = (payload: string, index: number) => {
     onChange(markFirstNumber(payload, acceptsChip));
     setCovered(acceptsChip ? (firstNumber(payload)?.text ?? "") : "");
-    coveredIndex.current = 0;
     setUsedIndex(index);
     setPosition(null);
   };
 
-  const handleRemoveChip = (chip: HTMLElement) => {
-    const host = box.current;
-    if (!host) return;
-    const { template: next, caret } = removeChipFromEditor(host, chip, covered);
-    painted.current = next;
-    onChange(next);
-    if (!hasToken(next)) {
-      setCovered("");
-      coveredIndex.current = null;
+  const detectedMode = detectPayloadMode(value);
+
+  const renderModeIndicator = () => {
+    if (reading) {
+      if (detectedMode === "json" || readPath) {
+        return (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-base-content/60 font-mono"
+            title="Extracting via JSONPath"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
+            JSON
+          </span>
+        );
+      }
+      if (chip) {
+        return (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-base-content/60 font-mono"
+            title="Extracting via text stencil"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
+            Stencil
+          </span>
+        );
+      }
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] text-base-content/60 font-mono"
+          title="Whole payload as raw string"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-neutral shrink-0" />
+          Raw
+        </span>
+      );
     }
-    host.focus();
-    setCaret(host, caret);
+
+    if (detectedMode === "json") {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] text-base-content/60 font-mono"
+          title="Structured JSON template"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
+          JSON
+        </span>
+      );
+    }
+    if (chip) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] text-base-content/60 font-mono"
+          title="Custom text template with variables"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
+          Custom
+        </span>
+      );
+    }
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[10px] text-base-content/60 font-mono"
+        title="Plain text literal"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral shrink-0" />
+        Plain
+      </span>
+    );
   };
-
-  useEffect(() => {
-    const host = box.current;
-    if (!host) return;
-    if (painted.current === value) return;
-
-    paintTemplate(host, value, acceptsChip, covered, coveredIndex.current);
-    painted.current = value;
-    coveredIndex.current = null;
-
-    const caret = pendingCaret.current;
-    pendingCaret.current = null;
-    if (caret !== null) {
-      host.focus();
-      setCaret(host, caret);
-    }
-  }, [value, acceptsChip, covered]);
 
   const historyNode = showHistory ? (
     <MessageHistory
@@ -210,78 +196,41 @@ export default function PayloadBuilder({
     <div className="flex flex-col gap-2 min-w-0">
       {/* Integrated editor container with border and embedded preview footer */}
       <div className="rounded-lg border border-base-300 dark:border-base-100 bg-base-300 overflow-hidden focus-within:border-primary transition-colors flex flex-col">
-        {/* A contenteditable rather than a textarea, so the token can be the
-            chip that says what it is rather than the literal characters
-            "{value}". The chip is atomic — it cannot be typed inside or
-            half-deleted — and everything around it is ordinary text editing. */}
         <div className="relative">
-          <div
-            ref={box}
-            className={`${boxClass} ${value.length > 0 ? "pr-8" : "pr-2.5"}`}
-            contentEditable
-            suppressContentEditableWarning
-            role="textbox"
-            aria-multiline="true"
-            aria-label={reading ? "Message shape" : "Message"}
-            data-placeholder={placeholder}
-            spellCheck={false}
-            onMouseDown={(e) => {
-              const target = e.target as HTMLElement;
-              const removeBtn = target.closest("[data-remove-token]");
-              if (removeBtn) {
-                e.preventDefault();
-                e.stopPropagation();
-                const chip = removeBtn.closest<HTMLElement>(`[${TOKEN_ATTR}]`);
-                if (chip) handleRemoveChip(chip);
-              }
-            }}
-            onClick={(e) => {
-              const target = e.target as HTMLElement;
-              if (target.closest("[data-remove-token]")) {
-                e.preventDefault();
-                e.stopPropagation();
-              }
-            }}
-            onInput={(e) => {
-              const host = e.currentTarget;
-              const raw = readTemplate(host);
-              painted.current = raw;
-              onChange(raw);
+          <HighlightedTextarea
+            ref={textareaRef}
+            value={value}
+            onChange={(next) => {
+              onChange(next);
               setUsedIndex(null);
             }}
-            onPaste={(e) => {
-              // Paste plain text: clipboard HTML would drag styling in, and worse,
-              // markup that reads back as payload it never contained.
-              e.preventDefault();
-              document.execCommand(
-                "insertText",
-                false,
-                e.clipboardData.getData("text/plain"),
-              );
-            }}
+            onSelectionChange={setSelection}
+            placeholder={placeholder}
+            rows={3}
+            aria-label={reading ? "Message shape" : "Message"}
+            className={value.length > 0 ? "pr-16" : "pr-12"}
           />
 
-          {value.length > 0 && (
-            <button
-              type="button"
-              title="Clear message"
-              aria-label="Clear message"
-              onMouseDown={(e) => {
-                e.preventDefault();
-              }}
-              onClick={() => {
-                onChange("");
-                setCovered("");
-                coveredIndex.current = null;
-                setUsedIndex(null);
-                setPosition(null);
-                box.current?.focus();
-              }}
-              className="absolute right-1.5 top-1.5 btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content cursor-pointer"
-            >
-              <RiCloseLine className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <div className="absolute top-1.5 right-1.5 flex items-center gap-1.5 select-none z-10">
+            {renderModeIndicator()}
+            {value.length > 0 && (
+              <button
+                type="button"
+                title="Clear message"
+                aria-label="Clear message"
+                onClick={() => {
+                  onChange("");
+                  setCovered("");
+                  setUsedIndex(null);
+                  setPosition(null);
+                  textareaRef.current?.focus();
+                }}
+                className="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-base-content cursor-pointer"
+              >
+                <RiCloseLine className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {!showPreview || isPreviewCard ? null : reading ? (
@@ -315,23 +264,16 @@ export default function PayloadBuilder({
         <ValueChipControls
           mode={mode}
           value={value}
+          covered={covered}
           history={historyNode}
-          onChange={(next) => {
-            // A chip action that changes nothing repaints nothing, so the caret
-            // it asked for would sit in the ref and fire on some later,
-            // unrelated repaint.
-            if (next === value) pendingCaret.current = null;
-            onChange(next);
-          }}
-          getSelection={() =>
-            box.current ? readSelectionOffsets(box.current) : null
-          }
+          availableTokens={availableTokens}
+          onChange={onChange}
+          getSelection={() => textareaRef.current?.getSelection() ?? selection}
           onCaret={(at) => {
-            pendingCaret.current = at;
+            textareaRef.current?.setSelection(at, at);
           }}
-          onCoveredChange={(text, idx) => {
+          onCoveredChange={(text) => {
             setCovered(text);
-            coveredIndex.current = idx ?? null;
           }}
         />
       ) : (
@@ -382,7 +324,7 @@ export default function PayloadBuilder({
   );
 }
 
-/** The collapsed row's miniature: the payload one-lined, chip drawn as a pill. */
+/** The collapsed row's miniature: the payload one-lined, tokens highlighted with colors. */
 export function PayloadSummary({
   value,
   empty = "not configured",
@@ -392,7 +334,6 @@ export function PayloadSummary({
   value: string;
   empty?: string;
   max?: number;
-  /** False where the token's characters are literal bytes, not a chip. */
   chips?: boolean;
 }) {
   const oneLine = value.replace(/\s+/g, " ").trim();
@@ -404,18 +345,29 @@ export function PayloadSummary({
 
   if (!chips) return <span className="font-mono">{clipped}</span>;
 
+  const chunks = parseTemplateChunks(clipped);
   return (
     <span className="font-mono">
-      {clipped.split(VALUE_TOKEN).map((chunk, index) => (
-        <span key={index}>
-          {index > 0 && (
-            <span className="mx-0.5 px-1.5 rounded-full bg-primary text-primary-content">
-              {TOKEN_LABEL}
-            </span>
-          )}
-          {chunk}
-        </span>
-      ))}
+      {chunks.map((chunk, idx) => {
+        if (!chunk.isToken) {
+          return <span key={idx}>{chunk.text}</span>;
+        }
+        const name = (chunk.tokenName ?? "").toLowerCase();
+        let badgeClass = "badge-primary";
+        if (name === "topic") badgeClass = "badge-accent";
+        else if (name === "timestamp" || name === "now")
+          badgeClass = "badge-neutral";
+        else if (name.startsWith("value:")) badgeClass = "badge-secondary";
+
+        return (
+          <span
+            key={idx}
+            className={`badge badge-xs ${badgeClass} font-mono px-1 py-0.5 text-[10px] mx-0.5`}
+          >
+            {chunk.tokenName ?? TOKEN_LABEL}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -444,7 +396,7 @@ function WritePreview({
           problem={
             value.trim() === ""
               ? "Nothing to send yet."
-              : `No ${TOKEN_LABEL} chip in message.`
+              : `No ${TOKEN_LABEL} token in message.`
           }
         />
       );
@@ -555,7 +507,7 @@ function ReadPreview({
     }
 
     if ((blank && !allowBlankShape) || (!blank && !chip)) {
-      return <PreviewBox problem={`Click {${TOKEN_LABEL}} to mark value`} />;
+      return <PreviewBox problem={`Click ${TOKEN_LABEL} to mark value`} />;
     }
 
     const read = readShape(value, latest.payload, readPath);
@@ -605,9 +557,6 @@ function ReadPreview({
     );
   }
 
-  // Read it exactly the way the panel will, so the two can never disagree:
-  // through the same shape, and — for a panel that matches text — reported as
-  // the characters it matches rather than as the value they parse into.
   const read = readShape(value, latest.payload, readPath);
 
   if (!read.found) {
@@ -658,26 +607,14 @@ export function PreviewLine({
 }
 
 /**
- * The first number a payload actually *carries* — what picking a message turns
- * into the chip — reported with where it sits, so the mark lands on the digits
- * that were found rather than on the first place those characters occur.
- *
- * `findLiterals` already knows a value from the key naming it, quoted or not,
- * and never looks inside a quoted run — so `{"ts":"2026-08-31T14:32:07Z",
- * "temp":21.5}` marks 21.5 rather than the year, and `{ch1:5}` marks 5 rather
- * than half a field name. Keeping that judgement in one place is the point: a
- * second opinion here is how the timestamp case survived the first fix.
+ * The first number a payload actually carries, reported with where it sits.
  */
 function firstNumber(payload: string): { text: string; start: number } | null {
   const plain = /^-?\d+(?:\.\d+)?$/;
 
-  // No cap: the row of chips shows four, but the number worth marking can sit
-  // behind any amount of text the device sends alongside it.
   for (const { text, start } of findLiterals(payload, Infinity)) {
     if (plain.test(text)) return { text, start };
 
-    // A number the device quotes is still the reading. The chip goes inside the
-    // quotes, so the shape it builds keeps them.
     const quoted = text.startsWith('"') && text.endsWith('"');
     const inner = quoted ? text.slice(1, -1) : null;
     if (inner !== null && plain.test(inner)) {

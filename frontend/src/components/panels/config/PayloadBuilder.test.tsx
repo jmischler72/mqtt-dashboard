@@ -118,17 +118,17 @@ describe("a payload that spells the chip out", () => {
   it("allows multiple chips when the bytes typed in name a second", () => {
     render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
     const box = screen.getByRole("textbox");
-    box.append(document.createTextNode(VALUE_TOKEN));
-    fireEvent.input(box);
+    fireEvent.change(box, {
+      target: { value: `{"a":${VALUE_TOKEN}}${VALUE_TOKEN}` },
+    });
     expect(template()).toBe(`{"a":${VALUE_TOKEN}}${VALUE_TOKEN}`);
   });
 
   it("removes a chip when clicking its inline remove button", () => {
     render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
-    const box = screen.getByRole("textbox");
-    const removeBtn = box.querySelector("[data-remove-token]");
+    const removeBtn = document.querySelector("[data-remove-token]");
     expect(removeBtn).toBeTruthy();
-    fireEvent.mouseDown(removeBtn!);
+    fireEvent.click(removeBtn!);
     expect(template()).toBe('{"a":}');
   });
 
@@ -138,11 +138,10 @@ describe("a payload that spells the chip out", () => {
     fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
     expect(template()).toBe(`{"temp":${VALUE_TOKEN}}`);
 
-    // Click the inline remove button on the chip
-    const box = screen.getByRole("textbox");
-    const removeBtn = box.querySelector("[data-remove-token]");
+    // Click the remove button on the chip
+    const removeBtn = document.querySelector("[data-remove-token]");
     expect(removeBtn).toBeTruthy();
-    fireEvent.mouseDown(removeBtn!);
+    fireEvent.click(removeBtn!);
 
     // The literal is restored and remains detected
     expect(template()).toBe('{"temp":21.5}');
@@ -152,11 +151,9 @@ describe("a payload that spells the chip out", () => {
   it("leaves those characters alone for a panel that publishes them", () => {
     render(<Builder initial="" payloads={[]} acceptsChip={false} />);
     const box = screen.getByRole("textbox");
-    box.append(document.createTextNode(`{"cmd":"${VALUE_TOKEN}"}`));
-    fireEvent.input(box);
+    fireEvent.change(box, { target: { value: `{"cmd":"${VALUE_TOKEN}"}` } });
     expect(template()).toBe(`{"cmd":"${VALUE_TOKEN}"}`);
-    // …and they are text the caret can get into, not an atomic chip
-    expect(box.querySelector("[data-value-token]")).toBeNull();
+    expect(document.querySelector("[data-value-token]")).toBeNull();
   });
 });
 
