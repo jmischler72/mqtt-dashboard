@@ -10,9 +10,11 @@ import {
   detectPayloadMode,
   findLiterals,
   hasToken,
+  isBareToken,
   parseTemplateChunks,
   readShape,
   renderPayload,
+  type ParsedChunk,
 } from "../payloadShape";
 import HighlightedTextarea, {
   type HighlightedTextareaHandle,
@@ -72,7 +74,7 @@ export default function PayloadBuilder({
   history,
   showHistory = true,
   showPreview = true,
-  previewCard,
+  previewCard = true,
   acceptsChip = true,
   allowBlankShape = false,
   readPath,
@@ -84,7 +86,7 @@ export default function PayloadBuilder({
   note,
   availableTokens,
 }: PayloadBuilderProps) {
-  const isPreviewCard = previewCard ?? Boolean(range);
+  const isPreviewCard = previewCard;
   const [covered, setCovered] = useState("");
   const [usedIndex, setUsedIndex] = useState<number | null>(null);
   const [position, setPosition] = useState<number | null>(null);
@@ -110,6 +112,31 @@ export default function PayloadBuilder({
     setCovered(acceptsChip ? (firstNumber(payload)?.text ?? "") : "");
     setUsedIndex(index);
     setPosition(null);
+  };
+
+  const handleRemoveToken = (chunk: ParsedChunk, _tokenIdx: number) => {
+    if (isBareToken(value) || value.trim() === chunk.text) {
+      onChange("");
+      setCovered("");
+      setPosition(null);
+      setUsedIndex(null);
+      textareaRef.current?.focus();
+      return;
+    }
+
+    const restore = covered || "";
+    const next =
+      value.slice(0, chunk.start) + restore + value.slice(chunk.end);
+
+    onChange(next);
+    setCovered("");
+    setPosition(null);
+    setUsedIndex(null);
+
+    setTimeout(() => {
+      const at = chunk.start + restore.length;
+      textareaRef.current?.setSelection(at, at);
+    }, 0);
   };
 
   const detectedMode = detectPayloadMode(value);
@@ -205,6 +232,7 @@ export default function PayloadBuilder({
               setUsedIndex(null);
             }}
             onSelectionChange={setSelection}
+            onRemoveToken={acceptsChip ? handleRemoveToken : undefined}
             placeholder={placeholder}
             rows={3}
             aria-label={reading ? "Message shape" : "Message"}

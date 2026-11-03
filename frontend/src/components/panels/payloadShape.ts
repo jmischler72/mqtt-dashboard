@@ -263,6 +263,8 @@ export interface ParsedChunk {
   isToken: boolean;
   text: string;
   tokenName: string;
+  start: number;
+  end: number;
 }
 
 /**
@@ -285,6 +287,8 @@ export function parseTemplateChunks(template: string): ParsedChunk[] {
         isToken: false,
         text,
         tokenName: "",
+        start: lastIndex,
+        end: match.index,
       });
     }
 
@@ -300,6 +304,8 @@ export function parseTemplateChunks(template: string): ParsedChunk[] {
       isToken: true,
       text: raw,
       tokenName: name,
+      start: match.index,
+      end: regex.lastIndex,
     });
 
     lastIndex = regex.lastIndex;
@@ -315,6 +321,8 @@ export function parseTemplateChunks(template: string): ParsedChunk[] {
       isToken: false,
       text,
       tokenName: "",
+      start: lastIndex,
+      end: template.length,
     });
   }
 

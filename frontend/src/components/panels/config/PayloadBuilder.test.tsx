@@ -132,6 +132,32 @@ describe("a payload that spells the chip out", () => {
     expect(template()).toBe('{"a":}');
   });
 
+  it("removes only the targeted token when multiple tokens exist", () => {
+    render(
+      <Builder
+        initial={`{"a":${VALUE_TOKEN},"b":${VALUE_TOKEN}}`}
+        payloads={[]}
+      />,
+    );
+    const removeBtns = document.querySelectorAll("[data-remove-token]");
+    expect(removeBtns.length).toBe(2);
+    fireEvent.click(removeBtns[0]);
+    expect(template()).toBe(`{"a":,"b":${VALUE_TOKEN}}`);
+  });
+
+  it("removes an indexed value token directly from the input", () => {
+    render(
+      <Builder
+        initial='{"temp":{{value:1}},"hum":{{value:2}}}'
+        payloads={[]}
+      />,
+    );
+    const removeBtns = document.querySelectorAll("[data-remove-token]");
+    expect(removeBtns.length).toBe(2);
+    fireEvent.click(removeBtns[1]);
+    expect(template()).toBe('{"temp":{{value:1}},"hum":}');
+  });
+
   it("restores the replaced literal when removing the chip", () => {
     render(<Builder initial='{"temp":21.5}' payloads={[]} />);
     // Click the detected literal "21.5"

@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
-import { RiAddLine, RiCloseLine } from "react-icons/ri";
+import { RiAddLine } from "react-icons/ri";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
-  clearToken,
   findLiterals,
-  hasToken,
   markLiteral,
   placeToken,
 } from "../payloadShape";
@@ -33,13 +31,11 @@ export default function ValueChipControls({
   getSelection,
   onCaret,
   onCoveredChange,
-  covered = "",
   mode,
   history,
   availableTokens,
 }: ValueChipControlsProps) {
   const literals = findLiterals(value);
-  const tokenActive = hasToken(value);
 
   const place = (token: string = VALUE_TOKEN) => {
     const at = getSelection() ?? { start: value.length, end: value.length };
@@ -57,33 +53,6 @@ export default function ValueChipControls({
   return (
     <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-        {/* Active token badge with remove/restore button */}
-        {tokenActive ? (
-          <span
-            data-value-token
-            className="badge badge-sm badge-primary gap-1 font-mono h-6 px-2 text-[11px]"
-          >
-            <span>{TOKEN_LABEL}</span>
-            <button
-              type="button"
-              data-remove-token
-              title={covered ? `Restore "${covered}"` : "Remove token"}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onChange(clearToken(value, covered));
-                onCoveredChange("");
-              }}
-              onClick={() => {
-                onChange(clearToken(value, covered));
-                onCoveredChange("");
-              }}
-              className="hover:opacity-75 cursor-pointer ml-0.5 inline-flex items-center"
-            >
-              <RiCloseLine className="w-3 h-3" />
-            </button>
-          </span>
-        ) : null}
-
         {/* Quick token insert buttons */}
         {tokens.map((t) => (
           <button
