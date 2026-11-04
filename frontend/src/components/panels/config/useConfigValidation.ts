@@ -1,4 +1,4 @@
-import { hasToken } from "../payloadShape";
+import { countTokens } from "../payloadShape";
 
 export interface ConfigRule {
   /**
@@ -133,17 +133,24 @@ export function payloadRules({
   allowEmpty = false,
   subject = "this panel has",
 }: PayloadRuleSpec): ConfigRule[] {
-  const chip = hasToken(value);
+  const tokenCount = countTokens(value);
+  const chip = tokenCount > 0;
 
   if (mode === "read") {
     return [
+      {
+        field,
+        when: tokenCount > 1,
+        message:
+          "A read shape can only mark one value to extract. Remove the extra token.",
+      },
       {
         field,
         // A blank box is only a problem when the panel cannot read the whole
         // payload; bytes with no chip in them mark nothing either way.
         when: allowEmpty ? value.trim() !== "" && !chip : !chip,
         message:
-          "The read shape has no value chip, so nothing can be pulled out of it.",
+          "The read shape has no value token, so nothing can be pulled out of it.",
       },
     ];
   }
@@ -158,7 +165,7 @@ export function payloadRules({
       field,
       when: acceptsChip && value.trim() !== "" && !chip,
       message:
-        "Add the value chip to the message, or every publish sends the same bytes.",
+        "Add the value token to the message, or every publish sends the same bytes.",
     },
   ];
 }

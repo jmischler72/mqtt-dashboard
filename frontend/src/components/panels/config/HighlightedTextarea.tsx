@@ -22,7 +22,7 @@ export interface HighlightedTextareaProps extends Omit<
   value: string;
   onChange: (value: string) => void;
   onSelectionChange?: (selection: { start: number; end: number }) => void;
-  onRemoveToken?: (chunk: ParsedChunk, index: number) => void;
+  onRemoveToken?: (chunk: ParsedChunk) => void;
 }
 
 const HighlightedTextarea = forwardRef<
@@ -80,7 +80,6 @@ const HighlightedTextarea = forwardRef<
   }, [value, syncScroll]);
 
   const chunks = parseTemplateChunks(value);
-  let tokenCount = 0;
 
   return (
     <div className={`relative min-h-[2.5rem] overflow-hidden ${className}`}>
@@ -115,7 +114,6 @@ const HighlightedTextarea = forwardRef<
               if (!chunk.isToken) {
                 return <span key={idx}>{chunk.text}</span>;
               }
-              const tokenIdx = tokenCount++;
               const name = (chunk.tokenName ?? "").toLowerCase();
               let colorClass = "text-primary bg-primary/20";
               if (name === "topic") {
@@ -130,7 +128,7 @@ const HighlightedTextarea = forwardRef<
                 <span
                   key={idx}
                   data-value-token={onRemoveToken ? "" : undefined}
-                  className={`group/token relative inline-block rounded-sm font-semibold px-0.5 ${colorClass}`}
+                  className={`group/token relative inline rounded-xs ${colorClass}`}
                 >
                   <span>{chunk.text}</span>
                   {onRemoveToken && (
@@ -147,7 +145,7 @@ const HighlightedTextarea = forwardRef<
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onRemoveToken(chunk, tokenIdx);
+                        onRemoveToken(chunk);
                       }}
                       className="absolute -top-1.5 -right-1 w-3.5 h-3.5 rounded-full bg-base-100 border border-base-content/20 text-base-content/60 hover:text-error hover:border-error hover:bg-base-200 pointer-events-auto cursor-pointer inline-flex items-center justify-center transition-colors shadow-xs z-20"
                     >

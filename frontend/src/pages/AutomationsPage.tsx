@@ -1217,10 +1217,7 @@ export default function AutomationsPage() {
                                 title={job.payload}
                               >
                                 <span className="truncate flex-1 block">
-                                  {renderPayloadWithChips(
-                                    job.payload,
-                                    job.panel_type !== "cron",
-                                  )}
+                                  {renderPayloadWithChips(job.payload)}
                                 </span>
                                 <button
                                   type="button"

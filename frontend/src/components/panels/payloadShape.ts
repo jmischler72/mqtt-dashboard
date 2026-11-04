@@ -226,7 +226,7 @@ export const VALUE_TOKEN_PATTERN = /\{\{\s*value\s*\}\}|\{\s*value\s*\}/g;
  * {{value:1}}, etc.) and single-brace tokens ({value}, {topic}, etc.).
  */
 export const TOKEN_PATTERN =
-  /(\{\{\s*[a-zA-Z0-9_/:.+#-]+\s*\}\}|\{\s*(?:value(?::\s*[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)\s*\})/;
+  /\{\{\s*[a-zA-Z0-9_/:.+#-]+\s*\}\}|\{\s*(?:value(?::\s*[0-9]+)?|topic|payload|timestamp(?::(?:ms|iso))?|iso_timestamp)\s*\}/;
 
 /** Strips surrounding `{` and `}` braces and whitespace from a token string. */
 export function unwrapToken(raw: string): string {
@@ -414,8 +414,11 @@ export function detectPayloadMode(templateOrQuery: string): "json" | "raw" {
       // Substitute dummy values for tokens to test JSON validity
       const regex = new RegExp(TOKEN_PATTERN.source, "g");
       const testJson = trimmed.replace(regex, "0");
-      JSON.parse(testJson);
-      return "json";
+      const parsed = JSON.parse(testJson);
+      if (typeof parsed === "object" && parsed !== null) {
+        return "json";
+      }
+      return "raw";
     } catch {
       return "raw";
     }
@@ -436,6 +439,11 @@ const TOKEN_SENTINEL = "__mqtt_dashboard_token__";
 export function hasToken(template: string): boolean {
   if (!template) return false;
   return /\{\{\s*value\s*\}\}|\{\s*value\s*\}/.test(template);
+}
+
+export function countTokens(template: string): number {
+  if (!template) return 0;
+  return parseTemplateChunks(template).filter((c) => c.isToken).length;
 }
 
 export function hasAnyToken(template: string): boolean {
@@ -612,11 +620,15 @@ export function matchTemplate(
   // it stops as soon as the template's own tail lines up again, which is what
   // reads `21` out of `<set>21</set>`.
   if (tail) {
+    const regexTail = parseTemplateChunks(tail)
+      .map((c) =>
+        c.isToken ? `(?:"[^"]*"|${NUMBER}|${BARE}?)` : escapeRegExp(c.text),
+      )
+      .join("");
+
     const strict = text.match(
       new RegExp(
-        escapeRegExp(head) +
-          `("[^"]*"|${NUMBER}|${BARE}?)` +
-          escapeRegExp(tail),
+        escapeRegExp(head) + `("[^"]*"|${NUMBER}|${BARE}?)` + regexTail,
       ),
     );
     if (strict) return unquote(strict[1]);
@@ -993,6 +1005,99 @@ export function markLiteral(
     template.slice(literal.end);
 
   return { template: next, previous };
+}
+
+/**
+ * Swaps an existing value token onto a clicked literal, or marks the literal if no
+ * token exists yet. If multiple value tokens were present, they are cleaned up and
+ * replaced by their fallback/covered values so exactly one token remains.
+ */
+export function swapOrMarkLiteral(
+  template: string,
+  literal: TemplateLiteral,
+  covered?: string,
+  fallbackValue?: string,
+): { template: string; previous: string; caret: number } {
+  const quoted = literal.text.startsWith('"') && literal.text.endsWith('"');
+  const previous = quoted ? literal.text.slice(1, -1) : literal.text;
+
+  // Find all existing value tokens in template
+  const tokens: Array<{ start: number; end: number; quoted: boolean }> = [];
+  const regex = new RegExp(VALUE_TOKEN_PATTERN.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(template)) !== null) {
+    const start = match.index;
+    const end = regex.lastIndex;
+    const isQuoted =
+      start > 0 &&
+      end < template.length &&
+      template[start - 1] === '"' &&
+      template[end] === '"';
+    tokens.push({ start, end, quoted: isQuoted });
+  }
+
+  // If no tokens exist, simple placement onto literal
+  if (tokens.length === 0) {
+    const next =
+      template.slice(0, literal.start) +
+      (quoted ? `"${VALUE_TOKEN}"` : VALUE_TOKEN) +
+      template.slice(literal.end);
+    const caret =
+      literal.start + (quoted ? VALUE_TOKEN.length + 2 : VALUE_TOKEN.length);
+    return { template: next, previous, caret };
+  }
+
+  // One or more tokens exist -> swap / consolidate
+  interface Replacement {
+    start: number;
+    end: number;
+    text: string;
+    isTarget?: boolean;
+  }
+
+  const replacements: Replacement[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const restore =
+      i === 0 && (covered || fallbackValue)
+        ? (covered || fallbackValue)!
+        : t.quoted
+          ? ""
+          : "0";
+
+    replacements.push({
+      start: t.start,
+      end: t.end,
+      text: restore,
+    });
+  }
+
+  replacements.push({
+    start: literal.start,
+    end: literal.end,
+    text: quoted ? `"${VALUE_TOKEN}"` : VALUE_TOKEN,
+    isTarget: true,
+  });
+
+  // Sort replacements by start index
+  replacements.sort((a, b) => a.start - b.start);
+
+  let result = "";
+  let lastIndex = 0;
+  let caret = 0;
+
+  for (const rep of replacements) {
+    result += template.slice(lastIndex, rep.start);
+    if (rep.isTarget) {
+      caret = result.length + rep.text.length;
+    }
+    result += rep.text;
+    lastIndex = rep.end;
+  }
+  result += template.slice(lastIndex);
+
+  return { template: result, previous, caret };
 }
 
 /**

@@ -783,9 +783,9 @@ export function LogicConfigModal({
                 },
                 ...(conditions.length > 1
                   ? conditions.map((_, i) => ({
-                      name: `value:${i}`,
-                      token: `{{value:${i}}}`,
-                      label: `value:${i}`,
+                      name: `value:${i + 1}`,
+                      token: `{{value:${i + 1}}}`,
+                      label: `value:${i + 1}`,
                     }))
                   : []),
               ]}

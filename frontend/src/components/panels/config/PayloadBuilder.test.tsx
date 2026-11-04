@@ -11,19 +11,24 @@ function Builder({
   initial = "",
   payloads,
   acceptsChip = true,
+  mode = "write",
+  availableTokens,
 }: {
   initial?: string;
   payloads: string[];
   acceptsChip?: boolean;
+  mode?: "write" | "read";
+  availableTokens?: Array<{ name: string; token: string; label: string }>;
 }) {
   const [value, setValue] = useState(initial);
   return (
     <>
       <PayloadBuilder
-        mode="write"
+        mode={mode}
         value={value}
         onChange={setValue}
         acceptsChip={acceptsChip}
+        availableTokens={availableTokens}
         brokerId="b1"
         topic="home/lamp"
         history={{
@@ -195,5 +200,77 @@ describe("the literals offered as one-tap chip targets", () => {
   it("still offers a lone word, which is the whole payload", () => {
     render(<Builder initial="RESET" payloads={[]} />);
     expect(screen.getByRole("button", { name: "RESET" })).toBeTruthy();
+  });
+
+  it("swaps the token to the newly clicked literal in read mode", () => {
+    render(
+      <Builder initial='{"temp":21.5,"hum":60}' payloads={[]} mode="read" />,
+    );
+    // Click 21.5 -> replaces 21.5 with {{value}}
+    fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
+    expect(template()).toBe(`{"temp":${VALUE_TOKEN},"hum":60}`);
+
+    // Click 60 -> swaps token, restoring 21.5 and marking 60
+    fireEvent.click(screen.getByRole("button", { name: /60/ }));
+    expect(template()).toBe(`{"temp":21.5,"hum":${VALUE_TOKEN}}`);
+  });
+
+  it("swaps the token cleanly when clicking a literal even if covered was empty", () => {
+    render(
+      <Builder
+        initial={`{"temp":${VALUE_TOKEN},"hum":60}`}
+        payloads={['{"temp":21.5,"hum":60}']}
+        mode="read"
+      />,
+    );
+    // Click 60 -> swaps token, restoring temp (via latest payload) and marking 60
+    fireEvent.click(screen.getByRole("button", { name: /60/ }));
+    expect(template()).toBe(`{"temp":21.5,"hum":${VALUE_TOKEN}}`);
+
+    // Click 21.5 -> swaps back, restoring 60 and marking 21.5
+    fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
+    expect(template()).toBe(`{"temp":${VALUE_TOKEN},"hum":60}`);
+  });
+
+  it("swaps token with fallback scalar when no latest payload is available and covered is empty", () => {
+    render(
+      <Builder
+        initial={`{"temp":${VALUE_TOKEN},"hum":60}`}
+        payloads={[]}
+        mode="read"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /60/ }));
+    expect(template()).toBe(`{"temp":0,"hum":${VALUE_TOKEN}}`);
+  });
+
+  it("hides preview when multiple tokens are entered in read mode", () => {
+    render(
+      <Builder
+        initial={`{"temp":${VALUE_TOKEN},"hum":${VALUE_TOKEN}}`}
+        payloads={['{"temp":21.5,"hum":60}']}
+        mode="read"
+      />,
+    );
+    expect(
+      screen.queryByText(/Multiple value tokens in read shape/i),
+    ).toBeNull();
+    expect(screen.queryByText(/Reads/i)).toBeNull();
+    expect(screen.queryByText(/Latest/i)).toBeNull();
+  });
+
+  it("previews write payload using available tokens without requiring value token", () => {
+    render(
+      <Builder
+        initial='{"topic":"{{topic}}"}'
+        payloads={[]}
+        availableTokens={[
+          { name: "timestamp", token: "{{timestamp}}", label: "timestamp" },
+          { name: "topic", token: "{{topic}}", label: "topic" },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/No value token in message/)).toBeNull();
+    expect(screen.getByText(/home\/lamp/)).toBeTruthy();
   });
 });

@@ -27,7 +27,6 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   effectiveReadTemplate,
-  hasAnyToken,
   hasToken,
 } from "./payloadShape";
 import {
@@ -358,7 +357,7 @@ export function ToggleConfigModal({
               problem={
                 payloadTemplate.trim() === ""
                   ? "Nothing to send yet."
-                  : hasAnyToken(payloadTemplate)
+                  : hasToken(payloadTemplate)
                     ? null
                     : `No ${TOKEN_LABEL} token in the message.`
               }

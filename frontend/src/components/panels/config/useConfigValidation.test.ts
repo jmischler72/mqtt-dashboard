@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { topicRules, useConfigValidation } from "./useConfigValidation";
+import {
+  payloadRules,
+  topicRules,
+  useConfigValidation,
+} from "./useConfigValidation";
 
 /**
  * The rules are pure and so is the hook — it holds no state, it just picks
@@ -40,5 +44,42 @@ describe("topicRules", () => {
       useBroken(topicRules({ topic: "home/a, home/b", allowWildcards: true }))
         .blockerReason,
     ).toBeNull();
+  });
+});
+
+describe("payloadRules in read mode", () => {
+  it("allows exactly one value token", () => {
+    const rules = payloadRules({
+      value: '{"temp":{{value}}}',
+      mode: "read",
+    });
+    expect(useConfigValidation(rules).blockerReason).toBeNull();
+  });
+
+  it("refuses multiple value tokens", () => {
+    const rules = payloadRules({
+      value: '{"temp":{{value}},"hum":{{value}}}',
+      mode: "read",
+    });
+    const validation = useConfigValidation(rules);
+    expect(validation.blockerReason).toContain("only mark one value");
+    expect(validation.fieldErrors.payload).toContain("only mark one value");
+  });
+
+  it("refuses multiple indexed tokens in read mode", () => {
+    const rules = payloadRules({
+      value: '{"temp":{{value:1}},"hum":{{value:2}}}',
+      mode: "read",
+    });
+    const validation = useConfigValidation(rules);
+    expect(validation.blockerReason).toContain("only mark one value");
+  });
+
+  it("allows multiple tokens in write mode", () => {
+    const rules = payloadRules({
+      value: '{"temp":{{value:1}},"hum":{{value:2}}}',
+      mode: "write",
+    });
+    expect(useConfigValidation(rules).blockerReason).toBeNull();
   });
 });

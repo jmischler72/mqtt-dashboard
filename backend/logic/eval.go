@@ -234,12 +234,24 @@ func matchTemplateStencil(template, raw string) (string, bool) {
 		strings.HasSuffix(trimmedRaw, trimmedSuffix) {
 		middle := trimmedRaw[len(trimmedPrefix) : len(trimmedRaw)-len(trimmedSuffix)]
 		middle = strings.TrimSpace(middle)
-		if trimmedSuffix == "" && !strings.HasPrefix(middle, "\"") {
-			if i := strings.IndexAny(middle, " ,\t\r\n"); i != -1 {
+		if trimmedSuffix == "" {
+			if strings.HasPrefix(middle, "\"") {
+				for i := 1; i < len(middle); i++ {
+					if middle[i] == '"' && middle[i-1] != '\\' {
+						return middle[1:i], true
+					}
+				}
+			} else if strings.HasPrefix(middle, "'") {
+				for i := 1; i < len(middle); i++ {
+					if middle[i] == '\'' && middle[i-1] != '\\' {
+						return middle[1:i], true
+					}
+				}
+			} else if i := strings.IndexAny(middle, " ,\t\r\n"); i != -1 {
 				middle = middle[:i]
 			}
 		}
-		if len(middle) >= 2 && middle[0] == '"' && middle[len(middle)-1] == '"' {
+		if len(middle) >= 2 && ((middle[0] == '"' && middle[len(middle)-1] == '"') || (middle[0] == '\'' && middle[len(middle)-1] == '\'')) {
 			middle = middle[1 : len(middle)-1]
 		}
 		return middle, true

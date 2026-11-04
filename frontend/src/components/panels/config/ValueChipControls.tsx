@@ -4,8 +4,9 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   findLiterals,
-  markLiteral,
   placeToken,
+  readShape,
+  swapOrMarkLiteral,
 } from "../payloadShape";
 
 export interface Selection {
@@ -18,11 +19,12 @@ export interface ValueChipControlsProps {
   onChange: (next: string) => void;
   getSelection: () => Selection | null;
   onCaret?: (offset: number) => void;
-  onCoveredChange: (covered: string, tokenIndex?: number) => void;
+  onCoveredChange: (covered: string) => void;
   covered?: string;
   mode: "write" | "read";
   history?: ReactNode;
   availableTokens?: Array<{ name: string; token: string; label: string }>;
+  latestPayload?: string;
 }
 
 export default function ValueChipControls({
@@ -31,18 +33,34 @@ export default function ValueChipControls({
   getSelection,
   onCaret,
   onCoveredChange,
+  covered = "",
   mode,
   history,
   availableTokens,
+  latestPayload,
 }: ValueChipControlsProps) {
   const literals = findLiterals(value);
+
+  const handleLiteralClick = (literal: (typeof literals)[0]) => {
+    let fallback: string | undefined;
+    if (latestPayload && mode === "read") {
+      const read = readShape(value, latestPayload);
+      if (read.found && read.text) {
+        fallback = read.text;
+      }
+    }
+
+    const result = swapOrMarkLiteral(value, literal, covered, fallback);
+    onCoveredChange(result.previous);
+    onChange(result.template);
+    onCaret?.(result.caret);
+  };
 
   const place = (token: string = VALUE_TOKEN) => {
     const at = getSelection() ?? { start: value.length, end: value.length };
     const placed = placeToken(value, at.start, at.end, token);
-    const tokenIndex = value.slice(0, at.start).split(VALUE_TOKEN).length - 1;
     onCaret?.(placed.caret);
-    onCoveredChange(placed.covered, tokenIndex);
+    onCoveredChange(placed.covered);
     onChange(placed.template);
   };
 
@@ -84,19 +102,7 @@ export default function ValueChipControls({
                 ? `Replace ${literal.key}: "${literal.text}" with ${VALUE_TOKEN}`
                 : `Replace "${literal.text}" with ${VALUE_TOKEN}`
             }
-            onClick={() => {
-              const result = markLiteral(value, literal);
-              const tokenIndex =
-                value.slice(0, literal.start).split(VALUE_TOKEN).length - 1;
-              onCoveredChange(result.previous, tokenIndex);
-              onChange(result.template);
-              onCaret?.(
-                literal.start +
-                  (literal.text.startsWith('"')
-                    ? VALUE_TOKEN.length + 2
-                    : VALUE_TOKEN.length),
-              );
-            }}
+            onClick={() => handleLiteralClick(literal)}
             className="badge badge-sm badge-outline hover:badge-primary font-mono cursor-pointer transition-colors h-6 px-2 text-[11px]"
           >
             {literal.text}

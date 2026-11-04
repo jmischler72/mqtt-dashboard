@@ -58,6 +58,16 @@ func TestInterpolate(t *testing.T) {
 			template: "",
 			expected: "",
 		},
+		{
+			name:     "missing condition key returns empty string",
+			template: `{"val":{{value:99}}}`,
+			expected: `{"val":}`,
+		},
+		{
+			name:     "template with no braces returns as-is",
+			template: `plain text message`,
+			expected: `plain text message`,
+		},
 	}
 
 	for _, tt := range tests {

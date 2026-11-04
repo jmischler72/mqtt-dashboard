@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  countTokens,
   describeTemplate,
   deriveReadPath,
+  detectPayloadMode,
   effectiveReadPath,
   effectiveReadTemplate,
   extractValue,
@@ -16,6 +18,7 @@ import {
   readShape,
   resolvePath,
   readValue,
+  swapOrMarkLiteral,
 } from "./payloadShape";
 import { parseSliderValue } from "./sliderUtils";
 
@@ -181,8 +184,30 @@ describe("reading by stencil", () => {
     expect(readValue(VALUE_TOKEN, "42").value).toBe(42);
   });
 
-  it("honours a legacy path when the template has no mark", () => {
-    expect(readValue('{"v":1}', '{"state":7}', "state").value).toBe(7);
+  it("matches the targeted token even when tail contains a second token", () => {
+    expect(
+      matchTemplate(
+        `{"temp":${VALUE_TOKEN},"hum":${VALUE_TOKEN}}`,
+        '{"temp":21.5,"hum":60}',
+      ),
+    ).toBe("21.5");
+  });
+});
+
+describe("countTokens", () => {
+  it("counts zero for strings with no tokens", () => {
+    expect(countTokens("")).toBe(0);
+    expect(countTokens("hello world")).toBe(0);
+    expect(countTokens('{"temp": 21.5}')).toBe(0);
+  });
+
+  it("counts single and multiple tokens", () => {
+    expect(countTokens(VALUE_TOKEN)).toBe(1);
+    expect(countTokens(`{"temp": ${VALUE_TOKEN}}`)).toBe(1);
+    expect(countTokens(`{"temp": ${VALUE_TOKEN}, "hum": ${VALUE_TOKEN}}`)).toBe(
+      2,
+    );
+    expect(countTokens("{{value:1}} and {{value:2}} and {{topic}}")).toBe(3);
   });
 });
 
@@ -406,5 +431,128 @@ describe("resolvePath", () => {
       found: true,
       value: 3,
     });
+  });
+});
+
+describe("swapOrMarkLiteral", () => {
+  it("marks a literal when no token exists in template", () => {
+    const template = '{"temp": 21.5, "hum": 60}';
+    const literal = { text: "21.5", start: 9, end: 13, key: "temp" };
+    const result = swapOrMarkLiteral(template, literal);
+    expect(result.template).toBe(`{"temp": ${VALUE_TOKEN}, "hum": 60}`);
+    expect(result.previous).toBe("21.5");
+    expect(result.caret).toBe(9 + VALUE_TOKEN.length);
+  });
+
+  it("swaps token when token is before literal and covered is known", () => {
+    const template = `{"temp": ${VALUE_TOKEN}, "hum": 60}`;
+    const literal = {
+      text: "60",
+      start: 9 + VALUE_TOKEN.length + 9,
+      end: 9 + VALUE_TOKEN.length + 11,
+      key: "hum",
+    };
+    const result = swapOrMarkLiteral(template, literal, "21.5");
+    expect(result.template).toBe(`{"temp": 21.5, "hum": ${VALUE_TOKEN}}`);
+    expect(result.previous).toBe("60");
+  });
+
+  it("swaps token when token is after literal and covered is known", () => {
+    const template = `{"temp": 21.5, "hum": ${VALUE_TOKEN}}`;
+    const literal = { text: "21.5", start: 9, end: 13, key: "temp" };
+    const result = swapOrMarkLiteral(template, literal, "60");
+    expect(result.template).toBe(`{"temp": ${VALUE_TOKEN}, "hum": 60}`);
+    expect(result.previous).toBe("21.5");
+  });
+
+  it("swaps token using fallbackValue when covered is empty", () => {
+    const template = `{"temp": ${VALUE_TOKEN}, "hum": 60}`;
+    const literal = {
+      text: "60",
+      start: 9 + VALUE_TOKEN.length + 9,
+      end: 9 + VALUE_TOKEN.length + 11,
+      key: "hum",
+    };
+    const result = swapOrMarkLiteral(template, literal, "", "22.4");
+    expect(result.template).toBe(`{"temp": 22.4, "hum": ${VALUE_TOKEN}}`);
+    expect(result.previous).toBe("60");
+  });
+
+  it("swaps token using scalar fallback '0' when covered and fallbackValue are empty", () => {
+    const template = `{"temp": ${VALUE_TOKEN}, "hum": 60}`;
+    const literal = {
+      text: "60",
+      start: 9 + VALUE_TOKEN.length + 9,
+      end: 9 + VALUE_TOKEN.length + 11,
+      key: "hum",
+    };
+    const result = swapOrMarkLiteral(template, literal, "", "");
+    expect(result.template).toBe(`{"temp": 0, "hum": ${VALUE_TOKEN}}`);
+    expect(result.previous).toBe("60");
+  });
+
+  it("consolidates multiple tokens down to one when swapping", () => {
+    const template = `{"a": ${VALUE_TOKEN}, "b": ${VALUE_TOKEN}, "c": 3}`;
+    const literal = {
+      text: "3",
+      start: template.indexOf("3"),
+      end: template.indexOf("3") + 1,
+      key: "c",
+    };
+    const result = swapOrMarkLiteral(template, literal, "1");
+    expect(result.template).toBe(`{"a": 1, "b": 0, "c": ${VALUE_TOKEN}}`);
+    expect(result.previous).toBe("3");
+  });
+
+  it("handles quoted literal preserving quotes around token", () => {
+    const template = `{"status": ${VALUE_TOKEN}, "mode": "AUTO"}`;
+    const literal = {
+      text: '"AUTO"',
+      start: template.indexOf('"AUTO"'),
+      end: template.indexOf('"AUTO"') + 6,
+      key: "mode",
+    };
+    const result = swapOrMarkLiteral(template, literal, "21");
+    expect(result.template).toBe(`{"status": 21, "mode": "${VALUE_TOKEN}"}`);
+    expect(result.previous).toBe("AUTO");
+  });
+
+  it("handles quoted token restoring quotes cleanly", () => {
+    const template = `{"status": "${VALUE_TOKEN}", "val": 42}`;
+    const literal = {
+      text: "42",
+      start: template.indexOf("42"),
+      end: template.indexOf("42") + 2,
+      key: "val",
+    };
+    const result = swapOrMarkLiteral(template, literal, "ONLINE");
+    expect(result.template).toBe(`{"status": "ONLINE", "val": ${VALUE_TOKEN}}`);
+    expect(result.previous).toBe("42");
+  });
+});
+
+describe("detectPayloadMode", () => {
+  it("detects bare tokens and plain text as raw", () => {
+    expect(detectPayloadMode("")).toBe("raw");
+    expect(detectPayloadMode("  ")).toBe("raw");
+    expect(detectPayloadMode("ON")).toBe("raw");
+    expect(detectPayloadMode("21.5")).toBe("raw");
+    expect(detectPayloadMode("{{value}}")).toBe("raw");
+    expect(detectPayloadMode("{value}")).toBe("raw");
+    expect(detectPayloadMode("{{timestamp}}")).toBe("raw");
+  });
+
+  it("detects JSON objects and arrays containing tokens as json", () => {
+    expect(detectPayloadMode(`{"temp": ${VALUE_TOKEN}}`)).toBe("json");
+    expect(detectPayloadMode(`{"temp": "${VALUE_TOKEN}"}`)).toBe("json");
+    expect(detectPayloadMode(`{"temp": {{value:1}}, "hum": {{value:2}}}`)).toBe(
+      "json",
+    );
+    expect(detectPayloadMode(`[1, 2, ${VALUE_TOKEN}]`)).toBe("json");
+  });
+
+  it("detects malformed JSON-like strings as raw", () => {
+    expect(detectPayloadMode(`{"temp": ${VALUE_TOKEN}`)).toBe("raw");
+    expect(detectPayloadMode(`[1, 2,`)).toBe("raw");
   });
 });

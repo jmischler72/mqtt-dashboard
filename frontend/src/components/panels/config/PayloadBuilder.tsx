@@ -7,13 +7,15 @@ import {
 import {
   TOKEN_LABEL,
   VALUE_TOKEN,
+  countTokens,
   detectPayloadMode,
   findLiterals,
+  hasAnyToken,
   hasToken,
   isBareToken,
   parseTemplateChunks,
+  previewPayload,
   readShape,
-  renderPayload,
   type ParsedChunk,
 } from "../payloadShape";
 import HighlightedTextarea, {
@@ -114,7 +116,7 @@ export default function PayloadBuilder({
     setPosition(null);
   };
 
-  const handleRemoveToken = (chunk: ParsedChunk, _tokenIdx: number) => {
+  const handleRemoveToken = (chunk: ParsedChunk) => {
     if (isBareToken(value) || value.trim() === chunk.text) {
       onChange("");
       setCovered("");
@@ -125,8 +127,7 @@ export default function PayloadBuilder({
     }
 
     const restore = covered || "";
-    const next =
-      value.slice(0, chunk.start) + restore + value.slice(chunk.end);
+    const next = value.slice(0, chunk.start) + restore + value.slice(chunk.end);
 
     onChange(next);
     setCovered("");
@@ -282,6 +283,8 @@ export default function PayloadBuilder({
               previewValue={previewValue}
               position={position}
               onPosition={setPosition}
+              topic={topic}
+              availableTokens={availableTokens}
               asCard={false}
             />
           )
@@ -295,6 +298,7 @@ export default function PayloadBuilder({
           covered={covered}
           history={historyNode}
           availableTokens={availableTokens}
+          latestPayload={latest?.payload}
           onChange={onChange}
           getSelection={() => textareaRef.current?.getSelection() ?? selection}
           onCaret={(at) => {
@@ -344,6 +348,8 @@ export default function PayloadBuilder({
               previewValue={previewValue}
               position={position}
               onPosition={setPosition}
+              topic={topic}
+              availableTokens={availableTokens}
               asCard={true}
             />
           )
@@ -408,6 +414,8 @@ function WritePreview({
   position,
   onPosition,
   asCard = false,
+  topic,
+  availableTokens,
 }: {
   value: string;
   chip: boolean;
@@ -416,26 +424,39 @@ function WritePreview({
   position: number | null;
   onPosition: (next: number) => void;
   asCard?: boolean;
+  topic?: string;
+  availableTokens?: Array<{ name: string; token: string; label: string }>;
 }) {
+  const requiresSpecificValue = Boolean(range);
+  const allowsOtherTokens = Boolean(
+    availableTokens && !availableTokens.some((t) => t.name === "value"),
+  );
+  const hasTokenInTemplate = chip || hasAnyToken(value);
+  const missingToken = requiresSpecificValue
+    ? !chip
+    : allowsOtherTokens
+      ? false
+      : !hasTokenInTemplate;
+
+  const midpoint = range
+    ? range.min +
+      Math.round((range.max - range.min) / 2 / range.step) * range.step
+    : 0;
+  const at = position ?? midpoint;
+
+  const renderedBytes = range
+    ? previewPayload(value, at, topic, null, availableTokens)
+    : previewPayload(value, previewValue, topic, null, availableTokens);
+
   if (asCard) {
-    if (!chip) {
-      return (
-        <PreviewBox
-          problem={
-            value.trim() === ""
-              ? "Nothing to send yet."
-              : `No ${TOKEN_LABEL} token in message.`
-          }
-        />
-      );
+    if (value.trim() === "") {
+      return <PreviewBox problem="Nothing to send yet." />;
+    }
+    if (missingToken) {
+      return <PreviewBox problem={`No ${TOKEN_LABEL} token in message.`} />;
     }
 
     if (range) {
-      const midpoint =
-        range.min +
-        Math.round((range.max - range.min) / 2 / range.step) * range.step;
-      const at = position ?? midpoint;
-
       return (
         <PreviewBox note="Move the handle.">
           <div className="flex flex-col gap-2 min-w-0">
@@ -449,7 +470,7 @@ function WritePreview({
               value={at}
               onChange={(e) => onPosition(Number(e.target.value))}
             />
-            <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+            <PreviewLine label="Sends" bytes={renderedBytes} />
           </div>
         </PreviewBox>
       );
@@ -457,22 +478,14 @@ function WritePreview({
 
     return (
       <PreviewBox>
-        <PreviewLine
-          label="Sends"
-          bytes={renderPayload(value, previewValue ?? "")}
-        />
+        <PreviewLine label="Sends" bytes={renderedBytes} />
       </PreviewBox>
     );
   }
 
-  if (!chip) return null;
+  if (value.trim() === "" || missingToken) return null;
 
   if (range) {
-    const midpoint =
-      range.min +
-      Math.round((range.max - range.min) / 2 / range.step) * range.step;
-    const at = position ?? midpoint;
-
     return (
       <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-2 flex flex-col gap-1.5 min-w-0">
         <input
@@ -485,17 +498,14 @@ function WritePreview({
           value={at}
           onChange={(e) => onPosition(Number(e.target.value))}
         />
-        <PreviewLine label="Sends" bytes={renderPayload(value, at)} />
+        <PreviewLine label="Sends" bytes={renderedBytes} />
       </div>
     );
   }
 
   return (
     <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 min-w-0">
-      <PreviewLine
-        label="Sends"
-        bytes={renderPayload(value, previewValue ?? "")}
-      />
+      <PreviewLine label="Sends" bytes={renderedBytes} />
     </div>
   );
 }
@@ -522,6 +532,11 @@ function ReadPreview({
   asCard?: boolean;
 }) {
   const blank = value.trim() === "";
+  const tokenCount = countTokens(value);
+
+  if (tokenCount > 1) {
+    return null;
+  }
 
   if (asCard) {
     if (!latest) {
