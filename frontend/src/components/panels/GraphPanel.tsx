@@ -278,7 +278,7 @@ export function GraphConfigModal({
       </ConfigGroup>
 
       <ConfigGroup heading="Appearance">
-        <ConfigCard title="Line style" summary="How points are joined up">
+        <ConfigCard title="Line style">
           <ChoiceCards<CurveType>
             value={curve}
             onChange={setCurve}
@@ -301,30 +301,26 @@ export function GraphConfigModal({
             ]}
           />
           <SwitchRow
-            name="Fill under the line"
-            note="Tints the area down to the baseline"
+            name="Fill area"
+            note="Shade area below line"
             on={showArea}
             onToggle={setShowArea}
           />
           <SwitchRow
-            name="Dot per message"
-            note="Marks where each message landed"
+            name="Show points"
+            note="Mark data points"
             on={showPoints}
             onToggle={setShowPoints}
           />
           <SwitchRow
-            name="Legend"
-            note="Names each line and its latest value"
+            name="Show legend"
+            note="Display series labels"
             on={showLegend}
             onToggle={setShowLegend}
           />
         </ConfigCard>
 
-        <ConfigCard
-          title="Window"
-          summary="How much of the past is drawn"
-          invalid={Boolean(fieldErrors.points)}
-        >
+        <ConfigCard title="Window" invalid={Boolean(fieldErrors.points)}>
           <FieldRow label="Range">
             <select
               className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"
@@ -341,10 +337,7 @@ export function GraphConfigModal({
           <FieldRow
             label="Points"
             invalid={Boolean(fieldErrors.points)}
-            help={
-              fieldErrors.points ??
-              "How many points each line keeps before dropping the oldest."
-            }
+            help={fieldErrors.points ?? "Max points per line"}
           >
             <input
               className={`input input-bordered w-full min-w-0 h-8 min-h-8 font-mono text-xs ${
@@ -361,7 +354,7 @@ export function GraphConfigModal({
 
         <ConfigCard
           title="Scale"
-          summary="Blank fits the data"
+          summary="Auto-fit if blank"
           invalid={Boolean(fieldErrors.scale)}
         >
           <NumberRangeRow
@@ -391,7 +384,7 @@ export function GraphConfigModal({
               {fieldErrors.scale}
             </span>
           )}
-          <FieldRow label="Unit" help="Shown next to values in the legend.">
+          <FieldRow label="Unit">
             <input
               className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
               placeholder="°C, %, kW"
@@ -688,19 +681,16 @@ export default function GraphPanel({
               <>
                 <MdShowChart className="text-3xl text-base-content/30" />
                 <span className="text-xs text-base-content/60 leading-relaxed max-w-xs">
-                  Messages are arriving on{" "}
-                  <span className="font-mono text-accent">{topicsKey}</span>,
-                  but the value read out of them is not a number. Point the
-                  value shape at the numeric field in this panel's settings.
+                  Non-numeric data received on{" "}
+                  <span className="font-mono text-accent">{topicsKey}</span>.
+                  Configure a numeric value shape in panel settings.
                 </span>
               </>
             ) : (
               <>
                 <div className="loading loading-spinner loading-md text-primary" />
-                <span className="text-xs text-base-content/60 font-mono animate-pulse">
-                  Waiting for numeric data on{" "}
-                  <span className="font-semibold text-accent">{topicsKey}</span>
-                  …
+                <span className="text-xs text-base-content/50 font-mono animate-pulse">
+                  Waiting for data…
                 </span>
               </>
             )}

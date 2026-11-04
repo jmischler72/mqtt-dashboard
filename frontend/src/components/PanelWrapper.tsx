@@ -505,7 +505,7 @@ function PanelWrapper({
               {panelWarning && (panel.h ?? 1) <= 1 && (
                 <span
                   className="absolute left-0.5 text-warning flex items-center justify-center"
-                  title="Configuration warning — check panel parameters"
+                  title="Config issue"
                 >
                   <RiErrorWarningLine className="text-warning text-xs shrink-0" />
                 </span>
@@ -526,7 +526,7 @@ function PanelWrapper({
               {panelWarning && (panel.h ?? 1) > 1 && (
                 <span
                   className="text-warning flex items-center justify-center w-6 h-6 rounded-sm bg-warning/10 border border-warning/30"
-                  title="Configuration warning — check panel parameters"
+                  title="Config issue"
                 >
                   <RiErrorWarningLine className="text-warning text-xs shrink-0" />
                 </span>
@@ -536,7 +536,7 @@ function PanelWrapper({
                 className={`btn btn-ghost btn-xs btn-square no-drag ${
                   (panel.h ?? 1) <= 1 ? "h-5 w-5 min-h-5 p-0" : ""
                 }`}
-                title="Copy or move panel"
+                title="Copy / Move"
                 onClick={() => setCopyModalOpen(true)}
               >
                 <MdContentCopy
@@ -625,7 +625,7 @@ function PanelWrapper({
                   {panelWarning && (
                     <span
                       className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
-                      title="Configuration warning — check panel parameters"
+                      title="Config issue"
                     >
                       <RiErrorWarningLine className="text-warning text-sm shrink-0" />
                     </span>
@@ -633,7 +633,7 @@ function PanelWrapper({
                   <button
                     type="button"
                     className="btn btn-ghost btn-xs btn-square no-drag"
-                    title="Copy or move panel"
+                    title="Copy / Move"
                     onClick={() => setCopyModalOpen(true)}
                   >
                     <MdContentCopy className="text-base" />
@@ -660,7 +660,7 @@ function PanelWrapper({
                   <div className="flex items-center gap-1 shrink-0 no-drag">
                     <span
                       className="text-warning flex items-center gap-1 text-xs font-medium cursor-help px-1.5 py-0.5 rounded-sm bg-warning/10 border border-warning/30"
-                      title="Configuration warning — check panel parameters"
+                      title="Config issue"
                     >
                       <RiErrorWarningLine className="text-warning text-sm shrink-0" />
                     </span>
@@ -779,9 +779,7 @@ function PanelWrapper({
 
             <button
               type="button"
-              aria-label={
-                isPinned ? "Unpin broker metadata" : "Pin broker metadata"
-              }
+              aria-label={isPinned ? "Unpin metadata" : "Pin metadata"}
               className="btn btn-ghost btn-xs h-6 min-h-6 w-6 px-0 shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
@@ -868,14 +866,13 @@ function PanelWrapper({
             <div className="modal-box max-w-sm p-4">
               <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
                 <MdContentCopy className="text-base text-primary" />
-                Copy or Move Panel
+                Copy / Move
               </h3>
               <p className="text-xs text-base-content/70 mb-3 truncate">
-                Destination for{" "}
+                Target dashboard for{" "}
                 <span className="font-semibold text-base-content">
                   “{panel.title}”
                 </span>
-                :
               </p>
 
               {/* Current dashboard (Duplicate) */}
@@ -922,7 +919,7 @@ function PanelWrapper({
                             className="btn btn-xs btn-ghost border border-base-300 hover:border-primary"
                             onClick={() => handleCopyTo(d.id)}
                             disabled={actionBusy}
-                            title={`Copy to ${d.name} (keeps original)`}
+                            title={`Copy to ${d.name}`}
                           >
                             Copy
                           </button>
@@ -931,20 +928,13 @@ function PanelWrapper({
                             className="btn btn-xs btn-outline btn-warning"
                             onClick={() => handleMoveTo(d.id)}
                             disabled={actionBusy}
-                            title={`Move to ${d.name} (deletes from this dashboard)`}
+                            title={`Move to ${d.name} (deletes from current dashboard)`}
                           >
                             Move
                           </button>
                         </div>
                       </div>
                     ))}
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2.5 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/20 text-[11px] text-warning">
-                    <RiErrorWarningLine className="shrink-0 text-sm" />
-                    <span>
-                      <strong>Move</strong> deletes the panel from this
-                      dashboard.
-                    </span>
                   </div>
                 </>
               )}

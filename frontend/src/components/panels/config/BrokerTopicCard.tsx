@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { RiHashtag } from "react-icons/ri";
 import type { BrokerStatus } from "../../../hooks/useBrokers";
 import BrokerSelect from "./BrokerSelect";
 import DisclosureCard from "./DisclosureCard";
@@ -117,8 +118,9 @@ export default function BrokerTopicCard({
       </span>
     </span>
   ) : (
-    <span className="text-[11px] text-base-content/50 italic">
-      No topic configured
+    <span className="inline-flex items-center gap-1 text-[11px] text-base-content/40">
+      <RiHashtag className="opacity-40" />
+      Unset
     </span>
   );
 

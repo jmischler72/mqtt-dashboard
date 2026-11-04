@@ -148,7 +148,7 @@ export function LogConfigModal({
       </ConfigGroup>
 
       <ConfigGroup heading="Appearance">
-        <ConfigCard title="Line style" summary="Drawn with your settings">
+        <ConfigCard title="Line style">
           <ChoiceCards<LogDateFormat>
             value={dateFormat}
             onChange={setDateFormat}
@@ -180,20 +180,20 @@ export function LogConfigModal({
             ]}
           />
           <SwitchRow
-            name="Source panel badge"
-            note="Links to the panel that published this message"
+            name="Publisher panel badge"
+            note="Show origin panel link"
             on={showSource}
             onToggle={setShowSource}
           />
           <SwitchRow
             name="QoS badge"
-            note="Prints the delivery level on each line"
+            note="Show delivery level"
             on={showQos}
             onToggle={setShowQos}
           />
           <SwitchRow
             name="Retain badge"
-            note="Marks messages the broker had kept"
+            note="Show retain indicator"
             on={showRetained}
             onToggle={setShowRetained}
           />
@@ -203,10 +203,7 @@ export function LogConfigModal({
           <FieldRow
             label="Rows"
             invalid={Boolean(fieldErrors.rows)}
-            help={
-              fieldErrors.rows ??
-              "How many lines the panel keeps before dropping the oldest."
-            }
+            help={fieldErrors.rows ?? "Max lines to retain"}
           >
             <input
               className={`input input-bordered w-full min-w-0 h-8 min-h-8 font-mono text-xs ${
@@ -477,7 +474,7 @@ export default function LogPanel({ panelId, brokerId, config }: LogPanelProps) {
   if (!config.topics?.trim()) {
     return (
       <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
-        No topic configured — open settings to add topic
+        No topic configured
       </div>
     );
   }

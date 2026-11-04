@@ -274,8 +274,8 @@ export const inputPanelDefinition: PanelDefinition<InputConfig> = {
   isEmpty: (config) =>
     !config?.topic?.trim()
       ? {
-          message: "No topic configured — open settings to add topic",
-          actionLabel: "Configure Topic",
+          message: "No topic configured",
+          actionLabel: "Set Topic",
         }
       : null,
   preview: (
@@ -445,8 +445,8 @@ export const togglePanelDefinition: PanelDefinition<ToggleConfig> = {
   isEmpty: (config) =>
     !config?.topic?.trim()
       ? {
-          message: "No topic configured — open settings to add topic",
-          actionLabel: "Configure Topic",
+          message: "No topic configured",
+          actionLabel: "Set Topic",
         }
       : null,
   // The generic validator only inspects `topic`. Wildcards are illegal on the
@@ -541,8 +541,8 @@ export const sliderPanelDefinition: PanelDefinition<SliderConfig> = {
   isEmpty: (config) =>
     !config?.topic?.trim()
       ? {
-          message: "No topic configured — open settings to add topic",
-          actionLabel: "Configure Topic",
+          message: "No topic configured",
+          actionLabel: "Set Topic",
         }
       : null,
   // Same split as the toggle: wildcards are illegal on the command topic (it is

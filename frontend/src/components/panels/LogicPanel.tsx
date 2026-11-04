@@ -106,13 +106,10 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
 
 const MODE_DESCRIPTIONS: Record<LogicMode, string> = {
   on_change:
-    "Fires once when conditions transition from not matching to matching. Re-arms when conditions clear.",
-  every:
-    "Fires on every incoming message that satisfies all configured conditions.",
-  count:
-    "Fires when incoming messages match conditions a specified number of times within a sliding time window.",
-  sustained:
-    "Fires once after conditions hold continuously for the target duration. Re-arms when conditions clear.",
+    "Fires once when conditions transition to matching. Re-arms when cleared.",
+  every: "Fires on each incoming message matching all conditions.",
+  count: "Fires when matches reach target count within time window.",
+  sustained: "Fires once conditions hold continuously for target duration.",
 };
 
 const CONDITION_BADGE_COLORS = [
@@ -621,8 +618,8 @@ export function LogicConfigModal({
                       }
                       help={
                         idx === 0
-                          ? "Wildcards (+, #) supported. Evaluates rule on incoming messages."
-                          : "Leave empty to use condition 1's topic."
+                          ? "Wildcards (+, #) supported."
+                          : "Defaults to condition 1 topic if empty."
                       }
                       onExplore={
                         onPickTopic
@@ -751,7 +748,7 @@ export function LogicConfigModal({
             onBrokerChange={setTargetBrokerId}
             brokers={brokerStatuses}
             topicError={fieldErrors.target_topic}
-            help="Target topic cannot contain wildcards or match the trigger topic."
+            help="Destination topic (no wildcards)."
             onExplore={
               onPickTopic
                 ? () =>

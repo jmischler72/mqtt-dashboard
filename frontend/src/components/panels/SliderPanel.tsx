@@ -343,9 +343,9 @@ export function SliderConfigModal({
           onToggle={(next) => {
             setSeparateRead(next);
           }}
-          title="A different topic reports the value"
-          offExplanation="The device reports on the command topic, in the same shape the panel publishes."
-          onExplanation="The panel listens here instead of on the command topic."
+          title="Separate state topic"
+          offExplanation="Listens on command topic"
+          onExplanation="Listens on separate status topic"
           invalid={Boolean(fieldErrors.stateTopic || fieldErrors.readShape)}
         >
           <BrokerTopicCard
@@ -359,7 +359,7 @@ export function SliderConfigModal({
             }}
             topicPlaceholder="home/light/brightness"
             topicError={fieldErrors.stateTopic}
-            help="Read-only, so wildcards (+ and #) are fine here."
+            help="Wildcards (+ and #) supported"
             onExplore={
               onPickTopic
                 ? () =>
@@ -411,10 +411,7 @@ export function SliderConfigModal({
 
       <ConfigGroup heading="Appearance">
         <ConfigCard>
-          <FieldRow
-            label="Unit"
-            help="Shown next to the value. Display only — never sent to the broker."
-          >
+          <FieldRow label="Unit">
             <input
               className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
               value={unit}
@@ -678,25 +675,27 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
     status = (
       <span className="text-base-content/60 inline-flex items-center gap-1">
         <RiLoader4Line className="animate-spin shrink-0" />
-        confirming…
+        Confirming…
       </span>
     );
   } else if (error) {
     status = (
       <span className="text-error inline-flex items-center gap-1">
         <RiErrorWarningLine className="shrink-0" />
-        publish failed
+        Publish failed
       </span>
     );
   } else if (unconfirmed) {
     status = (
       <span className="text-warning inline-flex items-center gap-1">
         <RiErrorWarningLine className="shrink-0" />
-        not confirmed
+        Not confirmed
       </span>
     );
   } else if (updatedAt === null) {
-    status = <span className="text-base-content/50">waiting for value…</span>;
+    status = (
+      <span className="text-base-content/50">Waiting for messages…</span>
+    );
   }
 
   return (
@@ -730,7 +729,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
                 disabled ? "" : "cursor-text"
               }`}
               style={{ fontSize: valueFontSize }}
-              title={disabled ? undefined : "Double-click to type a value"}
+              title={disabled ? undefined : "Double-click to edit"}
               onDoubleClick={() => {
                 if (disabled) return;
                 setTyped(String(displayed ?? range.min));
@@ -773,7 +772,7 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
             aria-label={commandTopic || "Slider"}
             title={
               hasWildcard
-                ? "Cannot publish to wildcard topics (+ or #)"
+                ? "Wildcards (+ / #) cannot be published to"
                 : !commandTopic
                   ? "No topic configured"
                   : undefined

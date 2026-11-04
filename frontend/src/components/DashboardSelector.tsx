@@ -1,5 +1,13 @@
 import { useRef, useState, useEffect } from "react";
-import { MdSearch } from "react-icons/md";
+import {
+  MdSearch,
+  MdAdd,
+  MdFileUpload,
+  MdFileDownload,
+  MdContentCopy,
+  MdEdit,
+} from "react-icons/md";
+import { RiCloseLine } from "react-icons/ri";
 import { api } from "../api/client";
 import type { Panel } from "../pages/DashboardPage";
 import {
@@ -288,7 +296,7 @@ export default function DashboardSelector({
                       pick(visibleDashboards[0].id);
                     }
                   }}
-                  placeholder="Find a dashboard"
+                  placeholder="Search dashboards…"
                 />
               </label>
             </div>
@@ -299,11 +307,11 @@ export default function DashboardSelector({
             >
               {dashboards.length === 0 ? (
                 <li className="px-2 py-1 text-xs text-base-content/50">
-                  No dashboards yet
+                  No dashboards
                 </li>
               ) : visibleDashboards.length === 0 ? (
                 <li className="px-2 py-1 text-xs text-base-content/50">
-                  No dashboard matches “{query}”
+                  No matching dashboards
                 </li>
               ) : (
                 visibleDashboards.map((d) => {
@@ -333,8 +341,13 @@ export default function DashboardSelector({
             <div className="border-t border-base-300" />
             <ul className="menu w-full p-2">
               <li>
-                <button role="menuitem" onClick={openCreate}>
-                  New dashboard
+                <button
+                  role="menuitem"
+                  className="flex items-center gap-2"
+                  onClick={openCreate}
+                >
+                  <MdAdd className="text-sm shrink-0" />
+                  <span>New dashboard</span>
                 </button>
               </li>
               <li className="w-full min-w-0">
@@ -343,7 +356,10 @@ export default function DashboardSelector({
                   className="!flex w-full min-w-0 items-center justify-between"
                   onClick={openImport}
                 >
-                  <span>Import from file…</span>
+                  <span className="flex items-center gap-2">
+                    <MdFileUpload className="text-sm shrink-0" />
+                    <span>Import JSON…</span>
+                  </span>
                   <span className="text-xs text-base-content/40 shrink-0">
                     .json
                   </span>
@@ -354,13 +370,15 @@ export default function DashboardSelector({
                   <li>
                     <button
                       role="menuitem"
+                      className="flex items-center gap-2"
                       onClick={() => {
                         setRenameValue(activeDashboard.name);
                         setRenameOpen(true);
                         setMenuOpen(false);
                       }}
                     >
-                      Rename
+                      <MdEdit className="text-sm shrink-0" />
+                      <span>Rename</span>
                     </button>
                   </li>
                   <li className="w-full min-w-0">
@@ -369,8 +387,9 @@ export default function DashboardSelector({
                       className="!flex w-full min-w-0 items-center justify-between gap-2"
                       onClick={handleExport}
                     >
-                      <span className="min-w-0 flex-1 truncate text-left">
-                        Export “{activeDashboard.name}”
+                      <span className="min-w-0 flex-1 truncate text-left flex items-center gap-2">
+                        <MdFileDownload className="text-sm shrink-0" />
+                        <span className="truncate">Export JSON</span>
                       </span>
                       <span className="text-xs text-base-content/40 shrink-0">
                         .json
@@ -380,10 +399,12 @@ export default function DashboardSelector({
                   <li>
                     <button
                       role="menuitem"
+                      className="flex items-center gap-2"
                       onClick={handleDuplicate}
                       disabled={busy}
                     >
-                      Duplicate
+                      <MdContentCopy className="text-sm shrink-0" />
+                      <span>Duplicate</span>
                     </button>
                   </li>
                 </>
@@ -396,21 +417,22 @@ export default function DashboardSelector({
                     className="w-full min-w-0"
                     title={
                       dashboards.length <= 1
-                        ? "You need at least one dashboard — create another before deleting this one"
+                        ? "Cannot delete the only dashboard"
                         : undefined
                     }
                   >
                     <button
                       role="menuitem"
-                      className="!flex w-full min-w-0 items-center text-error"
+                      className="!flex w-full min-w-0 items-center text-error gap-2"
                       onClick={() => {
                         setDeleteOpen(true);
                         setMenuOpen(false);
                       }}
                       disabled={dashboards.length <= 1}
                     >
+                      <RiCloseLine className="text-base shrink-0" />
                       <span className="min-w-0 flex-1 truncate text-left">
-                        Delete “{activeDashboard.name}”…
+                        Delete dashboard…
                       </span>
                       {dashboards.length <= 1 && (
                         <span className="text-xs text-base-content/40 shrink-0">
@@ -452,7 +474,7 @@ export default function DashboardSelector({
             )}
 
             <div className="divider text-xs text-base-content/50">
-              or start from a template
+              Templates
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {DASHBOARD_TEMPLATES.map((template) => (
@@ -471,10 +493,6 @@ export default function DashboardSelector({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-base-content/40 mt-2">
-              Templates use your default broker — edit panels afterwards to set
-              the right broker and topics.
-            </p>
 
             <div className="modal-action">
               <button
@@ -556,8 +574,8 @@ export default function DashboardSelector({
           <div className="modal-box max-w-sm">
             <h3 className="font-bold text-lg mb-2">Delete Dashboard</h3>
             <p className="text-sm text-base-content/70 mb-4">
-              Delete <strong>{activeDashboard.name}</strong>? All panels in this
-              dashboard will be permanently removed.
+              Permanently remove <strong>{activeDashboard.name}</strong> and all
+              its panels?
             </p>
             <div className="modal-action">
               <button

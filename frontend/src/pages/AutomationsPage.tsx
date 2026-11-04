@@ -19,6 +19,7 @@ import {
   RiArrowUpDownLine,
   RiFilter3Line,
   RiFilter3Fill,
+  RiCloseLine,
 } from "react-icons/ri";
 import { api, type AutomationItem } from "../api/client";
 import { PRESETS, describeCron } from "../components/panels/cronUtils";
@@ -636,10 +637,8 @@ export default function AutomationsPage() {
             </option>
           ))}
         </select>
-        <span className="text-xs text-base-content/40">
-          {searchQuery.trim() || isFilterActive || selectedDashboardId !== "all"
-            ? `${displayedJobs.length} of ${jobs.length} automations`
-            : `${jobs.length} automations configured`}
+        <span className="text-xs text-base-content/40 font-mono">
+          {displayedJobs.length} / {jobs.length}
         </span>
 
         {/* Right side controls */}
@@ -647,15 +646,16 @@ export default function AutomationsPage() {
           {/* Active filter badge & reset */}
           {(isFilterActive || searchQuery || selectedDashboardId !== "all") && (
             <div className="flex items-center gap-2">
-              <span className="badge badge-sm badge-ghost text-xs">
-                Showing {displayedJobs.length} of {jobs.length}
+              <span className="badge badge-sm badge-ghost text-xs font-mono">
+                {displayedJobs.length} / {jobs.length}
               </span>
               <button
                 type="button"
-                className="btn btn-xs btn-ghost text-primary hover:bg-primary/10"
+                className="btn btn-xs btn-ghost gap-1 text-base-content/70 hover:text-base-content"
                 onClick={handleResetAllFilters}
               >
-                Reset filters
+                <RiCloseLine className="text-sm" />
+                Clear filters
               </button>
             </div>
           )}
@@ -666,7 +666,7 @@ export default function AutomationsPage() {
             <input
               type="text"
               className="input input-sm input-bordered w-full pl-8 pr-7 text-xs"
-              placeholder="Search all columns..."
+              placeholder="Search automations…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -677,13 +677,13 @@ export default function AutomationsPage() {
                 onClick={() => setSearchQuery("")}
                 title="Clear search"
               >
-                ✕
+                <RiCloseLine className="text-sm" />
               </button>
             )}
           </div>
 
           {/* Refresh Action */}
-          <div className="tooltip tooltip-left" data-tip="Refresh automations">
+          <div className="tooltip tooltip-left" data-tip="Refresh">
             <button
               type="button"
               className="btn btn-ghost btn-sm btn-square"
@@ -1001,18 +1001,18 @@ export default function AutomationsPage() {
                       <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                         <MdAutoMode className="text-4xl text-base-content/30" />
                         <p className="text-base font-semibold text-base-content/70">
-                          No automations configured
+                          No automations
                         </p>
                         <p className="text-xs text-base-content/50">
-                          Create a Cron or Logic panel on any dashboard to
-                          automate MQTT messages.
+                          Add a Cron or Logic panel on any dashboard to automate
+                          messages.
                         </p>
                         <Link
                           to="/dashboard"
                           className="btn btn-xs btn-primary mt-2 gap-1.5"
                         >
                           <MdLayers className="text-xs" />
-                          <span>Go to Dashboards</span>
+                          <span>Dashboards</span>
                         </Link>
                       </div>
                     </td>
@@ -1024,15 +1024,13 @@ export default function AutomationsPage() {
                         <p className="text-sm font-medium text-base-content/60">
                           No matching automations
                         </p>
-                        <p className="text-xs text-base-content/40">
-                          Try adjusting or clearing your column filters
-                        </p>
                         <button
                           type="button"
-                          className="btn btn-xs btn-ghost text-primary mt-1"
+                          className="btn btn-xs btn-ghost gap-1 text-base-content/70 hover:text-base-content mt-1"
                           onClick={handleResetAllFilters}
                         >
-                          Reset all filters
+                          <RiCloseLine className="text-sm" />
+                          Clear filters
                         </button>
                       </div>
                     </td>

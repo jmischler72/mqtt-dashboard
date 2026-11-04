@@ -383,9 +383,9 @@ export function ToggleConfigModal({
           onToggle={(next) => {
             setSeparateRead(next);
           }}
-          title="A different topic reports the state"
-          offExplanation="The device reports on the command topic, in the same shape the panel publishes."
-          onExplanation="The panel listens here instead of on the command topic."
+          title="Separate state topic"
+          offExplanation="Listens on command topic"
+          onExplanation="Listens on separate status topic"
           invalid={Boolean(fieldErrors.stateTopic || fieldErrors.readShape)}
         >
           <BrokerTopicCard
@@ -399,7 +399,7 @@ export function ToggleConfigModal({
             }}
             topicPlaceholder="home/light/state"
             topicError={fieldErrors.stateTopic}
-            help="Read-only, so wildcards (+ and #) are fine here."
+            help="Wildcards (+ and #) supported"
             onExplore={
               onPickTopic
                 ? () =>
@@ -413,14 +413,7 @@ export function ToggleConfigModal({
           />
 
           <div className="flex flex-col gap-2.5 pt-2.5 border-t border-base-300 dark:border-base-100 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold">
-                Shape it arrives in
-              </span>
-              <span className="ml-auto text-[10.5px] text-base-content/50 truncate">
-                the chip marks the value compared against On
-              </span>
-            </div>
+            <span className="text-[11px] font-semibold">Incoming shape</span>
             <PayloadBuilder
               mode="read"
               value={readTemplate}
@@ -787,25 +780,27 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
     status = (
       <span className="text-base-content/60 inline-flex items-center gap-1">
         <RiLoader4Line className="animate-spin shrink-0" />
-        confirming…
+        Confirming…
       </span>
     );
   } else if (error) {
     status = (
       <span className="text-error inline-flex items-center gap-1">
         <RiErrorWarningLine className="shrink-0" />
-        publish failed
+        Publish failed
       </span>
     );
   } else if (unconfirmed) {
     status = (
       <span className="text-warning inline-flex items-center gap-1">
         <RiErrorWarningLine className="shrink-0" />
-        not confirmed
+        Not confirmed
       </span>
     );
   } else if (updatedAt === null) {
-    status = <span className="text-base-content/50">waiting for state…</span>;
+    status = (
+      <span className="text-base-content/50">Waiting for messages…</span>
+    );
   }
 
   return (
@@ -823,7 +818,7 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
           onClick={() => handleFlip(!isOn)}
           title={
             hasWildcard
-              ? "Cannot publish to wildcard topics (+ or #)"
+              ? "Wildcards (+ / #) cannot be published to"
               : !commandTopic
                 ? "No topic configured"
                 : undefined

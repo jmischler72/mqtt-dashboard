@@ -19,7 +19,12 @@ import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
 import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
 import { appPath } from "../runtime";
-import { MdCheck, MdContentCopy, MdSettings } from "react-icons/md";
+import {
+  MdCheck,
+  MdContentCopy,
+  MdFileUpload,
+  MdSettings,
+} from "react-icons/md";
 import { RiRobot2Line, RiServerLine } from "react-icons/ri";
 
 const statusDot: Record<string, string> = {
@@ -172,10 +177,11 @@ function CertField({
         <legend className="fieldset-legend">{label}</legend>
         <button
           type="button"
-          className="btn btn-xs btn-outline"
+          className="btn btn-xs btn-outline gap-1"
           onClick={() => inputRef.current?.click()}
         >
-          Upload file
+          <MdFileUpload className="text-xs" />
+          Upload
         </button>
         <input
           ref={inputRef}
@@ -821,8 +827,8 @@ export default function ConfigPage() {
                             />
                             <span>Skip TLS verification</span>
                             {form.tls_skip_verify && (
-                              <span className="text-warning text-xs">
-                                (insecure — only for testing)
+                              <span className="badge badge-warning badge-xs">
+                                insecure
                               </span>
                             )}
                           </label>
@@ -867,7 +873,7 @@ export default function ConfigPage() {
                                   ? "None"
                                   : mode === "password"
                                     ? "Username / Password"
-                                    : "Client Certificate"}
+                                    : "Certificate"}
                               </button>
                             );
                           },
@@ -876,7 +882,7 @@ export default function ConfigPage() {
 
                       {form.auth_mode === "none" && (
                         <p className="text-sm text-base-content/50">
-                          Anonymous connection — no credentials sent.
+                          Anonymous (no credentials)
                         </p>
                       )}
 
@@ -998,8 +1004,7 @@ export default function ConfigPage() {
                         Data Retention
                       </h2>
                       <p className="text-xs text-base-content/50 mt-1">
-                        Topic history older than this window is automatically
-                        purged every 30 minutes.
+                        Auto-purge messages older than retention window.
                       </p>
                     </div>
 
@@ -1072,10 +1077,6 @@ export default function ConfigPage() {
                           Save $SYS topics in history
                         </span>
                       </label>
-                      <p className="text-xs text-base-content/50 pl-11">
-                        When enabled, $SYS broker system topics are persisted to
-                        history.
-                      </p>
                     </div>
 
                     <div className="pt-2">
@@ -1087,7 +1088,7 @@ export default function ConfigPage() {
                         {retentionSaving ? (
                           <span className="loading loading-spinner loading-xs" />
                         ) : null}
-                        Save Changes
+                        Save
                       </button>
                     </div>
                   </div>
@@ -1119,8 +1120,7 @@ export default function ConfigPage() {
                             </span>
                           </div>
                           <p className="text-xs text-base-content/50 mt-0.5">
-                            Model Context Protocol endpoint for external AI
-                            coding agents
+                            MCP endpoint for AI coding tools
                           </p>
                         </div>
                       </div>
