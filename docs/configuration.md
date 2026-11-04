@@ -38,11 +38,11 @@ Configuration values are resolved in the following priority:
 | `MQTT_DASHBOARD_LOG_LEVEL` | `logging.level` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
 | `MQTT_DASHBOARD_SEED_FILE` | `seed.file` | _None_ | Path to `seed.json` file for pre-populating data |
 | `MQTT_DASHBOARD_DEMO_MODE` | `server.demo_mode` | `false` | Enable demo mode banner in the UI for showcase instances |
-| `MQTT_DASHBOARD_MCP_ENABLED` | `mcp.enabled` | `false` | Enable the built-in Model Context Protocol (MCP) server at `/mcp` and `/mcp/sse` |
+| `MQTT_DASHBOARD_MCP_ENABLED` | `mcp.enabled` | `false` | Enable the built-in Model Context Protocol (MCP) server at `/mcp` and `/mcp/sse` (see [MCP Guide](mcp-server.md)) |
 | `MQTT_DASHBOARD_CONFIG` | _N/A_ | _None_ | Path to an optional TOML configuration file |
 
 > [!NOTE]
-> `base_path` must start and end with `/` (e.g., `/mqtt-dashboard/`). When running behind a reverse proxy sub-path, ensure the reverse proxy preserves this path. See the [Native & Reverse-Proxy Deployment Guide](alternative-deployments.md) for complete Apache and systemd recipes.
+> `base_path` must start and end with `/` (e.g., `/mqtt-dashboard/`). When running behind a reverse proxy sub-path, ensure the reverse proxy preserves this path. See the [systemd & Reverse-Proxy Guide](systemd-apache-deployment.md) for complete Apache and systemd recipes.
 
 ### TOML Configuration File (`config.toml`)
 
@@ -62,6 +62,10 @@ level = "info"
 # Optional: seed initial brokers or dashboards on first boot
 # [seed]
 # file = "./seed.json"
+
+# Optional: Model Context Protocol server for AI assistants
+# [mcp]
+# enabled = true
 ```
 
 To run the binary with a TOML configuration:

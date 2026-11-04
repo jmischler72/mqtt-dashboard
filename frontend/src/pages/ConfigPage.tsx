@@ -359,6 +359,11 @@ export default function ConfigPage() {
       ? `${window.location.origin}${appPath("/mcp")}`
       : "";
 
+  const mcpPromptText = useMemo(
+    () => `Add the MQTT Dashboard MCP server to your config: ${mcpEndpointUrl}`,
+    [mcpEndpointUrl],
+  );
+
   const mcpConfigSnippet = useMemo(
     () =>
       JSON.stringify(
@@ -1138,102 +1143,157 @@ export default function ConfigPage() {
                       </label>
                     </div>
 
-                    {/* Endpoints list */}
-                    <div
-                      className={`border border-base-300 rounded-lg divide-y divide-base-200 overflow-hidden transition-opacity ${
-                        mcpEnabled ? "" : "opacity-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 px-4 py-3 bg-base-100">
-                        <span className="badge badge-sm badge-primary/15 text-primary border-primary/20 font-mono text-[11px] w-14 shrink-0">
-                          HTTP
-                        </span>
-                        <code className="font-mono text-xs text-base-content/80 truncate flex-1 select-all">
-                          {mcpEndpointUrl}
-                        </code>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
-                          data-tip={
-                            copiedMcpKey === "http"
-                              ? "Copied!"
-                              : "Copy Streamable HTTP URL"
-                          }
-                          onClick={() =>
-                            handleCopyMcpText("http", mcpEndpointUrl)
-                          }
-                        >
-                          {copiedMcpKey === "http" ? (
-                            <MdCheck className="text-sm text-success" />
-                          ) : (
-                            <MdContentCopy className="text-sm" />
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3 px-4 py-3 bg-base-100">
-                        <span className="badge badge-sm badge-ghost font-mono text-[11px] w-14 shrink-0">
-                          SSE
-                        </span>
-                        <code className="font-mono text-xs text-base-content/60 truncate flex-1 select-all">
-                          {mcpEndpointUrl}/sse
-                        </code>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
-                          data-tip={
-                            copiedMcpKey === "sse" ? "Copied!" : "Copy SSE URL"
-                          }
-                          onClick={() =>
-                            handleCopyMcpText("sse", `${mcpEndpointUrl}/sse`)
-                          }
-                        >
-                          {copiedMcpKey === "sse" ? (
-                            <MdCheck className="text-sm text-success" />
-                          ) : (
-                            <MdContentCopy className="text-sm" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Client config snippet */}
+                    {/* Prompt to AI */}
                     <div
                       className={`border border-base-300 rounded-lg overflow-hidden transition-opacity ${
                         mcpEnabled ? "" : "opacity-50"
                       }`}
                     >
                       <div className="bg-base-200/70 px-4 py-2.5 flex items-center justify-between border-b border-base-300">
-                        <span className="font-mono text-xs text-base-content/60">
-                          mcp_config.json
+                        <span className="font-mono text-xs text-base-content/70 font-medium">
+                          Prompt to AI
                         </span>
                         <button
                           type="button"
-                          className="btn btn-ghost btn-xs h-7 px-2.5 gap-1.5 font-normal text-xs tooltip tooltip-left"
+                          className="btn btn-primary btn-xs h-7 px-2.5 gap-1.5 font-normal text-xs tooltip tooltip-left"
+                          disabled={!mcpEnabled}
                           data-tip={
-                            copiedMcpKey === "json" ? "Copied!" : "Copy JSON"
+                            copiedMcpKey === "prompt"
+                              ? "Copied!"
+                              : "Copy AI Prompt"
                           }
                           onClick={() =>
-                            handleCopyMcpText("json", mcpConfigSnippet)
+                            handleCopyMcpText("prompt", mcpPromptText)
                           }
                         >
-                          {copiedMcpKey === "json" ? (
-                            <MdCheck className="text-xs text-success" />
+                          {copiedMcpKey === "prompt" ? (
+                            <MdCheck className="text-xs" />
                           ) : (
                             <MdContentCopy className="text-xs" />
                           )}
                           <span>
-                            {copiedMcpKey === "json" ? "Copied" : "Copy"}
+                            {copiedMcpKey === "prompt"
+                              ? "Copied"
+                              : "Copy prompt to AI"}
                           </span>
                         </button>
                       </div>
-                      <pre className="bg-base-200/30 p-4 font-mono text-xs leading-relaxed text-base-content/80 overflow-x-auto select-all m-0">
-                        {mcpConfigSnippet}
+                      <pre className="bg-base-200/30 p-3.5 font-mono text-xs leading-relaxed text-base-content/80 whitespace-pre-wrap break-words select-all m-0">
+                        {mcpPromptText}
                       </pre>
                     </div>
 
+                    {/* Expandable URLs & Configuration */}
+                    <details
+                      className={`collapse collapse-arrow border border-base-300 rounded-lg bg-base-100 transition-opacity ${
+                        mcpEnabled ? "" : "opacity-50"
+                      }`}
+                    >
+                      <summary className="collapse-title text-xs font-semibold text-base-content/70 py-3 min-h-0 cursor-pointer select-none">
+                        Endpoints & Client Config
+                      </summary>
+                      <div className="collapse-content flex flex-col gap-4 pt-1">
+                        {/* Endpoints list */}
+                        <div className="border border-base-300 rounded-lg divide-y divide-base-200 overflow-hidden">
+                          <div className="flex items-center gap-3 px-4 py-3 bg-base-100">
+                            <span className="badge badge-sm badge-primary/15 text-primary border-primary/20 font-mono text-[11px] w-14 shrink-0">
+                              HTTP
+                            </span>
+                            <code className="font-mono text-xs text-base-content/80 truncate flex-1 select-all">
+                              {mcpEndpointUrl}
+                            </code>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
+                              data-tip={
+                                copiedMcpKey === "http"
+                                  ? "Copied!"
+                                  : "Copy Streamable HTTP URL"
+                              }
+                              onClick={() =>
+                                handleCopyMcpText("http", mcpEndpointUrl)
+                              }
+                            >
+                              {copiedMcpKey === "http" ? (
+                                <MdCheck className="text-sm text-success" />
+                              ) : (
+                                <MdContentCopy className="text-sm" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-3 px-4 py-3 bg-base-100">
+                            <span className="badge badge-sm badge-ghost font-mono text-[11px] w-14 shrink-0">
+                              SSE
+                            </span>
+                            <code className="font-mono text-xs text-base-content/60 truncate flex-1 select-all">
+                              {mcpEndpointUrl}/sse
+                            </code>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs btn-square tooltip tooltip-left shrink-0"
+                              data-tip={
+                                copiedMcpKey === "sse"
+                                  ? "Copied!"
+                                  : "Copy SSE URL"
+                              }
+                              onClick={() =>
+                                handleCopyMcpText(
+                                  "sse",
+                                  `${mcpEndpointUrl}/sse`,
+                                )
+                              }
+                            >
+                              {copiedMcpKey === "sse" ? (
+                                <MdCheck className="text-sm text-success" />
+                              ) : (
+                                <MdContentCopy className="text-sm" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Client config snippet */}
+                        <div className="border border-base-300 rounded-lg overflow-hidden">
+                          <div className="bg-base-200/70 px-4 py-2.5 flex items-center justify-between border-b border-base-300">
+                            <span className="font-mono text-xs text-base-content/60">
+                              mcp_config.json
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs h-7 px-2.5 gap-1.5 font-normal text-xs tooltip tooltip-left"
+                              data-tip={
+                                copiedMcpKey === "json"
+                                  ? "Copied!"
+                                  : "Copy JSON"
+                              }
+                              onClick={() =>
+                                handleCopyMcpText("json", mcpConfigSnippet)
+                              }
+                            >
+                              {copiedMcpKey === "json" ? (
+                                <MdCheck className="text-xs text-success" />
+                              ) : (
+                                <MdContentCopy className="text-xs" />
+                              )}
+                              <span>
+                                {copiedMcpKey === "json" ? "Copied" : "Copy"}
+                              </span>
+                            </button>
+                          </div>
+                          <pre className="bg-base-200/30 p-4 font-mono text-xs leading-relaxed text-base-content/80 overflow-x-auto select-all m-0">
+                            {mcpConfigSnippet}
+                          </pre>
+                        </div>
+                      </div>
+                    </details>
+
                     {/* Exposed tools */}
-                    <div className="flex flex-col gap-2">
+                    <div
+                      className={`flex flex-col gap-2 transition-opacity ${
+                        mcpEnabled ? "" : "opacity-50"
+                      }`}
+                    >
                       <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
                         Exposed Tools (10)
                       </span>
