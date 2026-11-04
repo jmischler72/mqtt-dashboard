@@ -4,8 +4,9 @@ import {
   TOKEN_LABEL,
   VALUE_TOKEN,
   findLiterals,
-  markLiteral,
   placeToken,
+  readShape,
+  swapOrMarkLiteral,
 } from "../payloadShape";
 
 export interface Selection {
@@ -16,94 +17,92 @@ export interface Selection {
 export interface ValueChipControlsProps {
   value: string;
   onChange: (next: string) => void;
-  /**
-   * Where the caret is in the box, read at click time rather than at render:
-   * the selection changes without re-rendering, and a stale copy would drop the
-   * chip in the wrong place.
-   */
   getSelection: () => Selection | null;
-  /**
-   * Where the caret belongs once the chip has been placed — just past it, so
-   * the box can be typed in straight after. Omitted when the caller does not
-   * drive the caret itself.
-   */
   onCaret?: (offset: number) => void;
-  /**
-   * The text the chip currently covers. Remembered so removing the chip puts
-   * back exactly what it replaced rather than a value the user never typed.
-   */
-  onCoveredChange: (covered: string, tokenIndex?: number) => void;
-  /** "read" marks the value to pull out; "write" marks where one drops in. */
+  onCoveredChange: (covered: string) => void;
+  covered?: string;
   mode: "write" | "read";
-  /** Dropdown or controls for sample message history. */
   history?: ReactNode;
+  availableTokens?: Array<{ name: string; token: string; label: string }>;
+  latestPayload?: string;
 }
 
-/**
- * The chip controls under the bytes box: insert `{value}` marks or hand
- * it straight to a literal already in the box.
- */
 export default function ValueChipControls({
   value,
   onChange,
   getSelection,
   onCaret,
   onCoveredChange,
+  covered = "",
   mode,
   history,
+  availableTokens,
+  latestPayload,
 }: ValueChipControlsProps) {
   const literals = findLiterals(value);
 
-  const place = () => {
-    // No caret in the box yet: the end of the payload is the honest guess.
+  const handleLiteralClick = (literal: (typeof literals)[0]) => {
+    let fallback: string | undefined;
+    if (latestPayload && mode === "read") {
+      const read = readShape(value, latestPayload);
+      if (read.found && read.text) {
+        fallback = read.text;
+      }
+    }
+
+    const result = swapOrMarkLiteral(value, literal, covered, fallback);
+    onCoveredChange(result.previous);
+    onChange(result.template);
+    onCaret?.(result.caret);
+  };
+
+  const place = (token: string = VALUE_TOKEN) => {
     const at = getSelection() ?? { start: value.length, end: value.length };
-    const placed = placeToken(value, at.start, at.end);
-    const tokenIndex = value.slice(0, at.start).split(VALUE_TOKEN).length - 1;
+    const placed = placeToken(value, at.start, at.end, token);
     onCaret?.(placed.caret);
-    onCoveredChange(placed.covered, tokenIndex);
+    onCoveredChange(placed.covered);
     onChange(placed.template);
   };
+
+  const tokens = availableTokens ?? [
+    { name: "value", token: VALUE_TOKEN, label: TOKEN_LABEL },
+  ];
 
   return (
     <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-        <button
-          type="button"
-          title={
-            mode === "read"
-              ? "Mark the part of the message the panel reads: click where it sits, or select it first"
-              : "Insert {value}: click where it goes, or select the text it replaces"
-          }
-          // mousedown, not click: the default would move focus out of the box
-          // and take the selection being aimed at with it.
-          onMouseDown={(e) => {
-            e.preventDefault();
-            place();
-          }}
-          className="btn btn-xs btn-outline btn-primary rounded-full font-mono gap-1 h-6 min-h-0 text-[11px] cursor-pointer"
-        >
-          <RiAddLine className="w-3 h-3" />
-          <span>{TOKEN_LABEL}</span>
-        </button>
+        {/* Quick token insert buttons */}
+        {tokens.map((t) => (
+          <button
+            key={t.name}
+            type="button"
+            title={
+              mode === "read"
+                ? `Mark where value is read: click where it goes or select text`
+                : `Insert ${t.token}`
+            }
+            onMouseDown={(e) => {
+              e.preventDefault();
+              place(t.token);
+            }}
+            className="btn btn-xs btn-outline btn-primary rounded-full font-mono gap-1 h-6 min-h-0 text-[11px] cursor-pointer"
+          >
+            <RiAddLine className="w-3 h-3" />
+            <span>{t.label}</span>
+          </button>
+        ))}
 
+        {/* Detected literals for 1-tap replacement */}
         {literals.map((literal) => (
           <button
             key={`${literal.start}-${literal.text}`}
             type="button"
-            title={`Replace "${literal.text}" with {${TOKEN_LABEL}}`}
-            onClick={() => {
-              const result = markLiteral(value, literal);
-              const tokenIndex =
-                value.slice(0, literal.start).split(VALUE_TOKEN).length - 1;
-              onCoveredChange(result.previous, tokenIndex);
-              onChange(result.template);
-              onCaret?.(
-                literal.start +
-                  (literal.text.startsWith('"')
-                    ? VALUE_TOKEN.length + 2
-                    : VALUE_TOKEN.length),
-              );
-            }}
+            title={
+              literal.key
+                ? `Replace ${literal.key}: "${literal.text}" with ${VALUE_TOKEN}`
+                : `Replace "${literal.text}" with ${VALUE_TOKEN}`
+            }
+            onClick={() => handleLiteralClick(literal)}
             className="badge badge-sm badge-outline hover:badge-primary font-mono cursor-pointer transition-colors h-6 px-2 text-[11px]"
           >
             {literal.text}

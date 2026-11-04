@@ -773,6 +773,22 @@ export function LogicConfigModal({
               mode="write"
               value={payload}
               onChange={setPayload}
+              availableTokens={[
+                { name: "value", token: VALUE_TOKEN, label: "value" },
+                { name: "topic", token: "{{topic}}", label: "topic" },
+                {
+                  name: "timestamp",
+                  token: "{{timestamp}}",
+                  label: "timestamp",
+                },
+                ...(conditions.length > 1
+                  ? conditions.map((_, i) => ({
+                      name: `value:${i + 1}`,
+                      token: `{{value:${i + 1}}}`,
+                      label: `value:${i + 1}`,
+                    }))
+                  : []),
+              ]}
               brokerId={targetBrokerId || sourceBrokerId}
               topic={targetTopic}
               previewValue={conditions[0]?.value || "ON"}

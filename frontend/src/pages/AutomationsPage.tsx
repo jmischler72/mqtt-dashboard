@@ -23,24 +23,38 @@ import {
 import { api, type AutomationItem } from "../api/client";
 import { PRESETS, describeCron } from "../components/panels/cronUtils";
 import { formatConditionSummary } from "../components/panels/logicUtils";
-import { VALUE_TOKEN, TOKEN_LABEL } from "../components/panels/payloadShape";
+import {
+  TOKEN_LABEL,
+  hasAnyToken,
+  parseTemplateChunks,
+} from "../components/panels/payloadShape";
 
 function renderPayloadWithChips(payload?: string, allowChips = true) {
   const oneLine = (payload || "").replace(/\s+/g, " ").trim();
-  const normalized = oneLine.replace(/\{\{value\}\}/g, VALUE_TOKEN);
-  if (!allowChips || !normalized.includes(VALUE_TOKEN)) {
+  if (!allowChips || !hasAnyToken(oneLine)) {
     return oneLine;
   }
-  return normalized.split(VALUE_TOKEN).map((chunk, index) => (
-    <span key={index}>
-      {index > 0 && (
-        <span className="badge badge-primary badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5">
-          {TOKEN_LABEL}
-        </span>
-      )}
-      {chunk}
-    </span>
-  ));
+  const chunks = parseTemplateChunks(oneLine);
+  return chunks.map((chunk, index) => {
+    if (!chunk.isToken) {
+      return <span key={index}>{chunk.text}</span>;
+    }
+    const name = (chunk.tokenName ?? "").toLowerCase();
+    let badgeClass = "badge-primary";
+    if (name === "topic") badgeClass = "badge-accent";
+    else if (name === "timestamp" || name === "now")
+      badgeClass = "badge-neutral";
+    else if (name.startsWith("value:")) badgeClass = "badge-secondary";
+
+    return (
+      <span
+        key={index}
+        className={`badge ${badgeClass} badge-xs font-mono text-[10px] px-1.5 py-0 leading-none align-middle select-none mx-0.5`}
+      >
+        {chunk.tokenName ?? TOKEN_LABEL}
+      </span>
+    );
+  });
 }
 
 function getConditionsTooltip(job: AutomationItem): string {
@@ -1203,10 +1217,7 @@ export default function AutomationsPage() {
                                 title={job.payload}
                               >
                                 <span className="truncate flex-1 block">
-                                  {renderPayloadWithChips(
-                                    job.payload,
-                                    job.panel_type !== "cron",
-                                  )}
+                                  {renderPayloadWithChips(job.payload)}
                                 </span>
                                 <button
                                   type="button"

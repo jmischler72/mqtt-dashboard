@@ -11,19 +11,24 @@ function Builder({
   initial = "",
   payloads,
   acceptsChip = true,
+  mode = "write",
+  availableTokens,
 }: {
   initial?: string;
   payloads: string[];
   acceptsChip?: boolean;
+  mode?: "write" | "read";
+  availableTokens?: Array<{ name: string; token: string; label: string }>;
 }) {
   const [value, setValue] = useState(initial);
   return (
     <>
       <PayloadBuilder
-        mode="write"
+        mode={mode}
         value={value}
         onChange={setValue}
         acceptsChip={acceptsChip}
+        availableTokens={availableTokens}
         brokerId="b1"
         topic="home/lamp"
         history={{
@@ -118,18 +123,44 @@ describe("a payload that spells the chip out", () => {
   it("allows multiple chips when the bytes typed in name a second", () => {
     render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
     const box = screen.getByRole("textbox");
-    box.append(document.createTextNode(VALUE_TOKEN));
-    fireEvent.input(box);
+    fireEvent.change(box, {
+      target: { value: `{"a":${VALUE_TOKEN}}${VALUE_TOKEN}` },
+    });
     expect(template()).toBe(`{"a":${VALUE_TOKEN}}${VALUE_TOKEN}`);
   });
 
   it("removes a chip when clicking its inline remove button", () => {
     render(<Builder initial={`{"a":${VALUE_TOKEN}}`} payloads={[]} />);
-    const box = screen.getByRole("textbox");
-    const removeBtn = box.querySelector("[data-remove-token]");
+    const removeBtn = document.querySelector("[data-remove-token]");
     expect(removeBtn).toBeTruthy();
-    fireEvent.mouseDown(removeBtn!);
+    fireEvent.click(removeBtn!);
     expect(template()).toBe('{"a":}');
+  });
+
+  it("removes only the targeted token when multiple tokens exist", () => {
+    render(
+      <Builder
+        initial={`{"a":${VALUE_TOKEN},"b":${VALUE_TOKEN}}`}
+        payloads={[]}
+      />,
+    );
+    const removeBtns = document.querySelectorAll("[data-remove-token]");
+    expect(removeBtns.length).toBe(2);
+    fireEvent.click(removeBtns[0]);
+    expect(template()).toBe(`{"a":,"b":${VALUE_TOKEN}}`);
+  });
+
+  it("removes an indexed value token directly from the input", () => {
+    render(
+      <Builder
+        initial='{"temp":{{value:1}},"hum":{{value:2}}}'
+        payloads={[]}
+      />,
+    );
+    const removeBtns = document.querySelectorAll("[data-remove-token]");
+    expect(removeBtns.length).toBe(2);
+    fireEvent.click(removeBtns[1]);
+    expect(template()).toBe('{"temp":{{value:1}},"hum":}');
   });
 
   it("restores the replaced literal when removing the chip", () => {
@@ -138,11 +169,10 @@ describe("a payload that spells the chip out", () => {
     fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
     expect(template()).toBe(`{"temp":${VALUE_TOKEN}}`);
 
-    // Click the inline remove button on the chip
-    const box = screen.getByRole("textbox");
-    const removeBtn = box.querySelector("[data-remove-token]");
+    // Click the remove button on the chip
+    const removeBtn = document.querySelector("[data-remove-token]");
     expect(removeBtn).toBeTruthy();
-    fireEvent.mouseDown(removeBtn!);
+    fireEvent.click(removeBtn!);
 
     // The literal is restored and remains detected
     expect(template()).toBe('{"temp":21.5}');
@@ -152,11 +182,9 @@ describe("a payload that spells the chip out", () => {
   it("leaves those characters alone for a panel that publishes them", () => {
     render(<Builder initial="" payloads={[]} acceptsChip={false} />);
     const box = screen.getByRole("textbox");
-    box.append(document.createTextNode(`{"cmd":"${VALUE_TOKEN}"}`));
-    fireEvent.input(box);
+    fireEvent.change(box, { target: { value: `{"cmd":"${VALUE_TOKEN}"}` } });
     expect(template()).toBe(`{"cmd":"${VALUE_TOKEN}"}`);
-    // …and they are text the caret can get into, not an atomic chip
-    expect(box.querySelector("[data-value-token]")).toBeNull();
+    expect(document.querySelector("[data-value-token]")).toBeNull();
   });
 });
 
@@ -172,5 +200,77 @@ describe("the literals offered as one-tap chip targets", () => {
   it("still offers a lone word, which is the whole payload", () => {
     render(<Builder initial="RESET" payloads={[]} />);
     expect(screen.getByRole("button", { name: "RESET" })).toBeTruthy();
+  });
+
+  it("swaps the token to the newly clicked literal in read mode", () => {
+    render(
+      <Builder initial='{"temp":21.5,"hum":60}' payloads={[]} mode="read" />,
+    );
+    // Click 21.5 -> replaces 21.5 with {{value}}
+    fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
+    expect(template()).toBe(`{"temp":${VALUE_TOKEN},"hum":60}`);
+
+    // Click 60 -> swaps token, restoring 21.5 and marking 60
+    fireEvent.click(screen.getByRole("button", { name: /60/ }));
+    expect(template()).toBe(`{"temp":21.5,"hum":${VALUE_TOKEN}}`);
+  });
+
+  it("swaps the token cleanly when clicking a literal even if covered was empty", () => {
+    render(
+      <Builder
+        initial={`{"temp":${VALUE_TOKEN},"hum":60}`}
+        payloads={['{"temp":21.5,"hum":60}']}
+        mode="read"
+      />,
+    );
+    // Click 60 -> swaps token, restoring temp (via latest payload) and marking 60
+    fireEvent.click(screen.getByRole("button", { name: /60/ }));
+    expect(template()).toBe(`{"temp":21.5,"hum":${VALUE_TOKEN}}`);
+
+    // Click 21.5 -> swaps back, restoring 60 and marking 21.5
+    fireEvent.click(screen.getByRole("button", { name: /21\.5/ }));
+    expect(template()).toBe(`{"temp":${VALUE_TOKEN},"hum":60}`);
+  });
+
+  it("swaps token with fallback scalar when no latest payload is available and covered is empty", () => {
+    render(
+      <Builder
+        initial={`{"temp":${VALUE_TOKEN},"hum":60}`}
+        payloads={[]}
+        mode="read"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /60/ }));
+    expect(template()).toBe(`{"temp":0,"hum":${VALUE_TOKEN}}`);
+  });
+
+  it("hides preview when multiple tokens are entered in read mode", () => {
+    render(
+      <Builder
+        initial={`{"temp":${VALUE_TOKEN},"hum":${VALUE_TOKEN}}`}
+        payloads={['{"temp":21.5,"hum":60}']}
+        mode="read"
+      />,
+    );
+    expect(
+      screen.queryByText(/Multiple value tokens in read shape/i),
+    ).toBeNull();
+    expect(screen.queryByText(/Reads/i)).toBeNull();
+    expect(screen.queryByText(/Latest/i)).toBeNull();
+  });
+
+  it("previews write payload using available tokens without requiring value token", () => {
+    render(
+      <Builder
+        initial='{"topic":"{{topic}}"}'
+        payloads={[]}
+        availableTokens={[
+          { name: "timestamp", token: "{{timestamp}}", label: "timestamp" },
+          { name: "topic", token: "{{topic}}", label: "topic" },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/No value token in message/)).toBeNull();
+    expect(screen.getByText(/home\/lamp/)).toBeTruthy();
   });
 });

@@ -79,9 +79,16 @@ func (m *mockBrokerClient) Unsubscribe(brokerID, topic string, handler mqttclien
 
 func (m *mockBrokerClient) injectMessage(brokerID, topic string, payload string) {
 	m.mu.Lock()
-	key := brokerID + "::" + topic
-	handlers := make([]mqttclient.MessageHandler, len(m.subs[key]))
-	copy(handlers, m.subs[key])
+	var handlers []mqttclient.MessageHandler
+	for k, hs := range m.subs {
+		parts := strings.SplitN(k, "::", 2)
+		if len(parts) == 2 && parts[0] == brokerID {
+			subFilter := parts[1]
+			if subFilter == topic || mqttclient.TopicMatches(subFilter, topic) {
+				handlers = append(handlers, hs...)
+			}
+		}
+	}
 	m.mu.Unlock()
 
 	for _, h := range handlers {
@@ -1253,5 +1260,160 @@ func TestEngine_ValidateInfiniteLoop_DefaultBroker(t *testing.T) {
 		t.Errorf("expected infinite loop error, got: %v", err)
 	}
 }
+
+func TestEngine_GlobalPayloadTemplating(t *testing.T) {
+	broker := newMockBrokerClient()
+	broker.defaultID = "b1"
+	engine := logic.NewEngine(broker)
+	defer engine.Stop()
+
+	// 1. Wildcard topic + value + raw payload interpolation
+	rule1 := &logic.Rule{
+		PanelID:     "rule_wildcard_topic",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/+",
+		TargetTopic: "events/readings",
+		Payload:     `{"topic":"{{topic}}","val":{{value}},"raw":{{payload}}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Operator: "any",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule1); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/kitchen", "25.5")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs := broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish, got %d", len(pubs))
+	}
+	wantPayload := `{"topic":"sensors/kitchen","val":25.5,"raw":25.5}`
+	if string(pubs[0].Payload) != wantPayload {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), wantPayload)
+	}
+
+	engine.RemoveRule("rule_wildcard_topic")
+	broker.clearPublishes()
+
+	// 2. Multi-condition indexing {{value:1}}, {{value:2}}
+	rule2 := &logic.Rule{
+		PanelID:     "rule_multi_cond",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/temp",
+		TargetTopic: "events/climate",
+		Payload:     `{"temp":{{value:1}},"hum":{{value:2}}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:    "sensors/temp",
+				Operator: "gt",
+				Value:    "20",
+			},
+			{
+				Topic:    "sensors/humidity",
+				Operator: "gt",
+				Value:    "50",
+				Join:     "and",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule2); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	// Prime humidity guard
+	engine.PrimeCache("b1", "sensors/humidity", "65")
+	broker.injectMessage("b1", "sensors/temp", "24.5")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish, got %d", len(pubs))
+	}
+	wantMulti := `{"temp":24.5,"hum":65}`
+	if string(pubs[0].Payload) != wantMulti {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), wantMulti)
+	}
+
+	engine.RemoveRule("rule_multi_cond")
+	broker.clearPublishes()
+
+	// 3. Stencil without suffix (temp={value}) with whitespace delimiter
+	rule3 := &logic.Rule{
+		PanelID:     "rule_stencil_no_suffix",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/raw",
+		TargetTopic: "events/raw",
+		Payload:     `{"v":{{value}}}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/raw",
+				ReadTemplate: `temp={value}`,
+				Operator:     "gt",
+				Value:        "20",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule3); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/raw", "temp=25.5 hum=60")
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_stencil_no_suffix, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"v":25.5}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"v":25.5}`)
+	}
+
+	engine.RemoveRule("rule_stencil_no_suffix")
+	broker.clearPublishes()
+
+	// 4. Stencil with quoted string value containing spaces (msg="SYSTEM READY")
+	rule4 := &logic.Rule{
+		PanelID:     "rule_stencil_quoted_space",
+		BrokerID:    "b1",
+		SourceTopic: "sensors/status",
+		TargetTopic: "events/status",
+		Payload:     `{"msg":"{{value}}"}`,
+		Mode:        "every",
+		Conditions: []logic.Condition{
+			{
+				Topic:        "sensors/status",
+				ReadTemplate: `msg={value}`,
+				Operator:     "eq",
+				Value:        "SYSTEM READY",
+			},
+		},
+		Enabled: true,
+	}
+	if err := engine.AddRule(rule4); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	broker.injectMessage("b1", "sensors/status", `msg="SYSTEM READY" code=0`)
+	time.Sleep(50 * time.Millisecond)
+
+	pubs = broker.getPublishes()
+	if len(pubs) != 1 {
+		t.Fatalf("expected 1 publish for rule_stencil_quoted_space, got %d", len(pubs))
+	}
+	if string(pubs[0].Payload) != `{"msg":"SYSTEM READY"}` {
+		t.Errorf("payload = %s; want %s", string(pubs[0].Payload), `{"msg":"SYSTEM READY"}`)
+	}
+}
+
 
 

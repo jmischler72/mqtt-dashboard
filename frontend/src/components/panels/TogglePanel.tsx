@@ -359,7 +359,7 @@ export function ToggleConfigModal({
                   ? "Nothing to send yet."
                   : hasToken(payloadTemplate)
                     ? null
-                    : `No ${TOKEN_LABEL} chip in the message.`
+                    : `No ${TOKEN_LABEL} token in the message.`
               }
             >
               <PreviewLine label="On" bytes={summaryOn} />
