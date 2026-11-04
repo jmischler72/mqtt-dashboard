@@ -320,10 +320,7 @@ export function GraphConfigModal({
           />
         </ConfigCard>
 
-        <ConfigCard
-          title="Window"
-          invalid={Boolean(fieldErrors.points)}
-        >
+        <ConfigCard title="Window" invalid={Boolean(fieldErrors.points)}>
           <FieldRow label="Range">
             <select
               className="select select-bordered w-full min-w-0 h-8 min-h-8 text-xs"

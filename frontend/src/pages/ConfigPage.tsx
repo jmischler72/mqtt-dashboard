@@ -19,7 +19,12 @@ import { api } from "../api/client";
 import { useBrokerStatuses, type Broker } from "../hooks/useBrokers";
 import { BrokerInfoPanel } from "../components/BrokerInfoPanel";
 import { appPath } from "../runtime";
-import { MdCheck, MdContentCopy, MdFileUpload, MdSettings } from "react-icons/md";
+import {
+  MdCheck,
+  MdContentCopy,
+  MdFileUpload,
+  MdSettings,
+} from "react-icons/md";
 import { RiRobot2Line, RiServerLine } from "react-icons/ri";
 
 const statusDot: Record<string, string> = {

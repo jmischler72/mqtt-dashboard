@@ -413,9 +413,7 @@ export function ToggleConfigModal({
           />
 
           <div className="flex flex-col gap-2.5 pt-2.5 border-t border-base-300 dark:border-base-100 min-w-0">
-            <span className="text-[11px] font-semibold">
-              Incoming shape
-            </span>
+            <span className="text-[11px] font-semibold">Incoming shape</span>
             <PayloadBuilder
               mode="read"
               value={readTemplate}
@@ -800,7 +798,9 @@ function ToggleRuntime({ panelId, brokerId, config }: TogglePanelProps) {
       </span>
     );
   } else if (updatedAt === null) {
-    status = <span className="text-base-content/50">Waiting for messages…</span>;
+    status = (
+      <span className="text-base-content/50">Waiting for messages…</span>
+    );
   }
 
   return (

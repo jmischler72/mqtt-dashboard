@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { MdMenu, MdEdit, MdAdd, MdKeyboardArrowUp, MdCheck } from "react-icons/md";
+import {
+  MdMenu,
+  MdEdit,
+  MdAdd,
+  MdKeyboardArrowUp,
+  MdCheck,
+} from "react-icons/md";
 import { RiCloseLine, RiExternalLinkLine, RiServerLine } from "react-icons/ri";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";

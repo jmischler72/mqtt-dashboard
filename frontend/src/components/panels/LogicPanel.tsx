@@ -107,12 +107,9 @@ const MODE_CHOICES: Choice<LogicMode>[] = [
 const MODE_DESCRIPTIONS: Record<LogicMode, string> = {
   on_change:
     "Fires once when conditions transition to matching. Re-arms when cleared.",
-  every:
-    "Fires on each incoming message matching all conditions.",
-  count:
-    "Fires when matches reach target count within time window.",
-  sustained:
-    "Fires once conditions hold continuously for target duration.",
+  every: "Fires on each incoming message matching all conditions.",
+  count: "Fires when matches reach target count within time window.",
+  sustained: "Fires once conditions hold continuously for target duration.",
 };
 
 const CONDITION_BADGE_COLORS = [

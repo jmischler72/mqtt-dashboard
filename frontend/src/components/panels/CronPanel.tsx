@@ -431,9 +431,7 @@ export default function CronPanel({
           checked={config.enabled ?? false}
           disabled={toggling || !config.cron_expr || hasWildcard}
           title={
-            hasWildcard
-              ? "Wildcards (+ / #) cannot be published to"
-              : undefined
+            hasWildcard ? "Wildcards (+ / #) cannot be published to" : undefined
           }
           onChange={(e) => handleToggle(e.target.checked)}
         />

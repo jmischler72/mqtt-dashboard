@@ -779,9 +779,7 @@ function PanelWrapper({
 
             <button
               type="button"
-              aria-label={
-                isPinned ? "Unpin metadata" : "Pin metadata"
-              }
+              aria-label={isPinned ? "Unpin metadata" : "Pin metadata"}
               className="btn btn-ghost btn-xs h-6 min-h-6 w-6 px-0 shrink-0"
               onClick={(e) => {
                 e.stopPropagation();

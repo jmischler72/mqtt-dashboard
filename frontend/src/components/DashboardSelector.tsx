@@ -574,7 +574,8 @@ export default function DashboardSelector({
           <div className="modal-box max-w-sm">
             <h3 className="font-bold text-lg mb-2">Delete Dashboard</h3>
             <p className="text-sm text-base-content/70 mb-4">
-              Permanently remove <strong>{activeDashboard.name}</strong> and all its panels?
+              Permanently remove <strong>{activeDashboard.name}</strong> and all
+              its panels?
             </p>
             <div className="modal-action">
               <button

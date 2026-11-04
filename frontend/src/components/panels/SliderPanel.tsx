@@ -693,7 +693,9 @@ function SliderRuntime({ panelId, brokerId, config }: SliderPanelProps) {
       </span>
     );
   } else if (updatedAt === null) {
-    status = <span className="text-base-content/50">Waiting for messages…</span>;
+    status = (
+      <span className="text-base-content/50">Waiting for messages…</span>
+    );
   }
 
   return (
