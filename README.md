@@ -36,7 +36,8 @@ Existing tools are either **purely ephemeral topic viewers** (where configuratio
 **MQTT Dashboard** combines the best of both worlds:
 
 - 🌲 **Explore & Inspect**: Collapsible MQTT topic trees, wildcard subscriptions (`+`, `#`), live numeric graphs, and searchable SQLite history.
-- 🎛️ **Monitor & Control**: Drag-and-drop customizable dashboards with Gauges, Toggles, Sliders, Real-time Logs, Inputs, and Buttons.
+- 🎛️ **Monitor & Control**: Drag-and-drop customizable dashboards with Gauges, Toggles, Sliders, Real-time Logs, Inputs, Buttons, and Logic automations.
+- 🤖 **AI-Powered via MCP**: Built-in Model Context Protocol server. Connect Claude Desktop, Cursor, or Antigravity to inspect live broker telemetry, deduce payload schemas, and generate complete dashboards in seconds.
 - 🔄 **Bidirectional Payload Shaping**: Automatically extract nested JSON fields (`telemetry.temp`), match textual stencils (`temp={value}`), or publish formatted templates with `{value}` chips.
 - ⏰ **Automated Cron Jobs**: Schedule recurring publishes or sensor polling routines directly from dashboard panels.
 - 🔒 **Production Security**: Connect to multiple brokers concurrently over plain TCP, TLS/SSL, or mutual TLS (client certificate & key).
@@ -79,6 +80,7 @@ Open **[http://localhost:8080](http://localhost:8080)** and start building!
 ---
 
 > 🛠️ **More Deployment & Developer Options:**
+>
 > - **[All-in-One Compose with Mosquitto](docker/doc/docker-compose.with-broker.yml)** — Launch a complete test stack with an integrated broker (`docker compose -f docker/doc/docker-compose.with-broker.yml up -d`).
 > - **[Building from Source](docs/building-from-source.md)** — Instructions to compile the standalone binary or build the Docker container locally.
 > - **[Configuration & Seeding Guide](docs/configuration.md)** — Custom ports, storage paths, reverse-proxy sub-paths, and broker/dashboard auto-seeding.
@@ -89,7 +91,7 @@ Open **[http://localhost:8080](http://localhost:8080)** and start building!
 ## 🎛️ Dashboard Panels
 
 | Panel | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | **Gauge** | Monitor | Radial, bar, or numeric display with nested JSON path extraction (`data.temp`) |
 | **Graph** | Monitor | Live time-series charts plotted from message history with wildcard multi-series |
 | **Log** | Monitor | Live streaming message feed with persistent history, QoS badges, and date formatting |
@@ -99,7 +101,49 @@ Open **[http://localhost:8080](http://localhost:8080)** and start building!
 | **Button** | Control | One-click message publish with optional confirmation modal |
 | **Input** | Control | Interactive text input to publish ad-hoc payloads to any topic |
 | **Cron** | Automation | Scheduled recurring publisher with visual schedule builder and countdown |
+| **Logic** | Automation | Reactive rule triggers with payload conditions and automated actions |
 | **Image / Markdown / Separator** | Visual | Static assets, rich documentation cards, and layout organization dividers |
+
+---
+
+## 🤖 AI-Powered Dashboard Generation (MCP)
+
+MQTT Dashboard features a built-in **[Model Context Protocol (MCP)](https://modelcontextprotocol.io/)** server. Instead of clicking and typing out dozens of panels manually, you can connect your favorite AI assistant (**Claude Desktop**, **Cursor**, **Antigravity**, **OpenHands**, **Cline**, etc.) to inspect live broker telemetry and generate complete dashboards automatically in seconds.
+
+```
+┌─────────────────┐       ┌──────────────────────┐       ┌────────────────────────┐
+│  Explore Topics │ ────► │ Inspect Raw Payloads │ ────► │ Auto-Generate Layout   │
+│ (explore_topics)│       │(sample_topic_payload)│       │   (create_dashboard)   │
+└─────────────────┘       └──────────────────────┘       └────────────────────────┘
+         │                           │                                │
+  Discovers active            Extracts nested JSON             Computes non-overlapping
+  sensor & device topics      paths and value ranges           12-column grid placement
+```
+
+### 💬 Just Ask Your AI:
+> *"Inspect my MQTT broker topics and build an energy monitoring dashboard with power gauges, daily usage graphs, and breaker toggles."*
+>
+> *"Look at the Zigbee2MQTT climate sensors on broker #1 and generate a clean living room dashboard with temperature alerts."*
+>
+> *"Add a real-time message log for `alerts/#` to my 'Factory Floor' dashboard."*
+
+### 🚀 Quick Setup
+
+Enable MCP via the toggle in **Settings** (`/config`), via `MQTT_DASHBOARD_MCP_ENABLED=true`, or in `config.toml` (`[mcp] enabled = true`).
+
+Then add the server to your MCP client config (e.g. `claude_desktop_config.json`, `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "mqtt-dashboard": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+👉 **Read the complete [MCP Server & AI Guide](docs/mcp-server.md)** for detailed client setup recipes, the 10 exposed tools reference, and stdio workflows.
 
 ---
 
@@ -120,9 +164,17 @@ Open **[http://localhost:8080](http://localhost:8080)** and start building!
                               │   configs,  │    └─────────────────────┘
                               │   history)  │
                               └─────────────┘
+                                     ▲
+                                     │ MCP (HTTP / SSE / Stdio)
+                              ┌──────┴──────┐
+                              │  AI Agents  │
+                              │  (Claude,   │
+                              │   Cursor,   │
+                              │ Antigravity)│
+                              └─────────────┘
 ```
 
-The Go binary serves the embedded React build directly, routing REST API calls, WebSocket streams, and MQTT client connections from a single port (`:8080`).
+The Go binary serves the embedded React build directly, routing REST API calls, WebSocket streams, MCP tool calls, and MQTT client connections from a single port (`:8080`).
 
 ---
 
@@ -130,10 +182,11 @@ The Go binary serves the embedded React build directly, routing REST API calls, 
 
 Deep-dive architecture and development guides are available in the [`docs/`](docs/) directory:
 
+- 🤖 **[MCP Server & AI Integration Guide](docs/mcp-server.md)** — Model Context Protocol endpoints, tool reference, AI workflows, and client configuration.
 - 📘 **[Payload Shaping & Template Guide](docs/payload-shaping.md)** — Dynamic value extraction, loose JSON parsing, and device examples (Zigbee2MQTT, Tasmota, Shelly).
 - 🛠️ **[Panel Architecture & Developer Guide](docs/panel-development-guide.md)** — Anatomy of `PanelDefinition`, UI primitives, validation rules, and step-by-step panel creation tutorial.
 - ⚙️ **[Configuration & Seeding Guide](docs/configuration.md)** — Two-tier runtime configuration (env vars, TOML), declarative `seed.json` schema, and GitOps provisioning.
-- 🚀 **[Native & Reverse-Proxy Deployment Guide](docs/alternative-deployments.md)** — Systemd service configuration, reverse proxy setup (Apache/Nginx), and sub-path routing.
+- 🚀 **[Native & Reverse-Proxy Deployment Guide](docs/systemd-apache-deployment.md)** — Systemd service configuration, reverse proxy setup (Apache/Nginx), and sub-path routing.
 - ⏰ **[Automations & Cron Engine](docs/automations-and-scheduler.md)** — In-memory scheduling with `gocron v2`, origin attribution, toggle APIs, and retention pruning.
 - 🔌 **[WebSocket Protocol Specification](docs/websocket-protocol.md)** — Wire protocol frames, topic subscription multiplexing, and client backpressure.
 - 🔐 **[Authentication & TLS Guide](docs/auth-and-tls.md)** — Plain TCP, TLS/SSL, mutual TLS (mTLS), and local test broker matrices.
