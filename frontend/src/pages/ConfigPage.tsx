@@ -1299,10 +1299,7 @@ export default function ConfigPage() {
                       </span>
                       <div className="flex flex-wrap gap-2">
                         {[
-                          [
-                            "list_brokers",
-                            "List configured brokers & status",
-                          ],
+                          ["list_brokers", "List configured brokers & status"],
                           [
                             "explore_topics",
                             "Discover active topics & sample payloads",
@@ -1315,14 +1312,8 @@ export default function ConfigPage() {
                             "get_panel_schema",
                             "13 panel schemas, {value} shaping & grid rules",
                           ],
-                          [
-                            "list_dashboards",
-                            "List dashboards & panel counts",
-                          ],
-                          [
-                            "get_dashboard",
-                            "Export dashboard layout & panels",
-                          ],
+                          ["list_dashboards", "List dashboards & panel counts"],
+                          ["get_dashboard", "Export dashboard layout & panels"],
                           [
                             "create_dashboard",
                             "Create dashboard with auto-layout",
