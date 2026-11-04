@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { MdMenu, MdEdit, MdAdd, MdKeyboardArrowUp } from "react-icons/md";
-import { RiCloseLine, RiExternalLinkLine } from "react-icons/ri";
+import { MdMenu, MdEdit, MdAdd, MdKeyboardArrowUp, MdCheck } from "react-icons/md";
+import { RiCloseLine, RiExternalLinkLine, RiServerLine } from "react-icons/ri";
 import DashboardSelector, { type Dashboard } from "./DashboardSelector";
 import { useBrokerStatuses, type BrokerStatus } from "../hooks/useBrokers";
 // Injected by docker/dev/docker-compose-dev.yml, one per worktree
@@ -28,7 +28,7 @@ const NAV_LINKS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/explorer", label: "Explorer" },
   { to: "/automations", label: "Automations" },
-  { to: "/config", label: "Configuration" },
+  { to: "/config", label: "Settings" },
 ];
 
 /** Chip surface for the aggregated broker state, per the Claude Design mock. */
@@ -47,11 +47,9 @@ const aggTextClass: Record<AggregatedStatus, string> = {
 /** Short summary of how many enabled brokers are currently connected. */
 function brokerSummary(statuses: BrokerStatus[]): string {
   const enabled = statuses.filter((s) => s.is_enabled);
-  if (enabled.length === 0) return "No brokers";
+  if (enabled.length === 0) return "0";
   const connected = enabled.filter((s) => s.status === "CONNECTED").length;
-  if (connected === enabled.length) return "All connected";
-  if (connected === 0) return "All brokers offline";
-  return `${connected} of ${enabled.length} connected`;
+  return `${connected}/${enabled.length}`;
 }
 
 const statusDot: Record<string, string> = {
@@ -258,6 +256,10 @@ export default function Layout() {
   const aggStatus = computeAggregated(brokerStatuses);
   const barHidden = navHidden && showDashboardControls;
   const visibleBrokers = brokerStatuses.slice(0, 6);
+  const enabledBrokers = brokerStatuses.filter((s) => s.is_enabled);
+  const connectedBrokers = enabledBrokers.filter(
+    (s) => s.status === "CONNECTED",
+  );
 
   const queryDashboard = new URLSearchParams(location.search).get("dashboard");
   const effectiveDashboardId =
@@ -369,13 +371,7 @@ export default function Layout() {
                   Demo
                 </span>
                 <span className="truncate">
-                  <span className="hidden sm:inline">
-                    Interactive demo instance with simulated IoT telemetry. Feel
-                    free to explore and edit — changes reset periodically.
-                  </span>
-                  <span className="sm:hidden">
-                    Demo instance with simulated telemetry. Resets periodically.
-                  </span>
+                  Demo mode · Telemetry simulated · Resets periodically
                 </span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 ml-3">
@@ -529,17 +525,18 @@ export default function Layout() {
                       title="Add panel (⌘K)"
                     >
                       <MdAdd className="text-base" />
-                      <span className="hidden sm:inline">Add panel</span>
+                      <span className="hidden sm:inline">Panel</span>
                       <kbd className="kbd kbd-xs hidden md:inline-flex">⌘K</kbd>
                     </button>
                     <button
-                      className="btn btn-sm btn-outline px-2 sm:px-3"
+                      className="btn btn-sm btn-outline px-2 sm:px-3 gap-1"
                       onClick={() => {
                         setEditMode(false);
                         setPanelLibraryOpen(false);
                       }}
                     >
-                      Done
+                      <MdCheck className="text-base" />
+                      <span>Done</span>
                     </button>
                   </>
                 ) : (
@@ -549,7 +546,7 @@ export default function Layout() {
                     title="Edit layout"
                   >
                     <MdEdit className="text-base" />
-                    <span className="hidden sm:inline">Edit layout</span>
+                    <span className="hidden sm:inline">Edit</span>
                   </button>
                 )}
               </>
@@ -574,10 +571,15 @@ export default function Layout() {
                 ref={flyoutTriggerRef}
                 className={`h-8 shrink-0 flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1.5 sm:pr-2 rounded-lg border transition-colors ${aggChipClass[aggStatus]} ${flyoutOpen ? "brightness-95" : ""}`}
                 onClick={() => setFlyoutOpen((o) => !o)}
-                title="Broker status"
+                title={
+                  enabledBrokers.length === 0
+                    ? "No enabled brokers"
+                    : `${connectedBrokers.length} of ${enabledBrokers.length} broker${enabledBrokers.length === 1 ? "" : "s"} connected`
+                }
                 aria-haspopup="menu"
                 aria-expanded={flyoutOpen}
               >
+                <RiServerLine className="text-sm shrink-0 opacity-70" />
                 <span className="flex items-center gap-[3px]">
                   {visibleBrokers.length === 0 ? (
                     <span className="w-[5px] h-3 rounded-[2px] bg-neutral" />
@@ -596,9 +598,10 @@ export default function Layout() {
                   )}
                 </span>
                 <span
-                  className={`hidden sm:inline text-xs tabular-nums ${aggTextClass[aggStatus]}`}
+                  className={`hidden sm:inline text-xs tabular-nums font-medium ${aggTextClass[aggStatus]}`}
                 >
                   {brokerSummary(brokerStatuses)}
+                  <span className="hidden md:inline"> connected</span>
                 </span>
                 <span
                   aria-hidden="true"
@@ -610,19 +613,32 @@ export default function Layout() {
                 <div
                   role="menu"
                   aria-label="Broker status"
-                  className="absolute right-0 top-full mt-1 z-50 w-[min(18rem,calc(100vw-1rem))] bg-base-100 border border-base-300 rounded-box shadow-lg"
+                  className="absolute right-0 top-full mt-1 z-50 w-[min(19rem,calc(100vw-1rem))] bg-base-100 border border-base-300 rounded-box shadow-lg"
                 >
-                  <div className="flex items-center justify-between px-4 pt-3 pb-1">
-                    <span className="text-xs uppercase tracking-wider text-base-content/50">
-                      MQTT brokers
-                    </span>
-                    <span className="text-xs text-base-content/50">
-                      {brokerStatuses.length} configured
+                  <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-base-200">
+                    <div className="flex items-center gap-1.5">
+                      <RiServerLine className="text-sm text-base-content/60" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-base-content/70">
+                        Brokers
+                      </span>
+                    </div>
+                    <span
+                      className={`badge badge-sm font-mono text-[11px] font-medium ${
+                        aggStatus === "CONNECTED"
+                          ? "bg-success/15 text-success border-success/30"
+                          : aggStatus === "PARTIALLY CONNECTED"
+                            ? "bg-warning/15 text-warning border-warning/30"
+                            : "bg-error/15 text-error border-error/30"
+                      }`}
+                    >
+                      {enabledBrokers.length === 0
+                        ? "No brokers"
+                        : `${connectedBrokers.length}/${enabledBrokers.length} connected`}
                     </span>
                   </div>
 
                   {brokerStatuses.length === 0 ? (
-                    <p className="text-xs text-base-content/50 px-4 pb-3">
+                    <p className="text-xs text-base-content/50 px-4 py-3">
                       No brokers configured
                     </p>
                   ) : (
@@ -631,10 +647,10 @@ export default function Layout() {
                         <li key={bs.id} className="w-full min-w-0">
                           <button
                             role="menuitem"
-                            className="!flex w-full min-w-0 items-center gap-2"
+                            className="!flex w-full min-w-0 items-center gap-2.5 py-2"
                             onClick={() => {
                               navigate(
-                                `/config?broker=${encodeURIComponent(bs.id)}`,
+                                `/config?tab=brokers&broker=${encodeURIComponent(bs.id)}`,
                               );
                               setFlyoutOpen(false);
                               flyoutTriggerRef.current?.focus();
@@ -644,16 +660,38 @@ export default function Layout() {
                               className={`w-2 h-2 rounded-full shrink-0 ${statusDot[bs.status] ?? "bg-neutral"}`}
                             />
                             <span className="flex flex-col min-w-0 flex-1">
-                              <span className="text-sm truncate">
+                              <span className="text-sm font-medium truncate">
                                 {bs.name}
                               </span>
-                              <span className="text-xs text-base-content/50 truncate">
+                              <span
+                                className={`text-[11px] truncate ${
+                                  bs.status_error
+                                    ? "text-error"
+                                    : "text-base-content/50"
+                                }`}
+                              >
                                 {bs.status_error ??
                                   (bs.is_enabled ? "Enabled" : "Disabled")}
                               </span>
                             </span>
-                            <span className="text-xs text-base-content/50 shrink-0">
-                              {bs.status}
+                            <span
+                              className={`text-xs shrink-0 font-mono font-medium ${
+                                bs.status === "CONNECTED"
+                                  ? "text-success"
+                                  : bs.status === "CONNECTING"
+                                    ? "text-warning"
+                                    : bs.is_enabled
+                                      ? "text-error"
+                                      : "text-base-content/40"
+                              }`}
+                            >
+                              {bs.status === "CONNECTED"
+                                ? "Connected"
+                                : bs.status === "CONNECTING"
+                                  ? "Connecting…"
+                                  : bs.is_enabled
+                                    ? "Disconnected"
+                                    : "Disabled"}
                             </span>
                           </button>
                         </li>
@@ -661,22 +699,20 @@ export default function Layout() {
                     </ul>
                   )}
 
-                  <div className="border-t border-base-300">
+                  <div className="border-t border-base-200">
                     <ul className="menu w-full p-2">
                       <li className="w-full min-w-0">
                         <button
                           role="menuitem"
-                          className="!flex w-full min-w-0 items-center justify-between"
+                          className="!flex w-full min-w-0 items-center justify-between text-xs font-medium text-base-content/70 hover:text-base-content"
                           onClick={() => {
-                            navigate("/config");
+                            navigate("/config?tab=brokers");
                             setFlyoutOpen(false);
                             flyoutTriggerRef.current?.focus();
                           }}
                         >
-                          <span className="text-sm">Manage brokers</span>
-                          <span className="text-xs text-base-content/40 shrink-0">
-                            Configuration
-                          </span>
+                          <span>Manage brokers</span>
+                          <span>→</span>
                         </button>
                       </li>
                     </ul>
@@ -730,7 +766,7 @@ export default function Layout() {
           <div className="flex items-center justify-center h-64 text-base-content/60">
             <div className="text-center">
               <span className="loading loading-spinner loading-lg mb-4" />
-              <p className="text-xl">Connecting to backend...</p>
+              <p className="text-xl">Connecting…</p>
             </div>
           </div>
         ) : (

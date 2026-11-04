@@ -55,7 +55,7 @@ describe("DashboardSelector", () => {
       screen.getByRole("menuitem", { name: /New dashboard/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("menuitem", { name: /Import from file/i }),
+      screen.getByRole("menuitem", { name: /Import/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("menuitem", { name: /Rename/i }),
@@ -75,7 +75,7 @@ describe("DashboardSelector", () => {
     renderSelector();
 
     fireEvent.click(screen.getByTitle("Dashboard options"));
-    fireEvent.change(screen.getByPlaceholderText("Find a dashboard"), {
+    fireEvent.change(screen.getByPlaceholderText("Search dashboards…"), {
       target: { value: "second" },
     });
 

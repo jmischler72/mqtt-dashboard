@@ -22,9 +22,9 @@ export default function PublishOptionsCard({
   onQosChange,
   retain,
   onRetainChange,
-  retainNote = "Last message kept for new subscribers",
+  retainNote = "Retained for new subscribers",
 }: PublishOptionsCardProps) {
-  const summary = `QoS ${qos} · ${retain ? "Retain ON" : "No retain"}`;
+  const summary = `QoS ${qos} · ${retain ? "Retained" : "No retain"}`;
 
   return (
     <DisclosureCard
@@ -35,10 +35,10 @@ export default function PublishOptionsCard({
         </span>
       }
     >
-      <FieldRow label="QoS (Quality of Service)">
+      <FieldRow label="QoS">
         <select
           className="select select-bordered w-full min-w-0 h-[30px] min-h-[30px] text-xs"
-          aria-label="Quality of service"
+          aria-label="QoS"
           value={qos}
           onChange={(e) => onQosChange(Number(e.target.value))}
         >
@@ -49,7 +49,7 @@ export default function PublishOptionsCard({
       </FieldRow>
 
       <SwitchRow
-        name="Retain on broker"
+        name="Retain message"
         note={retainNote}
         on={retain}
         onToggle={onRetainChange}

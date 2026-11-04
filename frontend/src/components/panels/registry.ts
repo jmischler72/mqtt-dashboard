@@ -123,8 +123,8 @@ export function defaultCheckEmpty(
     const topic = String(cfg.topic ?? cfg.topics ?? "").trim();
     if (!topic) {
       return {
-        message: "No topic configured — open settings to add topic",
-        actionLabel: "Configure Topic",
+        message: "No topic configured",
+        actionLabel: "Set Topic",
       };
     }
   }

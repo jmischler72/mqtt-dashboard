@@ -86,7 +86,7 @@ export function ButtonConfigModal({
   return (
     <PanelConfigModal
       icon={MdSmartButton}
-      title="Button Configuration"
+      title="Button Settings"
       brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
       blockerReason={blockerReason}
       onCancel={onClose}
@@ -108,7 +108,6 @@ export function ButtonConfigModal({
           }}
           topicPlaceholder="home/light/set"
           topicError={fieldErrors.topic}
-          help="Comma-separate to publish to several topics."
           onExplore={
             onPickTopic
               ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
@@ -154,7 +153,7 @@ export function ButtonConfigModal({
 
       <ConfigGroup heading="Appearance">
         <ConfigCard>
-          <FieldRow label="Label" help="Button text. Scales to the panel.">
+          <FieldRow label="Label">
             <input
               className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
               value={label}
@@ -313,7 +312,7 @@ export default function ButtonPanel({
         disabled={loading || parsedTopics.length === 0 || hasWildcard}
         title={
           hasWildcard
-            ? "Cannot publish to wildcard topics (+ or #)"
+            ? "Wildcards (+ / #) cannot be published to"
             : parsedTopics.length === 0
               ? "No topic configured"
               : undefined

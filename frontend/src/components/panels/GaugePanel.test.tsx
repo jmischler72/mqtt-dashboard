@@ -86,7 +86,7 @@ describe("GaugePanel", () => {
 
   it("renders empty state when no topic is configured", () => {
     render(<GaugePanel panelId="p1" brokerId="b1" config={{}} />);
-    expect(screen.getByText("No Topic Configured")).toBeInTheDocument();
+    expect(screen.getByText("No topic configured")).toBeInTheDocument();
   });
 
   it("loads history and displays last known numeric value with unit", async () => {

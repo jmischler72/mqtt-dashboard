@@ -48,8 +48,8 @@ export default function TopicField({
       statusIcon = (
         <div
           className="tooltip tooltip-left shrink-0 flex items-center justify-center w-5"
-          data-tip="Checking topic messages..."
-          title="Checking topic messages..."
+          data-tip="Checking activity…"
+          title="Checking activity…"
         >
           <RiMessage3Line className="text-sm text-base-content/40 animate-pulse shrink-0" />
         </div>
@@ -63,10 +63,10 @@ export default function TopicField({
           ? "text-warning"
           : "text-base-content/30";
       const tooltipMsg = isAll
-        ? `All ${totalCount} topics have recorded messages`
+        ? `Active (${totalCount}/${totalCount} topics)`
         : isSome
-          ? `${activeCount} of ${totalCount} topics have recorded messages`
-          : `0 of ${totalCount} topics have recorded messages`;
+          ? `Active (${activeCount}/${totalCount} topics)`
+          : `No recent messages (0/${totalCount})`;
 
       statusIcon = (
         <div
@@ -80,8 +80,8 @@ export default function TopicField({
     } else if (topics.length === 1) {
       const iconColor = hasMessages ? "text-success" : "text-base-content/30";
       const tooltipMsg = hasMessages
-        ? `Messages found on this topic${lastSeen ? ` (last active ${lastSeen})` : ""}`
-        : "No messages recorded on this topic yet";
+        ? `Active${lastSeen ? ` (last seen ${lastSeen})` : ""}`
+        : "No recent messages";
 
       statusIcon = (
         <div
@@ -115,7 +115,7 @@ export default function TopicField({
           {onExplore && (
             <button
               type="button"
-              title="Browse topics in Explorer"
+              title="Browse in Explorer"
               onClick={onExplore}
               className="btn btn-ghost btn-xs btn-square shrink-0 text-base-content/60 hover:text-base-content"
             >
@@ -145,8 +145,8 @@ export default function TopicField({
                       }`}
                       title={
                         topicInfo?.hasMessages
-                          ? `Messages found (last active ${topicInfo.lastSeen || "recently"})`
-                          : "No messages recorded on this topic yet"
+                          ? `Active (last seen ${topicInfo.lastSeen || "recently"})`
+                          : "No recent messages"
                       }
                     />
                   )}
@@ -185,7 +185,7 @@ export default function TopicField({
         {onExplore && (
           <button
             type="button"
-            title="Browse topics in Explorer"
+            title="Browse in Explorer"
             onClick={onExplore}
             className="btn btn-sm btn-square btn-outline border-base-300 text-base-content/70 hover:text-base-content shrink-0"
           >
@@ -215,8 +215,8 @@ export default function TopicField({
                     }`}
                     title={
                       topicInfo?.hasMessages
-                        ? `Messages found (last active ${topicInfo.lastSeen || "recently"})`
-                        : "No messages recorded on this topic yet"
+                        ? `Active (last seen ${topicInfo.lastSeen || "recently"})`
+                        : "No recent messages"
                     }
                   />
                 )}

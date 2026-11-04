@@ -74,7 +74,7 @@ export function InputConfigModal({
   return (
     <PanelConfigModal
       icon={MdInput}
-      title="Input Configuration"
+      title="Input Settings"
       brokerStatus={brokerPresence(brokerStatuses, selectedBrokerId)}
       blockerReason={blockerReason}
       onCancel={onClose}
@@ -101,7 +101,6 @@ export function InputConfigModal({
           }}
           topicPlaceholder="home/display/text"
           topicError={fieldErrors.topic}
-          help="Comma-separate to publish to several topics."
           onExplore={
             onPickTopic
               ? () =>
@@ -125,10 +124,7 @@ export function InputConfigModal({
 
       <ConfigGroup heading="Appearance">
         <ConfigCard>
-          <FieldRow
-            label="Hint"
-            help="Placeholder shown inside the empty field."
-          >
+          <FieldRow label="Placeholder">
             <input
               className="input input-bordered w-full min-w-0 h-8 min-h-8 text-xs"
               value={placeholder}
@@ -239,7 +235,7 @@ export default function InputPanel({
         onClick={handlePublish}
         disabled={loading || parsedTopics.length === 0 || !value || hasWildcard}
         title={
-          hasWildcard ? "Cannot publish to wildcard topics (+ or #)" : undefined
+          hasWildcard ? "Wildcards (+ / #) cannot be published to" : undefined
         }
       >
         {loading ? (

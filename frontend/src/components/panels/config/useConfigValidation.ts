@@ -53,7 +53,7 @@ export function brokerRules(brokerCount: number): ConfigRule[] {
   return [
     {
       when: brokerCount === 0,
-      message: "Add a broker in Config to save.",
+      message: "Broker required. Configure one in Settings.",
     },
   ];
 }
@@ -68,7 +68,7 @@ export interface TopicRuleSpec {
    * a list — saying so beats dropping the rest without a word.
    */
   allowMultiple?: boolean;
-  /** "A command topic", "A topic", "Read-back" — what the sentence is about. */
+  /** "Command topic", "Topic", "Read-back" — what the rule is about. */
   subject?: string;
 }
 
@@ -77,7 +77,7 @@ export function topicRules({
   topic,
   allowWildcards = false,
   allowMultiple = true,
-  subject = "A topic",
+  subject = "Topic",
 }: TopicRuleSpec): ConfigRule[] {
   const entries = topic
     .split(",")
@@ -89,17 +89,17 @@ export function topicRules({
     {
       field,
       when: entries.length === 0,
-      message: `${subject} is needed before this can save.`,
+      message: `${subject} is required.`,
     },
     {
       field,
       when: !allowMultiple && entries.length > 1,
-      message: `This panel works with one topic — remove the ${entries.length - 1} after ${entries[0]}.`,
+      message: `Only one topic allowed — remove extra topics after ${entries[0]}.`,
     },
     {
       field,
       when: !allowWildcards && wild.length > 0,
-      message: `Publishing to a wildcard topic isn't possible — remove ${wild[0] ?? "+ and #"}.`,
+      message: `Cannot publish to wildcard topic (${wild[0] ?? "+ / #"}).`,
     },
   ];
 }
@@ -131,7 +131,6 @@ export function payloadRules({
   mode,
   acceptsChip = true,
   allowEmpty = false,
-  subject = "this panel has",
 }: PayloadRuleSpec): ConfigRule[] {
   const tokenCount = countTokens(value);
   const chip = tokenCount > 0;
@@ -141,16 +140,14 @@ export function payloadRules({
       {
         field,
         when: tokenCount > 1,
-        message:
-          "A read shape can only mark one value to extract. Remove the extra token.",
+        message: "A read shape can only mark one value to extract.",
       },
       {
         field,
         // A blank box is only a problem when the panel cannot read the whole
         // payload; bytes with no chip in them mark nothing either way.
         when: allowEmpty ? value.trim() !== "" && !chip : !chip,
-        message:
-          "The read shape has no value token, so nothing can be pulled out of it.",
+        message: "Read shape requires a {value} token.",
       },
     ];
   }
@@ -159,13 +156,12 @@ export function payloadRules({
     {
       field,
       when: !allowEmpty && value.trim() === "",
-      message: `No message configured — ${subject} nothing to publish.`,
+      message: "Payload message required.",
     },
     {
       field,
       when: acceptsChip && value.trim() !== "" && !chip,
-      message:
-        "Add the value token to the message, or every publish sends the same bytes.",
+      message: "Add {value} token to publish dynamic value.",
     },
   ];
 }
@@ -185,8 +181,8 @@ export function rangeRules({
   low,
   high,
   step,
-  lowLabel = "Low",
-  highLabel = "High",
+  lowLabel = "Min",
+  highLabel = "Max",
 }: RangeRuleSpec): ConfigRule[] {
   const num = (raw: string) =>
     raw.trim() === "" || Number.isNaN(Number(raw)) ? null : Number(raw);
@@ -199,7 +195,7 @@ export function rangeRules({
     {
       field,
       when: lowNum === null || highNum === null,
-      message: `${lowLabel} and ${highLabel} are both required.`,
+      message: `${lowLabel} and ${highLabel} are required.`,
     },
     {
       field,
@@ -209,7 +205,7 @@ export function rangeRules({
     {
       field,
       when: step !== undefined && (stepNum === null || stepNum <= 0),
-      message: "Step must be greater than 0.",
+      message: "Step must be > 0.",
     },
   ];
 }

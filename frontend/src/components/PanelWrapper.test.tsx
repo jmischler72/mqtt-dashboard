@@ -113,7 +113,7 @@ describe("PanelWrapper header metadata", () => {
     });
     fireEvent.mouseEnter(statusDots[statusDots.length - 1]);
     fireEvent.click(
-      await screen.findByRole("button", { name: /pin broker metadata/i }),
+      await screen.findByRole("button", { name: /pin metadata/i }),
     );
 
     await waitFor(() => {

@@ -123,7 +123,7 @@ export function BrokerStatsConfigModal({
           topic={topic}
           onTopicChange={setTopic}
           topicPlaceholder="# (everything)"
-          help="Read-only, so wildcards (+ and #) are fine. Leave blank to count everything."
+          help="Wildcards supported. Leave blank for all topics."
           onExplore={
             onPickTopic
               ? () =>
@@ -154,22 +154,22 @@ export function BrokerStatsConfigModal({
           </select>
         </ConfigCard>
 
-        <ConfigCard title="Visible Sections">
+        <ConfigCard title="Visible sections">
           <SwitchRow
             name="Stat tiles"
-            note="The headline numbers across the top of the panel"
+            note="Key metrics summary"
             on={showStatTiles}
             onToggle={setShowStatTiles}
           />
           <SwitchRow
             name="Chart"
-            note="The message-rate graph"
+            note="Throughput graph"
             on={showChart}
             onToggle={setShowChart}
           />
           <SwitchRow
             name="Topic breakdown"
-            note="The busiest topics, counted over the same window"
+            note="Top active topics"
             on={showTopicBreakdown}
             onToggle={setShowTopicBreakdown}
           />

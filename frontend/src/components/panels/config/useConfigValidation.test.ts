@@ -15,7 +15,7 @@ const useBroken = (rules: ReturnType<typeof topicRules>) =>
 describe("topicRules", () => {
   it("asks for a topic before anything else", () => {
     expect(useBroken(topicRules({ topic: "  " })).blockerReason).toContain(
-      "is needed",
+      "is required",
     );
   });
 

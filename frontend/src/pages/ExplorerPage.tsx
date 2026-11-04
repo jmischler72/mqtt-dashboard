@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { RiCloseLine } from "react-icons/ri";
 import { api } from "../api/client";
 import { useBrokerStatuses } from "../hooks/useBrokers";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -363,7 +364,7 @@ export default function ExplorerPage() {
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left tooltip-start"
-              data-tip="When enabled, clicking a parent topic only shows messages published directly to that exact topic instead of including all child topics (topic/#)."
+              data-tip="Show only messages published directly to this topic (excludes children)"
             >
               <span className="label-text text-xs">Show exact topic only</span>
             </div>
@@ -377,7 +378,7 @@ export default function ExplorerPage() {
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left tooltip-start"
-              data-tip="Plot the selected topic over time. Bare numbers are charted directly; for JSON payloads the first numeric field is picked automatically. Messages with nothing numeric in them are skipped."
+              data-tip="Plot numeric values over time"
             >
               <span className="label-text text-xs">Show graph</span>
             </div>
@@ -391,7 +392,7 @@ export default function ExplorerPage() {
           <label className="label cursor-pointer gap-2 p-0">
             <div
               className="tooltip tooltip-left tooltip-start"
-              data-tip="Show $SYS broker system topics in the tree. If you have not enabled 'Save $SYS topics in history' in settings, these topics will only be visible here when they are published by the broker, and will not be saved to history."
+              data-tip="Include broker $SYS system topics"
             >
               <span className="label-text text-xs">Show $SYS</span>
             </div>
@@ -461,7 +462,7 @@ export default function ExplorerPage() {
                     setFilterText("");
                   }
                 }}
-                placeholder="Filter topics..."
+                placeholder="Filter topics…"
                 className="input input-sm input-bordered w-full pl-8 pr-7 text-xs font-mono"
               />
               {filterText && (
@@ -472,13 +473,13 @@ export default function ExplorerPage() {
                   title="Clear filter (Esc)"
                   aria-label="Clear filter"
                 >
-                  ✕
+                  <RiCloseLine className="text-sm" />
                 </button>
               )}
             </div>
             {filterText && (
               <div className="mt-1 px-1 text-[11px] text-base-content/50">
-                {filteredTopics.length} of {displayedTopics.length} matched
+                {filteredTopics.length} / {displayedTopics.length} matched
               </div>
             )}
           </div>
@@ -504,7 +505,7 @@ export default function ExplorerPage() {
         <main className="flex-1 flex flex-col overflow-hidden p-4 gap-3">
           {!selectedTopic ? (
             <div className="flex items-center justify-center h-full text-base-content/40 text-sm">
-              Select a topic from the tree to inspect its messages
+              Select topic to inspect messages
             </div>
           ) : (
             <>

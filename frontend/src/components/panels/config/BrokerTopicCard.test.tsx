@@ -175,6 +175,6 @@ describe("BrokerTopicCard", () => {
       />,
     );
 
-    expect(screen.getByText("No topic configured")).toBeInTheDocument();
+    expect(screen.getByText("Unset")).toBeInTheDocument();
   });
 });

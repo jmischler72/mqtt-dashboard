@@ -181,7 +181,6 @@ export function CronConfigModal({
           }}
           topicPlaceholder="devices/hub/cmd"
           topicError={fieldErrors.topic}
-          help="Comma-separate to publish to several topics."
           onExplore={
             onPickTopic
               ? () => onPickTopic({ currentTopic: topic, selectedBrokerId })
@@ -361,7 +360,7 @@ export default function CronPanel({
   if (!topic) {
     return (
       <div className="flex items-center justify-center h-full text-base-content/40 text-xs">
-        No topic configured — open settings to add topic
+        No topic configured
       </div>
     );
   }
@@ -433,7 +432,7 @@ export default function CronPanel({
           disabled={toggling || !config.cron_expr || hasWildcard}
           title={
             hasWildcard
-              ? "Cannot publish to wildcard topics (+ or #)"
+              ? "Wildcards (+ / #) cannot be published to"
               : undefined
           }
           onChange={(e) => handleToggle(e.target.checked)}

@@ -266,7 +266,7 @@ export function GaugeConfigModal({
       </ConfigGroup>
 
       <ConfigGroup heading="Appearance">
-        <ConfigCard title="Style" summary="Drawn with the value above">
+        <ConfigCard title="Style">
           <ChoiceCards<GaugeType>
             value={gaugeType}
             effective={effectiveType}
@@ -299,8 +299,7 @@ export function GaugeConfigModal({
           />
           {fellBack && (
             <span className="text-[11px] leading-relaxed text-warning">
-              Radial and Bar need a number to fill against. Showing Big value
-              for now — your pick comes back when the payload is numeric again.
+              Radial and Bar require numeric values. Showing Big value.
             </span>
           )}
         </ConfigCard>
@@ -308,7 +307,7 @@ export function GaugeConfigModal({
         {scaleUsed && (
           <ConfigCard
             title="Scale"
-            summary="Where the fill starts and ends"
+            summary={`${min} → ${max}`}
             invalid={Boolean(fieldErrors.scale)}
           >
             <NumberRangeRow
@@ -602,17 +601,13 @@ export default function GaugePanel({
       {!topic ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 text-base-content/40 p-4 text-center">
           <MdSpeed className="text-4xl opacity-50" />
-          <span className="text-sm font-medium">No Topic Configured</span>
-          <span className="text-xs text-base-content/50">
-            Configure a topic to display live gauge data.
-          </span>
+          <span className="text-sm font-medium">No topic configured</span>
         </div>
       ) : !data ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 p-4 text-center">
           <div className="loading loading-spinner loading-md text-primary" />
-          <span className="text-xs text-base-content/60 font-mono animate-pulse">
-            Waiting for data on{" "}
-            <span className="font-semibold text-accent">{topic}</span>…
+          <span className="text-xs text-base-content/50 font-mono animate-pulse">
+            Waiting for messages…
           </span>
         </div>
       ) : (

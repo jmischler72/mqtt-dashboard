@@ -1,5 +1,10 @@
-import { useRef, useState } from "react";
-import { RiCloseLine } from "react-icons/ri";
+import { useRef, useState, type ReactNode } from "react";
+import {
+  RiCloseLine,
+  RiEyeLine,
+  RiMessage3Line,
+  RiSendPlaneLine,
+} from "react-icons/ri";
 import {
   usePayloadSample,
   type RecentMessage,
@@ -450,15 +455,15 @@ function WritePreview({
 
   if (asCard) {
     if (value.trim() === "") {
-      return <PreviewBox problem="Nothing to send yet." />;
+      return <PreviewBox problem="Payload required" />;
     }
     if (missingToken) {
-      return <PreviewBox problem={`No ${TOKEN_LABEL} token in message.`} />;
+      return <PreviewBox problem={`Missing ${TOKEN_LABEL} token`} />;
     }
 
     if (range) {
       return (
-        <PreviewBox note="Move the handle.">
+        <PreviewBox note="Adjust slider to test">
           <div className="flex flex-col gap-2 min-w-0">
             <input
               type="range"
@@ -470,7 +475,12 @@ function WritePreview({
               value={at}
               onChange={(e) => onPosition(Number(e.target.value))}
             />
-            <PreviewLine label="Sends" bytes={renderedBytes} />
+            <PreviewLine
+              icon={<RiSendPlaneLine className="text-base shrink-0" />}
+              tooltip="Sends"
+              bytes={renderedBytes}
+              badgeClass="bg-primary/10 border border-primary/25 text-primary"
+            />
           </div>
         </PreviewBox>
       );
@@ -478,7 +488,12 @@ function WritePreview({
 
     return (
       <PreviewBox>
-        <PreviewLine label="Sends" bytes={renderedBytes} />
+        <PreviewLine
+          icon={<RiSendPlaneLine className="text-base shrink-0" />}
+          tooltip="Sends"
+          bytes={renderedBytes}
+          badgeClass="bg-primary/10 border border-primary/25 text-primary"
+        />
       </PreviewBox>
     );
   }
@@ -498,14 +513,24 @@ function WritePreview({
           value={at}
           onChange={(e) => onPosition(Number(e.target.value))}
         />
-        <PreviewLine label="Sends" bytes={renderedBytes} />
+        <PreviewLine
+          icon={<RiSendPlaneLine className="text-base shrink-0" />}
+          tooltip="Sends"
+          bytes={renderedBytes}
+          badgeClass="bg-primary/10 border border-primary/25 text-primary"
+        />
       </div>
     );
   }
 
   return (
     <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 min-w-0">
-      <PreviewLine label="Sends" bytes={renderedBytes} />
+      <PreviewLine
+        icon={<RiSendPlaneLine className="text-base shrink-0" />}
+        tooltip="Sends"
+        bytes={renderedBytes}
+        badgeClass="bg-primary/10 border border-primary/25 text-primary"
+      />
     </div>
   );
 }
@@ -543,14 +568,14 @@ function ReadPreview({
       return (
         <PreviewBox
           problem={
-            topic.trim() === "" ? "No topic yet." : "Waiting for messages…"
+            topic.trim() === "" ? "Topic required" : "Waiting for messages…"
           }
         />
       );
     }
 
     if ((blank && !allowBlankShape) || (!blank && !chip)) {
-      return <PreviewBox problem={`Click ${TOKEN_LABEL} to mark value`} />;
+      return <PreviewBox problem="Select or tap value to extract" />;
     }
 
     const read = readShape(value, latest.payload, readPath);
@@ -558,7 +583,11 @@ function ReadPreview({
     if (!read.found) {
       return (
         <PreviewBox>
-          <PreviewLine label="Latest" bytes={latest.payload} />
+          <PreviewLine
+            icon={<RiMessage3Line className="text-base shrink-0" />}
+            tooltip="Latest message"
+            bytes={latest.payload}
+          />
           <span className="text-[11px] leading-relaxed text-warning">
             Pattern mismatch with latest message
           </span>
@@ -566,18 +595,22 @@ function ReadPreview({
       );
     }
 
+    const readDisplay = `${readsText ? read.text : String(read.value)}${unit ? ` ${unit}` : ""}`;
+
     return (
       <PreviewBox>
-        <PreviewLine label="Latest" bytes={latest.payload} />
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className="shrink-0 w-12 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
-            Reads
-          </span>
-          <span className="flex-1 min-w-0 font-mono font-semibold text-xs truncate text-success">
-            {readsText ? read.text : String(read.value)}
-            {unit ? ` ${unit}` : ""}
-          </span>
-        </div>
+        <PreviewLine
+          icon={<RiMessage3Line className="text-base shrink-0" />}
+          tooltip="Latest message"
+          bytes={latest.payload}
+        />
+        <PreviewLine
+          icon={<RiEyeLine className="text-base shrink-0" />}
+          tooltip="Reads"
+          bytes={readDisplay}
+          badgeClass="bg-success/15 border border-success/30 text-success"
+          codeClass="bg-success/10 border border-success/25 text-success font-semibold"
+        />
       </PreviewBox>
     );
   }
@@ -595,7 +628,7 @@ function ReadPreview({
   if ((blank && !allowBlankShape) || (!blank && !chip)) {
     return (
       <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 text-[11px] text-base-content/40">
-        Click {TOKEN_LABEL} to mark value
+        Select or tap value to extract
       </div>
     );
   }
@@ -605,7 +638,11 @@ function ReadPreview({
   if (!read.found) {
     return (
       <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
-        <PreviewLine label="Latest" bytes={latest.payload} />
+        <PreviewLine
+          icon={<RiMessage3Line className="text-base shrink-0" />}
+          tooltip="Latest message"
+          bytes={latest.payload}
+        />
         <span className="text-[11px] leading-relaxed text-warning">
           Pattern mismatch with latest message
         </span>
@@ -613,18 +650,22 @@ function ReadPreview({
     );
   }
 
+  const readDisplay = `${readsText ? read.text : String(read.value)}${unit ? ` ${unit}` : ""}`;
+
   return (
     <div className="border-t border-base-content/10 bg-base-200/50 px-2.5 py-1.5 flex flex-col gap-1 min-w-0">
-      <PreviewLine label="Latest" bytes={latest.payload} />
-      <div className="flex items-baseline gap-2 min-w-0">
-        <span className="shrink-0 w-12 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
-          Reads
-        </span>
-        <span className="flex-1 min-w-0 font-mono font-semibold text-xs truncate text-success">
-          {readsText ? read.text : String(read.value)}
-          {unit ? ` ${unit}` : ""}
-        </span>
-      </div>
+      <PreviewLine
+        icon={<RiMessage3Line className="text-base shrink-0" />}
+        tooltip="Latest message"
+        bytes={latest.payload}
+      />
+      <PreviewLine
+        icon={<RiEyeLine className="text-base shrink-0" />}
+        tooltip="Reads"
+        bytes={readDisplay}
+        badgeClass="bg-success/15 border border-success/30 text-success"
+        codeClass="bg-success/10 border border-success/25 text-success font-semibold"
+      />
     </div>
   );
 }
@@ -632,19 +673,63 @@ function ReadPreview({
 /** One labelled row of bytes inside a preview. */
 export function PreviewLine({
   label,
+  icon,
+  tooltip,
   bytes,
+  badgeClass,
+  codeClass,
 }: {
-  label: string;
+  label?: ReactNode;
+  icon?: ReactNode;
+  tooltip?: string;
   bytes: string;
+  badgeClass?: string;
+  codeClass?: string;
 }) {
+  const badge = icon ? (
+    <div
+      className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${
+        badgeClass ??
+        "bg-base-200 border border-base-300 dark:border-base-100/30 text-base-content"
+      }`}
+    >
+      {icon}
+    </div>
+  ) : label ? (
+    <span
+      className={`min-w-6 px-1.5 h-6 rounded flex items-center justify-center shrink-0 text-[10px] font-semibold uppercase tracking-wider ${
+        badgeClass ??
+        "bg-base-200 border border-base-300 dark:border-base-100/30 text-base-content/70"
+      }`}
+    >
+      {label}
+    </span>
+  ) : null;
+
   return (
-    <div className="flex items-start gap-2 min-w-0">
-      <span className="shrink-0 w-12 pt-0.5 text-[9px] font-semibold uppercase tracking-wider text-base-content/50">
-        {label}
-      </span>
-      <span className="flex-1 min-w-0 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
+    <div className="flex items-center gap-2 min-w-0">
+      {badge ? (
+        tooltip ? (
+          <div
+            className="tooltip tooltip-top shrink-0 flex items-center"
+            data-tip={tooltip}
+            title={tooltip}
+          >
+            {badge}
+          </div>
+        ) : (
+          badge
+        )
+      ) : null}
+      <code
+        className={`flex-1 min-w-0 font-mono text-xs px-2.5 py-1 rounded border truncate select-all ${
+          codeClass ??
+          "bg-base-200/80 dark:bg-base-200/40 border-base-300 dark:border-base-100/30 text-base-content"
+        }`}
+        title={bytes}
+      >
         {bytes}
-      </span>
+      </code>
     </div>
   );
 }

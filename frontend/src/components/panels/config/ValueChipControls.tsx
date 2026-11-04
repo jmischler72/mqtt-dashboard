@@ -78,8 +78,8 @@ export default function ValueChipControls({
             type="button"
             title={
               mode === "read"
-                ? `Mark where value is read: click where it goes or select text`
-                : `Insert ${t.token}`
+                ? `Mark ${t.token} extraction target`
+                : `Insert ${t.token} token`
             }
             onMouseDown={(e) => {
               e.preventDefault();
